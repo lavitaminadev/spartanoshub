@@ -1004,3 +1004,7 @@
    escrito encima de la última tarjeta de ocasiones—. Con las ocasiones dentro casi nunca cabe,
    así que ahí se desactiva. Sin ellas sigue pegada, que es cuando aporta. */
 .public-booking-intro:has(.booking-ocasiones) { position: static; }
+
+/* Qué pasó con un cupón que se mandó por correo: los que volvieron, sobre los que salieron. */
+.cupon-correo { display:grid; gap:1px; }
+.cupon-correo small { color:var(--muted); font-size:11px; }

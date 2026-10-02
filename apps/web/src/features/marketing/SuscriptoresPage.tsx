@@ -150,6 +150,33 @@ export function SuscriptoresPage() {
         </div>
       </div>
 
+      {/*
+        Qué puedes hacer desde donde estás, dicho antes de que lo descubras a tropezones.
+        Lo que se puede sacar de esta pantalla cambia mucho según quién mire y qué empresa esté
+        elegida, y eso no se veía en ninguna parte: había que probar los botones. Se dice en una
+        línea, arriba, y cambia con el filtro.
+      */}
+      <p className="alcance-aviso">
+        {esEmpresa ? <>
+          <strong>Estás viendo tu lista.</strong> Son quienes aceptaron recibir correo <strong>de tu
+          local</strong>. Puedes descargarlos para escribirles por tu cuenta; enviar desde aquí lo
+          hace la agencia, porque quien aprieta el botón responde de que cada dirección tenga
+          respaldo.
+        </> : empresa === 'agencia' ? <>
+          <strong>Lista de la agencia.</strong> Son quienes aceptaron recibir de <strong>toda la
+          red</strong> —la casilla «beneficios de los demás locales»—, no la suma de las listas de
+          cada empresa. Es la única con permiso para hablar en nombre de Espartanos.
+        </> : empresa ? <>
+          <strong>Lista de una empresa.</strong> Su permiso vale sólo para ella: no se puede usar
+          para escribirle en nombre de otro local ni de la red. Para eso está la lista de la
+          agencia.
+        </> : <>
+          <strong>Estás viendo todas las listas juntas.</strong> Sirve para buscar a una persona y
+          ver dónde está. Para escribir hay que elegir una empresa: <strong>no existe mandar a
+          todas de una vez</strong>, porque quien aceptó en un local no se lo dio a los demás.
+        </>}
+      </p>
+
       {/* Los números salen de la base entera, no de las filas que se ven: sirven para decidir. */}
       {!esEmpresa && data?.resumen?.length ? (
         <div className="suscriptores-resumen">

@@ -171,6 +171,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Reservation.prototype, "cuponEnviadoEn", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'cupon_enviado_codigo', type: 'varchar', length: 40, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "cuponEnviadoCodigo", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }),
     __metadata("design:type", Object)
 ], Reservation.prototype, "guestConfirmedAt", void 0);

@@ -389,7 +389,22 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async listCoupons(@Req() req: AuthenticatedRequest) {
     const scope = await this.scope(req);
-    return this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds);
+    /*
+     * La lista viene con lo que pasó con cada cupón, no sólo con su configuración.
+     *
+     * Se resuelven juntas y no en dos llamadas porque la pantalla las muestra en la misma fila: un
+     * cupón sin «cuántos volvieron» al lado es una regla, no una medición, y era lo único que se
+     * podía ver hasta ahora.
+     */
+    const [cupones, uso] = await Promise.all([
+      this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds),
+      this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds),
+    ]);
+    const porCodigo = new Map(uso.map((fila) => [fila.code, fila]));
+    return cupones.map((cupon) => ({
+      ...cupon,
+      uso: porCodigo.get(cupon.code) ?? { code: cupon.code, enviados: 0, usados: 0, volvieronDelCorreo: 0 },
+    }));
   }
 
   @Post('coupons')

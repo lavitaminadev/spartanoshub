@@ -98,6 +98,14 @@ export class Reservation {
    * se volveria a revisar en cada pasada del trabajo hasta que envejeciera.
    */
   @Column({ name: 'cupon_enviado_en', type: 'timestamp', nullable: true }) cuponEnviadoEn?: Date | null;
+  /**
+   * Qué código se le mandó, y no sólo cuándo.
+   *
+   * Con la fecha sola se evitaba repetir el envío, que era para lo que se hizo, pero no se podía
+   * responder «de los cupones que mandamos, ¿cuántos volvieron?»: una reserva trae el cupón con el
+   * que vino, y sin el código enviado no hay forma de cruzarlos sin adivinar por fechas.
+   */
+  @Column({ name: 'cupon_enviado_codigo', type: 'varchar', length: 40, nullable: true }) cuponEnviadoCodigo?: string | null;
   /** Confirmación explícita desde el enlace privado; no altera la asistencia real. */
   @Column({ name: 'guest_confirmed_at', type: 'timestamp', nullable: true }) guestConfirmedAt?: Date | null;
   /** Opt-in separado para analítica/conversiones; nunca se deduce del consentimiento operativo. */

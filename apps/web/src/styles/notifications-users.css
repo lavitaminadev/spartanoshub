@@ -433,3 +433,10 @@
   background:var(--white); color:var(--muted); font-size:11px; cursor:pointer;
 }
 .compartir-campanas-usadas button.es-activa { border-color:var(--primary); background:var(--primary); color:#fff; }
+
+/* Qué se puede hacer desde donde estás: una línea que cambia con el filtro, no un manual aparte. */
+.alcance-aviso {
+  margin:0 0 14px; padding:10px 13px; border-left:3px solid var(--primary);
+  border-radius:0 var(--radius-md) var(--radius-md) 0; background:var(--soft);
+  color:var(--text); font-size:13px; line-height:1.55;
+}

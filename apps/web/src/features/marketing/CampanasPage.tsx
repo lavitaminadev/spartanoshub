@@ -80,6 +80,20 @@ export function CampanasPage() {
         <button type="button" className="btn btn-primary" onClick={() => setEditando('nueva')}>Escribir una campaña</button>
       </div>
 
+      {/*
+        A quién se le puede escribir desde aquí, dicho antes de abrir el editor.
+        Es la primera pregunta de quien entra, y la respuesta estaba repartida entre tres avisos
+        dentro del formulario. Dicha arriba evita escribir una campaña entera para descubrir al
+        confirmar que iba a la lista equivocada.
+      */}
+      <p className="alcance-aviso">
+        <strong>Cada campaña va a una sola lista.</strong> La de un local llega a quienes aceptaron
+        recibir <strong>de ese local</strong>; la de <strong>Espartanos (agencia)</strong>, a
+        quienes aceptaron recibir de toda la red. No existe «todas las listas»: el permiso que
+        alguien le dio a un local no vale para otro. Para escribirle a direcciones que no están,
+        impórtalas antes en <strong>Suscriptores</strong> declarando de dónde salieron.
+      </p>
+
       {error ? <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} /> : (
         <DataTable<Campana>
           storageKey="campanas"

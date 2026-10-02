@@ -42,7 +42,13 @@ describe('la baja a través de HTTP', () => {
 
     app = modulo.createNestApplication();
     await app.init();
-  });
+    /*
+     * Con margen: armar el módulo de Nest y levantar el servidor tarda más que el límite de cinco
+     * segundos cuando la suite entera corre en paralelo, y la prueba fallaba sola una de cada
+     * varias ejecuciones. Un fallo intermitente enseña a desconfiar de la suite, que es peor que
+     * no tener la prueba.
+     */
+  }, 30_000);
 
   afterAll(async () => { await app?.close(); });
 

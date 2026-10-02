@@ -253,7 +253,15 @@ let ReservationsController = class ReservationsController {
     }
     async listCoupons(req) {
         const scope = await this.scope(req);
-        return this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds);
+        const [cupones, uso] = await Promise.all([
+            this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds),
+            this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds),
+        ]);
+        const porCodigo = new Map(uso.map((fila) => [fila.code, fila]));
+        return cupones.map((cupon) => ({
+            ...cupon,
+            uso: porCodigo.get(cupon.code) ?? { code: cupon.code, enviados: 0, usados: 0, volvieronDelCorreo: 0 },
+        }));
     }
     async createCoupon(req, dto) {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT)

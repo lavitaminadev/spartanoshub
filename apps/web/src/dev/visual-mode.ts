@@ -1184,6 +1184,19 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
         ],
       };
   }],
+  /*
+   * Cupones con lo que pasó con cada uno.
+   *
+   * Tres números distintos a propósito: enviados por correo, usados por donde sea, y de esos
+   * cuántos vinieron de alguien a quien se lo mandamos. Con un solo contador no se puede revisar
+   * si la columna distingue «el cupón funciona» de «el correo funciona», que es lo único que
+   * esta pantalla vino a responder.
+   */
+  [/\/reservations\/coupons/, () => ([
+    { id: 'cup-1', code: 'VUELVE20', discountType: 'percentage', value: 20, maxUses: 0, usageCount: 38, active: true, createdAt: '2026-08-01T12:00:00Z', uso: { enviados: 214, usados: 38, volvieronDelCorreo: 31 } },
+    { id: 'cup-2', code: 'VERANO20', discountType: 'percentage', value: 20, maxUses: 100, usageCount: 12, validUntil: '2026-12-31T00:00:00Z', active: true, createdAt: '2026-06-15T12:00:00Z', uso: { enviados: 0, usados: 12, volvieronDelCorreo: 0 } },
+    { id: 'cup-3', code: 'CADUCADO', discountType: 'amount', value: 5000, maxUses: 50, usageCount: 3, validUntil: '2026-09-01T00:00:00Z', active: false, createdAt: '2026-05-02T12:00:00Z', uso: { enviados: 40, usados: 3, volvieronDelCorreo: 1 } },
+  ])],
   /* Las casillas del equipo de un local, repartidas por tipo de aviso. */
   [/\/avisos\/destinatarios\/tipos/, () => ({
     data: [
