@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, IsNull, Like, MoreThanOrEqual, Not, Raw, Repository } from 'typeorm';
+import { Between, FindOptionsWhere, In, IsNull, LessThanOrEqual, Like, MoreThanOrEqual, Not, Raw, Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
 import { RESERVATION_LEAD_SOURCES, isReservationLeadSource } from '@espartanos/shared';
 
@@ -64,6 +64,9 @@ export interface ListLeadsFilters {
    * es decir que se quieren ver.
    */
   incluirDescartados?: boolean;
+  /** Período de ingreso, `AAAA-MM-DD`. Acota por cuándo entró el lead. */
+  desde?: string;
+  hasta?: string;
 }
 
 /** Página de leads acompañada del total de coincidencias. */
@@ -77,16 +80,25 @@ export interface ListLeadsResult {
 @Injectable()
 export class ListLeadsUseCase {
   /**
-   * Cuántos días sigue a la vista un prospecto descartado.
+   * Cuántos días sigue a la vista un prospecto **cerrado**.
    *
    * Era hasta el día 1 del mes en curso, y ese corte castigaba por casualidad: uno cerrado el 31
    * desaparecía al día siguiente y otro cerrado el 2 duraba un mes entero. Nadie trabaja pensando
    * «este mes»; se piensa «lo de las últimas semanas», y treinta días es eso.
    *
-   * No esconde nada: con la casilla de ver también los descartados, o filtrando por la etapa
-   * «Descartado», siguen apareciendo todos sin límite de fecha.
+   * No esconde nada: con la casilla de ver también los cerrados antiguos, filtrando por su etapa,
+   * o pidiendo un período, siguen apareciendo todos sin límite de fecha.
    */
-  private static readonly DIAS_DE_DESCARTADOS_A_LA_VISTA = 30;
+  private static readonly DIAS_DE_CERRADOS_A_LA_VISTA = 30;
+
+  /**
+   * Etapas que sacan al prospecto del trabajo del día.
+   *
+   * Sólo las dos de desenlace. Un lead en cualquier otra etapa —aunque lleve meses— sigue abierto
+   * y tiene que verse siempre: desaparecer por antigüedad haría que una ficha viva se leyera como
+   * perdida, que es exactamente lo contrario de lo que el tablero tiene que mostrar.
+   */
+  private static readonly CERRADAS = ['lost', 'won'] as const;
 
   constructor(
     @InjectRepository(Lead) private repo: Repository<Lead>,
@@ -169,25 +181,52 @@ export class ListLeadsUseCase {
       : [where];
 
     /*
-     * Los descartados viejos salen de la vista, salvo que se pidan.
+     * El período de ingreso, cuando se pide.
      *
-     * **Sólo alcanza a los descartados.** Un lead en cualquier otro estado se ve siempre, sin
-     * límite de fecha: el corte no es «leads viejos», es «cerrados que ya no hay que mirar».
+     * Acota por `createdAt`: la pregunta es «qué trajo septiembre», y la fecha de entrada es la
+     * única que no se mueve después. `hasta` cubre el día entero —quien escribe el 30 espera ver
+     * lo del 30—, así que se lleva al final de esa jornada.
+     */
+    const periodo: Record<string, unknown> = {};
+    if (filters.desde && filters.hasta) {
+      periodo.createdAt = Between(new Date(`${filters.desde}T00:00:00`), new Date(`${filters.hasta}T23:59:59.999`));
+    } else if (filters.desde) {
+      periodo.createdAt = MoreThanOrEqual(new Date(`${filters.desde}T00:00:00`));
+    } else if (filters.hasta) {
+      periodo.createdAt = LessThanOrEqual(new Date(`${filters.hasta}T23:59:59.999`));
+    }
+    const conPeriodo = Object.keys(periodo).length
+      ? alcancePersona.map((base) => ({ ...base, ...periodo }))
+      : alcancePersona;
+
+    /*
+     * Los cerrados viejos salen de la vista, salvo que se pidan.
      *
-     * Se mira `updatedAt` y no `createdAt`: interesa cuándo se descartó, no cuándo entró, y en un
-     * lead cerrado no cambia nada después. Además hay índice por (organización, estado,
-     * updatedAt), así que la condición no cuesta una lectura completa.
+     * **Sólo alcanza a vendidos y descartados.** Un lead en cualquier otra etapa se ve siempre,
+     * sin límite de fecha: el corte no es «leads viejos», es «cerrados que ya no hay que mirar».
+     * Si alcanzara a los abiertos, una ficha viva desaparecería por antigüedad y se leería como
+     * perdida.
      *
-     * Es una disyunción —«no está descartado, o se descartó hace poco»—, y en TypeORM eso son dos
+     * Se mira `updatedAt` y no `createdAt`: interesa cuándo se cerró, no cuándo entró. Además hay
+     * índice por (organización, estado, updatedAt), así que la condición no cuesta una lectura
+     * completa.
+     *
+     * **Tres cosas lo desactivan**, y las tres son la persona diciendo qué quiere ver: pedir los
+     * cerrados con la casilla, filtrar por una etapa, o acotar un período. Recortar además por
+     * antigüedad dentro de un período elegido a mano devolvería menos de lo pedido sin explicar
+     * por qué.
+     *
+     * Es una disyunción —«no está cerrado, o se cerró hace poco»—, y en TypeORM eso son dos
      * condiciones completas. Se duplica el criterio entero en ambas: dejar fuera una condición en
      * una rama abriría por ahí lo que la otra cierra.
      */
-    const desde = new Date(Date.now() - ListLeadsUseCase.DIAS_DE_DESCARTADOS_A_LA_VISTA * 86_400_000);
-    const conDescartados = filters.incluirDescartados || filters.status
-      ? alcancePersona
-      : alcancePersona.flatMap((base) => [
-        { ...base, status: Not('lost') as unknown as Lead['status'] },
-        { ...base, status: 'lost' as Lead['status'], updatedAt: MoreThanOrEqual(desde) },
+    const limite = new Date(Date.now() - ListLeadsUseCase.DIAS_DE_CERRADOS_A_LA_VISTA * 86_400_000);
+    const cerradas = [...ListLeadsUseCase.CERRADAS];
+    const conDescartados = filters.incluirDescartados || filters.status || Object.keys(periodo).length
+      ? conPeriodo
+      : conPeriodo.flatMap((base) => [
+        { ...base, status: Not(In(cerradas)) as unknown as Lead['status'] },
+        { ...base, status: In(cerradas) as unknown as Lead['status'], updatedAt: MoreThanOrEqual(limite) },
       ]);
 
     const termino = filters.search?.trim();

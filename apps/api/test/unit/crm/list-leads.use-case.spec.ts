@@ -20,7 +20,7 @@ describe('ListLeadsUseCase · alcance por persona', () => {
     const donde = criterio(repo) as Array<Record<string, any>>;
     expect(donde).toHaveLength(2);
     expect(donde[0].status?._type).toBe('not');
-    expect(donde[1].status).toBe('lost');
+    expect(donde[1].status?._value).toEqual(['lost', 'won']);
     expect(donde[1].updatedAt?._type).toBe('moreThanOrEqual');
   });
 
@@ -58,6 +58,56 @@ describe('ListLeadsUseCase · alcance por persona', () => {
     expect(donde[0].status?._type).toBe('not');
     expect(donde[0].updatedAt).toBeUndefined();
     expect(donde[0].createdAt).toBeUndefined();
+  });
+
+  /*
+   * El corte alcanza a los dos desenlaces, no sólo al descarte.
+   *
+   * Una venta cerrada tampoco es trabajo del día. Lo que no puede desaparecer nunca es un lead
+   * abierto: si se fuera por antigüedad, una ficha viva se leería como perdida.
+   */
+  it('saca de la vista los vendidos antiguos, igual que los descartados', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, {});
+    const donde = criterio(repo) as Array<Record<string, any>>;
+
+    expect(donde[1].status?._type).toBe('in');
+    expect(donde[1].status?._value).toEqual(['lost', 'won']);
+    expect(donde[0].status?._type).toBe('not');
+    expect(donde[0].status?._value?._value).toEqual(['lost', 'won']);
+  });
+
+  /*
+   * Pedir un período muestra también lo cerrado de esas fechas.
+   *
+   * Quien escribe «septiembre» quiere septiembre entero. Recortar además por antigüedad devolvería
+   * menos de lo pedido sin decir por qué, y el número de arriba no cuadraría con lo que se ve.
+   */
+  it('acotar por fechas desactiva el corte de cerrados', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, { desde: '2026-09-01', hasta: '2026-09-30' });
+    const donde = criterio(repo) as Record<string, any>;
+
+    expect(Array.isArray(donde)).toBe(false);
+    expect(donde.createdAt?._type).toBe('between');
+  });
+
+  it('el día de «hasta» entra entero', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, { hasta: '2026-09-30' });
+    const donde = criterio(repo) as Record<string, any>;
+    const tope = new Date(donde.createdAt?._value as Date);
+
+    expect(tope.getDate()).toBe(30);
+    expect(tope.getHours()).toBe(23);
+  });
+
+  it('sólo «desde» acota por el extremo inferior', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, { desde: '2026-09-01' });
+    const donde = criterio(repo) as Record<string, any>;
+
+    expect(donde.createdAt?._type).toBe('moreThanOrEqual');
   });
 
   it('pedirlos explícitamente vuelve al criterio único', async () => {

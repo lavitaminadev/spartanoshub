@@ -89,7 +89,9 @@ interface LeadsPage { data: Lead[]; total: number; limit: number; offset: number
 
 const LEADS_PAGE_SIZE = 100;
 
-const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana', 'anuncio', 'plataforma', 'campo', 'valor'] as const;
+// `desde` y `hasta` van acá y no sólo en la dirección: el hook sólo devuelve las claves que se le
+// declaran, así que sin esto el filtro viajaba al servidor pero el campo se veía vacío al volver.
+const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana', 'anuncio', 'plataforma', 'campo', 'valor', 'desde', 'hasta'] as const;
 
 /*
  * Dónde vio el anuncio quien dejó el lead.
@@ -247,11 +249,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     placeholderData: (anterior) => anterior,
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
-    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados],
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados, filtros.values.desde, filtros.values.hasta],
     // El servidor limita cada respuesta a 100, pero el tablero no: se navega de página en página.
     // Así una empresa no pierde los contactos más antiguos cuando supera el primer centenar.
     queryFn: () => api.get(
-      `/crm/leads?domain=${scope.domain}${filtros.values.anuncio ? `&anuncio=${encodeURIComponent(filtros.values.anuncio)}` : ''}${filtros.values.plataforma ? `&plataforma=${encodeURIComponent(filtros.values.plataforma)}` : ''}${campoElegido && valorFiltro ? `&campoPropio=${encodeURIComponent(campoElegido.key)}&valorPropio=${encodeURIComponent(valorFiltro)}` : ''}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}`,
+      `/crm/leads?domain=${scope.domain}${filtros.values.anuncio ? `&anuncio=${encodeURIComponent(filtros.values.anuncio)}` : ''}${filtros.values.plataforma ? `&plataforma=${encodeURIComponent(filtros.values.plataforma)}` : ''}${campoElegido && valorFiltro ? `&campoPropio=${encodeURIComponent(campoElegido.key)}&valorPropio=${encodeURIComponent(valorFiltro)}` : ''}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}${filtros.values.desde ? `&desde=${filtros.values.desde}` : ''}${filtros.values.hasta ? `&hasta=${filtros.values.hasta}` : ''}`,
     ),
   });
 
@@ -259,7 +261,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // anterior podía mostrar un tablero vacío aunque la empresa sí tuviera prospectos.
   useEffect(() => {
     setPagina(1);
-  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados]);
+  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados, filtros.values.desde, filtros.values.hasta]);
 
   /**
    * Campañas de la empresa que se está mirando.
@@ -732,6 +734,41 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         onFilterChange={filtros.setValue}
         onClear={filtros.hasAny ? filtros.clear : undefined}
       />
+      {/*
+        * El período en que entró el prospecto.
+        *
+        * Va fuera de la barra de desplegables porque son dos campos que se eligen juntos, y uno
+        * solo —«desde» sin «hasta»— es una pregunta legítima: «lo que llegó después del lanzamiento».
+        *
+        * Acota por fecha de ingreso y no por última modificación: la pregunta que se hace con esto
+        * es qué trajo un mes, y la fecha de entrada es la única que no se mueve después.
+        *
+        * Elegir un período **muestra también los cerrados** de esas fechas, aunque sean antiguos.
+        * Pedir unas fechas a mano ya es decir que se quiere ver lo que haya ahí.
+        */}
+      <div className="leads-board-periodo">
+        <label>
+          <span>Entraron desde</span>
+          <input
+            className="input"
+            type="date"
+            max={filtros.values.hasta || undefined}
+            value={filtros.values.desde ?? ''}
+            onChange={(evento) => { filtros.setValue('desde', evento.target.value); setPagina(1); }}
+          />
+        </label>
+        <label>
+          <span>Hasta</span>
+          <input
+            className="input"
+            type="date"
+            min={filtros.values.desde || undefined}
+            value={filtros.values.hasta ?? ''}
+            onChange={(evento) => { filtros.setValue('hasta', evento.target.value); setPagina(1); }}
+          />
+        </label>
+      </div>
+
       {campoElegido && opcionesDelCampo.length === 0 && <label className="filtro-campo-propio">
         <span>{campoElegido.label}</span>
         <input
@@ -776,7 +813,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
           />
           {/* Dice qué se gana al marcarla, no cómo está hecho el corte por dentro: quien perdió
               un lead de vista no piensa «esto es de un mes anterior», piensa «¿dónde quedó?». */}
-          <span>Ver también los descartados antiguos</span>
+          <span>Ver también los cerrados antiguos</span>
         </label>
         <span className="leads-board-conteo">{leads.length} de {data?.total ?? 0}</span>
       </div>

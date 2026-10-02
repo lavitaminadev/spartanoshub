@@ -29,10 +29,13 @@ export class ListLeadsQueryDto extends PaginationDto {
   /** Sin este parámetro, el listado asume 'commercial' — ver ListLeadsFilters.domain. */
   @IsOptional() @IsIn(['audience', 'commercial', 'all']) domain?: 'audience' | 'commercial' | 'all';
   /**
-   * Traer los descartados de meses ya cerrados.
+   * Traer también los cerrados antiguos: los vendidos y los descartados fuera de la ventana.
    *
    * Llega como texto en la consulta, así que se transforma antes de validar: sin esto,
    * `?incluirDescartados=false` sería la cadena 'false', que es verdadera.
+   *
+   * Conserva el nombre con que nació aunque hoy alcance también a los vendidos: renombrarlo
+   * rompería los enlaces guardados y las vistas que la gente ya tiene anotadas.
    */
   @IsOptional() @Transform(({ value }) => value === true || value === 'true') @IsBoolean()
   incluirDescartados?: boolean;
@@ -50,6 +53,23 @@ export class ListLeadsQueryDto extends PaginationDto {
 
   /** Dónde vio el anuncio: `ig` o `fb`. Una misma campaña trae por los dos. */
   @IsOptional() @IsIn(['ig', 'fb']) plataforma?: string;
+
+  /**
+   * Período de ingreso por el que se acota, en `AAAA-MM-DD`.
+   *
+   * Mira cuándo **entró** el lead, no cuándo se tocó por última vez: la pregunta que se hace con
+   * esto es «qué trajo septiembre», y la fecha de ingreso es la única que no se mueve después.
+   *
+   * `hasta` incluye el día entero: quien escribe el 30 espera ver lo del 30, no lo anterior a su
+   * medianoche.
+   *
+   * Pedir un período **deja ver también los cerrados** de ese período, aunque sean viejos. Es lo
+   * mismo que ya hace filtrar por etapa: elegir unas fechas a mano es decir que se quiere ver lo
+   * que haya ahí, y recortarlo además por antigüedad devolvería menos de lo que la persona pidió
+   * sin explicar por qué.
+   */
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) desde?: string;
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) hasta?: string;
 
   @IsOptional() @Matches(/^[a-z][a-z0-9_]{0,39}$/) campoPropio?: string;
   @ValidateIf((objeto: { campoPropio?: string }) => Boolean(objeto.campoPropio)) @IsString() @MaxLength(255) valorPropio?: string;
