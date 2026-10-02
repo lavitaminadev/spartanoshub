@@ -730,6 +730,18 @@ __decorate([
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
 ], CaptacionPublicaDto.prototype, "website", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], CaptacionPublicaDto.prototype, "canal", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], CaptacionPublicaDto.prototype, "campana", void 0);
 class PublicRescheduleReservationDto {
 }
 exports.PublicRescheduleReservationDto = PublicRescheduleReservationDto;

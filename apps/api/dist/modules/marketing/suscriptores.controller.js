@@ -59,7 +59,7 @@ let SuscriptoresController = class SuscriptoresController {
         return { ...cuantas, consulta: await this.suscriptores.consultarExclusion(organizationId, correo) };
     }
     async anotarPeticion(req, dto) {
-        return this.suscriptores.anotarPeticionExterna(req.organizationId || req.user.organizationId, dto.email, dto.alcance === 'local' ? 'local' : 'todas', dto.clientId ?? null, dto.origen);
+        return this.suscriptores.anotarPeticionExterna(req.organizationId || req.user.organizationId, dto.email, dto.alcance === 'local' ? 'local' : 'todas', dto.clientId ?? null, dto.origen, dto.fecha);
     }
     async descargar(req, empresa) {
         const organizationId = req.organizationId || req.user.organizationId;

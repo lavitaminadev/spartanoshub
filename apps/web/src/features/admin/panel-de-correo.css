@@ -22,8 +22,8 @@
 .panel-correo-campos { display: grid; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--soft); }
 .panel-correo-campos label { display: grid; gap: 5px; }
 .panel-correo-campos label > span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-/* El cuerpo es lo que más se lee y se edita: más aire, más alto y foco claro. */
-.panel-correo-campos textarea { min-height: 190px; padding: 14px 16px; font-family: inherit; font-size: 15px; line-height: 1.65; resize: vertical; }
+/* El cuerpo es lo que más se lee y se edita: más aire, más alto y foco claro. */
+.panel-correo-campos textarea { min-height: 190px; padding: 14px 16px; font-family: inherit; font-size: 15px; line-height: 1.65; resize: vertical; }
 .panel-correo-campos textarea:focus-visible, .panel-correo-campos input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Las variables se pulsan para insertarlas: escribirlas a mano es donde aparecen las erratas. */
@@ -34,18 +34,18 @@
 }
 .panel-correo-variables button:hover { border-color: var(--accent); color: var(--accent); }
 
-/*
- * Guardar queda siempre a la vista.
- *
- * Con diecisiete avisos, el botón vivía al final de una página larguísima: cambiar una palabra
- * del primero obligaba a recorrerla entera para guardarla, y era fácil salir sin hacerlo.
- */
-.panel-correo-acciones {
-  position: sticky; bottom: 0; z-index: 3;
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-top: 18px; padding: 12px 14px;
-  border: 1px solid var(--border-light); border-radius: 12px;
-  background: var(--white); box-shadow: 0 -6px 22px rgba(34, 22, 29, .08);
+/*
+ * Guardar queda siempre a la vista.
+ *
+ * Con diecisiete avisos, el botón vivía al final de una página larguísima: cambiar una palabra
+ * del primero obligaba a recorrerla entera para guardarla, y era fácil salir sin hacerlo.
+ */
+.panel-correo-acciones {
+  position: sticky; bottom: 0; z-index: 3;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 18px; padding: 12px 14px;
+  border: 1px solid var(--border-light); border-radius: 12px;
+  background: var(--white); box-shadow: 0 -6px 22px rgba(34, 22, 29, .08);
 }
 .panel-correo-acciones small { color: var(--muted); font-size: 12px; }
 
@@ -82,6 +82,17 @@
 .panel-correo-paso strong { display: block; margin-bottom: 3px; }
 .panel-correo-paso small { display: block; line-height: 1.5; overflow-wrap: anywhere; }
 .panel-correo-paso code { padding: 1px 4px; border-radius: 4px; background: #f4f1f3; font-size: 12px; }
+
+/*
+ * Lo que le falta a la firma del dominio.
+ *
+ * Un error y un aviso se ven distinto a propósito: «falta el DKIM» impide la entrega y «el DMARC
+ * está en p=none» no. Pintarlos igual haría que se ignoraran los dos.
+ */
+.panel-correo-firma-problemas { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+.panel-correo-firma-problemas li { margin-bottom: 4px; overflow-wrap: anywhere; }
+.panel-correo-firma-problemas li.is-error { color: #8a2222; }
+.panel-correo-firma-problemas li.is-aviso { color: #6b4d00; }
 
 /* Resumen y filtros: cuántos están encendidos y cuántos no van a salir. */
 .panel-correo-resumen {

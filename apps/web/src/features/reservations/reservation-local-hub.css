@@ -35,3 +35,16 @@
 .local-hub-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 .local-hub-card { grid-template-columns: auto minmax(0, 1fr); }
 .local-hub-card strong, .local-hub-card small { overflow-wrap: anywhere; }
+
+/*
+ * La línea del enlace público: la dirección y el botón de compartir.
+ *
+ * Era un párrafo suelto con el botón en medio del texto. Con el enlace corto de reservas se veía
+ * bien por casualidad; el de novedades es más largo, se parte en dos líneas y el botón quedaba
+ * encima de la segunda, tapando parte de la dirección que se supone que hay que copiar.
+ *
+ * En columna, la dirección ocupa el ancho que necesite y el botón va debajo, alineado a la
+ * izquierda. `anywhere` para que una dirección larga se corte por donde sea antes que desbordar.
+ */
+.local-hub-enlace { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.local-hub-enlace code { overflow-wrap: anywhere; }

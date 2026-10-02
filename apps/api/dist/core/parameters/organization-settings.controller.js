@@ -24,6 +24,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../../modules/users/user.entity");
 const plantilla_de_correo_1 = require("../notifications/plantilla-de-correo");
+const firma_del_dominio_1 = require("../notifications/firma-del-dominio");
 const muestra_de_correo_1 = require("./muestra-de-correo");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const update_organization_settings_dto_1 = require("./dto/update-organization-settings.dto");
@@ -147,7 +148,9 @@ let OrganizationSettingsController = class OrganizationSettingsController {
     async estadoDelCorreo(request, clientId) {
         await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
         const estado = this.correo.estado();
-        return request.user.role === user_role_enum_1.UserRole.DEV ? estado : { ...estado, faltan: [] };
+        if (request.user.role !== user_role_enum_1.UserRole.DEV)
+            return { ...estado, faltan: [] };
+        return { ...estado, firma: await (0, firma_del_dominio_1.revisarFirmaDelDominio)(estado.remitente) };
     }
     async requisitosDeCorreo(request, clientId) {
         await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));

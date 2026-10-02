@@ -21,6 +21,17 @@ export function publicReservationUrl(publicSlug: string, apiPublicUrl?: string):
   return publicAppUrl(`/book/${publicSlug}`);
 }
 
+/**
+ * La página para dejar el correo sin reservar: el QR de la carta, el cartel del mesón.
+ *
+ * Se arma desde el mismo `publicSlug` del enlace de reservas porque es el que el servidor resuelve
+ * en `/novedades/:slug`. No tiene equivalente propio en la API: existía la página pública y no
+ * había dónde leer su dirección, así que el local no podía imprimirla.
+ */
+export function publicCaptacionUrl(publicSlug: string): string {
+  return publicAppUrl(`/novedades/${publicSlug}`);
+}
+
 export function publicSurveyUrl(id: string, apiPublicUrl?: string, source?: string): string {
   const baseUrl = apiPublicUrl?.startsWith('https://') ? apiPublicUrl : publicAppUrl(`/survey/${id}`);
   if (!source) return baseUrl;

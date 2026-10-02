@@ -38,6 +38,14 @@ class PeticionExternaDto {
   alcance?: 'local' | 'todas';
   clientId?: string | null;
   origen: string;
+  /**
+   * Día en que **la persona** pidió la baja, `AAAA-MM-DD`. Si no viene, se toma hoy.
+   *
+   * Existe porque la petición llega siempre después de hecha: el aviso del SERNAC se manda el día
+   * hábil siguiente, y una llamada se anota cuando alguien tiene tiempo. Cuando la misma persona
+   * pidió lo mismo por dos vías, la fecha que rige es la primera de las dos.
+   */
+  fecha?: string;
 }
 
 /**
@@ -119,11 +127,13 @@ export class SuscriptoresController {
   /**
    * Anotar una petición de no recibir que llegó por fuera del enlace del correo.
    *
-   * El caso que la hizo falta es el del SERNAC: su sistema «No Molestar» no es un registro que uno
-   * consulte sino un aviso que llega —el consumidor elige la empresa, el SERNAC le reenvía la
-   * solicitud— y hay **siete días** para cumplir. También sirve para quien lo pide por teléfono o
-   * escribiendo a soporte. Hasta ahora, cumplir cualquiera de los tres significaba editar la base
-   * de datos a mano, o no cumplir.
+   * El caso que la hizo falta es el del SERNAC: en su sistema «No Molestar» el consumidor registra
+   * la empresa y los canales, y el envío **queda prohibido desde ese mismo registro** —Decreto 62
+   * de 2019, art. 5: no hay plazo de gracia—; el aviso por correo del art. 4 llega después. También
+   * sirve para quien lo pide por teléfono o escribiendo a soporte.
+   *
+   * La fecha que se guarda es la que viene en la petición, no la de hoy: cuando la persona pidió lo
+   * mismo por dos vías, la que rige es la primera (art. 5 inciso 2).
    *
    * Sólo la agencia: es la que recibe el aviso y la que responde de haberlo aplicado.
    */
@@ -137,6 +147,7 @@ export class SuscriptoresController {
       dto.alcance === 'local' ? 'local' : 'todas',
       dto.clientId ?? null,
       dto.origen,
+      dto.fecha,
     );
   }
 

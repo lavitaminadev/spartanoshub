@@ -1261,7 +1261,32 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       { id: 'camp-3', clientId: 'visual-client', asunto: 'Menu de primavera', cuerpo: 'Ya esta disponible.', estado: 'sending', destinatarios: 184, enviados: 0, createdAt: '2026-09-30T12:00:00Z' },
     ];
   }],
-  [/\/settings\/estado-del-correo(\?.*)?$/, () => ({ habilitado: true, remitente: 'reservas@espartanos.cl', servidor: 'mail.espartanos.cl', puerto: 465, respuestasA: null, faltan: [] })],
+  /*
+   * El estado del correo, con la firma del dominio tal como está hoy de verdad.
+   *
+   * La firma se devuelve con el resultado real de consultar el DNS de espartanos.cl: SPF y DKIM
+   * publicados, DMARC en `p=none` y sin `rua=`. Inventar aquí un estado perfecto haría que la
+   * pantalla que avisa de esto se viera siempre en verde, que es justo lo que no sirve para nada.
+   */
+  [/\/settings\/estado-del-correo(\?.*)?$/, () => ({
+    habilitado: true,
+    remitente: 'reservas@espartanos.cl',
+    servidor: 'mail.espartanos.cl',
+    puerto: 465,
+    respuestasA: null,
+    faltan: [],
+    firma: {
+      dominio: 'espartanos.cl',
+      spf: { publicado: true, registro: 'v=spf1 ip4:190.3.170.42 a include:_spf.ihosting.cl mx -all', politica: '-all' },
+      dkim: { publicado: true, selector: 'default' },
+      dmarc: { publicado: true, registro: 'v=DMARC1; p=none;', politica: 'none', informes: false },
+      problemas: [
+        { nivel: 'aviso', texto: 'El DMARC de espartanos.cl está en «p=none»: cumple el requisito de Gmail y no rechaza nada, pero tampoco impide que alguien suplante el dominio. El paso siguiente es «p=quarantine» después de mirar unas semanas de informes.' },
+        { nivel: 'aviso', texto: 'El DMARC de espartanos.cl no tiene «rua=», así que nadie recibe los informes y no hay cómo saber si algo se está rechazando. Agrega «rua=mailto:dmarc@espartanos.cl».' },
+      ],
+      consultado: true,
+    },
+  })],
   [/\/(reservations|surveys)\/company-legal/, (config) => {
     const clave = 'vh.visual.companyLegal';
     let actual: Record<string, unknown> = { legalName: 'Casa Costanera SpA', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace', privacyText: '', termsText: '' };

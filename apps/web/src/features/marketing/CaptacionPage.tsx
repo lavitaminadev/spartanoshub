@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { rutaDocumentoLegal } from '@espartanos/shared';
 
@@ -22,6 +22,17 @@ interface Resultado { estado: 'alta' | 'omitida' | 'local' | 'todas'; local: str
  */
 export function CaptacionPage() {
   const { slug = '' } = useParams();
+  /*
+   * De qué sitio llegó: el QR de la carta, el del mesón, el enlace del Instagram.
+   *
+   * Se leen las UTM de siempre y no unos nombres propios, porque es el mismo panel de compartir
+   * que genera los enlaces de reservas y de encuestas: así un «QR de mesa» se llama igual en los
+   * tres informes y se pueden comparar. Sin esto, todas las altas quedaban escritas igual y la
+   * pregunta del local —cuál de los dos carteles trae gente— no tenía respuesta.
+   */
+  const [parametros] = useSearchParams();
+  const canal = parametros.get('utm_source') ?? undefined;
+  const campana = parametros.get('utm_campaign') ?? undefined;
   const [email, setEmail] = useState('');
   const [nombre, setNombre] = useState('');
   const [cumple, setCumple] = useState('');
@@ -44,6 +55,8 @@ export function CaptacionPage() {
       birthDate: cumple || undefined,
       adultDeclared: mayor,
       website: website || undefined,
+      canal,
+      campana,
     }),
   });
 

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { triggerToast } from '../../shared/toast-events';
 import { api } from '../../core/api';
+import { publicCaptacionUrl } from '../../core/public-url';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import type { ReservationForm } from './types';
@@ -29,6 +30,7 @@ export function ReservationLocalHubPage() {
   const qc = useQueryClient();
   const [confirmarDuplicado, setConfirmarDuplicado] = useState(false);
   const [compartir, setCompartir] = useState(false);
+  const [compartirCaptacion, setCompartirCaptacion] = useState(false);
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   /**
    * Crea otra reserva de la misma empresa a partir de esta.
@@ -130,6 +132,41 @@ export function ReservationLocalHubPage() {
       <PanelCompartir abierto={compartir} titulo="Compartir reservas" nombre={local.name} urlBase={publicUrl} textoAbrir="Abrir página de reservas ↗" onCerrar={() => setCompartir(false)}
         pie={local.ga4MeasurementId || local.metaCapiEnabled ? 'La medición de esta reserva recibe cada alta con su canal y campaña.' : 'El canal y la campaña quedan en cada reserva y en Resultados, aunque no uses Google Analytics ni Meta.'} />
     </section>
+
+    {/*
+      * El segundo enlace público del local, y el que no se podía encontrar.
+      *
+      * `/novedades/<slug>` existía y funcionaba —deja el correo con su respaldo legal y sin
+      * reservar—, pero su dirección no se mostraba en ninguna pantalla: para imprimirla había que
+      * saber armarla a mano. Un enlace que nadie puede copiar es un enlace que no existe.
+      *
+      * Va con el mismo panel que reservas y encuestas, y no con uno propio, para que un QR de mesa
+      * se llame igual en los tres informes. Es lo que permite comparar la carta con el mesón: cada
+      * sitio tiene su enlace, y lo que trae queda escrito en la procedencia de cada dirección.
+      */}
+    {local.publicSlug && <section className="local-hub-status">
+      <div>
+        <span className="page-eyebrow">LISTA DE CORREO</span>
+        <h2>Dejar el correo sin reservar</h2>
+        <p className="page-subtitle">
+          Una página aparte para el QR de la carta o el cartel del mesón: deja el correo, acepta el
+          texto de este local y queda con su respaldo. No reserva nada.
+        </p>
+      </div>
+      <p className="page-subtitle local-hub-enlace">
+        Enlace público: <code>{publicCaptacionUrl(local.publicSlug)}</code>{' '}
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => setCompartirCaptacion(true)}>Compartir</button>
+      </p>
+      <PanelCompartir
+        abierto={compartirCaptacion}
+        titulo="Compartir la página de novedades"
+        nombre={`Novedades · ${local.name}`}
+        urlBase={publicCaptacionUrl(local.publicSlug)}
+        textoAbrir="Abrir página de novedades ↗"
+        onCerrar={() => setCompartirCaptacion(false)}
+        pie="Usa un enlace distinto por sitio —la carta, el mesón, la boleta— y la procedencia de cada dirección dirá de cuál vino. Se ve en Marketing → Suscriptores, en la columna de origen."
+      />
+    </section>}
 
     <AjustesDelDia abierto={ajustesAbiertos} onCerrar={() => setAjustesAbiertos(false)} local={local} base={base} />
 

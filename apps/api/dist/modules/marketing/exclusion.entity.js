@@ -39,6 +39,10 @@ __decorate([
     __metadata("design:type", Object)
 ], ExclusionDeCorreo.prototype, "origen", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'pedida_el', type: 'datetime', nullable: true }),
+    __metadata("design:type", Object)
+], ExclusionDeCorreo.prototype, "pedidaEl", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], ExclusionDeCorreo.prototype, "createdAt", void 0);

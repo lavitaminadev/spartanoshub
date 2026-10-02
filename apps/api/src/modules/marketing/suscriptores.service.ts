@@ -269,9 +269,9 @@ export class SuscriptoresService {
    * el enlace de un correo. Pero las peticiones llegan por otros tres caminos, y los tres obligan
    * igual:
    *
-   * - **El SERNAC.** Su sistema «No Molestar» no es un registro que uno consulte: el consumidor
-   *   elige la empresa, el SERNAC le reenvía la solicitud, y hay **siete días** para cumplir. Sin
-   *   esto, cumplir significaba editar la base a mano.
+   * - **El SERNAC.** En su sistema «No Molestar» el consumidor registra la empresa y los canales, y
+   *   el envío **queda prohibido desde ese registro** (Decreto 62 de 2019, art. 5); el aviso por
+   *   correo sale el día hábil siguiente. Sin esto, cumplirlo significaba editar la base a mano.
    * - Un correo o una llamada a soporte diciendo «sáquenme de la lista».
    * - Un reclamo, donde la prueba de cuándo se aplicó es justamente lo que se va a pedir.
    *
@@ -288,6 +288,7 @@ export class SuscriptoresService {
     alcance: 'local' | 'todas',
     clientId: string | null,
     origen: string,
+    fechaPedida?: string,
   ): Promise<{ fichasDeBaja: number; email: string }> {
     const limpio = email?.trim().toLowerCase();
     if (!limpio || !limpio.includes('@')) throw new BadRequestException('Falta una dirección de correo válida');
@@ -295,7 +296,7 @@ export class SuscriptoresService {
     if (!motivo) throw new BadRequestException('Hay que decir de dónde vino la petición: es lo que se muestra si alguien reclama');
     if (alcance === 'local' && !clientId) throw new BadRequestException('Para una baja de una sola empresa hay que decir cuál');
 
-    const ahora = new Date();
+    const ahora = this.fechaDeLaPeticion(fechaPedida);
     const donde = alcance === 'todas'
       ? { organizationId, email: limpio }
       : { organizationId, email: limpio, clientId: clientId as string };
@@ -304,7 +305,9 @@ export class SuscriptoresService {
     const cambiadas = fichas.filter((fila) => !(fila.status === EstadoDeSuscripcion.BAJA && fila.unsubscribedScope));
     for (const fila of cambiadas) {
       fila.status = EstadoDeSuscripcion.BAJA;
-      fila.unsubscribedAt = fila.unsubscribedAt ?? ahora;
+      // La más antigua de las dos, no la última conocida: el Decreto 62/2019 art. 5 inciso 2 hace
+      // regir «lo que primero ocurra» cuando se pidió por el Sistema y directamente a la empresa.
+      fila.unsubscribedAt = fila.unsubscribedAt && fila.unsubscribedAt < ahora ? fila.unsubscribedAt : ahora;
       fila.unsubscribedScope = alcance;
       fila.unsubscribedFrom = motivo.slice(0, 80);
     }
@@ -316,6 +319,7 @@ export class SuscriptoresService {
       alcance === 'todas' ? null : clientId,
       alcance,
       motivo,
+      ahora,
     );
 
     this.logger.log(`Petición externa anotada (${motivo}): ${cambiadas.length} fichas de baja, alcance ${alcance}`);
@@ -332,10 +336,33 @@ export class SuscriptoresService {
   }
 
   /** Deja la petición en la lista de exclusión. Repetirla no la duplica ni falla. */
-  private async anotarExclusion(organizationId: string, huella: string, clientId: string | null, alcance: 'local' | 'todas', origen?: string): Promise<void> {
+  /**
+   * El día en que la persona pidió la baja, a partir de lo que se anotó en pantalla.
+   *
+   * Acepta `AAAA-MM-DD` y lo fija al mediodía UTC, para que el día no se corra al convertirlo al
+   * horario de Chile. Sin fecha, o con una fecha futura o ilegible, devuelve el momento actual:
+   * adelantar la fecha no beneficia a nadie y una fecha futura sólo puede ser un error de tipeo.
+   */
+  private fechaDeLaPeticion(fecha?: string): Date {
+    const texto = fecha?.trim();
+    if (!texto || !/^\d{4}-\d{2}-\d{2}$/.test(texto)) return new Date();
+    const dia = new Date(`${texto}T12:00:00Z`);
+    if (Number.isNaN(dia.getTime()) || dia.getTime() > Date.now()) return new Date();
+    return dia;
+  }
+
+  private async anotarExclusion(organizationId: string, huella: string, clientId: string | null, alcance: 'local' | 'todas', origen?: string, pedidaEl?: Date): Promise<void> {
     const yaEsta = await this.exclusiones.findOne({ where: { organizationId, huella, clientId: clientId ?? IsNull() } });
-    if (yaEsta) return;
-    await this.exclusiones.save(this.exclusiones.create({ organizationId, huella, clientId, alcance, origen: origen?.slice(0, 80) ?? null }));
+    if (yaEsta) {
+      // Una exclusión ya anotada no se reescribe, salvo para corregir su fecha hacia atrás: vale la
+      // primera vez que la persona lo pidió, aunque nos hayamos enterado después (art. 5 inciso 2).
+      if (pedidaEl && (!yaEsta.pedidaEl || pedidaEl < yaEsta.pedidaEl)) {
+        yaEsta.pedidaEl = pedidaEl;
+        await this.exclusiones.save(yaEsta);
+      }
+      return;
+    }
+    await this.exclusiones.save(this.exclusiones.create({ organizationId, huella, clientId, alcance, origen: origen?.slice(0, 80) ?? null, pedidaEl: pedidaEl ?? null }));
   }
 
   /**

@@ -143,7 +143,7 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
             })),
         };
     }
-    async anotarPeticionExterna(organizationId, email, alcance, clientId, origen) {
+    async anotarPeticionExterna(organizationId, email, alcance, clientId, origen, fechaPedida) {
         const limpio = email?.trim().toLowerCase();
         if (!limpio || !limpio.includes('@'))
             throw new common_1.BadRequestException('Falta una dirección de correo válida');
@@ -152,7 +152,7 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
             throw new common_1.BadRequestException('Hay que decir de dónde vino la petición: es lo que se muestra si alguien reclama');
         if (alcance === 'local' && !clientId)
             throw new common_1.BadRequestException('Para una baja de una sola empresa hay que decir cuál');
-        const ahora = new Date();
+        const ahora = this.fechaDeLaPeticion(fechaPedida);
         const donde = alcance === 'todas'
             ? { organizationId, email: limpio }
             : { organizationId, email: limpio, clientId: clientId };
@@ -160,13 +160,13 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         const cambiadas = fichas.filter((fila) => !(fila.status === suscriptor_entity_1.EstadoDeSuscripcion.BAJA && fila.unsubscribedScope));
         for (const fila of cambiadas) {
             fila.status = suscriptor_entity_1.EstadoDeSuscripcion.BAJA;
-            fila.unsubscribedAt = fila.unsubscribedAt ?? ahora;
+            fila.unsubscribedAt = fila.unsubscribedAt && fila.unsubscribedAt < ahora ? fila.unsubscribedAt : ahora;
             fila.unsubscribedScope = alcance;
             fila.unsubscribedFrom = motivo.slice(0, 80);
         }
         if (cambiadas.length)
             await this.repo.save(cambiadas);
-        await this.anotarExclusion(organizationId, this.huellaDe(organizationId, limpio), alcance === 'todas' ? null : clientId, alcance, motivo);
+        await this.anotarExclusion(organizationId, this.huellaDe(organizationId, limpio), alcance === 'todas' ? null : clientId, alcance, motivo, ahora);
         this.logger.log(`Petición externa anotada (${motivo}): ${cambiadas.length} fichas de baja, alcance ${alcance}`);
         return { fichasDeBaja: cambiadas.length, email: limpio };
     }
@@ -177,11 +177,25 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         ]);
         return { total, deTodas };
     }
-    async anotarExclusion(organizationId, huella, clientId, alcance, origen) {
+    fechaDeLaPeticion(fecha) {
+        const texto = fecha?.trim();
+        if (!texto || !/^\d{4}-\d{2}-\d{2}$/.test(texto))
+            return new Date();
+        const dia = new Date(`${texto}T12:00:00Z`);
+        if (Number.isNaN(dia.getTime()) || dia.getTime() > Date.now())
+            return new Date();
+        return dia;
+    }
+    async anotarExclusion(organizationId, huella, clientId, alcance, origen, pedidaEl) {
         const yaEsta = await this.exclusiones.findOne({ where: { organizationId, huella, clientId: clientId ?? (0, typeorm_2.IsNull)() } });
-        if (yaEsta)
+        if (yaEsta) {
+            if (pedidaEl && (!yaEsta.pedidaEl || pedidaEl < yaEsta.pedidaEl)) {
+                yaEsta.pedidaEl = pedidaEl;
+                await this.exclusiones.save(yaEsta);
+            }
             return;
-        await this.exclusiones.save(this.exclusiones.create({ organizationId, huella, clientId, alcance, origen: origen?.slice(0, 80) ?? null }));
+        }
+        await this.exclusiones.save(this.exclusiones.create({ organizationId, huella, clientId, alcance, origen: origen?.slice(0, 80) ?? null, pedidaEl: pedidaEl ?? null }));
     }
     async exclusionDe(organizationId, email, clientId) {
         const huella = this.huellaDe(organizationId, email);
