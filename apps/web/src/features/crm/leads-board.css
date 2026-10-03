@@ -279,3 +279,12 @@
 .leads-board-periodo label { display: grid; gap: 4px; }
 .leads-board-periodo span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .leads-board-periodo input { min-width: 150px; }
+
+/*
+ * Nombre y contexto de cada fila de excepción.
+ *
+ * El `small` iba pegado al nombre —«Ricardo Galvez LopezPrimavera · $4.500.000»— porque ambos son
+ * en línea. Separarlos importa acá más que en otros sitios: esta lista se lee para decidir uno por
+ * uno, y un renglón apelmazado se salta.
+ */
+.servia-excepciones label > span { display: grid; gap: 1px; }

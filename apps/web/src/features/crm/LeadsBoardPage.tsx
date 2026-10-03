@@ -1490,16 +1490,28 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               * pasos este número no se puede ver hasta el final, cuando ya no se corrige sin
               * volver atrás.
               */}
+            {/* La concordancia se calcula: «1 no enviarán nada» delata que el número es de
+                adorno, y el resumen pierde justo la credibilidad que necesita para evitar un
+                descarte masivo mal hecho. */}
             <div className="servia-resumen">
               {descartandoEnLote.excepciones.size > 0 ? (
-                <span><strong>{descartandoEnLote.excepciones.size}</strong> se enviarán como «Calificado»</span>
+                <span>
+                  <strong>{descartandoEnLote.excepciones.size}</strong>
+                  {descartandoEnLote.excepciones.size === 1 ? ' se enviará' : ' se enviarán'} como «Calificado»
+                </span>
               ) : null}
-              <span>
-                <strong>{descartandoEnLote.ids.length - descartandoEnLote.excepciones.size}</strong>
-                {descartandoEnLote.servia === 'si' ? ' se enviarán como «Calificado»'
-                  : descartandoEnLote.servia === 'no' ? ' se enviarán como «Descartado»'
-                    : ' no enviarán nada'}
-              </span>
+              {(() => {
+                const resto = descartandoEnLote.ids.length - descartandoEnLote.excepciones.size;
+                const uno = resto === 1;
+                return (
+                  <span>
+                    <strong>{resto}</strong>
+                    {descartandoEnLote.servia === 'si' ? `${uno ? ' se enviará' : ' se enviarán'} como «Calificado»`
+                      : descartandoEnLote.servia === 'no' ? `${uno ? ' se enviará' : ' se enviarán'} como «Descartado»`
+                        : `${uno ? ' no enviará' : ' no enviarán'} nada`}
+                  </span>
+                );
+              })()}
             </div>
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={() => setDescartandoEnLote(null)}>Cancelar</button>
