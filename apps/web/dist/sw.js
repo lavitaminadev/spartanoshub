@@ -78,30 +78,30 @@ define(['./workbox-3d8c9f1b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "bae2d34c71384381434aba8a082ca486"
+    "revision": "4226cb1c6135132db7c634222d6a8229"
   }, {
     "url": "manifest.webmanifest",
     "revision": "5e4ebab5a95e7df65224bbb2f0fb66e7"
   }, {
+    "url": "assets/index-lmAT9V34.js",
+    "revision": null
+  }, {
     "url": "assets/index-CY2uVbpp.css",
     "revision": null
   }, {
-    "url": "assets/index-BNjY0InU.js",
+    "url": "assets/vendor-router-CUfYT7mv.js",
     "revision": null
   }, {
-    "url": "assets/vendor-router-CAv0Efxj.js",
+    "url": "assets/vendor-react-BhyWLoYd.js",
     "revision": null
   }, {
-    "url": "assets/vendor-react-CMU8DH4r.js",
+    "url": "assets/vendor-query-B5GQiaQ5.js",
     "revision": null
   }, {
-    "url": "assets/vendor-query-RjfnE9v2.js",
+    "url": "assets/vendor-charts-fuoMaa5i.js",
     "revision": null
   }, {
-    "url": "assets/vendor-charts-D84uvDaO.js",
-    "revision": null
-  }, {
-    "url": "assets/vendor-Brkz1nmc.js",
+    "url": "assets/vendor-C0C-7k6S.js",
     "revision": null
   }, {
     "url": "icons.svg",

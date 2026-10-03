@@ -24,6 +24,15 @@ export const CLAVE_VOCABULARIO = 'crm.vocabulary';
  */
 export const CLAVE_ETAPAS_OCULTAS = 'crm.hidden_stages';
 
+/**
+ * Clave de las etapas en las que se pregunta si el prospecto era el tipo de cliente buscado.
+ *
+ * Va aparte de las ocultas porque son decisiones distintas: una dice si un paso existe para esa
+ * empresa y la otra si ese paso es el momento de preguntar. Comparten el mecanismo, no el
+ * contenido.
+ */
+export const CLAVE_PREGUNTAR_CALIFICACION = 'crm.qualify_at_stages';
+
 /** Rótulos de etapa: estado interno → cómo lo llama esa empresa. */
 export type RotulosDeEtapa = Record<string, string>;
 
@@ -127,7 +136,43 @@ export class StageLabelsService {
    * @returns Claves internas de estado. Vacío significa que se usan todas.
    */
   async ocultas(organizationId: string, clientId?: string | null): Promise<string[]> {
-    const definicion = await this.definiciones.findOne({ where: { key: CLAVE_ETAPAS_OCULTAS } });
+    return this.leerLista(CLAVE_ETAPAS_OCULTAS, organizationId, clientId);
+  }
+
+  /**
+   * Etapas en las que se pregunta si el prospecto era el tipo de cliente que se busca.
+   *
+   * Vacío —el valor de fábrica— significa que no se pregunta al mover de etapa, y entonces la
+   * única oportunidad es el descarte. Encenderlo adelanta esa respuesta al momento en que de
+   * verdad se sabe: quien acaba de hablar con la persona lo tiene claro, y quien cierra la ficha
+   * cuarenta días después ya no se acuerda.
+   *
+   * Se elige por empresa porque el momento en que se sabe depende del negocio: una inmobiliaria
+   * lo descubre en la visita y una agencia en la primera llamada.
+   */
+  async etapasQuePreguntan(organizationId: string, clientId?: string | null): Promise<string[]> {
+    return this.leerLista(CLAVE_PREGUNTAR_CALIFICACION, organizationId, clientId);
+  }
+
+  /** Fija en qué etapas se pregunta. Se guarda la lista completa, igual que las ocultas. */
+  async fijarEtapasQuePreguntan(organizationId: string, clientId: string | null, estados: string[]): Promise<string[]> {
+    return this.guardarLista(
+      CLAVE_PREGUNTAR_CALIFICACION,
+      'Etapas en las que se pregunta si el prospecto era el tipo de cliente buscado.',
+      organizationId,
+      clientId,
+      estados,
+    );
+  }
+
+  /**
+   * Lee una lista de estados guardada bajo una clave.
+   *
+   * Sin definición devuelve vacío en vez de fallar: una organización que nunca tocó el ajuste no
+   * tiene fila, y eso es «el valor de fábrica», no un error.
+   */
+  private async leerLista(clave: string, organizationId: string, clientId?: string | null): Promise<string[]> {
+    const definicion = await this.definiciones.findOne({ where: { key: clave } });
     if (!definicion) return [];
 
     const fila = await this.valores.findOne({
@@ -142,20 +187,22 @@ export class StageLabelsService {
   }
 
   /**
-   * Fija qué etapas quedan ocultas para esta empresa.
+   * Guarda una lista de estados bajo una clave, creando la definición si hace falta.
    *
-   * Se guarda la lista completa y no una diferencia: volver a usar una etapa es no incluirla, y
-   * con parches habría que inventar una forma de decir «esta vuelve».
+   * Se guarda la lista completa y no una diferencia: quitar algo de la lista es no incluirlo, y
+   * con parches habría que inventar una forma de decir «esto vuelve».
    */
-  async ocultar(
+  private async guardarLista(
+    clave: string,
+    descripcion: string,
     organizationId: string,
     clientId: string | null,
     estados: string[],
   ): Promise<string[]> {
-    const definicion = await this.definiciones.findOne({ where: { key: CLAVE_ETAPAS_OCULTAS } })
+    const definicion = await this.definiciones.findOne({ where: { key: clave } })
       ?? await this.definiciones.save(this.definiciones.create({
-        key: CLAVE_ETAPAS_OCULTAS,
-        description: 'Etapas del embudo que una empresa decide no usar. No borra nada: solo deja de mostrarlas.',
+        key: clave,
+        description: descripcion,
         defaultValue: { value: [] },
       }));
 
@@ -180,6 +227,26 @@ export class StageLabelsService {
       }));
     }
     return limpias;
+  }
+
+  /**
+   * Fija qué etapas quedan ocultas para esta empresa.
+   *
+   * Se guarda la lista completa y no una diferencia: volver a usar una etapa es no incluirla, y
+   * con parches habría que inventar una forma de decir «esta vuelve».
+   */
+  async ocultar(
+    organizationId: string,
+    clientId: string | null,
+    estados: string[],
+  ): Promise<string[]> {
+    return this.guardarLista(
+      CLAVE_ETAPAS_OCULTAS,
+      'Etapas del embudo que una empresa decide no usar. No borra nada: solo deja de mostrarlas.',
+      organizationId,
+      clientId,
+      estados,
+    );
   }
 
   /**

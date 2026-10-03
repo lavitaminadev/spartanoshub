@@ -133,4 +133,39 @@ export class StageLabelsController {
 
     return { hidden: await this.rotulos.ocultar(req.organizationId!, clientId ?? null, pedidas) };
   }
+
+  /**
+   * En qué etapas se pregunta si el prospecto era el tipo de cliente buscado.
+   *
+   * Lo lee cualquiera que vea el CRM, porque el tablero lo necesita para saber si al mover una
+   * tarjeta tiene que preguntar. Elegirlo es otra cosa y pide cargo, abajo.
+   */
+  @Get('qualify-at')
+  @ApiOperation({ summary: 'Etapas en las que se pregunta la calificación' })
+  async preguntanCalificacion(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    return { stages: await this.rotulos.etapasQuePreguntan(req.organizationId!, clientId ?? null) };
+  }
+
+  /**
+   * Elige en qué etapas se pregunta.
+   *
+   * No se valida contra el catálogo de estados a propósito: una etapa que la empresa deje de usar
+   * puede seguir en la lista sin hacer daño —no se mueve nadie ahí, así que nunca se pregunta— y
+   * rechazarla obligaría a desmarcarla antes de ocultarla, que es un orden que nadie adivina.
+   *
+   * `won` y `lost` se admiten pero no hacen falta: vender ya demuestra que servía, y el descarte
+   * pregunta siempre por su cuenta cuando nadie contestó antes.
+   */
+  @Put('qualify-at')
+  @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
+  @ApiOperation({ summary: 'Elegir en qué etapas se pregunta la calificación' })
+  async guardarPreguntanCalificacion(
+    @Req() req: AuthenticatedRequest,
+    @Body() cuerpo: { stages?: string[] },
+    @Query('clientId') clientId?: string,
+  ) {
+    await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+    return { stages: await this.rotulos.fijarEtapasQuePreguntan(req.organizationId!, clientId ?? null, cuerpo?.stages ?? []) };
+  }
 }

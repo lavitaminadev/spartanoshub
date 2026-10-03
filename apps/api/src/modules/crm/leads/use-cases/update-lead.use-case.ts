@@ -21,8 +21,15 @@ const DOMAIN_LABELS: Record<string, string> = {
 /**
  * Etapas que deciden la calificación por sí solas.
  *
- * Solo el desenlace. Una venta es la afirmación más fuerte de que el lead encajaba, y un descarte
- * la contraria; ninguna de las dos necesita que alguien la escriba aparte.
+ * **Sólo la venta.** Vender es la afirmación más fuerte de que el lead encajaba, y no necesita
+ * que nadie la escriba aparte.
+ *
+ * **Descartar ya no califica.** Lo hacía —`lost` ponía «no calificado»— y era falso: de los nueve
+ * motivos de descarte sólo tres significan que la persona no servía. Quien compró en otro proyecto
+ * era un comprador, y quien nunca respondió no se sabe. Con eso, la pregunta que de verdad importa
+ * —qué parte de los leads de una campaña servía— quedaba respondida por el resultado de la venta y
+ * no por el perfil, así que medía al vendedor en vez de al anuncio. Ahora la respuesta la da quien
+ * cierra la ficha, y si no la da, la ficha queda en revisión: no saber es un estado legítimo.
  *
  * Las etapas intermedias **no** califican, aunque parezca que sí. Que alguien agende una visita
  * no significa que el lead le sirva —se agenda para averiguarlo—, y marcarlo calificado por eso
@@ -31,7 +38,6 @@ const DOMAIN_LABELS: Record<string, string> = {
  */
 const DESENLACES = {
   [LeadStatus.WON]: LeadFitStatus.SOLD,
-  [LeadStatus.LOST]: LeadFitStatus.UNQUALIFIED,
 } as Partial<Record<LeadStatus, LeadFitStatus>>;
 
 @Injectable()
@@ -245,10 +251,15 @@ export class UpdateLeadUseCase {
     }
 
     /*
-     * El descarte también se anuncia.
+     * El descarte se anuncia **sólo cuando alguien afirmó que la persona no servía**.
      *
-     * En Events Manager se clasifica como «otra etapa»: le enseña a Meta qué perfiles no
-     * buscamos, que es la mitad del contraste que necesita para distinguir un buen lead.
+     * Antes se anunciaba todo descarte, y eso convertía en señal negativa a gente de la que no se
+     * sabía nada: nueve de cada diez cierres son «nunca respondió», donde nadie habló con la
+     * persona. Afirmarle a Meta que ese perfil no se busca es inventar el dato con el que después
+     * se decide dónde se gasta la pauta.
+     *
+     * Ahora cada respuesta manda lo suyo, y «no se supo» no manda nada. Un envío de menos no
+     * cuesta nada; uno inventado contamina el conjunto del que Meta aprende.
      *
      * **Solo del embudo comercial.** `lost` lo comparten los dos dominios —una reserva que no
      * se concretó se cierra igual que una venta que no se ganó— y son cosas distintas: un
@@ -272,11 +283,15 @@ export class UpdateLeadUseCase {
         this.logger.warn(`No se pudo anotar el descarte del lead ${guardado.id}: ${error instanceof Error ? error.message : error}`);
       });
 
-      this.eventEmitter.emit('lead.discarded', {
-        organizationId,
-        leadId: guardado.id,
-        clientId: guardado.clientId ?? null,
-      });
+      // Sólo lo que alguien afirmó. `in_review` y `review` son «no se supo», y de eso no hay nada
+      // que contarle a Meta; `qualified` ya salió más arriba como su propia señal positiva.
+      if (guardado.fitStatus === LeadFitStatus.UNQUALIFIED) {
+        this.eventEmitter.emit('lead.discarded', {
+          organizationId,
+          leadId: guardado.id,
+          clientId: guardado.clientId ?? null,
+        });
+      }
     }
 
     return guardado;

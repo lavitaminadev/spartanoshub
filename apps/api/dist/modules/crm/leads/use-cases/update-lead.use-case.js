@@ -33,7 +33,6 @@ const DOMAIN_LABELS = {
 };
 const DESENLACES = {
     [lead_status_enum_1.LeadStatus.WON]: lead_fit_status_enum_1.LeadFitStatus.SOLD,
-    [lead_status_enum_1.LeadStatus.LOST]: lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
 };
 let UpdateLeadUseCase = UpdateLeadUseCase_1 = class UpdateLeadUseCase {
     constructor(repo, history, cierre, eventEmitter, responsables, campos, automatizacion) {
@@ -136,11 +135,13 @@ let UpdateLeadUseCase = UpdateLeadUseCase_1 = class UpdateLeadUseCase {
             await this.automatizacion.ensureDiscardInteraction(guardado, undefined, actorId).catch((error) => {
                 this.logger.warn(`No se pudo anotar el descarte del lead ${guardado.id}: ${error instanceof Error ? error.message : error}`);
             });
-            this.eventEmitter.emit('lead.discarded', {
-                organizationId,
-                leadId: guardado.id,
-                clientId: guardado.clientId ?? null,
-            });
+            if (guardado.fitStatus === lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED) {
+                this.eventEmitter.emit('lead.discarded', {
+                    organizationId,
+                    leadId: guardado.id,
+                    clientId: guardado.clientId ?? null,
+                });
+            }
         }
         return guardado;
     }

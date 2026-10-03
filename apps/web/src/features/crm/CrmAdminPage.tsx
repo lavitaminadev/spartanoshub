@@ -22,7 +22,7 @@ import { Modal } from '../../shared/Modal';
 import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { useCrmScope } from './crm-scope';
 import { useAuth } from '../../core/auth';
-import { useEtapasOcultas, useStageLabels, type RotulosDeEtapa } from './use-stage-labels';
+import { useEtapasOcultas, useEtapasQuePreguntan, useStageLabels, type RotulosDeEtapa } from './use-stage-labels';
 import { useVocabulario, VOCABULARIO_BASE, type Vocabulario } from './use-vocabulario';
 import { STAGES, STAGE_LABEL } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
@@ -1004,6 +1004,27 @@ function NombresDeEtapa(): JSX.Element {
   const [ocultasBorrador, setOcultasBorrador] = useState<string[] | null>(null);
   const ocultas = ocultasBorrador ?? ocultasGuardadas;
 
+  /**
+   * En qué etapas se pregunta si el prospecto servía.
+   *
+   * Vacío de fábrica: encenderlo para todos sin avisar llenaría el tablero de preguntas que nadie
+   * pidió. La ayuda de arriba explica qué se gana al marcar alguna.
+   */
+  const preguntanGuardadas = useEtapasQuePreguntan(scope.clientId);
+  const [preguntanBorrador, setPreguntanBorrador] = useState<string[] | null>(null);
+  const preguntan = preguntanBorrador ?? preguntanGuardadas;
+
+  const guardarPreguntan = useMutation({
+    mutationFn: (stages: string[]) => api.put(
+      `/crm/stage-labels/qualify-at${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
+      { stages },
+    ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['crm-stage-qualify-at'] });
+      setPreguntanBorrador(null);
+    },
+  });
+
   const guardarOcultas = useMutation({
     mutationFn: (hidden: string[]) => api.put(
       `/crm/stage-labels/hidden${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
@@ -1047,6 +1068,18 @@ function NombresDeEtapa(): JSX.Element {
         el estado interno, así que renombrar no mueve ningún lead. Deja el campo vacío para volver
         al nombre original.
       </p>
+      {/*
+        Por qué conviene marcar «Pregunto aquí» en alguna etapa.
+
+        Sin esto, la calificación sólo se pregunta al descartar, que es semanas después: quien
+        cierra la ficha muchas veces no habló con la persona y ya no se acuerda. Se dice lo que se
+        gana, no lo que hace la casilla, porque lo segundo ya se entiende por su nombre.
+      */}
+      <p className="crm-admin-ayuda">
+        <strong>Pregunto aquí</strong> marca en qué momento se pregunta si el prospecto era el tipo
+        de cliente que buscas. Conviene elegir la etapa en que recién hablaron con él —ahí se sabe
+        y se responde en un segundo—. Si no marcas ninguna, sólo se pregunta al descartar.
+      </p>
       <div className="crm-admin-etapas">
         {etapas.map((etapa) => (
           <label key={etapa.value} className={ocultas.includes(etapa.value) ? 'esta-oculta' : ''}>
@@ -1069,6 +1102,31 @@ function NombresDeEtapa(): JSX.Element {
                 />
                 {' '}La uso
               </em>
+              {/*
+                En qué etapa se pregunta si el prospecto servía.
+
+                Va en la misma fila que «La uso» porque son dos propiedades de la misma etapa, y
+                separarlas en dos paneles obligaría a cruzar dos listas para entender cómo quedó
+                configurado el embudo.
+
+                Vender y descartar no se ofrecen: vender ya demuestra que servía, y el descarte
+                pregunta siempre por su cuenta cuando nadie contestó antes.
+              */}
+              {etapa.value !== 'won' && etapa.value !== 'lost' ? (
+                <em>
+                  <input
+                    type="checkbox"
+                    checked={preguntan.includes(etapa.value)}
+                    disabled={ocultas.includes(etapa.value)}
+                    onChange={() => setPreguntanBorrador(
+                      preguntan.includes(etapa.value)
+                        ? preguntan.filter((estado) => estado !== etapa.value)
+                        : [...preguntan, etapa.value],
+                    )}
+                  />
+                  {' '}Pregunto aquí
+                </em>
+              ) : null}
             </span>
             <input
               className="input"
@@ -1088,6 +1146,14 @@ function NombresDeEtapa(): JSX.Element {
           onClick={() => guardarOcultas.mutate(ocultas)}
         >
           {guardarOcultas.isPending ? 'Guardando...' : 'Guardar etapas'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          disabled={preguntanBorrador === null || guardarPreguntan.isPending}
+          onClick={() => guardarPreguntan.mutate(preguntan)}
+        >
+          {guardarPreguntan.isPending ? 'Guardando...' : 'Guardar dónde pregunto'}
         </button>
         <button
           type="button"

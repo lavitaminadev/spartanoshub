@@ -778,6 +778,11 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * igual que si no leyera nada, que es justo lo que había que poder comprobar.
    */
   [/\/crm\/stage-labels\/hidden/, () => ({ hidden: visualEtapasOcultas })],
+  /*
+   * Con una etapa marcada, para que la pregunta al mover se vea sin tener que configurarla.
+   * Vacío mostraría el camino de fábrica y dejaría el modal nuevo sin probar nunca.
+   */
+  [/\/crm\/stage-labels\/qualify-at/, () => ({ stages: ['contacted'] })],
   [/\/crm\/stage-labels\/vocabulary/, () => ({ labels: {} })],
   [/\/crm\/stage-labels/, () => ({ labels: visualRotulosDeEtapa })],
   [/\/users\/[^/]+\/administra\/[^/]+$/, (config) => {

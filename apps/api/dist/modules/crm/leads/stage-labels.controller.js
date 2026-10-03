@@ -71,6 +71,14 @@ let StageLabelsController = class StageLabelsController {
         }
         return { hidden: await this.rotulos.ocultar(req.organizationId, clientId ?? null, pedidas) };
     }
+    async preguntanCalificacion(req, clientId) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        return { stages: await this.rotulos.etapasQuePreguntan(req.organizationId, clientId ?? null) };
+    }
+    async guardarPreguntanCalificacion(req, cuerpo, clientId) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        return { stages: await this.rotulos.fijarEtapasQuePreguntan(req.organizationId, clientId ?? null, cuerpo?.stages ?? []) };
+    }
 };
 exports.StageLabelsController = StageLabelsController;
 __decorate([
@@ -133,6 +141,26 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", Promise)
 ], StageLabelsController.prototype, "guardarOcultas", null);
+__decorate([
+    (0, common_1.Get)('qualify-at'),
+    (0, swagger_1.ApiOperation)({ summary: 'Etapas en las que se pregunta la calificación' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], StageLabelsController.prototype, "preguntanCalificacion", null);
+__decorate([
+    (0, common_1.Put)('qualify-at'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
+    (0, swagger_1.ApiOperation)({ summary: 'Elegir en qué etapas se pregunta la calificación' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object, String]),
+    __metadata("design:returntype", Promise)
+], StageLabelsController.prototype, "guardarPreguntanCalificacion", null);
 exports.StageLabelsController = StageLabelsController = __decorate([
     (0, common_1.Controller)('crm/stage-labels'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

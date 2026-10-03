@@ -1,13 +1,1 @@
 
-
-/*
- * El período de ingreso, debajo de la barra de filtros.
- *
- * Dos campos juntos y no dos desplegables más: se eligen de a pares y uno solo —«desde» sin
- * «hasta»— es una pregunta legítima. Se envuelven en pantallas angostas en vez de encogerse,
- * porque un campo de fecha ilegible no se puede usar.
- */
-.leads-board-periodo { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
-.leads-board-periodo label { display: grid; gap: 4px; }
-.leads-board-periodo span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.leads-board-periodo input { min-width: 150px; }
