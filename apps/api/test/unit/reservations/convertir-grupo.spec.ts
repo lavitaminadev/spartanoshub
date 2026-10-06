@@ -20,6 +20,15 @@ function servicio(): ReservationsService {
   );
 }
 
+/**
+ * La fecha acordada al convertir, siempre en el futuro.
+ *
+ * Estaba escrita a mano —`2026-10-03`— y el servicio rechaza las fechas pasadas, así que el día
+ * que esa fecha quedó atrás las cinco pruebas empezaron a fallar sin que nadie tocara el código.
+ * Calculada desde hoy, no vuelve a caducar.
+ */
+const EN_UNA_SEMANA = () => new Date(Date.now() + 7 * 86_400_000).toISOString();
+
 const solicitud = () => ({
   id: 'g-1', formId: 'form-1', guestName: 'Ana', guestEmail: 'ana@example.cl', guestPhone: '+56912345678',
   partySize: 14, eventType: 'cumpleanos', notes: 'Torta propia', status: 'contacted',
@@ -34,7 +43,7 @@ describe('convertir una solicitud de grupo en reserva', () => {
     const service = servicio();
     const createManual = vi.spyOn(service, 'createManual').mockResolvedValue({ id: 'res-9' } as never);
 
-    await service.convertGroupRequest('org-1', 'g-1', { startsAt: '2026-10-03T23:00:00.000Z' }, 'user-1');
+    await service.convertGroupRequest('org-1', 'g-1', { startsAt: EN_UNA_SEMANA() }, 'user-1');
 
     expect(createManual).toHaveBeenCalledWith('org-1', 'user-1', expect.objectContaining({
       formId: 'form-1', guestName: 'Ana', guestEmail: 'ana@example.cl', partySize: 14, resourceId: 'terraza',
@@ -47,7 +56,7 @@ describe('convertir una solicitud de grupo en reserva', () => {
     groupRequests.findOne.mockResolvedValue(solicitud());
     const service = servicio();
     const createManual = vi.spyOn(service, 'createManual').mockResolvedValue({ id: 'res-9' } as never);
-    await service.convertGroupRequest('org-1', 'g-1', { startsAt: '2026-10-03T23:00:00.000Z', resourceId: 'salon' }, 'user-1');
+    await service.convertGroupRequest('org-1', 'g-1', { startsAt: EN_UNA_SEMANA(), resourceId: 'salon' }, 'user-1');
     expect(createManual.mock.calls[0][2]).toEqual(expect.objectContaining({ resourceId: 'salon' }));
   });
 
@@ -67,7 +76,7 @@ describe('convertir una solicitud de grupo en reserva', () => {
     const service = servicio();
     vi.spyOn(service, 'createManual').mockResolvedValue({ id: 'res-9' } as never);
 
-    await service.convertGroupRequest('org-1', 'g-1', { startsAt: '2026-10-03T23:00:00.000Z' }, 'user-1');
+    await service.convertGroupRequest('org-1', 'g-1', { startsAt: EN_UNA_SEMANA() }, 'user-1');
 
     expect(reservations.update).toHaveBeenCalledWith('res-9', expect.objectContaining({
       utmSource: 'instagram', utmMedium: 'social', utmCampaign: 'eventos-primavera', originDetected: true,
@@ -84,7 +93,7 @@ describe('convertir una solicitud de grupo en reserva', () => {
     const service = servicio();
     const createManual = vi.spyOn(service, 'createManual').mockResolvedValue({ id: 'res-9' } as never);
 
-    await service.convertGroupRequest('org-1', 'g-1', { startsAt: '2026-10-03T23:00:00.000Z' }, 'user-1');
+    await service.convertGroupRequest('org-1', 'g-1', { startsAt: EN_UNA_SEMANA() }, 'user-1');
 
     const nota = (createManual.mock.calls[0][2] as { internalNotes: string }).internalNotes;
     expect(nota).toContain('Precio acordado: $450.000');
@@ -95,7 +104,7 @@ describe('convertir una solicitud de grupo en reserva', () => {
     groupRequests.findOne.mockResolvedValue(solicitud());
     const service = servicio();
     vi.spyOn(service, 'createManual').mockResolvedValue({ id: 'res-9' } as never);
-    await service.convertGroupRequest('org-1', 'g-1', { startsAt: '2026-10-03T23:00:00.000Z' }, 'user-1');
+    await service.convertGroupRequest('org-1', 'g-1', { startsAt: EN_UNA_SEMANA() }, 'user-1');
     expect(reservations.update).not.toHaveBeenCalled();
   });
 
@@ -103,7 +112,7 @@ describe('convertir una solicitud de grupo en reserva', () => {
     groupRequests.findOne.mockResolvedValue({ ...solicitud(), status: 'converted' });
     const service = servicio();
     const createManual = vi.spyOn(service, 'createManual');
-    await expect(service.convertGroupRequest('org-1', 'g-1', { startsAt: '2026-10-03T23:00:00.000Z' }, 'user-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.convertGroupRequest('org-1', 'g-1', { startsAt: EN_UNA_SEMANA() }, 'user-1')).rejects.toBeInstanceOf(ConflictException);
     expect(createManual).not.toHaveBeenCalled();
   });
 });
