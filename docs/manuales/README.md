@@ -19,11 +19,12 @@ que sepas lo que es un token o una migración, el manual está mal escrito.
 | [09 · La página pública de reserva](09-pagina-publica-de-reserva.md) | Qué ve quien reserva, en qué orden y por qué | Reservas → Diseño público |
 | [10 · Cuentas, accesos y qué ve cada quien](10-cuentas-accesos-y-que-ve-cada-quien.md) | Cargos, crear cuentas, clave temporal y duración de la sesión | Administración → Usuarios |
 | [11 · Conservación, plazos y decisiones](11-conservacion-plazos-y-decisiones.md) | Cuánto se guarda cada cosa y por qué ese número, los plazos legales, y las tres decisiones que falta confirmar con un abogado | Los criterios detrás de todo lo anterior |
+| [12 · Qué se le envía a Meta](12-que-se-le-envia-a-meta.md) | Los nueve eventos, campo por campo: qué va cifrado, cuándo no se envía nada y qué hay que configurar en Events Manager | CRM, Reservas y Encuestas |
 
 ## Cómo leerlos
 
 **Con un doble clic, sin nada instalado:** abre **`manual.html`**, en esta misma carpeta. Es un
-archivo único con los once manuales y las imágenes dentro, así que funciona sin conexión, sin el
+archivo único con los doce manuales y las imágenes dentro, así que funciona sin conexión, sin el
 repositorio al lado y aunque lo mandes por correo. Lleva su propio índice a la izquierda.
 
 **Para tenerlo en PDF:** ábrelo y usa Imprimir → Guardar como PDF. Está preparado para eso: cada
