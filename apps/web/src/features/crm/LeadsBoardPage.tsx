@@ -498,7 +498,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         return;
       }
       setSeleccion(new Set());
-      setAviso({ tono: 'success', texto: `${resultado.actualizados} prospectos movidos a ${etapaLabel(variables.status).toLowerCase()}.` });
+      const uno = resultado.actualizados === 1;
+      setAviso({ tono: 'success', texto: `${resultado.actualizados} ${uno ? 'prospecto movido' : 'prospectos movidos'} a ${etapaLabel(variables.status).toLowerCase()}.` });
     },
     onError: (err: Error) => setAviso({ tono: 'error', texto: err.message }),
   });
@@ -1392,8 +1393,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         </Modal>
       ) : null}
 
+      {/* El plural se calcula: seleccionar uno solo y leer «1 leads» delata que el número no se
+          está mirando, y este modal pide confianza en sus cifras para no descartar de más. */}
       {descartandoEnLote ? (
-        <Modal open onClose={() => setDescartandoEnLote(null)} title={`¿Por qué descartar ${descartandoEnLote.ids.length} leads?`}>
+        <Modal
+          open
+          onClose={() => setDescartandoEnLote(null)}
+          title={`¿Por qué descartar ${descartandoEnLote.ids.length} ${descartandoEnLote.ids.length === 1 ? 'prospecto' : 'prospectos'}?`}
+        >
           <div className="modal-form">
             <p className="crm-admin-ayuda">El mismo motivo se guardará en todos los seleccionados. Si no comparten causa, descártalos individualmente.</p>
             <label>
@@ -1501,15 +1508,33 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 </span>
               ) : null}
               {(() => {
-                const resto = descartandoEnLote.ids.length - descartandoEnLote.excepciones.size;
+                // Los que ya tienen veredicto de una persona no se cuentan acá: su calificación no
+                // se toca, y sumarlos haría creer que la respuesta de arriba les alcanzó.
+                const conVeredicto = descartandoEnLote.ids.filter((id) => {
+                  const ficha = leads.find((fila) => fila.id === id);
+                  return ficha && !necesitaPregunta(ficha);
+                }).length;
+                const resto = descartandoEnLote.ids.length - descartandoEnLote.excepciones.size - conVeredicto;
                 const uno = resto === 1;
                 return (
-                  <span>
-                    <strong>{resto}</strong>
-                    {descartandoEnLote.servia === 'si' ? `${uno ? ' se enviará' : ' se enviarán'} como «Calificado»`
-                      : descartandoEnLote.servia === 'no' ? `${uno ? ' se enviará' : ' se enviarán'} como «Descartado»`
-                        : `${uno ? ' no enviará' : ' no enviarán'} nada`}
-                  </span>
+                  <>
+                    {resto > 0 ? (
+                      <span>
+                        <strong>{resto}</strong>
+                        {descartandoEnLote.servia === 'si' ? `${uno ? ' se enviará' : ' se enviarán'} como «Calificado»`
+                          : descartandoEnLote.servia === 'no' ? `${uno ? ' se enviará' : ' se enviarán'} como «Descartado»`
+                            : `${uno ? ' no enviará' : ' no enviarán'} nada`}
+                      </span>
+                    ) : null}
+                    {conVeredicto > 0 ? (
+                      <span>
+                        <strong>{conVeredicto}</strong>
+                        {conVeredicto === 1
+                          ? ' ya estaba calificado por alguien: no se le cambia'
+                          : ' ya estaban calificados por alguien: no se les cambia'}
+                      </span>
+                    ) : null}
+                  </>
                 );
               })()}
             </div>
@@ -1534,16 +1559,25 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     ids: descartandoEnLote.ids,
                     status: 'lost',
                     discardReason: comun,
-                    porLead: Object.fromEntries(descartandoEnLote.ids.map((id) => [
-                      id,
-                      descartandoEnLote.excepciones.has(id)
+                    porLead: Object.fromEntries(descartandoEnLote.ids.map((id) => {
+                      /*
+                       * Un veredicto que ya dio una persona no se pisa desde el lote.
+                       *
+                       * La respuesta de arriba vale para la tanda, pero quien marcó un lead como
+                       * «sirve» lo hizo mirándolo: una respuesta común, elegida sobre veinte
+                       * fichas a la vez, no puede borrar esa decisión. Esos leads se cierran con
+                       * el motivo y sin tocar su calificación, igual que en el descarte suelto.
+                       */
+                      const ficha = leads.find((fila) => fila.id === id);
+                      if (ficha && !necesitaPregunta(ficha)) return [id, { discardReason: comun }];
+                      return [id, descartandoEnLote.excepciones.has(id)
                         ? { discardReason: descartandoEnLote.motivoExcepciones, fitStatus: calificacionDe('si') }
-                        : { discardReason: comun, fitStatus: calificacionDe(descartandoEnLote.servia) },
-                    ])),
+                        : { discardReason: comun, fitStatus: calificacionDe(descartandoEnLote.servia) }];
+                    })),
                   });
                   setDescartandoEnLote(null);
                 }}
-              >Descartar {descartandoEnLote.ids.length} leads</button>
+              >Descartar {descartandoEnLote.ids.length} {descartandoEnLote.ids.length === 1 ? 'prospecto' : 'prospectos'}</button>
             </div>
           </div>
         </Modal>
