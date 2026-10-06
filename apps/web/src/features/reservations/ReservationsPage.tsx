@@ -544,7 +544,37 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
       <div className="reservation-section-head"><div><span className="page-eyebrow">{clientView ? 'TU OPERACIÓN' : 'ADMINISTRACIÓN'}</span><h1>{clientView ? 'Tus páginas de reserva' : 'Reservas de la empresa'}</h1></div><div className="reservation-actions"><p>{visibleForms.length} de {reservationClientForms.length} reservas visibles</p><div className="reservation-flow-actions">{!clientView && <button className="btn btn-primary btn-sm" onClick={() => openCreateFlow('appointment')}>Agregar otra reserva</button>}<button className={`btn btn-sm ${clientView ? 'btn-primary' : 'btn-outline duplica-menu'}`} onClick={() => setManualOpen(true)}>Anotar reserva</button>{!clientView && ofreceEncuestas && <Link className="btn btn-outline btn-sm" to="/surveys">Ir a Encuestas</Link>}</div></div></div>
       <div className="reservation-status-summary" aria-label="Resumen de formularios"><button className={!formFilters.status ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: '' }))}><strong>{reservationClientForms.length}</strong><span>Todos</span></button><button className={formFilters.status === 'published' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'published' }))}><strong>{formCounts.published || 0}</strong><span>Publicados</span></button><button className={formFilters.status === 'paused' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'paused' }))}><strong>{formCounts.paused || 0}</strong><span>Pausados</span></button><button className={formFilters.status === 'draft' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'draft' }))}><strong>{formCounts.draft || 0}</strong><span>Borradores</span></button></div>
       <div className="reservation-form-filters"><input className="input" type="search" aria-label="Buscar una reserva" placeholder="Buscar por nombre o enlace" value={formFilters.search} onChange={(event) => setFormFilters((current) => ({ ...current, search: event.target.value }))} />{!clientView && <select className="input" aria-label="Filtrar formularios por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todas las empresas</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar formularios por estado" value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Todos los estados</option><option value="published">Publicados</option><option value="paused">Pausados</option><option value="draft">Borradores</option></select><button type="button" className="btn btn-outline btn-sm" disabled={!formFilters.search && !formFilters.status && !clientFilter && formFilters.flow === 'all'} onClick={() => { setFormFilters({ search: '', status: '', flow: 'all' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{visibleForms.length} reserva{visibleForms.length === 1 ? '' : 's'}</span></div>
-      {visibleForms.length === 0 ? <div className="reservation-empty"><strong>Activa Reservas para tu primer local</strong><p>Las encuestas se crean y publican desde su propio módulo.</p>{!clientView && <div className="reservation-flow-actions"><button className="btn btn-primary" onClick={() => openCreateFlow('appointment')}>Agregar la primera reserva</button>{ofreceEncuestas && <Link className="btn btn-outline" to="/surveys">Ir a Encuestas</Link>}</div>}</div> : <div className="reservation-form-grid">
+      {/*
+        * El vacío dice cosas distintas según quién mire, porque las dos no pueden hacer lo mismo.
+        *
+        * Decía «Activa Reservas para tu primer local» y debajo, sin venir a cuento, que las
+        * encuestas se crean en otro módulo: texto de encuestas pegado en el vacío de reservas, que
+        * no explicaba nada de lo que había que hacer.
+        *
+        * Y al cliente le pedía activar algo que **no puede crear**: el servidor no admite el cargo
+        * de empresa en `POST /reservations/forms`, y por eso acá tampoco había botón. Un vacío que
+        * manda a hacer algo imposible deja a la persona buscando un botón que no existe.
+        */}
+      {visibleForms.length === 0 ? <div className="reservation-empty">
+        {clientView ? (
+          <>
+            <strong>Todavía no tienes páginas de reserva</strong>
+            <p>
+              Las crea el equipo de Espartanos. Pídeles la primera y, una vez publicada, el horario,
+              los cupos, las zonas y los textos los manejas tú desde acá.
+            </p>
+          </>
+        ) : (
+          <>
+            <strong>Crea tu primera reserva para verla funcionando</strong>
+            <p>Es el enlace que compartes para que te reserven. Todo lo demás se cambia después.</p>
+            <div className="reservation-flow-actions">
+              <button className="btn btn-primary" onClick={() => openCreateFlow('appointment')}>Crear la primera reserva</button>
+              {ofreceEncuestas && <Link className="btn btn-outline" to="/surveys">Ir a Encuestas</Link>}
+            </div>
+          </>
+        )}
+      </div> : <div className="reservation-form-grid">
         {visibleForms.map((form) => <article className="reservation-form-card" key={form.id}>
           <div className="form-card-accent" style={{ background: form.designConfig.primaryColor || '#0ec6b8' }} />
           <div className="form-card-head"><span className="form-mode">{clientView ? 'Esta empresa' : (clients.find((client) => client.id === form.clientId)?.name || 'Empresa no disponible')}</span><span className={`form-status-pill ${form.status === 'published' ? 'is-live' : form.status === 'paused' ? 'is-paused' : 'is-draft'}`}>{form.status === 'published' ? 'Publicado' : form.status === 'paused' ? 'Pausado' : 'Borrador'}</span></div>
