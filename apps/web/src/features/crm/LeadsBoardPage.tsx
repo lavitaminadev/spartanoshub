@@ -41,11 +41,13 @@ import { STAGES, STAGE_ACCENT, STAGE_LABEL } from './stage-labels';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useCrmScope } from './crm-scope';
 import { useAuth } from '../../core/auth';
-import { useEtapasOcultas, useStageLabels } from './use-stage-labels';
+import { useEtapasOcultas, useEtapasQuePreguntan, useStageLabels } from './use-stage-labels';
 import { COLUMNAS_OPCIONALES, guardarColumnas, leerColumnas, type ColumnaOpcional } from './columnas-leads';
 import { useVocabulario } from './use-vocabulario';
-import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
+import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente, servirSegunMotivo, type ServiaElProspecto } from '@espartanos/shared';
+import { PreguntaSiServia, calificacionDe } from './PreguntaSiServia';
 import { colorDePersona, mensajeDePrimerContacto, whatsapp } from './contacto';
+import { registrarWhatsapp } from './registrar-whatsapp';
 import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './calificacion';
 import { marcaDeInactividad } from './inactividad';
 import './leads-board.css';
@@ -88,7 +90,25 @@ interface LeadsPage { data: Lead[]; total: number; limit: number; offset: number
 
 const LEADS_PAGE_SIZE = 100;
 
-const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana', 'anuncio', 'plataforma', 'campo', 'valor'] as const;
+/**
+ * Si al cerrar esta ficha hay que preguntar si la persona servía.
+ *
+ * **Lo único que exime es el veredicto de alguien.** Una regla automática no: califica por lo que
+ * dice un formulario, sobre alguien con quien nadie habló, y esa suposición no puede decidir a
+ * quién le muestra Meta los anuncios. `reglaAplicadaMotivo` es lo que distingue las dos cosas.
+ *
+ * Tampoco exime un «no servía» anterior: si alguien lo marcó así y ahora lo cierra, confirmarlo
+ * cuesta un clic y es la última oportunidad de corregirlo.
+ */
+function necesitaPregunta(lead: Pick<Lead, 'fitStatus' | 'reglaAplicadaMotivo'>): boolean {
+  const yaLoDijoAlguien = (lead.fitStatus === 'qualified' || lead.fitStatus === 'sold')
+    && !lead.reglaAplicadaMotivo;
+  return !yaLoDijoAlguien;
+}
+
+// `desde` y `hasta` van acá y no sólo en la dirección: el hook sólo devuelve las claves que se le
+// declaran, así que sin esto el filtro viajaba al servidor pero el campo se veía vacío al volver.
+const FILTER_KEYS = ['responsable', 'etapa', 'calidad', 'campana', 'anuncio', 'plataforma', 'campo', 'valor', 'desde', 'hasta'] as const;
 
 /*
  * Dónde vio el anuncio quien dejó el lead.
@@ -150,6 +170,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   const rotulos = useStageLabels(scope.clientId);
   // Etapas que esta empresa decidió no usar. Vacío mientras carga: se muestran todas.
   const etapasOcultas = useEtapasOcultas(scope.clientId);
+  // En qué etapas esta empresa quiere que se pregunte si el prospecto servía. Vacío: en ninguna.
+  const etapasQuePreguntan = useEtapasQuePreguntan(scope.clientId);
   // Cómo llama esta empresa a sus cosas. Devuelve el nombre de fábrica para lo que no renombró.
   const { termino } = useVocabulario(scope.clientId);
   const filtros = useUrlFilters(FILTER_KEYS);
@@ -193,16 +215,64 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    */
   const [columnasVisibles, setColumnasVisibles] = useState<ColumnaOpcional[]>(() => leerColumnas(scope.domain));
   const [columnasAbierto, setColumnasAbierto] = useState(false);
-  /** Lead que se está descartando, mientras se elige el motivo. */
-  const [descartando, setDescartando] = useState<{ lead: Lead; motivo: string; detalle: string } | null>(null);
+  /**
+   * Lead que se está descartando, mientras se elige el motivo y se responde si servía.
+   *
+   * `tocado` distingue la respuesta que propuso el motivo de la que eligió una persona: cambiar
+   * de motivo vuelve a proponer, pero nunca pisa lo que alguien ya decidió a mano.
+   */
+  const [descartando, setDescartando] = useState<{
+    lead: Lead; motivo: string; detalle: string; servia: ServiaElProspecto; tocado: boolean;
+  } | null>(null);
+  /**
+   * Lead al que se le está preguntando si servía, al moverlo a una etapa configurada.
+   *
+   * No lleva `tocado` porque acá no hay motivo que proponga nada: la respuesta la da la persona
+   * desde cero, que es justamente el punto de preguntar cuando acaba de hablar con ella.
+   */
+  const [calificando, setCalificando] = useState<{ lead: Lead; stage: string; servia: ServiaElProspecto } | null>(null);
+
+  /**
+   * Qué pasa al mover un prospecto de etapa, venga de arrastrar o del menú.
+   *
+   * Es una sola función porque son el mismo hecho con dos gestos distintos. Eran dos copias, y la
+   * segunda se quedó sin la pregunta nueva: arrastrando preguntaba y por el menú no, que es la
+   * clase de diferencia que nadie reporta porque parece que uno recuerda mal.
+   *
+   * Tres caminos, en orden:
+   *
+   * 1. **Descartar** pide siempre el motivo, y la calificación si nadie la dio antes.
+   * 2. **Una etapa configurada** pregunta si el prospecto servía — es el momento en que de verdad
+   *    se sabe, y adelanta la señal a Meta semanas respecto de preguntarlo al cerrar. No se
+   *    pregunta al vender, porque vender ya lo demuestra.
+   * 3. **El resto** se mueve sin más.
+   */
+  const alCambiarEtapa = (lead: Lead, stage: string) => {
+    if (stage === 'lost' && lead.status !== 'lost') {
+      setDescartando({ lead, motivo: '', detalle: '', servia: 'nose', tocado: false });
+      return;
+    }
+    if (etapasQuePreguntan.includes(stage) && stage !== 'won' && necesitaPregunta(lead)) {
+      setCalificando({ lead, stage, servia: 'nose' });
+      return;
+    }
+    mover.mutate({ id: lead.id, status: stage });
+  };
   /** Tanda que se descarta con una causa común, elegida antes de escribir nada. */
-  const [descartandoEnLote, setDescartandoEnLote] = useState<{ ids: string[]; motivo: string; detalle: string } | null>(null);
+  const [descartandoEnLote, setDescartandoEnLote] = useState<{
+    ids: string[]; motivo: string; detalle: string;
+    servia: ServiaElProspecto; tocado: boolean;
+    /** Los de la tanda que sí servían, con su propio motivo. El resto va con el común. */
+    excepciones: Set<string>; motivoExcepciones: string;
+  } | null>(null);
   /*
    * Ver también los descartados de meses cerrados.
    *
    * No se recuerda entre visitas a propósito: es una consulta puntual —«¿qué descartamos en
    * marzo?»— y dejarla puesta devolvería la lista al problema que este corte resuelve, sin que
    * nadie recuerde haberla encendido.
+   *
+   * Marcada, no hay límite de fecha: salen todos los descartados, de cualquier mes.
    */
   const [verDescartados, setVerDescartados] = useState(false);
   const ve = (clave: ColumnaOpcional) => columnasVisibles.includes(clave);
@@ -244,11 +314,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     placeholderData: (anterior) => anterior,
     // La empresa elegida forma parte de la clave: cambiarla trae otro embudo, no el mismo
     // filtrado, así que su resultado no puede reutilizar la caché del anterior.
-    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados],
+    queryKey: ['crm-leads-board', scope.domain, scope.clientId, pagina, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados, filtros.values.desde, filtros.values.hasta],
     // El servidor limita cada respuesta a 100, pero el tablero no: se navega de página en página.
     // Así una empresa no pierde los contactos más antiguos cuando supera el primer centenar.
     queryFn: () => api.get(
-      `/crm/leads?domain=${scope.domain}${filtros.values.anuncio ? `&anuncio=${encodeURIComponent(filtros.values.anuncio)}` : ''}${filtros.values.plataforma ? `&plataforma=${encodeURIComponent(filtros.values.plataforma)}` : ''}${campoElegido && valorFiltro ? `&campoPropio=${encodeURIComponent(campoElegido.key)}&valorPropio=${encodeURIComponent(valorFiltro)}` : ''}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}`,
+      `/crm/leads?domain=${scope.domain}${filtros.values.anuncio ? `&anuncio=${encodeURIComponent(filtros.values.anuncio)}` : ''}${filtros.values.plataforma ? `&plataforma=${encodeURIComponent(filtros.values.plataforma)}` : ''}${campoElegido && valorFiltro ? `&campoPropio=${encodeURIComponent(campoElegido.key)}&valorPropio=${encodeURIComponent(valorFiltro)}` : ''}&limit=${LEADS_PAGE_SIZE}&offset=${(pagina - 1) * LEADS_PAGE_SIZE}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}${filtros.search ? `&search=${encodeURIComponent(filtros.search)}` : ''}${filtros.values.responsable ? `&assignedTo=${encodeURIComponent(filtros.values.responsable)}` : ''}${filtros.values.etapa ? `&status=${encodeURIComponent(filtros.values.etapa)}` : ''}${filtros.values.calidad ? `&fitStatus=${encodeURIComponent(filtros.values.calidad)}` : ''}${filtros.values.campana ? `&campaignName=${encodeURIComponent(filtros.values.campana)}` : ''}${verDescartados ? '&incluirDescartados=true' : ''}${filtros.values.desde ? `&desde=${filtros.values.desde}` : ''}${filtros.values.hasta ? `&hasta=${filtros.values.hasta}` : ''}`,
     ),
   });
 
@@ -256,7 +326,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // anterior podía mostrar un tablero vacío aunque la empresa sí tuviera prospectos.
   useEffect(() => {
     setPagina(1);
-  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados]);
+  }, [scope.domain, scope.clientId, filtros.search, filtros.values.responsable, filtros.values.etapa, filtros.values.calidad, filtros.values.campana, filtros.values.anuncio, filtros.values.plataforma, campoElegido?.key, valorFiltro, verDescartados, filtros.values.desde, filtros.values.hasta]);
 
   /**
    * Campañas de la empresa que se está mirando.
@@ -329,8 +399,14 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * tarjeta de columna.
    */
   const mover = useMutation({
-    mutationFn: ({ id, status, discardReason }: { id: string; status: string; discardReason?: string }) => (
-      api.put(`/crm/leads/${id}`, discardReason ? { status, discardReason } : { status })
+    mutationFn: ({ id, status, discardReason, fitStatus }: { id: string; status: string; discardReason?: string; fitStatus?: string }) => (
+      api.put(`/crm/leads/${id}`, {
+        status,
+        ...(discardReason ? { discardReason } : {}),
+        // Sólo viaja si se preguntó. Mandarlo siempre pisaría la calificación de un lead que
+        // alguien ya había juzgado, con el valor por omisión de un modal que ni se mostró.
+        ...(fitStatus ? { fitStatus } : {}),
+      })
     ),
     onMutate: async ({ id, status }) => {
       // Se cancela lo que esté en vuelo: una respuesta anterior llegando después pisaría el
@@ -399,9 +475,15 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * que reintentar es volver a pulsar y no rehacer la selección a mano.
    */
   const moverEnLote = useMutation({
-    mutationFn: async ({ ids, status, discardReason }: { ids: string[]; status: string; discardReason?: string }) => {
-      const cuerpo = discardReason ? { status, discardReason } : { status };
-      const resultados = await Promise.allSettled(ids.map((id) => api.put(`/crm/leads/${id}`, cuerpo)));
+    mutationFn: async ({ ids, status, discardReason, porLead }: {
+      ids: string[]; status: string; discardReason?: string;
+      /** Lo propio de cada ficha, cuando no todas comparten motivo ni calificación. */
+      porLead?: Record<string, { discardReason?: string; fitStatus?: string }>;
+    }) => {
+      const comun = discardReason ? { status, discardReason } : { status };
+      const resultados = await Promise.allSettled(ids.map((id) => (
+        api.put(`/crm/leads/${id}`, porLead?.[id] ? { status, ...porLead[id] } : comun)
+      )));
       const fallidos = ids.filter((_, indice) => resultados[indice]?.status === 'rejected');
       return { actualizados: ids.length - fallidos.length, fallidos };
     },
@@ -729,6 +811,41 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         onFilterChange={filtros.setValue}
         onClear={filtros.hasAny ? filtros.clear : undefined}
       />
+      {/*
+        * El período en que entró el prospecto.
+        *
+        * Va fuera de la barra de desplegables porque son dos campos que se eligen juntos, y uno
+        * solo —«desde» sin «hasta»— es una pregunta legítima: «lo que llegó después del lanzamiento».
+        *
+        * Acota por fecha de ingreso y no por última modificación: la pregunta que se hace con esto
+        * es qué trajo un mes, y la fecha de entrada es la única que no se mueve después.
+        *
+        * Elegir un período **muestra también los cerrados** de esas fechas, aunque sean antiguos.
+        * Pedir unas fechas a mano ya es decir que se quiere ver lo que haya ahí.
+        */}
+      <div className="leads-board-periodo">
+        <label>
+          <span>Entraron desde</span>
+          <input
+            className="input"
+            type="date"
+            max={filtros.values.hasta || undefined}
+            value={filtros.values.desde ?? ''}
+            onChange={(evento) => { filtros.setValue('desde', evento.target.value); setPagina(1); }}
+          />
+        </label>
+        <label>
+          <span>Hasta</span>
+          <input
+            className="input"
+            type="date"
+            min={filtros.values.desde || undefined}
+            value={filtros.values.hasta ?? ''}
+            onChange={(evento) => { filtros.setValue('hasta', evento.target.value); setPagina(1); }}
+          />
+        </label>
+      </div>
+
       {campoElegido && opcionesDelCampo.length === 0 && <label className="filtro-campo-propio">
         <span>{campoElegido.label}</span>
         <input
@@ -771,7 +888,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             checked={verDescartados}
             onChange={(evento) => { setVerDescartados(evento.target.checked); setPagina(1); }}
           />
-          <span>Ver descartados de meses anteriores</span>
+          {/* Dice qué se gana al marcarla, no cómo está hecho el corte por dentro: quien perdió
+              un lead de vista no piensa «esto es de un mes anterior», piensa «¿dónde quedó?». */}
+          <span>Ver también los cerrados antiguos</span>
         </label>
         <span className="leads-board-conteo">{leads.length} de {data?.total ?? 0}</span>
       </div>
@@ -814,7 +933,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               // Descartar exige una causa en el servidor. Pedir una común acá conserva la
               // acción masiva sin convertir el informe de pérdidas en filas sin explicación.
               if (etapaEnLote === 'lost') {
-                setDescartandoEnLote({ ids: seleccionVisible, motivo: '', detalle: '' });
+                setDescartandoEnLote({ ids: seleccionVisible, motivo: '', detalle: '', servia: 'nose', tocado: false, excepciones: new Set(), motivoExcepciones: '' });
                 return;
               }
               moverEnLote.mutate({ ids: seleccionVisible, status: etapaEnLote });
@@ -845,13 +964,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             error críptico. Se pregunta antes de mover: quien arrastra a Descartado ya decidió
             descartar, y el motivo es parte de esa decisión, no un trámite posterior.
           */
-          onMove={(lead, stage) => {
-            if (stage !== 'lost' || lead.status === 'lost') {
-              mover.mutate({ id: lead.id, status: stage });
-              return;
-            }
-            setDescartando({ lead, motivo: '', detalle: '' });
-          }}
+          onMove={alCambiarEtapa}
           emptyMessage="Ningún prospecto calza con este filtro."
           renderCard={(lead) => {
             const inactivo = marcaDeInactividad(lead.idleLevel ?? null, lead.idleDays ?? 0);
@@ -953,7 +1066,13 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                       target="_blank"
                       rel="noreferrer"
                       title={`Escribir por WhatsApp a ${lead.name}`}
-                      onClick={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        // Deja constancia del intento. No espera respuesta ni bloquea el enlace:
+                        // la pestaña de WhatsApp abre igual aunque la constancia falle.
+                        registrarWhatsapp(lead.id, lead.name);
+                        void queryClient.invalidateQueries({ queryKey: ['lead-interactions', lead.id] });
+                      }}
                     >
                       💬
                     </a>
@@ -1128,15 +1247,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   type="button"
                   className="btn btn-outline btn-sm"
                   disabled={mover.isPending}
-                  onClick={() => {
-                    if (estado === 'lost' && moviendo.status !== 'lost') {
-                      setDescartando({ lead: moviendo, motivo: '', detalle: '' });
-                      setMoviendo(null);
-                      return;
-                    }
-                    mover.mutate({ id: moviendo.id, status: estado });
-                    setMoviendo(null);
-                  }}
+                  onClick={() => { alCambiarEtapa(moviendo, estado); setMoviendo(null); }}
                 >
                   {etapaLabel(estado)}
                 </button>
@@ -1163,7 +1274,13 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               <select
                 className="input"
                 value={descartando.motivo}
-                onChange={(evento) => setDescartando({ ...descartando, motivo: evento.target.value })}
+                onChange={(evento) => setDescartando({
+                  ...descartando,
+                  motivo: evento.target.value,
+                  // El motivo propone la respuesta mientras nadie la haya tocado a mano. Cambiar
+                  // de motivo después de responder no pisa lo que la persona ya decidió.
+                  servia: descartando.tocado ? descartando.servia : servirSegunMotivo(evento.target.value),
+                })}
               >
                 <option value="">— Elige uno —</option>
                 {LEAD_DISCARD_REASONS.map((razon) => <option key={razon} value={razon}>{razon}</option>)}
@@ -1181,6 +1298,24 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 />
               </label>
             ) : null}
+            {/*
+              * La pregunta sólo aparece si nadie la contestó ya.
+              *
+              * Exime únicamente el veredicto de una persona. Una regla automática no: es una
+              * suposición sobre alguien que nadie miró, y es justo el dato que no puede decidir
+              * a quién le muestra Meta los anuncios.
+              */}
+            {necesitaPregunta(descartando.lead) ? (
+              <PreguntaSiServia
+                valor={descartando.servia}
+                propuesta={!descartando.tocado}
+                onCambiar={(valor) => setDescartando({ ...descartando, servia: valor, tocado: true })}
+              />
+            ) : (
+              <p className="form-hint">
+                Ya estaba calificado como «sirve», así que no se vuelve a preguntar.
+              </p>
+            )}
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={() => setDescartando(null)}>Cancelar</button>
               <button
@@ -1194,6 +1329,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     discardReason: descartando.motivo === 'Otro'
                       ? `Otro: ${descartando.detalle.trim()}`
                       : descartando.motivo,
+                    fitStatus: necesitaPregunta(descartando.lead) ? calificacionDe(descartando.servia) : undefined,
                   });
                   setDescartando(null);
                 }}
@@ -1205,13 +1341,68 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
         </Modal>
       ) : null}
 
+      {/*
+        * La pregunta al mover a una etapa configurada.
+        *
+        * Se puede cerrar sin contestar, y entonces el lead se mueve igual sin tocar su
+        * calificación. Obligar a responder para mover una tarjeta hace que la gente conteste
+        * cualquier cosa con tal de seguir, y un dato inventado es peor que ninguno.
+        */}
+      {calificando ? (
+        <Modal
+          open
+          onClose={() => {
+            mover.mutate({ id: calificando.lead.id, status: calificando.stage });
+            setCalificando(null);
+          }}
+          title={`${calificando.lead.name} pasa a ${etapaLabel(calificando.stage)}`}
+        >
+          <div className="modal-form">
+            <p className="crm-admin-ayuda">
+              Ya hablaron con esta persona, así que es el mejor momento para decirlo. Si prefieres
+              no responder ahora, cierra y se moverá igual.
+            </p>
+            <PreguntaSiServia
+              valor={calificando.servia}
+              onCambiar={(valor) => setCalificando({ ...calificando, servia: valor })}
+            />
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => {
+                  mover.mutate({ id: calificando.lead.id, status: calificando.stage });
+                  setCalificando(null);
+                }}
+              >Mover sin responder</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  mover.mutate({
+                    id: calificando.lead.id,
+                    status: calificando.stage,
+                    fitStatus: calificacionDe(calificando.servia),
+                  });
+                  setCalificando(null);
+                }}
+              >Guardar y mover</button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
       {descartandoEnLote ? (
         <Modal open onClose={() => setDescartandoEnLote(null)} title={`¿Por qué descartar ${descartandoEnLote.ids.length} leads?`}>
           <div className="modal-form">
             <p className="crm-admin-ayuda">El mismo motivo se guardará en todos los seleccionados. Si no comparten causa, descártalos individualmente.</p>
             <label>
               Motivo
-              <select className="input" value={descartandoEnLote.motivo} onChange={(evento) => setDescartandoEnLote({ ...descartandoEnLote, motivo: evento.target.value })}>
+              <select className="input" value={descartandoEnLote.motivo} onChange={(evento) => setDescartandoEnLote({
+                ...descartandoEnLote,
+                motivo: evento.target.value,
+                servia: descartandoEnLote.tocado ? descartandoEnLote.servia : servirSegunMotivo(evento.target.value),
+              })}>
                 <option value="">— Elige uno —</option>
                 {LEAD_DISCARD_REASONS.map((razon) => <option key={razon} value={razon}>{razon}</option>)}
               </select>
@@ -1219,6 +1410,109 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
             {descartandoEnLote.motivo === 'Otro' ? (
               <label>Cuál<input className="input" value={descartandoEnLote.detalle} onChange={(evento) => setDescartandoEnLote({ ...descartandoEnLote, detalle: evento.target.value })} placeholder="En pocas palabras" /></label>
             ) : null}
+
+            <PreguntaSiServia
+              plural
+              valor={descartandoEnLote.servia}
+              propuesta={!descartandoEnLote.tocado}
+              onCambiar={(valor) => setDescartandoEnLote({ ...descartandoEnLote, servia: valor, tocado: true })}
+            />
+
+            {/*
+              * Las excepciones: los de la tanda que sí servían.
+              *
+              * Es lo que hace usable el descarte masivo de verdad. Una tanda de «nunca respondió»
+              * casi siempre trae uno o dos que sí eran el perfil, y sin esto había que elegir
+              * entre mentir sobre todos o descartarlos de a uno.
+              *
+              * Sólo se ofrece cuando la respuesta común **no** es «sí»: si ya se dijo que todos
+              * servían, marcar excepciones no significaría nada.
+              */}
+            {descartandoEnLote.servia !== 'si' ? (
+              <label className="form-hint" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={descartandoEnLote.excepciones.size > 0 || descartandoEnLote.motivoExcepciones !== ''}
+                  onChange={(evento) => setDescartandoEnLote({
+                    ...descartandoEnLote,
+                    excepciones: new Set<string>(),
+                    motivoExcepciones: evento.target.checked ? 'Compró en otro proyecto' : '',
+                  })}
+                />
+                <span>Algunos sí servían, aunque los descarte</span>
+              </label>
+            ) : null}
+
+            {descartandoEnLote.servia !== 'si' && descartandoEnLote.motivoExcepciones ? (
+              <>
+                <div className="servia-excepciones">
+                  {descartandoEnLote.ids.map((id) => {
+                    const ficha = leads.find((fila) => fila.id === id);
+                    if (!ficha) return null;
+                    return (
+                      <label key={id}>
+                        <input
+                          type="checkbox"
+                          checked={descartandoEnLote.excepciones.has(id)}
+                          onChange={(evento) => {
+                            const siguiente = new Set(descartandoEnLote.excepciones);
+                            if (evento.target.checked) siguiente.add(id); else siguiente.delete(id);
+                            setDescartandoEnLote({ ...descartandoEnLote, excepciones: siguiente });
+                          }}
+                        />
+                        {/* Nombre, campaña y monto: elegir entre veinte nombres sueltos, sin el
+                            contexto que permite reconocerlos, es imposible de hacer bien. */}
+                        <span>
+                          {ficha.name}
+                          <small>{[ficha.campaignName, ficha.estimatedAmount ? `$${Number(ficha.estimatedAmount).toLocaleString('es-CL')}` : null].filter(Boolean).join(' · ')}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <label>
+                  Motivo de esos {descartandoEnLote.excepciones.size}
+                  <select
+                    className="input"
+                    value={descartandoEnLote.motivoExcepciones}
+                    onChange={(evento) => setDescartandoEnLote({ ...descartandoEnLote, motivoExcepciones: evento.target.value })}
+                  >
+                    {LEAD_DISCARD_REASONS.filter((razon) => razon !== 'Otro').map((razon) => <option key={razon} value={razon}>{razon}</option>)}
+                  </select>
+                </label>
+              </>
+            ) : null}
+
+            {/*
+              * El resumen es lo que evita el error.
+              *
+              * Dice en números qué va a salir hacia Meta antes de confirmar. En un asistente por
+              * pasos este número no se puede ver hasta el final, cuando ya no se corrige sin
+              * volver atrás.
+              */}
+            {/* La concordancia se calcula: «1 no enviarán nada» delata que el número es de
+                adorno, y el resumen pierde justo la credibilidad que necesita para evitar un
+                descarte masivo mal hecho. */}
+            <div className="servia-resumen">
+              {descartandoEnLote.excepciones.size > 0 ? (
+                <span>
+                  <strong>{descartandoEnLote.excepciones.size}</strong>
+                  {descartandoEnLote.excepciones.size === 1 ? ' se enviará' : ' se enviarán'} como «Calificado»
+                </span>
+              ) : null}
+              {(() => {
+                const resto = descartandoEnLote.ids.length - descartandoEnLote.excepciones.size;
+                const uno = resto === 1;
+                return (
+                  <span>
+                    <strong>{resto}</strong>
+                    {descartandoEnLote.servia === 'si' ? `${uno ? ' se enviará' : ' se enviarán'} como «Calificado»`
+                      : descartandoEnLote.servia === 'no' ? `${uno ? ' se enviará' : ' se enviarán'} como «Descartado»`
+                        : `${uno ? ' no enviará' : ' no enviarán'} nada`}
+                  </span>
+                );
+              })()}
+            </div>
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={() => setDescartandoEnLote(null)}>Cancelar</button>
               <button
@@ -1226,10 +1520,26 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 className="btn btn-primary"
                 disabled={moverEnLote.isPending || !descartandoEnLote.motivo || (descartandoEnLote.motivo === 'Otro' && !descartandoEnLote.detalle.trim())}
                 onClick={() => {
+                  const comun = descartandoEnLote.motivo === 'Otro'
+                    ? `Otro: ${descartandoEnLote.detalle.trim()}`
+                    : descartandoEnLote.motivo;
+                  /*
+                   * Cada lead va con lo suyo.
+                   *
+                   * El envío ya hacía un PUT por ficha, así que separar en dos grupos no cuesta
+                   * una petición más: sólo cambia el cuerpo de cada una. Los marcados como
+                   * excepción llevan su propio motivo y su propia calificación.
+                   */
                   moverEnLote.mutate({
                     ids: descartandoEnLote.ids,
                     status: 'lost',
-                    discardReason: descartandoEnLote.motivo === 'Otro' ? `Otro: ${descartandoEnLote.detalle.trim()}` : descartandoEnLote.motivo,
+                    discardReason: comun,
+                    porLead: Object.fromEntries(descartandoEnLote.ids.map((id) => [
+                      id,
+                      descartandoEnLote.excepciones.has(id)
+                        ? { discardReason: descartandoEnLote.motivoExcepciones, fitStatus: calificacionDe('si') }
+                        : { discardReason: comun, fitStatus: calificacionDe(descartandoEnLote.servia) },
+                    ])),
                   });
                   setDescartandoEnLote(null);
                 }}

@@ -21,6 +21,21 @@ import { useAuth } from '../../core/auth';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import './panel-de-correo.css';
 
+/**
+ * Lo que el servidor contesta sobre la firma del dominio que envía.
+ *
+ * `consultado: false` significa que el DNS no respondió, que no es lo mismo que «los registros no
+ * están publicados»: la pantalla tiene que poder decir las dos cosas distinto.
+ */
+interface RevisionDeFirma {
+  dominio: string;
+  spf: { publicado: boolean; registro: string | null; politica: string | null };
+  dkim: { publicado: boolean; selector: string };
+  dmarc: { publicado: boolean; registro: string | null; politica: string | null; informes: boolean };
+  problemas: Array<{ nivel: 'error' | 'aviso'; texto: string }>;
+  consultado: boolean;
+}
+
 interface Ajuste {
   key: string;
   label: string;
@@ -685,8 +700,14 @@ export function PanelDeCorreo(): JSX.Element {
 
   const estadoQuery = useQuery({
     queryKey: ['estado-del-correo', sufijoPortal],
-    queryFn: () => api.get<{ habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[] }>(`/settings/estado-del-correo${sufijoPortal}`),
+    queryFn: () => api.get<{ habilitado: boolean; remitente: string | null; servidor: string | null; puerto: number | null; respuestasA: string | null; faltan: string[]; firma?: RevisionDeFirma | null }>(`/settings/estado-del-correo${sufijoPortal}`),
   });
+  /*
+   * `undefined` es «todavía no llegó la respuesta» y `null` es «no hay remitente que revisar»: son
+   * dos mensajes distintos en pantalla y confundirlos diría que falta un registro cuando lo que
+   * falta es la casilla.
+   */
+  const firma = estadoQuery.data?.firma;
 
   // Los servicios de la empresa elegida deciden qué grupos se muestran: ver `agruparAvisos`.
   const contratados = (empresasQuery.data?.data ?? []).find((cliente) => cliente.id === empresa)?.capabilities;
@@ -777,12 +798,54 @@ export function PanelDeCorreo(): JSX.Element {
                 : <small>Todavía no está activa, así que los avisos no se envían. La activa el equipo de Espartanos; mientras tanto puedes dejar escritos los textos de abajo.</small>}
           </div>
         </div>
-        <div className="panel-correo-paso is-listo">
+        {/*
+          * La otra mitad de «¿va a llegar este correo?», y la que no vive en el repositorio.
+          *
+          * SPF, DKIM y DMARC son registros DNS: se editan en el panel del hosting, no se despliegan
+          * y nadie se entera cuando se caen. Pero desde febrero de 2024 Gmail y Yahoo mandan a spam
+          * —o rechazan— los envíos en volumen de un dominio que no los tenga. Un correo que «salió»
+          * y no llegó a nadie se veía idéntico a uno bien entregado.
+          *
+          * La consulta DNS puede no responder, y eso no es lo mismo que «falta el registro»: se
+          * dice que no se pudo comprobar en vez de mandar a nadie a reemplazar un SPF correcto.
+          */}
+        <div className={`panel-correo-paso ${firma === undefined ? '' : !firma ? '' : !firma.consultado ? '' : firma.problemas.some((p) => p.nivel === 'error') ? 'is-pendiente' : 'is-listo'}`}>
           <span>2</span>
-          <div><strong>Qué dice cada correo · aquí</strong><small>Enciende y escribe los avisos de abajo: confirmación, recordatorio, cambios y encuesta después de la visita. Puedes tener una versión por empresa.</small></div>
+          <div>
+            <strong>
+              Firma del dominio{' '}
+              {estadoQuery.isLoading ? '· revisando…'
+                : !firma ? '· sin remitente que revisar'
+                  : !firma.consultado ? '· no se pudo consultar el DNS'
+                    : firma.problemas.length === 0 ? '· completa'
+                      : firma.problemas.some((p) => p.nivel === 'error') ? '· falta algo' : '· se puede mejorar'}
+            </strong>
+            {firma?.consultado ? <>
+              <small>
+                En <b>{firma.dominio}</b>: SPF {firma.spf.publicado ? '✓' : '✗'} · DKIM{' '}
+                {firma.dkim.publicado ? '✓' : '✗'} <small>({firma.dkim.selector})</small> · DMARC{' '}
+                {firma.dmarc.publicado ? `✓ ${firma.dmarc.politica ?? ''}` : '✗'}
+                {firma.dmarc.publicado && !firma.dmarc.informes ? ' (sin informes)' : ''}
+              </small>
+              {firma.problemas.length > 0 && <ul className="panel-correo-firma-problemas">
+                {firma.problemas.map((problema, indice) => (
+                  <li key={indice} className={problema.nivel === 'error' ? 'is-error' : 'is-aviso'}>{problema.texto}</li>
+                ))}
+              </ul>}
+              {firma.problemas.length === 0 && <small>Los tres registros están publicados y el DMARC recibe informes. Se consulta el DNS cada vez que se abre esta pantalla.</small>}
+            </> : <small>
+              {firma === null
+                ? 'La casilla que envía todavía no está configurada, así que no hay dominio que revisar.'
+                : 'El DNS no respondió a tiempo. No significa que falten los registros: vuelve a abrir la pantalla.'}
+            </small>}
+          </div>
         </div>
         <div className="panel-correo-paso is-listo">
           <span>3</span>
+          <div><strong>Qué dice cada correo · aquí</strong><small>Enciende y escribe los avisos de abajo: confirmación, recordatorio, cambios y encuesta después de la visita. Puedes tener una versión por empresa.</small></div>
+        </div>
+        <div className="panel-correo-paso is-listo">
+          <span>4</span>
           <div><strong>Respuestas y avisos de cada sucursal · en la sucursal</strong><small>A qué correo del local llegan las respuestas de los clientes y quién del equipo recibe el aviso de cada reserva nueva: Reservas → sucursal → Datos del local y textos legales → Correos.</small></div>
         </div>
       </section>}

@@ -46,3 +46,20 @@
   .crm-dash-kpis strong { font-size: clamp(16px, 13cqi, 22px); }
   .crm-dash-kpis article { padding: 14px; }
 }
+
+/*
+ * Las cifras de cuánto se alcanzó a trabajar.
+ *
+ * Tres números sueltos dentro de un panel, no tarjetas: son la misma pregunta mirada por tres
+ * lados —cuántos no, cuántos sí, cuánto se tardó— y separarlos en tarjetas las haría competir con
+ * los indicadores de arriba, que son del negocio y no de la operación.
+ *
+ * `is-alerta` sólo se pinta cuando los sin contactar superan a los contactados. Un color
+ * permanente deja de leerse a la semana; uno que aparece significa algo.
+ */
+.crm-dash-cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.crm-dash-cifras > div { display: grid; gap: 2px; }
+.crm-dash-cifras span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.crm-dash-cifras strong { font-size: 24px; line-height: 1.1; }
+.crm-dash-cifras strong.is-alerta { color: #8a2222; }
+.crm-dash-cifras small { font-size: 12px; color: var(--muted); line-height: 1.45; }

@@ -58,3 +58,24 @@ export function useEtapasOcultas(clientId: string): string[] {
   });
   return data?.hidden ?? [];
 }
+
+/**
+ * En qué etapas se pregunta si el prospecto era el tipo de cliente que se busca.
+ *
+ * Vacío significa que no se pregunta al mover de etapa, y entonces la única oportunidad es el
+ * descarte. Encenderlo adelanta la respuesta al momento en que de verdad se sabe: quien acaba de
+ * hablar con la persona lo tiene claro, y quien cierra la ficha un mes después ya no.
+ *
+ * Mismo almacenamiento que los rótulos y las etapas ocultas, así que también se guarda un rato:
+ * se pide en cada pantalla del CRM y cambia muy de vez en cuando.
+ */
+export function useEtapasQuePreguntan(clientId: string): string[] {
+  const { data } = useQuery<{ stages: string[] }>({
+    queryKey: ['crm-stage-qualify-at', clientId],
+    queryFn: () => api.get(
+      `/crm/stage-labels/qualify-at${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ''}`,
+    ),
+    staleTime: 5 * 60_000,
+  });
+  return data?.stages ?? [];
+}

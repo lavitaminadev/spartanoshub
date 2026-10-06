@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../modules/users/user.entity';
 import { componerCorreo } from '../notifications/plantilla-de-correo';
+import { revisarFirmaDelDominio } from '../notifications/firma-del-dominio';
 import { MUESTRA } from './muestra-de-correo';
 import { UserRole } from '../../modules/organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
@@ -314,7 +315,22 @@ export class OrganizationSettingsController {
   async estadoDelCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
     const estado = this.correo.estado();
-    return request.user.role === UserRole.DEV ? estado : { ...estado, faltan: [] };
+    if (request.user.role !== UserRole.DEV) return { ...estado, faltan: [] };
+    /*
+     * La firma del dominio va junto al estado del servidor y sólo para Dev.
+     *
+     * Son las dos mitades de la misma pregunta —«¿va a llegar este correo?»— y estaban en pantallas
+     * distintas: una en la aplicación y la otra en el panel DNS del hosting, donde nadie mira. Es
+     * la parte que puede romperse sin desplegar nada y sin que aparezca ningún error.
+     *
+     * Para Dev porque son registros del servidor: quien administra reservas no puede editarlos, y
+     * leerlos aquí sólo le diría que algo que no controla está mal. Es el mismo criterio que ya se
+     * aplica a `faltan`.
+     *
+     * Si el DNS no responde no se falla la pantalla: la revisión viene con `consultado: false` y el
+     * estado del servidor se muestra igual.
+     */
+    return { ...estado, firma: await revisarFirmaDelDominio(estado.remitente) };
   }
 
   /**

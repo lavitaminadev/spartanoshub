@@ -116,6 +116,38 @@ export declare function etiquetaDeFuente(value?: string | null): string;
 /** Catálogo de descarte usado por el flujo comercial de referencia MMT. */
 export declare const LEAD_DISCARD_REASONS: readonly ["Precio fuera de presupuesto", "Sin financiamiento / no calificó crédito", "Compró en otro proyecto", "Nunca respondió", "Datos de contacto erróneos", "Ubicación no le acomoda", "Solo consultaba (sin intención)", "No es el perfil buscado", "Otro"];
 /**
+ * Si el prospecto era el tipo de cliente que se busca, aparte de si compró.
+ *
+ * Son dos preguntas distintas y confundirlas rompe la medición. «No compró» es un resultado;
+ * «no servía» es un juicio sobre el perfil, y es lo único que permite saber si la pauta trae a la
+ * gente correcta. Alguien que compró en otro proyecto no compró **y** servía.
+ *
+ * `nose` existe y no es un relleno: cuando nadie habló con la persona no se sabe, y afirmar
+ * cualquiera de las otras dos sería inventar el dato que después decide dónde se gasta la pauta.
+ */
+export type ServiaElProspecto = 'si' | 'no' | 'nose';
+/**
+ * Qué respuesta propone cada motivo de descarte.
+ *
+ * El motivo que se elige ya dice casi siempre si la persona servía: quien compró en otro proyecto
+ * era un comprador, y quien nunca respondió no se sabe. Proponer a partir de ahí hace que la
+ * segunda pregunta no cueste un clic en la mayoría de los casos.
+ *
+ * **Propone, no decide.** Quien cierra la ficha puede corregirlo, y por eso «Nunca respondió»
+ * —el motivo más frecuente con diferencia— propone `nose` y no `no`: así el descuido produce el
+ * dato honesto en vez del pesimista, que es el que hoy ensucia lo que se le enseña a Meta.
+ */
+export declare const SERVIA_SEGUN_MOTIVO: Record<string, ServiaElProspecto>;
+/**
+ * La respuesta que se propone para un motivo.
+ *
+ * Un motivo desconocido —escrito a mano, o venido de una versión anterior del catálogo— cae en
+ * `nose`: de un texto que no se reconoce no se puede deducir nada sobre el perfil.
+ */
+export declare function servirSegunMotivo(motivo?: string | null): ServiaElProspecto;
+/** Calificación que corresponde a cada respuesta. `nose` deja la ficha en revisión. */
+export declare const CALIFICACION_SEGUN_SERVIA: Record<ServiaElProspecto, 'qualified' | 'unqualified' | 'in_review'>;
+/**
  * Por qué se perdió un negocio de la agencia.
  *
  * Distinto del catálogo de descarte de un lead: aquél es del embudo inmobiliario del cliente

@@ -18,11 +18,13 @@ que sepas lo que es un token o una migración, el manual está mal escrito.
 | [08 · Solicitudes de derechos](08-solicitudes-de-derechos.md) | Los plazos legales, la prórroga y los avisos | Administración → Solicitudes |
 | [09 · La página pública de reserva](09-pagina-publica-de-reserva.md) | Qué ve quien reserva, en qué orden y por qué | Reservas → Diseño público |
 | [10 · Cuentas, accesos y qué ve cada quien](10-cuentas-accesos-y-que-ve-cada-quien.md) | Cargos, crear cuentas, clave temporal y duración de la sesión | Administración → Usuarios |
+| [11 · Conservación, plazos y decisiones](11-conservacion-plazos-y-decisiones.md) | Cuánto se guarda cada cosa y por qué ese número, los plazos legales, y las tres decisiones que falta confirmar con un abogado | Los criterios detrás de todo lo anterior |
+| [12 · Qué se le envía a Meta](12-que-se-le-envia-a-meta.md) | Los nueve eventos, campo por campo: qué va cifrado, cuándo no se envía nada y qué hay que configurar en Events Manager | CRM, Reservas y Encuestas |
 
 ## Cómo leerlos
 
 **Con un doble clic, sin nada instalado:** abre **`manual.html`**, en esta misma carpeta. Es un
-archivo único con los nueve manuales y las imágenes dentro, así que funciona sin conexión, sin el
+archivo único con los doce manuales y las imágenes dentro, así que funciona sin conexión, sin el
 repositorio al lado y aunque lo mandes por correo. Lleva su propio índice a la izquierda.
 
 **Para tenerlo en PDF:** ábrelo y usa Imprimir → Guardar como PDF. Está preparado para eso: cada
@@ -81,4 +83,5 @@ spam, y eso le hace daño a todos los locales a la vez.
 | **Ley 19.496, art. 28 B** (consumidor) | Todo correo publicitario debe decir quién lo manda y ofrecer una forma de pedir que paren. Pedida la suspensión, los envíos siguientes **quedan prohibidos**. |
 | **Ley 21.719** (datos personales, vigente **1-12-2026**) | Consentimiento libre, específico e informado; retirarlo tiene que ser tan fácil como darlo; derechos de acceso, rectificación, supresión, oposición y portabilidad, con plazos. |
 | **Ley 19.628** | La que la 21.719 modifica. Sigue siendo el nombre de la norma. |
+| **Decreto 62 de 2019**, Ministerio de Economía | Reglamenta el Sistema «No Molestar» del SERNAC. Cubre el correo electrónico, y la prohibición de enviar corre **desde que la persona registra la solicitud**: no hay plazo de gracia. Usarlo no reemplaza tu propio enlace de baja. |
 | **Reglas de Gmail y Yahoo** (no son ley, pero deciden si tu correo llega) | Autenticación del dominio, menos de 0,3% de quejas, y baja de un clic desde el propio cliente de correo. |

@@ -127,18 +127,121 @@ Escribe el correo y pulsa **Consultar**. Tres respuestas:
 No toda petición de baja llega por el enlace del correo. Llega por tres caminos más, y los tres
 obligan igual:
 
-### El SERNAC: cómo funciona de verdad
+### El SERNAC «No Molestar»: cómo funciona de verdad
 
-**No es un registro que uno consulte.** Funciona al revés:
+Lo que sigue sale del **Decreto 62 de 2019 del Ministerio de Economía**, publicado el 13 de febrero
+de 2020, que es el reglamento del sistema. Vale la pena leerlo bien porque lo que se dice por ahí
+—que es un registro que hay que consultar, que hay un plazo de gracia para cumplir— no es lo que
+dice la norma.
 
-1. El consumidor entra al Portal del Consumidor, escribe su correo y **elige las empresas** que
-   quiere bloquear. No es un bloqueo general.
-2. El SERNAC **te reenvía la solicitud**.
-3. Tienes **siete días** para cumplirla.
-4. Si sigues escribiéndole, puede presentar un **aviso de incumplimiento**, que es la antesala del
-   procedimiento sancionatorio.
+**Cubre el correo electrónico**, no sólo las llamadas: el art. 1 nombra «correo electrónico, correo
+postal, fax, llamados o servicios de mensajería telefónicos». Y obliga a **los proveedores** en
+general, no a un sector en particular.
 
-**No hay nada que consultar: hay algo que aplicar en siete días.**
+Cómo ocurre, paso a paso:
+
+1. El consumidor entra al Portal del Consumidor, se autentica, **escribe los datos de la empresa**
+   que le manda publicidad y **elige por qué canales** no quiere seguir recibiéndola (art. 2). No
+   es un bloqueo general: es empresa por empresa y canal por canal.
+2. **Queda notificado en ese mismo momento.** El art. 3 dice que la notificación «se entenderá
+   practicada cada vez que se verifique el registro de dicha solicitud en el Sistema». No depende
+   de que alguien lea un correo.
+3. Además, el SERNAC **manda un correo a la empresa** dentro del día hábil siguiente, a la casilla
+   que la empresa tenga registrada ante el Servicio (art. 4).
+4. **La prohibición es inmediata, no hay plazo de gracia.** Art. 5: «desde el momento en que se
+   efectúe dicha solicitud de suspensión en la plataforma (…) las comunicaciones de carácter
+   publicitarias o promocionales (…) **quedarán prohibidas**».
+5. Si sigues escribiéndole, el consumidor puede informar el incumplimiento al SERNAC (art. 8), y
+   eso alimenta la fiscalización del art. 6.
+
+**Los siete días que se citan por ahí no están en el reglamento.** Son el plazo con que el SERNAC
+le informa al consumidor en qué estado quedó su gestión, no un plazo para cumplir. Para el
+proveedor el plazo es cero: desde que la solicitud se registra, el envío está prohibido.
+
+#### Tres cosas del reglamento que cambian cómo operamos
+
+**Inscribirse es voluntario, pero inscribirse trae un deber nuevo.** El art. 1 habla de «los
+proveedores inscritos voluntariamente», y el art. 8 contempla expresamente al proveedor **no**
+inscrito. Nadie te obliga a tener usuario en el Portal de Proveedores. Pero el art. 5 cierra
+diciendo que los proveedores «deberán **revisar siempre la plataforma, previo a iniciar campañas** o
+enviar mensajes publicitarios o promocionales». Es decir: el sistema **sí** se consulta, y se
+consulta antes de cada envío, no una vez al año.
+
+#### «Si no me inscribo, ¿no pasa nada?»
+
+Es la pregunta obvia y la respuesta corta es **no, pasa lo mismo: lo único que cambia es que no te
+enteras.**
+
+Inscribirse no es lo que te hace responsable. Lo que te hace responsable es el **art. 28 B de la
+Ley 19.496**, que se aplica a todo proveedor que mande publicidad, esté inscrito o no. El decreto
+sólo regula un canal más por el que esa petición puede llegarte.
+
+Mira qué cambia de verdad, lado a lado:
+
+| | **Inscrito** | **No inscrito** |
+|---|---|---|
+| ¿Queda notificado? | Sí, al registrarse la solicitud (art. 3) | **Sí, igual.** El art. 3 no distingue |
+| ¿Desde cuándo está prohibido escribirle? | Desde ese momento (art. 5) | **Desde ese mismo momento** |
+| ¿Cómo te enteras? | Entrando a la plataforma, que **debes revisar antes de cada campaña** | Sólo por el correo del art. 4, al día hábil siguiente |
+| ¿A qué casilla llega ese correo? | — | A la que tengas registrada **ante el SERNAC**. Si no existe o nadie la lee, nadie se entera |
+| ¿Puede el consumidor denunciarte? | Sí (art. 6) | **Sí, y el art. 8 está escrito exactamente para este caso** |
+
+El art. 8 no deja lugar a dudas: está redactado para el consumidor que le pidió la baja a **un
+proveedor no inscrito en el Sistema** y siguió recibiendo correo. Le dice cómo denunciarlo.
+
+**O sea que no inscribirse no te quita ninguna obligación. Te quita la posibilidad de ver venir la
+petición.** Es lo contrario de ponerse a salvo.
+
+> **Qué hacemos hoy y por qué.** No estamos inscritos, así que la petición nos llega por dos
+> caminos: el correo del art. 4 y la petición directa del art. 28 B. Los dos terminan en el mismo
+> botón, **«Anotar una petición recibida por fuera»**.
+>
+> Lo que esto exige es que **la casilla registrada ante el SERNAC sea una que alguien lea de
+> verdad**. Si ese correo cae en un buzón muerto, la prohibición corre igual y nos enteramos cuando
+> llegue el reclamo. Es la pieza más frágil de todo este manual, y no se arregla con código.
+>
+> Si algún día nos inscribimos, la revisión previa a cada campaña (art. 5) pasa a ser obligatoria y
+> hay que incorporarla al paso de confirmar el envío. Queda dicho para que sea una decisión y no un
+> olvido.
+
+#### ¿Y qué pasa si lo incumples? Esto cambia el 1 de diciembre de 2026
+
+Acá está el matiz que hace que «no pasa nada» haya sido casi verdad hasta ahora, y deje de serlo.
+
+**Hoy, por la vía del consumidor:** el SERNAC **no te puede multar directamente**. En 2018 el
+Tribunal Constitucional le quitó las facultades sancionatorias que le daba la reforma de ese año.
+Lo que puede hacer es fiscalizar (art. 6 del decreto) y llevarlo a un **Juzgado de Policía Local**,
+que es lento y rara vez se usa para un caso de spam suelto. De ahí viene la sensación de que no
+pasa nada.
+
+**Desde el 1 de diciembre de 2026, por la vía de datos personales:** la misma conducta —seguir
+tratando los datos de alguien que se opuso— es además una infracción de la **Ley 21.719**, y esa sí
+tiene a quién la sancione directo. El detalle, con los artículos y los montos, está en el
+[manual 11](11-conservacion-plazos-y-decisiones.md). En una línea: **impedir u obstaculizar el
+derecho de oposición es infracción grave, con multa de hasta 10.000 UTM**, y la aplica la Agencia
+sin pasar por un tribunal.
+
+**Y hay un proyecto de ley que cerraría también la primera puerta:** «SERNAC Te Protege»
+(boletín 16.271-03), que le devolvería al SERNAC la facultad de sancionar por sí mismo. **No es ley
+todavía** —entró al Congreso en septiembre de 2023 y sigue en tramitación—, así que hoy no cambia
+nada. Pero conviene no construir la operación sobre el supuesto de que nadie puede multarte.
+
+**Si la persona lo pidió por los dos lados, manda la fecha más antigua.** Art. 5 inciso 2: cuando
+se pide tanto directamente a la empresa como por el Sistema, «se considerará como fecha de
+ejercicio del derecho **lo que primero ocurra**». Por eso al anotar una petición externa se escribe
+la fecha real en que la persona la hizo, no la fecha en que nos enteramos: si llegó un aviso del
+SERNAC por algo que ya nos habían pedido por teléfono, la que cuenta es la del teléfono.
+
+**La baja se puede deshacer, pero sólo la deshace la persona.** Art. 7: el consumidor puede dejar
+sin efecto su suspensión en cualquier momento, y volver a pedirla después. Por eso una dirección
+excluida no queda muerta para siempre: si esa misma persona vuelve a aceptar en un formulario, se
+la vuelve a suscribir con un respaldo nuevo. Lo que nunca se hace es reactivarla desde dentro.
+
+**Usar No Molestar no te libera de tener tu propio camino de baja.** Art. 6 inciso 2, textual: el
+uso del Sistema «no los exime de la obligación establecida en el artículo 28 B (…) respecto de
+indicar una dirección de correo electrónico o una forma expedita (…) en que los consumidores puedan
+solicitar la suspensión». Es exactamente por eso que cada correo comercial lleva su enlace de baja,
+y no basta con decir «pueden inscribirse en el SERNAC».
 
 ### Los otros dos caminos
 
@@ -148,9 +251,10 @@ obligan igual:
 ### Cómo se anota
 
 1. Escribe el **correo**.
-2. Escribe **de dónde vino**: *«Aviso SERNAC 12-03-2026»*, *«Llamó por teléfono el 3 de marzo»*. Es
-   **obligatorio**: es lo único que explica por qué esa dirección quedó excluida sin que nadie
-   hiciera clic en ningún enlace.
+2. Escribe **de dónde vino y de qué fecha es**: *«Aviso SERNAC 12-03-2026»*, *«Llamó por teléfono
+   el 3 de marzo»*. Es **obligatorio**: es lo único que explica por qué esa dirección quedó
+   excluida sin que nadie hiciera clic en ningún enlace. Pon la fecha en que **la persona lo pidió**,
+   no la de hoy: si pidió lo mismo por dos vías, la que cuenta legalmente es la primera.
 3. **Anotar la petición**.
 
 Se aplica **a todos los locales**, que es lo que pide quien lo pide por estas vías.
@@ -260,8 +364,13 @@ sacaba también del otro, y el segundo probablemente no la alcanzaba nunca.
 
 **Ley 19.496, art. 28 B.** La lista de exclusión es el mecanismo que hace cumplible el *«quedarán
 desde entonces prohibidos»*. Sin ella, la prohibición dependería de que la ficha no se borrara
-nunca. El botón de anotar peticiones externas es lo que permite cumplir un aviso del SERNAC dentro
-de sus siete días sin editar la base a mano.
+nunca. El botón de anotar peticiones externas es lo que permite cumplir un aviso del SERNAC en el
+acto —que es el plazo que fija el reglamento— sin editar la base a mano.
+
+**Decreto 62 de 2019, Ministerio de Economía** (reglamento del Sistema No Molestar). Es la norma que
+fija que la prohibición corre **desde el registro de la solicitud** (art. 5), que la fecha que vale
+es la primera de las dos vías (art. 5 inc. 2), que la persona puede deshacer su baja (art. 7) y que
+estar en el Sistema **no reemplaza** nuestro propio enlace de baja (art. 6 inc. 2).
 
 **Ley 21.719, licitud y responsabilidad proactiva.** Hay que poder demostrar el origen de cada dato
 y que el tratamiento es lícito. La ficha completa —origen, texto, fecha, IP— es esa demostración, y

@@ -39,6 +39,7 @@ import { leerPlantilla } from '../../../core/parameters/plantilla-resuelta';
 import { AuditService } from '../../../core/audit/audit.service';
 import { MetaClientPixelService } from '../../integrations/meta/meta-client-pixel.service';
 import { AltaDeSuscriptorDesdeReserva } from '../../marketing/alta-desde-reserva';
+import { origenDeCaptacion } from '../../marketing/origen-de-captacion';
 import { DestinatariosDeAvisosService } from '../../../core/notifications/destinatarios-de-avisos.service';
 import type { TipoDeAviso } from '../../../core/notifications/destinatario-de-avisos.entity';
 import { inferLocationFromPhone } from '../../../shared/geo-inference';
@@ -770,7 +771,7 @@ export class ReservationsService {
    */
   async suscribirDesdeCaptacion(
     slug: string,
-    datos: { email: string; name?: string; birthDate?: string; adultDeclared?: boolean; website?: string },
+    datos: { email: string; name?: string; birthDate?: string; adultDeclared?: boolean; website?: string; canal?: string; campana?: string },
     ipAddress?: string,
   ): Promise<{ estado: 'alta' | 'omitida' | 'local' | 'todas'; local: string }> {
     const form = await this.publishedForm(slug);
@@ -785,7 +786,7 @@ export class ReservationsService {
       email: datos.email,
       name: datos.name ?? null,
       birthDate: datos.birthDate ?? null,
-      origen: `captación · ${form.name}`,
+      origen: origenDeCaptacion(form.name, datos.canal, datos.campana),
       consentText: texto,
       consentAt: new Date(),
       consentIp: ipAddress ?? null,

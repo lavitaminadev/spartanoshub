@@ -1,7 +1,7 @@
 # Suscribirse sin reservar
 
 El enlace y el QR para que alguien entre a tu lista sin tener que reservar.
-**Reservas → el local → paso «Publicar».**
+**Reservas → el local → «Dejar el correo sin reservar».**
 
 Sirve para el QR de la carta, el cartel del mesón, el pie de la boleta o el perfil de Instagram:
 sitios donde la persona **ya está dentro** y pedirle que reserve no viene a cuento.
@@ -10,33 +10,65 @@ sitios donde la persona **ya está dentro** y pedirle que reserve no viene a cue
 
 ## 1 · Dónde está el enlace
 
-![El enlace en el paso de publicar](img/03-enlace-suscribirse.jpg)
+![El enlace de novedades en la pantalla del local](img/03-enlace-suscribirse.jpg)
 
-Debajo del enlace de reservas, con sus propios botones. Está aparte a propósito: son dos puertas
-distintas. La de arriba lleva a tomar una mesa; ésta sólo recoge el correo de quien quiere
-enterarse.
+En la pantalla del local, en su propio bloque: **«Lista de correo · Dejar el correo sin reservar»**,
+debajo del de «Identidad y enlace». Está aparte a propósito: son dos puertas distintas. La de
+arriba lleva a tomar una mesa; ésta sólo recoge el correo de quien quiere enterarse.
 
-**Aparece cuando el local está publicado.** Antes de publicar no existe, porque la página pública
-tampoco.
+La dirección es `https://cuartel.espartanos.cl/novedades/<nombre-corto-del-local>`, y está escrita
+en pantalla para copiarla.
 
-La dirección es `https://cuartel.espartanos.cl/novedades/<nombre-corto-del-local>`.
+**Aparece cuando el local tiene nombre corto**, que es lo que la página pública necesita para
+resolverse.
+
+> **Lo que cambió.** Esta página existía y funcionaba desde antes, pero **su dirección no se
+> mostraba en ninguna pantalla**: para imprimirla había que saber armarla a mano. Un enlace que
+> nadie puede copiar es un enlace que no existe, y por eso la lista casi no crecía por esta vía.
 
 ### Para hacer el QR
 
-1. **Copiar** el enlace.
-2. Pásalo por cualquier generador de QR.
-3. Imprímelo en la carta, el mesón o donde vaya.
+![El panel de compartir con el QR](img/03-compartir-novedades.jpg)
 
-**Este enlace todavía no tiene generador de QR dentro del sistema.** Encuestas sí lo tiene
-—«Compartir» → «Código QR», con Descargar PNG e Imprimir—, y lo razonable es que esta pantalla
-acabe teniendo el mismo. Está anotado como pendiente.
+Aprieta **«Compartir»** y se abre el mismo panel que usan Reservas y Encuestas:
 
-Mientras tanto, hacerlo fuera tampoco es un mal apaño: un QR es una imagen que se imprime una vez y
-vive dos años en una carta, así que conviene montarlo con la herramienta de diseño que uses para la
-carta, al tamaño y con el logo que corresponda.
+1. **Código QR**, con **Descargar PNG** e **Imprimir**. El PNG sale en alta para que aguante el
+   tamaño de una carta.
+2. **Un enlace por canal**, con la medición puesta: WhatsApp, Instagram, Facebook, Google Maps,
+   sitio web y correo propio.
+3. **Un enlace por sitio del local**: QR en el local, QR de mesa, **QR en la carta**, QR en boleta,
+   QR en flyer, QR en vitrina. Cada uno genera su propio QR.
+4. **Campaña** (opcional): un nombre que se pega a todos los enlaces del panel. Los que ya usaste
+   quedan guardados y aparecen como sugerencia, para no escribir `dia-de-la-madre` con un guion de
+   más y acabar con dos campañas distintas en el informe.
+
+**Es el mismo panel de los otros módulos y eso es el punto.** Un «QR de mesa» se llama igual en
+Reservas, en Encuestas y acá, así que los tres informes se pueden comparar. Con un panel propio,
+cada pantalla habría inventado sus nombres.
+
+### Por qué conviene un enlace distinto por sitio
+
+Es la diferencia entre saber y suponer. Si la carta y el mesón llevan el **mismo** enlace, todas
+las direcciones quedan anotadas igual y no hay forma de saber cuál de los dos trae gente. Con un
+enlace por sitio, **la procedencia queda escrita en cada dirección**:
+
+```
+captación · Casa Costanera · qr-carta
+captación · Casa Costanera · qr-mesa · campaña verano
+```
+
+Se ve en **Marketing → Suscriptores**, en la columna de origen, y viaja en la planilla que se
+descarga. Es lo que permite decidir con un dato en vez de con una impresión: si en seis meses la
+carta trajo cuarenta correos y el mesón cuatro, el cartel del mesón está mal puesto o no se ve.
+
+**Lo que llega por la dirección se limpia antes de guardarse.** Es texto que cualquiera puede
+escribir en la barra del navegador y termina en una tabla: se baja a minúsculas, se le quitan los
+espacios y las tildes y se recorta. Si no queda nada legible se ignora y **el alta se guarda
+igual** — perder un consentimiento válido por una etiqueta rota sería el peor de los dos
+resultados.
 
 **El enlace no cambia nunca** mientras no cambies el nombre corto del local. Si lo cambias, el QR
-impreso deja de funcionar.
+impreso deja de funcionar: es la única razón para no tocarlo una vez que algo está impreso.
 
 ---
 
@@ -134,6 +166,7 @@ sistema probando direcciones, o para llenar la lista con correos ajenos.
 | Qué | Dónde |
 |---|---|
 | La ficha | `email_subscribers`, con `source = 'captacion'` |
+| **De qué sitio vino** | `source_detail`: `captación · <local> · <sitio> · campaña <nombre>` |
 | El texto aceptado | `consent_text`, entero |
 | La IP | `consent_ip` |
 | La mayoría de edad | `adult_declared_at` |
@@ -143,7 +176,14 @@ sistema probando direcciones, o para llenar la lista con correos ajenos.
 | Qué mostrar | `GET /public/reservations/:slug/captacion` | 60/min |
 | Suscribirse | `POST /public/reservations/:slug/suscribirse` | **3/min** |
 
-Las dos son públicas y sin sesión.
+Las dos son públicas y sin sesión. El sitio y la campaña viajan en la dirección como `utm_source` y
+`utm_campaign` —las de siempre, no unas propias— porque es el mismo panel el que genera los enlaces
+de los tres módulos.
+
+**Por qué el límite de suscribirse es tan bajo.** Es el único endpoint público que crea un dato
+personal a partir de una sola dirección de correo. Sin freno sirve para dos cosas que no son
+suscribirse: averiguar si una persona ya está en el sistema, y llenar la lista con direcciones
+ajenas.
 
 **Vive dentro de Reservas** —y no en Marketing— porque la identidad legal del local es la que el
 formulario de reservas ya tiene completa, y es la que el texto de consentimiento tiene que nombrar.

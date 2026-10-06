@@ -219,6 +219,16 @@ export class CaptacionPublicaDto {
    * rechazado le ensena a reintentar de otra forma.
    */
   @IsOptional() @IsString() @MaxLength(200) website?: string;
+  /**
+   * De que sitio viene: el QR de la carta, el cartel del mesón, el enlace del Instagram.
+   *
+   * Lo trae la direccion, asi que no es un dato confiable: se limpia antes de guardarlo y lo que
+   * no sobrevive se ignora. Un alta con procedencia ilegible se guarda igual, porque el
+   * consentimiento vale lo mismo.
+   */
+  @IsOptional() @IsString() @MaxLength(40) canal?: string;
+  /** Nombre de la campana, para separar un impreso de otro del mismo sitio. */
+  @IsOptional() @IsString() @MaxLength(40) campana?: string;
 }
 
 export class PublicRescheduleReservationDto {

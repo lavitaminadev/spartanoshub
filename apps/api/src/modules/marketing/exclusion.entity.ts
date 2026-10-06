@@ -49,6 +49,18 @@ export class ExclusionDeCorreo {
   @Column({ type: 'varchar', length: 80, nullable: true })
   origen?: string | null;
 
+  /**
+   * Día en que **la persona** pidió la baja, cuando no es el día en que se anotó.
+   *
+   * Hacen falta las dos fechas y no son la misma. `created_at` dice cuándo lo aplicamos nosotros,
+   * que es lo que demuestra diligencia. Ésta dice desde cuándo el envío estaba prohibido, que es
+   * otra cosa: el aviso del SERNAC llega el día hábil siguiente a la solicitud, y si la persona lo
+   * pidió además por teléfono rige la primera de las dos fechas. Nula significa que coincide con
+   * `created_at`.
+   */
+  @Column({ name: 'pedida_el', type: 'datetime', nullable: true })
+  pedidaEl?: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

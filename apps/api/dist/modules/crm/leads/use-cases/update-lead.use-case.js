@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var UpdateLeadUseCase_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateLeadUseCase = void 0;
 const common_1 = require("@nestjs/common");
@@ -25,22 +26,24 @@ const lead_cierre_service_1 = require("../lead-cierre.service");
 const responsables_del_crm_service_1 = require("../responsables-del-crm.service");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const crm_fields_service_1 = require("../../fields/crm-fields.service");
+const crm_lead_automation_service_1 = require("../crm-lead-automation.service");
 const DOMAIN_LABELS = {
     commercial: 'el embudo comercial',
     audience: 'la audiencia de un local',
 };
 const DESENLACES = {
     [lead_status_enum_1.LeadStatus.WON]: lead_fit_status_enum_1.LeadFitStatus.SOLD,
-    [lead_status_enum_1.LeadStatus.LOST]: lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED,
 };
-let UpdateLeadUseCase = class UpdateLeadUseCase {
-    constructor(repo, history, cierre, eventEmitter, responsables, campos) {
+let UpdateLeadUseCase = UpdateLeadUseCase_1 = class UpdateLeadUseCase {
+    constructor(repo, history, cierre, eventEmitter, responsables, campos, automatizacion) {
         this.repo = repo;
         this.history = history;
         this.cierre = cierre;
         this.eventEmitter = eventEmitter;
         this.responsables = responsables;
         this.campos = campos;
+        this.automatizacion = automatizacion;
+        this.logger = new common_1.Logger(UpdateLeadUseCase_1.name);
     }
     async execute(id, data, organizationId, actorId, actorClientId) {
         const lead = await this.repo.findOne({ where: { id, organizationId } });
@@ -129,17 +132,22 @@ let UpdateLeadUseCase = class UpdateLeadUseCase {
             });
         }
         if (etapaPrevia !== guardado.status && guardado.status === lead_status_enum_1.LeadStatus.LOST && guardado.domain === 'commercial') {
-            this.eventEmitter.emit('lead.discarded', {
-                organizationId,
-                leadId: guardado.id,
-                clientId: guardado.clientId ?? null,
+            await this.automatizacion.ensureDiscardInteraction(guardado, undefined, actorId).catch((error) => {
+                this.logger.warn(`No se pudo anotar el descarte del lead ${guardado.id}: ${error instanceof Error ? error.message : error}`);
             });
+            if (guardado.fitStatus === lead_fit_status_enum_1.LeadFitStatus.UNQUALIFIED) {
+                this.eventEmitter.emit('lead.discarded', {
+                    organizationId,
+                    leadId: guardado.id,
+                    clientId: guardado.clientId ?? null,
+                });
+            }
         }
         return guardado;
     }
 };
 exports.UpdateLeadUseCase = UpdateLeadUseCase;
-exports.UpdateLeadUseCase = UpdateLeadUseCase = __decorate([
+exports.UpdateLeadUseCase = UpdateLeadUseCase = UpdateLeadUseCase_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
@@ -147,5 +155,6 @@ exports.UpdateLeadUseCase = UpdateLeadUseCase = __decorate([
         lead_cierre_service_1.LeadCierreService,
         event_emitter_1.EventEmitter2,
         responsables_del_crm_service_1.ResponsablesDelCrmService,
-        crm_fields_service_1.CrmFieldsService])
+        crm_fields_service_1.CrmFieldsService,
+        crm_lead_automation_service_1.CrmLeadAutomationService])
 ], UpdateLeadUseCase);

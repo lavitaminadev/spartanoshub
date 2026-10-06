@@ -102,6 +102,8 @@ let LeadController = class LeadController {
             assignedTo: query.assignedTo,
             domain: query.domain,
             incluirDescartados: query.incluirDescartados,
+            desde: query.desde,
+            hasta: query.hasta,
             anuncio: query.anuncio,
             plataforma: query.plataforma,
             campoPropio: query.campoPropio,

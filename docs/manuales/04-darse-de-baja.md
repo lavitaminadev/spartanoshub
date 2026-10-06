@@ -197,6 +197,26 @@ Puede tardar días o semanas en aparecer y no significa que esté mal puesto.
 
 ### Cómo está hoy el dominio, y qué falta
 
+![La firma del dominio en Correos](img/04-firma-del-dominio.jpg)
+*El paso 2 de **Correos**, con cuenta Dev. Consulta el DNS cada vez que se abre la pantalla y dice
+qué hay publicado y qué falta.*
+
+**Esto antes no se veía en ninguna parte.** Es la única pieza del envío que no vive en el código:
+se edita en el panel DNS del hosting, no se despliega, y si alguien la borra no aparece ningún
+error — los correos simplemente empiezan a caer en spam. Ahora la plataforma lo consulta sola.
+
+Qué comprueba y qué no:
+
+- **Comprueba que los registros existan y qué dicen.** Es una consulta DNS, no un envío de prueba:
+  verifica que la clave DKIM esté publicada, no que la firma de cada mensaje valide.
+- **No mide la reputación.** Un dominio con los tres registros perfectos puede estar en spam por
+  quejas de los destinatarios; eso se mira en Google Postmaster Tools.
+- **Distingue «falta» de «no se pudo consultar».** Si el DNS no responde lo dice así, en vez de
+  decir que falta un registro: con lo contrario, alguien acabaría reemplazando un SPF correcto.
+- **`p=none` sale como aviso, no como error.** Es deliberado: con `p=none` el correo **sí llega** y
+  se cumple el requisito de Gmail. Pintarlo en rojo junto a un DKIM ausente haría que se ignoraran
+  los dos.
+
 Las tres firmas que miran Gmail y Yahoo, consultadas en el DNS de `espartanos.cl`:
 
 | Firma | Qué dice hoy | Estado |
@@ -281,7 +301,10 @@ Marketing → Suscriptores → al pie, **«Pidieron no recibir más»**. Escribe
 ([manual 06](06-suscriptores-y-exclusiones.md)).
 
 **Me llegó un aviso del SERNAC. ¿Qué hago?**
-Misma pantalla, **«Anotar una petición recibida por fuera»**. Tienes **siete días**.
+Misma pantalla, **«Anotar una petición recibida por fuera»**, y hazlo de inmediato: el reglamento
+del Sistema No Molestar (Decreto 62 de 2019, art. 5) prohíbe el envío **desde el momento en que la
+persona registró la solicitud**, no desde que nos llegó el aviso. No hay plazo de gracia. Anota
+además la **fecha que trae el aviso**, no la de hoy ([manual 06](06-suscriptores-y-exclusiones.md)).
 
 **¿Puedo volver a suscribir a alguien que se dio de baja?**
 Sólo si esa persona lo pide expresamente y sabiendo que había pedido no recibir. Reservar de nuevo

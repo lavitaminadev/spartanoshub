@@ -55,6 +55,7 @@ const plantilla_resuelta_1 = require("../../../core/parameters/plantilla-resuelt
 const audit_service_1 = require("../../../core/audit/audit.service");
 const meta_client_pixel_service_1 = require("../../integrations/meta/meta-client-pixel.service");
 const alta_desde_reserva_1 = require("../../marketing/alta-desde-reserva");
+const origen_de_captacion_1 = require("../../marketing/origen-de-captacion");
 const destinatarios_de_avisos_service_1 = require("../../../core/notifications/destinatarios-de-avisos.service");
 const geo_inference_1 = require("../../../shared/geo-inference");
 const google_conversion_outbox_service_1 = require("../../integrations/google/google-conversion-outbox.service");
@@ -620,7 +621,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             email: datos.email,
             name: datos.name ?? null,
             birthDate: datos.birthDate ?? null,
-            origen: `captación · ${form.name}`,
+            origen: (0, origen_de_captacion_1.origenDeCaptacion)(form.name, datos.canal, datos.campana),
             consentText: texto,
             consentAt: new Date(),
             consentIp: ipAddress ?? null,

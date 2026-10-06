@@ -9,6 +9,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { UpdateLeadUseCase } from '../../../src/modules/crm/leads/use-cases/update-lead.use-case';
+import { createAutomatizacionDouble } from '../../helpers/crm-lead-automation.double';
 import { LeadStatus } from '../../../src/modules/crm/leads/lead-status.enum';
 import { createProcessHistoryDouble } from '../../helpers/process-history.double';
 import { createLeadCierreDouble } from '../../helpers/lead-cierre.double';
@@ -20,7 +21,7 @@ function armar(guardados: Record<string, unknown> | null, validarPara = vi.fn())
   const campos = { validarPara };
   const uso = new UpdateLeadUseCase(
     repo as never, createProcessHistoryDouble(), createLeadCierreDouble(),
-    { emit: () => true } as never, createResponsablesDouble([]), campos as never,
+    { emit: () => true } as never, createResponsablesDouble([]), campos as never, createAutomatizacionDouble() as never,
   );
   return { uso, repo, campos };
 }

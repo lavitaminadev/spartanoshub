@@ -25,6 +25,7 @@ export const CANALES: Array<{ fuente: string; medio: string; nombre: string; ayu
 const QRS: Array<{ fuente: string; nombre: string }> = [
   { fuente: 'qr-local', nombre: 'QR en el local' },
   { fuente: 'qr-mesa', nombre: 'QR de mesa' },
+  { fuente: 'qr-carta', nombre: 'QR en la carta' },
   { fuente: 'qr-boleta', nombre: 'QR en boleta' },
   { fuente: 'qr-flyer', nombre: 'QR en flyer' },
   { fuente: 'qr-vitrina', nombre: 'QR en vitrina' },

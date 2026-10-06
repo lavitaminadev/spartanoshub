@@ -237,3 +237,54 @@
 
 /* Valor exacto del filtro por dato propio (texto, número o fecha). */
 .filtro-campo-propio { display: inline-grid; gap: 4px; margin: 8px 0; min-width: min(100%, 240px); font-size: 12px; font-weight: 700; color: var(--muted); }
+
+/*
+ * La pregunta de si el prospecto servía.
+ *
+ * Tres opciones en fila cuando caben y apiladas cuando no. Se marca la elegida con borde y fondo
+ * y no sólo con el punto del radio: en un modal angosto el punto solo no se ve, y esta respuesta
+ * decide qué aprende la pauta — equivocarse por no haber visto cuál estaba marcada es caro.
+ */
+.servia-pregunta { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+.servia-pregunta legend { padding: 0; font-weight: 600; font-size: 14px; }
+.servia-opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.servia-opciones label {
+  display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start;
+  padding: 10px 12px; border: 1px solid #e7e1e4; border-radius: 10px; cursor: pointer;
+}
+.servia-opciones label.is-elegida { border-color: var(--brand, #c2185b); background: #fdf3f7; }
+.servia-opciones strong { display: block; font-size: 14px; }
+.servia-opciones small { display: block; color: var(--muted); line-height: 1.4; }
+.servia-consecuencia { margin: 0; }
+
+/*
+ * La lista de quiénes se salvan en un descarte masivo.
+ *
+ * Con desplazamiento propio y alto acotado: una tanda de cincuenta dejaría los botones fuera de
+ * la pantalla y nadie podría confirmar lo que acaba de elegir.
+ */
+.servia-excepciones { max-height: 230px; overflow-y: auto; display: grid; gap: 4px; padding: 4px 0; }
+.servia-excepciones label { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; font-size: 13px; }
+.servia-excepciones small { color: var(--muted); }
+.servia-resumen { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; background: #f6f3f5; font-size: 13px; }
+.servia-resumen strong { font-weight: 600; }
+/*
+ * El período de ingreso, debajo de la barra de filtros.
+ *
+ * Dos campos juntos y no dos desplegables más: se eligen de a pares y uno solo —«desde» sin
+ * «hasta»— es una pregunta legítima. Se envuelven en pantallas angostas en vez de encogerse,
+ * porque un campo de fecha ilegible no se puede usar.
+ */
+.leads-board-periodo { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.leads-board-periodo label { display: grid; gap: 4px; }
+.leads-board-periodo span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.leads-board-periodo input { min-width: 150px; }
+
+/*
+ * Nombre y contexto de cada fila de excepción.
+ *
+ * El `small` iba pegado al nombre —«Ricardo Galvez LopezPrimavera · $4.500.000»— porque ambos son
+ * en línea. Separarlos importa acá más que en otros sitios: esta lista se lee para decidir uno por
+ * uno, y un renglón apelmazado se salta.
+ */
+.servia-excepciones label > span { display: grid; gap: 1px; }

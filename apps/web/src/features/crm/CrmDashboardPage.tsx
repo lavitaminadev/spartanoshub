@@ -56,6 +56,18 @@ interface Panel {
   porFuente: Conteo[];
   porDia: Conteo[];
   motivosDeCierre: Conteo[];
+  /**
+   * Cuánto se trabajó cada prospecto, contando sólo lo que hizo una persona.
+   *
+   * Las actividades que escribe la automatización al recibir la ficha no cuentan: incluirlas daba
+   * 100% de contactados sin que nadie hubiera escrito a nadie.
+   */
+  contacto: {
+    sinContactar: number;
+    contactados: number;
+    /** Promedio de horas hasta el primer contacto. `null` mientras no haya ninguno. */
+    horasAlPrimerContacto: number | null;
+  };
 }
 
 const VENTANAS = [
@@ -369,6 +381,56 @@ export function CrmDashboardPage(): JSX.Element {
           )}
         </section>
       </div>
+
+      {/*
+        * Cuántos prospectos nadie trabajó.
+        *
+        * Va antes de «por qué perdemos» a propósito: un motivo de descarte sólo significa algo si
+        * alguien habló con esa persona. Si la mitad quedó sin contactar, lo que hay que corregir
+        * no es el anuncio sino el seguimiento, y mirar primero los motivos lleva a la conclusión
+        * contraria.
+        *
+        * Cuenta sólo lo que escribió una persona; las actividades que crea el sistema al recibir
+        * la ficha no son gestión.
+        */}
+      {data?.contacto ? (
+        <section className="crm-dash-panel">
+          <h2>Cuántos alcanzamos a trabajar</h2>
+          <div className="crm-dash-cifras">
+            <div>
+              <span>Sin contactar</span>
+              <strong className={data.contacto.sinContactar > data.contacto.contactados ? 'is-alerta' : ''}>
+                {data.contacto.sinContactar}
+              </strong>
+              <small>Nadie les escribió ni los llamó</small>
+            </div>
+            <div>
+              <span>Contactados</span>
+              <strong>{data.contacto.contactados}</strong>
+              <small>Con al menos una gestión anotada</small>
+            </div>
+            <div>
+              <span>Demora al primer contacto</span>
+              <strong>
+                {data.contacto.horasAlPrimerContacto === null
+                  ? '—'
+                  : data.contacto.horasAlPrimerContacto < 1
+                    ? 'menos de 1 h'
+                    : `${data.contacto.horasAlPrimerContacto} h`}
+              </strong>
+              <small>Promedio de los que sí se trabajaron</small>
+            </div>
+          </div>
+          {data.contacto.contactados === 0 ? (
+            /* No es lo mismo que «se contesta lento»: es que no queda rastro de ninguna gestión,
+               y entonces ninguna otra cifra de esta tarjeta significa nada todavía. */
+            <p className="crm-dash-vacio">
+              No hay ninguna gestión anotada en el período. El botón de WhatsApp deja constancia
+              solo; si nadie lo usa, esto seguirá en cero aunque se esté llamando por fuera.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="crm-dash-panel">
         <h2>Por qué perdemos negocios</h2>

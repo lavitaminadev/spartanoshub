@@ -1,6 +1,7 @@
 import { createResponsablesDouble } from '../../helpers/responsables-del-crm.double';
 import { describe, expect, it, vi } from 'vitest';
 import { UpdateLeadUseCase } from '../../../src/modules/crm/leads/use-cases/update-lead.use-case';
+import { createAutomatizacionDouble } from '../../helpers/crm-lead-automation.double';
 import { LeadStatus } from '../../../src/modules/crm/leads/lead-status.enum';
 import { LeadFitStatus } from '../../../src/modules/crm/leads/lead-fit-status.enum';
 
@@ -23,6 +24,8 @@ function caso(lead: Record<string, unknown>) {
       { avisar: vi.fn() } as never,
       { emit } as never,
       createResponsablesDouble(),
+      undefined as never,
+      createAutomatizacionDouble() as never,
     ),
   };
 }
@@ -58,12 +61,35 @@ describe('la calificación del lead', () => {
     expect(lead.fitStatus).not.toBe(LeadFitStatus.QUALIFIED);
   });
 
-  it('descartar la pone en no calificado', async () => {
+  /*
+   * Descartar ya no decide la calificación, y es el cambio que hace medible el CRM.
+   *
+   * Lo hacía: `lost` ponía «no calificado» sin preguntar. Pero de los nueve motivos de descarte
+   * sólo tres significan que la persona no servía —quien compró en otro proyecto era un comprador,
+   * y quien nunca respondió no se sabe—, así que el campo afirmaba algo que nadie había dicho.
+   *
+   * Sin respuesta, la ficha se queda como estaba. No saber es un estado legítimo.
+   */
+  it('descartar no toca la calificación por su cuenta', async () => {
     const { uso } = caso({ ...base });
 
     const lead = await uso.execute('lead-1', { status: LeadStatus.LOST, discardReason: 'Precio' }, 'org-1');
 
-    expect(lead.fitStatus).toBe(LeadFitStatus.UNQUALIFIED);
+    expect(lead.fitStatus).not.toBe(LeadFitStatus.UNQUALIFIED);
+  });
+
+  it('la respuesta de quien cierra es la que manda', async () => {
+    const { uso } = caso({ ...base });
+
+    const lead = await uso.execute(
+      'lead-1',
+      { status: LeadStatus.LOST, discardReason: 'Compró en otro proyecto', fitStatus: LeadFitStatus.QUALIFIED },
+      'org-1',
+    );
+
+    // Se descartó y aun así servía: es el caso que antes era imposible de registrar.
+    expect(lead.status).toBe(LeadStatus.LOST);
+    expect(lead.fitStatus).toBe(LeadFitStatus.QUALIFIED);
   });
 
   it('una corrección a mano gana sobre el desenlace', async () => {
@@ -123,15 +149,50 @@ describe('qué se le anuncia a Meta', () => {
     expect(nombresEmitidos(emit)).toContain('lead.won');
   });
 
-  it('descartar anuncia su propia señal, y ninguna positiva', async () => {
-    // Va a Events Manager como «otra etapa»: enseña qué perfil no se busca.
+  /*
+   * Cada respuesta manda lo suyo, y «no se supo» no manda nada.
+   *
+   * Antes todo descarte avisaba a Meta que ese perfil no se busca. Nueve de cada diez cierres son
+   * «nunca respondió», donde nadie habló con la persona: afirmarlo era inventar el dato con el que
+   * después se decide dónde se gasta la pauta.
+   */
+  it('afirmar que no servía anuncia el descarte', async () => {
     const { uso, emit } = caso({ ...base });
 
-    await uso.execute('lead-1', { status: LeadStatus.LOST, discardReason: 'Precio' }, 'org-1');
+    await uso.execute(
+      'lead-1',
+      { status: LeadStatus.LOST, discardReason: 'No es el perfil buscado', fitStatus: LeadFitStatus.UNQUALIFIED },
+      'org-1',
+    );
 
     expect(nombresEmitidos(emit)).toContain('lead.discarded');
     expect(nombresEmitidos(emit)).not.toContain('lead.qualified');
-    expect(nombresEmitidos(emit)).not.toContain('lead.won');
+  });
+
+  it('afirmar que sí servía anuncia la calificación y no el descarte', async () => {
+    const { uso, emit } = caso({ ...base });
+
+    await uso.execute(
+      'lead-1',
+      { status: LeadStatus.LOST, discardReason: 'Compró en otro proyecto', fitStatus: LeadFitStatus.QUALIFIED },
+      'org-1',
+    );
+
+    expect(nombresEmitidos(emit)).toContain('lead.qualified');
+    expect(nombresEmitidos(emit)).not.toContain('lead.discarded');
+  });
+
+  it('no saber si servía no anuncia nada', async () => {
+    const { uso, emit } = caso({ ...base });
+
+    await uso.execute(
+      'lead-1',
+      { status: LeadStatus.LOST, discardReason: 'Nunca respondió', fitStatus: LeadFitStatus.IN_REVIEW },
+      'org-1',
+    );
+
+    expect(nombresEmitidos(emit)).not.toContain('lead.discarded');
+    expect(nombresEmitidos(emit)).not.toContain('lead.qualified');
   });
 
   it('una reserva que no se concretó no viaja como prospecto descartado', async () => {

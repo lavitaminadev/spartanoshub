@@ -3,8 +3,9 @@
  * @fileoverview Lead domain types.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OPPORTUNITY_LOSS_REASONS = exports.LEAD_DISCARD_REASONS = exports.LEAD_SOURCES = exports.LEAD_TRAFFIC_LIGHTS = exports.STAGE_LABELS_BY_KEY = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
+exports.OPPORTUNITY_LOSS_REASONS = exports.CALIFICACION_SEGUN_SERVIA = exports.SERVIA_SEGUN_MOTIVO = exports.LEAD_DISCARD_REASONS = exports.LEAD_SOURCES = exports.LEAD_TRAFFIC_LIGHTS = exports.STAGE_LABELS_BY_KEY = exports.LEAD_FIT_STATUSES = exports.LEAD_STATUSES_BY_DOMAIN = exports.LEAD_STATUSES = exports.LEAD_CLOSING_STAGES = exports.LEAD_RESERVATION_OUTCOMES = exports.LEAD_PIPELINE_STAGES = void 0;
 exports.etiquetaDeFuente = etiquetaDeFuente;
+exports.servirSegunMotivo = servirSegunMotivo;
 /**
  * Etapas del pipeline comercial. El equipo las mueve a mano y son ordenadas:
  * el orden de este arreglo es el orden de las columnas del tablero.
@@ -136,6 +137,46 @@ exports.LEAD_DISCARD_REASONS = [
     'No es el perfil buscado',
     'Otro',
 ];
+/**
+ * Qué respuesta propone cada motivo de descarte.
+ *
+ * El motivo que se elige ya dice casi siempre si la persona servía: quien compró en otro proyecto
+ * era un comprador, y quien nunca respondió no se sabe. Proponer a partir de ahí hace que la
+ * segunda pregunta no cueste un clic en la mayoría de los casos.
+ *
+ * **Propone, no decide.** Quien cierra la ficha puede corregirlo, y por eso «Nunca respondió»
+ * —el motivo más frecuente con diferencia— propone `nose` y no `no`: así el descuido produce el
+ * dato honesto en vez del pesimista, que es el que hoy ensucia lo que se le enseña a Meta.
+ */
+exports.SERVIA_SEGUN_MOTIVO = {
+    'Precio fuera de presupuesto': 'si',
+    'Sin financiamiento / no calificó crédito': 'si',
+    'Compró en otro proyecto': 'si',
+    'Ubicación no le acomoda': 'si',
+    'Datos de contacto erróneos': 'no',
+    'Solo consultaba (sin intención)': 'no',
+    'No es el perfil buscado': 'no',
+    'Nunca respondió': 'nose',
+    Otro: 'nose',
+};
+/**
+ * La respuesta que se propone para un motivo.
+ *
+ * Un motivo desconocido —escrito a mano, o venido de una versión anterior del catálogo— cae en
+ * `nose`: de un texto que no se reconoce no se puede deducir nada sobre el perfil.
+ */
+function servirSegunMotivo(motivo) {
+    if (!motivo)
+        return 'nose';
+    const limpio = motivo.startsWith('Otro:') ? 'Otro' : motivo;
+    return exports.SERVIA_SEGUN_MOTIVO[limpio] ?? 'nose';
+}
+/** Calificación que corresponde a cada respuesta. `nose` deja la ficha en revisión. */
+exports.CALIFICACION_SEGUN_SERVIA = {
+    si: 'qualified',
+    no: 'unqualified',
+    nose: 'in_review',
+};
 /**
  * Por qué se perdió un negocio de la agencia.
  *

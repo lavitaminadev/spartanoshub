@@ -6,10 +6,10 @@ import { EstadoDeSuscripcion } from '../../../src/modules/marketing/suscriptor.e
 /*
  * Las peticiones de baja que no vienen del enlace del correo.
  *
- * El caso que obliga es el del SERNAC: su sistema «No Molestar» no es un registro que uno
- * consulte, es un aviso que llega —el consumidor elige la empresa, el SERNAC le reenvía la
- * solicitud— y hay siete días para cumplir. Hasta que esto existió, cumplirlo significaba editar
- * la base de datos a mano. También entra por acá quien lo pide por teléfono o a soporte.
+ * El caso que obliga es el del SERNAC: el consumidor registra la empresa en «No Molestar» y el
+ * envío queda prohibido desde ese registro (Decreto 62 de 2019, art. 5), mientras el aviso por
+ * correo recién sale el día hábil siguiente. De ahí que se pueda anotar con fecha anterior a hoy, y
+ * que la fecha guardada sea siempre la más antigua. También entra por acá quien lo pide a soporte.
  */
 function servicio(fichas: Array<Record<string, unknown>> = []) {
   const repo = {
@@ -93,5 +93,47 @@ describe('petición de baja recibida por fuera', () => {
 
     expect(resultado.fichasDeBaja).toBe(0);
     expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  /*
+   * La fecha con que se anota.
+   *
+   * Decreto 62 de 2019, art. 5: la prohibición corre desde que la persona registró la solicitud, y
+   * su inciso 2 hace regir «lo que primero ocurra» cuando lo pidió por dos vías. El aviso llega
+   * siempre después, así que poder anotar una fecha anterior a hoy no es una comodidad: es lo que
+   * decide si un correo enviado en medio fue lícito.
+   */
+  it('guarda la fecha en que la persona lo pidió, no la de hoy', async () => {
+    const { srv, repo, exclusiones } = servicio([ficha()]);
+
+    await srv.anotarPeticionExterna('org-1', 'ana@correo.cl', 'todas', null, 'Aviso SERNAC', '2026-03-12');
+
+    const guardada = (repo.save.mock.calls[0][0] as Array<{ unsubscribedAt: Date }>)[0].unsubscribedAt;
+    expect(guardada.toISOString().slice(0, 10)).toBe('2026-03-12');
+    expect(exclusiones.create).toHaveBeenCalledWith(expect.objectContaining({
+      pedidaEl: expect.any(Date),
+    }));
+  });
+
+  it('corrige hacia atrás la fecha de una baja que ya estaba anotada después', async () => {
+    const tarde = { ...ficha(), status: EstadoDeSuscripcion.SUSCRITO, unsubscribedAt: new Date('2026-04-01T12:00:00Z') };
+    const { srv, repo } = servicio([tarde]);
+
+    await srv.anotarPeticionExterna('org-1', 'ana@correo.cl', 'todas', null, 'Llamó el 12 de marzo', '2026-03-12');
+
+    const guardada = (repo.save.mock.calls[0][0] as Array<{ unsubscribedAt: Date }>)[0].unsubscribedAt;
+    expect(guardada.toISOString().slice(0, 10)).toBe('2026-03-12');
+  });
+
+  /* Una fecha futura sólo puede ser un error de tipeo, y adelantarla no beneficia a nadie. */
+  it('ignora una fecha futura o ilegible y toma hoy', async () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+
+    for (const malas of ['2099-01-01', 'ayer', '12-03-2026']) {
+      const { srv, repo } = servicio([ficha()]);
+      await srv.anotarPeticionExterna('org-1', 'ana@correo.cl', 'todas', null, 'SERNAC', malas);
+      const guardada = (repo.save.mock.calls[0][0] as Array<{ unsubscribedAt: Date }>)[0].unsubscribedAt;
+      expect(guardada.toISOString().slice(0, 10)).toBe(hoy);
+    }
   });
 });

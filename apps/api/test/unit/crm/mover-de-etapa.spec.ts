@@ -4,6 +4,7 @@ import { createLeadCierreDouble } from '../../helpers/lead-cierre.double';
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { UpdateLeadUseCase } from '../../../src/modules/crm/leads/use-cases/update-lead.use-case';
+import { createAutomatizacionDouble } from '../../helpers/crm-lead-automation.double';
 import { LeadStatus } from '../../../src/modules/crm/leads/lead-status.enum';
 
 /**
@@ -19,7 +20,7 @@ function caso(lead: Record<string, unknown>) {
     findOne: vi.fn().mockResolvedValue(lead),
     save: vi.fn().mockImplementation(async (value) => value),
   };
-  return { uso: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble(), { emit: () => true } as never, createResponsablesDouble()), repo };
+  return { uso: new UpdateLeadUseCase(repo as never, createProcessHistoryDouble(), createLeadCierreDouble(), { emit: () => true } as never, createResponsablesDouble(), undefined as never, createAutomatizacionDouble() as never), repo };
 }
 
 describe('mover un lead de etapa', () => {
