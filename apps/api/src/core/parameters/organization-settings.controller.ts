@@ -107,10 +107,20 @@ export class OrganizationSettingsController {
    */
   @Get()
   @ApiOperation({ summary: 'Obtener configuración efectiva, opcionalmente de una empresa' })
-  async list(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+  async list(
+    @Req() request: AuthenticatedRequest,
+    @Query('clientId') clientId?: string,
+    /*
+     * Con reserva se devuelve lo que ella tenga escrito y, para lo demás, lo de su empresa.
+     *
+     * El alcance lo sigue decidiendo la empresa: una reserva no da acceso por sí sola, y por eso
+     * la comprobación de abajo no cambia.
+     */
+    @Query('formId') formId?: string,
+  ) {
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
-    return this.settings.list(organizationId, clientId ?? null);
+    return this.settings.list(organizationId, clientId ?? null, formId ?? null);
   }
 
   @Put()
@@ -158,6 +168,7 @@ export class OrganizationSettingsController {
       request.user.id,
       dto.values,
       clientId ?? null,
+      dto.formId ?? null,
     );
   }
 

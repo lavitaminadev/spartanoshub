@@ -62,10 +62,10 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         this.usuarios = usuarios;
         this.corridas = corridas;
     }
-    async list(request, clientId) {
+    async list(request, clientId, formId) {
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
-        return this.settings.list(organizationId, clientId ?? null);
+        return this.settings.list(organizationId, clientId ?? null, formId ?? null);
     }
     async update(request, dto, clientId) {
         const valores = dto.values ?? {};
@@ -84,7 +84,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         }
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
-        return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null);
+        return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null, dto.formId ?? null);
     }
     async correos(request, clientId) {
         clientId = await this.empresaDeLaSesion(request, clientId);
@@ -237,8 +237,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Obtener configuración efectiva, opcionalmente de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
+    __param(2, (0, common_1.Query)('formId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "list", null);
 __decorate([

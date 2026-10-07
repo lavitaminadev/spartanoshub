@@ -126,3 +126,31 @@
 .regla-eleccion > legend { padding: 0 6px; font-size: 13px; font-weight: 800; color: var(--ink, #151317); }
 /* Las columnas son muchas y de nombre corto: caben de a dos y se recorren de un vistazo. */
 .regla-opciones-columnas { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+
+/*
+ * Una respuesta larga no desborda su fila.
+ *
+ * Las opciones salen tal cual las escribió el formulario de Meta, y algunas son una frase
+ * entera —«Sí, me interesa que me contacten esta semana»—. La fila es flexible pero el
+ * selector pide su ancho, así que sin permitir el salto el texto se recortaba o empujaba al
+ * selector fuera del panel. Partido en dos líneas se lee completo y el selector queda donde
+ * estaba.
+ */
+.reglas-pregunta li { flex-wrap: wrap; }
+.reglas-pregunta li > span { flex: 1 1 60%; overflow-wrap: anywhere; }
+.reglas-pregunta li > .input-en-frase { flex: 0 0 auto; max-width: 100%; }
+
+/*
+ * Cuántas respuestas de esta pregunta siguen sin regla.
+ *
+ * Marcado como aviso y no como dato neutro: es trabajo pendiente, y en una lista larga tiene
+ * que encontrarse de un vistazo sin leer el nombre de cada pregunta.
+ */
+.reglas-faltan {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  background: var(--warning-soft, #fdf1dc);
+  color: var(--warning-ink, #8a5a12);
+}

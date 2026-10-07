@@ -70,6 +70,13 @@ __decorate([
 ], UpdateLeadDto.prototype, "discardReason", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(20),
+    __metadata("design:type", Number)
+], UpdateLeadDto.prototype, "intentosDeContacto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(10000),
     __metadata("design:type", String)

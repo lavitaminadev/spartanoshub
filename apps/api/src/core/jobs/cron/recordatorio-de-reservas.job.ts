@@ -147,8 +147,10 @@ export class RecordatorioDeReservasJob {
 
   private async enviar(form: ReservationForm, reserva: Reservation): Promise<void> {
     const [asunto, cuerpo] = await Promise.all([
-      this.parametros.get('email.reservation_reminder_subject', form.clientId, null, form.organizationId),
-      this.parametros.get('email.reservation_reminder_body', form.clientId, null, form.organizationId),
+      // Por reserva primero, con la empresa de respaldo: el recordatorio de un evento no dice
+      // lo mismo que el de una cena corriente.
+      this.parametros.get('email.reservation_reminder_subject', form.clientId, null, form.organizationId, form.id),
+      this.parametros.get('email.reservation_reminder_body', form.clientId, null, form.organizationId, form.id),
     ]);
 
     const token = await this.crearEnlace(reserva.id);

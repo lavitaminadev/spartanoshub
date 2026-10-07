@@ -11,6 +11,7 @@ import { PublicReservationsController } from './public-reservations.controller';
 import { ReservationEvent } from './domain/reservation-event.entity';
 import { ReservationFormEvent } from './domain/reservation-form-event.entity';
 import { ReservationCoupon } from './domain/reservation-coupon.entity';
+import { ReservationCouponRedemption } from './domain/reservation-coupon-redemption.entity';
 import { SurveyContactRequest } from './domain/survey-contact-request.entity';
 import { ReservationManagementToken } from './domain/reservation-management-token.entity';
 import { ReservationHold } from './domain/reservation-hold.entity';
@@ -22,5 +23,5 @@ import { AuditModule } from '../../core/audit/audit.module';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { MarketingModule } from '../marketing/marketing.module';
 
-@Module({ imports: [TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule, AuthorizationModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
+@Module({ imports: [TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, ReservationCouponRedemption, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule, AuthorizationModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
 export class ReservationsModule {}

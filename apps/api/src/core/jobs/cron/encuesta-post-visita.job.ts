@@ -148,7 +148,9 @@ export class EncuestaPostVisitaJob {
    * siendo común: lo que cambia es a qué encuesta lleva.
    */
   private async ajustesDe(form: ReservationForm): Promise<Ajustes | null> {
-    const leer = (clave: string) => this.parametros.get(clave, form.clientId, null, form.organizationId);
+    // La reserva manda sobre la empresa: la encuesta ya se elegia por sucursal mas abajo, y el
+    // texto que la acompana no tenia por que seguir siendo comun a todas.
+    const leer = (clave: string) => this.parametros.get(clave, form.clientId, null, form.organizationId, form.id);
     const deLaSucursal = typeof (form.designConfig as Record<string, unknown>)?.encuestaPostVisita === 'string'
       ? String((form.designConfig as Record<string, unknown>).encuestaPostVisita).trim()
       : '';

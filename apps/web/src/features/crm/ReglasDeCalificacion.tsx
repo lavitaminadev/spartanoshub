@@ -211,10 +211,27 @@ export function ReglasDeCalificacion({ clientId, puedeEditar }: { clientId: stri
           <p className="page-subtitle">Todavía no llegan respuestas de formularios en esta empresa.</p>
         ) : (
           <div className="reglas-preguntas-lista">
-            {preguntas.data.map((fila) => (
+            {/*
+              * Las preguntas que todavía tienen respuestas sin regla van primero, y cada una dice
+              * cuántas le faltan.
+              *
+              * El aviso de arriba da el total, pero no en qué pregunta está: con dos preguntas se
+              * encuentra mirando, con diez hay que recorrerlas una por una para dar con las que
+              * faltan. El número por pregunta convierte esa búsqueda en una lectura.
+              *
+              * Se ordena sobre una copia: `preguntas.data` es la respuesta en caché de la consulta
+              * y ordenarla en su sitio cambiaría lo que ve cualquier otra pantalla que la lea.
+              */}
+            {[...preguntas.data]
+              .map((fila) => ({ fila, faltan: fila.respuestas.filter((respuesta) => !respuesta.tieneRegla).length }))
+              .sort((a, b) => b.faltan - a.faltan)
+              .map(({ fila, faltan }) => (
               <div key={fila.pregunta} className="reglas-pregunta">
                 <strong>{fila.pregunta}</strong>
-                <small>{fila.total} {fila.total === 1 ? 'lead' : 'leads'}</small>
+                <small>
+                  {fila.total} {fila.total === 1 ? 'lead' : 'leads'}
+                  {faltan > 0 ? <span className="reglas-faltan">{faltan} sin regla</span> : null}
+                </small>
                 <ul>
                   {fila.respuestas.map((respuesta) => (
                     <li key={respuesta.respuesta} className={respuesta.tieneRegla ? 'tiene-regla' : ''}>

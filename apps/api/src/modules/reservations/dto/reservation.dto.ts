@@ -512,3 +512,18 @@ export class ActualizarOperacionDto {
    */
   @IsOptional() @IsObject() cuposPorZona?: Record<string, number>;
 }
+
+/**
+ * Un cupón canjeado en el local, sin reserva.
+ *
+ * Todo es opcional salvo nada: quien está en el mostrador anota lo que tiene a mano, y exigirle
+ * el monto para poder registrar el canje haría que no lo registrara. Un canje sin monto sigue
+ * sirviendo para el conteo y para justificar el descuento; uno que no se anotó no sirve para nada.
+ */
+export class CanjeDeCuponDto {
+  @IsOptional() @IsInt() @Min(0) @Max(100_000_000) monto?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(100_000_000) descuento?: number;
+  /** Teléfono, correo o documento con que se reconoció a la persona. */
+  @IsOptional() @IsString() @MaxLength(190) persona?: string;
+  @IsOptional() @IsString() @MaxLength(300) nota?: string;
+}

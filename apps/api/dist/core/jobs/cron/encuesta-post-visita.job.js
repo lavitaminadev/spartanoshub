@@ -117,7 +117,7 @@ let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJo
         return { enviados, revisados: candidatas.length };
     }
     async ajustesDe(form) {
-        const leer = (clave) => this.parametros.get(clave, form.clientId, null, form.organizationId);
+        const leer = (clave) => this.parametros.get(clave, form.clientId, null, form.organizationId, form.id);
         const deLaSucursal = typeof form.designConfig?.encuestaPostVisita === 'string'
             ? String(form.designConfig.encuestaPostVisita).trim()
             : '';

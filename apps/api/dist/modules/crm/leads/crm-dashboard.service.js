@@ -18,6 +18,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("./lead.entity");
 const lead_status_enum_1 = require("./lead-status.enum");
+const lead_fit_status_enum_1 = require("./lead-fit-status.enum");
 exports.TASA_COMISION = 0.02;
 let CrmDashboardService = class CrmDashboardService {
     constructor(leads) {
@@ -47,13 +48,19 @@ let CrmDashboardService = class CrmDashboardService {
             this.porDia(base, desde),
             this.agrupar(base, 'discard_reason', lead_status_enum_1.LeadStatus.LOST),
         ]);
-        const [montoVendido, pipelineAbierto, estancados] = await Promise.all([
+        const [montoVendido, pipelineAbierto, estancados, cerradosSinSaber] = await Promise.all([
             this.sumar(base, lead_status_enum_1.LeadStatus.WON),
             this.sumarAbiertos(base),
             this.leads.count({
                 where: criterio({
                     status: (0, typeorm_2.In)([lead_status_enum_1.LeadStatus.CONTACTED, lead_status_enum_1.LeadStatus.QUOTE_SENT, lead_status_enum_1.LeadStatus.NEGOTIATION]),
                     updatedAt: (0, typeorm_2.LessThan)(new Date(Date.now() - 7 * 86_400_000)),
+                }),
+            }),
+            this.leads.count({
+                where: criterio({
+                    status: lead_status_enum_1.LeadStatus.LOST,
+                    fitStatus: (0, typeorm_2.In)([lead_fit_status_enum_1.LeadFitStatus.REVIEW, lead_fit_status_enum_1.LeadFitStatus.IN_REVIEW]),
                 }),
             }),
         ]);
@@ -87,6 +94,7 @@ let CrmDashboardService = class CrmDashboardService {
                 pipelineAbierto,
                 ticketPromedio: ventas > 0 ? Math.round(montoVendido / ventas) : 0,
                 estancados,
+                cerradosSinSaber,
             },
             porEtapa,
             porFuente,

@@ -28,7 +28,7 @@ export class OrganizationSettingsService {
    * organización. `source` dice de dónde salió cada uno, que es lo que permite a la pantalla
    * distinguir «esta empresa lo cambió» de «hereda el general».
    */
-  async list(organizationId: string, clientId?: string | null) {
+  async list(organizationId: string, clientId?: string | null, formId?: string | null) {
     const definitions = await this.ensureDefinitions();
     const definitionByKey = new Map(definitions.map((definition) => [definition.key, definition]));
     const idsDeDefinicion = definitions.map((definition) => definition.id);
@@ -62,6 +62,26 @@ export class OrganizationSettingsService {
     const propios = new Set(deLaEmpresa.map((value) => value.definitionId));
     for (const value of deLaEmpresa) valueByDefinition.set(value.definitionId, value);
 
+    /*
+     * Y lo de la reserva encima de todo, con la misma superposición.
+     *
+     * Una reserva que sólo cambió el asunto del recordatorio conserva el cuerpo de su empresa,
+     * igual que la empresa conserva el de la organización. Sin `formId` no se consulta nada y la
+     * respuesta es la de siempre.
+     */
+    const deLaReserva = formId
+      ? await this.valueRepo.find({
+        where: {
+          definitionId: In(idsDeDefinicion),
+          scopeType: 'form',
+          scopeId: formId,
+          validTo: IsNull(),
+        },
+      })
+      : [];
+    const deLaPropiaReserva = new Set(deLaReserva.map((value) => value.definitionId));
+    for (const value of deLaReserva) valueByDefinition.set(value.definitionId, value);
+
     return ORGANIZATION_SETTINGS.map((setting) => {
       const definition = definitionByKey.get(setting.key)!;
       const override = valueByDefinition.get(definition.id);
@@ -86,12 +106,32 @@ export class OrganizationSettingsService {
     });
   }
 
+  /**
+   * Guarda valores en el ámbito que corresponda.
+   *
+   * `formId` aparta una reserva concreta del texto de su empresa: es el escalón más alto de la
+   * herencia —formulario, empresa, organización— y manda sobre los otros dos. Sin él, el
+   * comportamiento es el de siempre.
+   */
   async update(
     organizationId: string,
     actorId: string,
     requestedValues: Record<string, unknown>,
     clientId?: string | null,
+    formId?: string | null,
   ) {
+    /*
+     * Un solo lugar decide el ámbito.
+     *
+     * La fila que se cierra y la que se crea tienen que apuntar al mismo nivel: calcularlo en
+     * cada sitio permitía que una se escribiera en la empresa y la otra en el formulario, y el
+     * valor viejo quedaría vigente para siempre sin que nada fallara.
+     */
+    const ambito = formId
+      ? { tipo: 'form', id: formId }
+      : clientId
+        ? { tipo: 'client', id: clientId }
+        : { tipo: 'organization', id: organizationId };
     const catalogByKey = new Map(ORGANIZATION_SETTINGS.map((setting) => [setting.key, setting]));
     const normalizedValues = new Map<string, string | number | boolean | null>();
 
@@ -131,8 +171,8 @@ export class OrganizationSettingsService {
           const propia = await valueRepo.findOne({
             where: {
               definitionId: definition.id,
-              scopeType: clientId ? 'client' : 'organization',
-              scopeId: clientId ?? organizationId,
+              scopeType: ambito.tipo,
+              scopeId: ambito.id,
               validTo: IsNull(),
             },
             order: { version: 'DESC' },
@@ -148,8 +188,8 @@ export class OrganizationSettingsService {
         const active = await valueRepo.findOne({
           where: {
             definitionId: definition.id,
-            scopeType: clientId ? 'client' : 'organization',
-            scopeId: clientId ?? organizationId,
+            scopeType: ambito.tipo,
+            scopeId: ambito.id,
             validTo: IsNull(),
           },
           order: { version: 'DESC' },
@@ -163,8 +203,8 @@ export class OrganizationSettingsService {
         }
         await valueRepo.save(valueRepo.create({
           definitionId: definition.id,
-          scopeType: clientId ? 'client' : 'organization',
-          scopeId: clientId ?? organizationId,
+          scopeType: ambito.tipo,
+          scopeId: ambito.id,
           valueJson: { value },
           version: (active?.version ?? 0) + 1,
           validFrom: now,

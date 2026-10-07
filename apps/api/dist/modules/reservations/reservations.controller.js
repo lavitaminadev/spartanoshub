@@ -276,6 +276,10 @@ let ReservationsController = class ReservationsController {
         const scope = await this.scope(req);
         return this.service.updateCoupon(req.organizationId, id, dto, scope.clientIds);
     }
+    async canjearCuponEnLocal(req, id, dto) {
+        const scope = await this.scope(req);
+        return this.service.canjearCuponEnLocal(req.organizationId, id, req.user.id, dto, scope.clientIds);
+    }
     async exportCsv(req, query, res) {
         const scope = await this.requestedScope(req, query.clientId);
         void this.audit.log({
@@ -636,6 +640,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, reservation_dto_1.UpdateCouponDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "updateCoupon", null);
+__decorate([
+    (0, common_1.Post)('coupons/:id/canjes'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.CanjeDeCuponDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "canjearCuponEnLocal", null);
 __decorate([
     (0, common_1.Get)('export/csv'),
     (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),

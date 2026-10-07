@@ -60,6 +60,14 @@ echo "Instalando tareas para $CRON_URL..."
 # Spartanoshub - Piezas estancadas (cada hora)
 10 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/stale-pieces" -m 60 >> $APP_DIR/logs/cron-stale-pieces.log 2>&1
 
+# Spartanoshub - Leads parados (cada hora)
+# Es el aviso que le dice al responsable que una ficha lleva días sin que nadie la toque, con los
+# plazos que cada empresa configure. La tarea y el correo existian desde hace meses; esta linea
+# no estaba, asi que no se envio ninguno: cada lead que esperaba se quedaba esperando en silencio.
+# Cada hora y no cada cinco minutos: los plazos se miden en dias y el trabajo recorre las fichas
+# abiertas, de modo que repetirlo mas seguido costaria sin adelantar nada.
+15 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/leads-parados" -m 60 >> $APP_DIR/logs/cron-leads-parados.log 2>&1
+
 # Spartanoshub - Alertas operativas (cada hora)
 20 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/operational-alerts" -m 60 >> $APP_DIR/logs/cron-operational-alerts.log 2>&1
 

@@ -499,3 +499,14 @@
   margin-right: 6px; padding: 1px 7px; border-radius: 999px;
   background: var(--ink); color: var(--white); font-size: 11px; font-style: normal; font-weight: 800;
 }
+
+/*
+ * El selector de empresa de Reservas.
+ *
+ * Va arriba de las pestañas y no dentro de los filtros: no filtra una lista, decide de qué
+ * empresa es todo lo que hay debajo. Puesto entre los filtros se leía como uno más, y al limpiar
+ * los filtros se perdía el contexto entero.
+ */
+.reservation-scope-picker { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.reservation-scope-picker > span { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.reservation-scope-picker > .input { width: auto; min-width: 220px; max-width: 100%; }

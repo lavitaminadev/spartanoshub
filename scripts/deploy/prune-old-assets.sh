@@ -64,3 +64,20 @@ BORRADOS="$(
 )"
 
 echo "PODA ASSETS: $BORRADOS archivos con mas de $DIAS dias sin uso eliminados; quedan $(find "$ASSETS" -type f | wc -l)."
+
+# Cachés que se regeneran solas y que ningún despliegue necesita conservar.
+#
+# `node-compile-cache` la escribe Node al compilar y pesa unos mil archivos. Se creaba durante el
+# despliegue y seguía ahí para el siguiente, de modo que el propio despliegue fabricaba el motivo
+# por el que el guardián de inodos detendría al que viniera detrás: un fallo circular que se
+# presenta como «la cuenta supera el limite» y no como lo que es.
+#
+# Va antes del guardián a propósito —el `.cpanel.yml` llama a este script primero—, para que lo
+# que se mide sea el consumo real y no el que acaba de dejar la pasada anterior.
+#
+# La de phpMyAdmin se incluye por lo mismo: la rehace sola la primera vez que alguien entra.
+for cache in "$HOME/tmp/node-compile-cache" "$HOME/tmp/pma_template_compiles_$(id -un)"; do
+  [ -d "$cache" ] || continue
+  entradas="$(find "$cache" -xdev -mindepth 1 2>/dev/null | wc -l)"
+  rm -rf -- "$cache" && echo "PODA CACHE: $entradas entradas liberadas de $(basename "$cache")."
+done

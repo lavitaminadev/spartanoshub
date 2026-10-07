@@ -25,13 +25,13 @@ let ParameterResolver = class ParameterResolver {
         this.cache = new Map();
         this.ttlMs = 60_000;
     }
-    async get(key, clientId, planId, organizationId) {
-        const cacheKey = this.cacheKey(key, clientId, planId, organizationId);
+    async get(key, clientId, planId, organizationId, formId) {
+        const cacheKey = this.cacheKey(key, clientId, planId, organizationId, formId);
         const cached = this.cache.get(cacheKey);
         if (cached && cached.expiresAt > Date.now()) {
             return cached.value;
         }
-        const value = await this.resolveFromDb(key, clientId, planId, organizationId);
+        const value = await this.resolveFromDb(key, clientId, planId, organizationId, formId);
         this.cache.set(cacheKey, { value, expiresAt: Date.now() + this.ttlMs });
         return value;
     }
@@ -41,9 +41,14 @@ let ParameterResolver = class ParameterResolver {
     }
     invalidate(key, clientId, planId, organizationId) {
         this.cache.delete(this.cacheKey(key, clientId, planId, organizationId));
+        const prefijo = `${this.cacheKey(key, clientId, planId, organizationId)}:form:`;
+        for (const clave of this.cache.keys())
+            if (clave.startsWith(prefijo))
+                this.cache.delete(clave);
     }
-    cacheKey(key, clientId, planId, organizationId) {
-        return `param:${key}:${clientId ?? 'null'}:${planId ?? 'null'}:${organizationId ?? 'null'}`;
+    cacheKey(key, clientId, planId, organizationId, formId) {
+        const base = `param:${key}:${clientId ?? 'null'}:${planId ?? 'null'}:${organizationId ?? 'null'}`;
+        return formId ? `${base}:form:${formId}` : base;
     }
     async getManyForOrganization(keys, organizationId) {
         const resolved = new Map();
@@ -85,10 +90,15 @@ let ParameterResolver = class ParameterResolver {
         }
         return resolved;
     }
-    async resolveFromDb(key, clientId, planId, organizationId) {
+    async resolveFromDb(key, clientId, planId, organizationId, formId) {
         const definition = await this.definitionRepo.findOne({ where: { key } });
         if (!definition)
             return null;
+        if (formId) {
+            const value = await this.findActiveValue(definition.id, 'form', formId);
+            if (value !== null)
+                return value;
+        }
         if (clientId) {
             const value = await this.findActiveValue(definition.id, 'client', clientId);
             if (value !== null)

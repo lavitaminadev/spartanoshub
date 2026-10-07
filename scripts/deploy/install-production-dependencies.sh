@@ -43,9 +43,15 @@ runtime_dependencies_resolve() {
 # declara correctamente. La vía alternativa instala en el mismo runtime los paquetes
 # productivos declarados por la API y el paquete compartido local, sin modificar el
 # manifiesto ni el lockfile. Así un comportamiento particular de npm no bloquea un deploy.
+#
+# La lista se arma con la versión del `overrides` de la raíz cuando el paquete tiene una, y
+# con la del manifiesto de la API cuando no. npm rechaza con `EOVERRIDE` que un override
+# contradiga la especificación de una dependencia pedida en la línea de comandos, de modo que
+# pasar `axios@^1.20.0` junto a un override de `axios` fijado en `1.20.0` detiene el despliegue
+# entero. Tomando el override se instala exactamente la versión que la raíz garantiza.
 if ! npm install --omit=dev --workspaces --include-workspace-root || ! runtime_dependencies_resolve; then
   echo "NPM INSTALL: workspaces no disponibles; usando instalacion compatible de runtime."
-  RUNTIME_PACKAGES="$(node -e 'const api = require("./apps/api/package.json"); process.stdout.write(Object.entries(api.dependencies).filter(([name]) => name !== "@espartanos/shared").map(([name, version]) => `${name}@${version}`).join(" "));')"
+  RUNTIME_PACKAGES="$(node -e 'const api = require("./apps/api/package.json"); const overrides = require("./package.json").overrides || {}; const fijada = (name, version) => typeof overrides[name] === "string" ? overrides[name] : version; process.stdout.write(Object.entries(api.dependencies).filter(([name]) => name !== "@espartanos/shared").map(([name, version]) => `${name}@${fijada(name, version)}`).join(" "));')"
   test -n "$RUNTIME_PACKAGES" || { echo "NPM INSTALL: no se encontraron dependencias productivas de la API" >&2; exit 1; }
   npm install --omit=dev --workspaces=false --no-save --package-lock=false ./packages/shared $RUNTIME_PACKAGES
 fi

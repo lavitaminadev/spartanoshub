@@ -33,6 +33,13 @@ export class UpdateLeadDto {
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsIn(['green', 'yellow', 'red'])
   trafficLight?: 'green' | 'yellow' | 'red' | null;
   @IsOptional() @IsString() @MaxLength(2000) discardReason?: string;
+  /**
+   * Cuántas veces se intentó contactar antes de cerrar la ficha.
+   *
+   * El tope de 20 no es una regla de negocio: acota el campo a lo que una persona puede haber
+   * hecho de verdad, para que un dedo pesado no deje un 500 en la estadística.
+   */
+  @IsOptional() @IsNumber() @Min(0) @Max(20) intentosDeContacto?: number;
   @IsOptional() @IsString() @MaxLength(10000) notes?: string;
 
   /**

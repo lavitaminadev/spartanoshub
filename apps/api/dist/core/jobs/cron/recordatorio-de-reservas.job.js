@@ -119,8 +119,8 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
     }
     async enviar(form, reserva) {
         const [asunto, cuerpo] = await Promise.all([
-            this.parametros.get('email.reservation_reminder_subject', form.clientId, null, form.organizationId),
-            this.parametros.get('email.reservation_reminder_body', form.clientId, null, form.organizationId),
+            this.parametros.get('email.reservation_reminder_subject', form.clientId, null, form.organizationId, form.id),
+            this.parametros.get('email.reservation_reminder_body', form.clientId, null, form.organizationId, form.id),
         ]);
         const token = await this.crearEnlace(reserva.id);
         const gestion = token && process.env.APP_PUBLIC_URL

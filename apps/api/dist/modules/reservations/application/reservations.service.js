@@ -30,6 +30,7 @@ const availability_block_entity_1 = require("../domain/availability-block.entity
 const reservation_event_entity_1 = require("../domain/reservation-event.entity");
 const reservation_form_event_entity_1 = require("../domain/reservation-form-event.entity");
 const reservation_coupon_entity_1 = require("../domain/reservation-coupon.entity");
+const reservation_coupon_redemption_entity_1 = require("../domain/reservation-coupon-redemption.entity");
 const survey_contact_request_entity_1 = require("../domain/survey-contact-request.entity");
 const reservation_management_token_entity_1 = require("../domain/reservation-management-token.entity");
 const reservation_hold_entity_1 = require("../domain/reservation-hold.entity");
@@ -98,7 +99,7 @@ const TIPOS_DE_EVENTO_LEGIBLES = {
     otro: 'Otro',
 };
 let ReservationsService = ReservationsService_1 = class ReservationsService {
-    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds, altaEnLaLista, destinatariosDeAvisos) {
+    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds, altaEnLaLista, destinatariosDeAvisos, canjes) {
         this.forms = forms;
         this.reservations = reservations;
         this.blocks = blocks;
@@ -120,6 +121,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.holds = holds;
         this.altaEnLaLista = altaEnLaLista;
         this.destinatariosDeAvisos = destinatariosDeAvisos;
+        this.canjes = canjes;
         this.logger = new common_1.Logger(ReservationsService_1.name);
     }
     slug(value) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 140); }
@@ -1481,7 +1483,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     async plantillaDeAviso(form, prefijo) {
         const deFabrica = (parte) => organization_settings_catalog_1.ORGANIZATION_SETTINGS.find((ajuste) => ajuste.key === `${prefijo}_${parte}`)?.defaultValue;
         const [encendido, asunto, cuerpo] = await Promise.all(['enabled', 'subject', 'body']
-            .map((parte) => this.parametros.get(`${prefijo}_${parte}`, form.clientId, null, form.organizationId)));
+            .map((parte) => this.parametros.get(`${prefijo}_${parte}`, form.clientId, null, form.organizationId, form.id)));
         return {
             encendido: Boolean(encendido ?? deFabrica('enabled')),
             asunto: String(asunto ?? deFabrica('subject') ?? ''),
@@ -1981,6 +1983,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 coupon.usageCount += 1;
                 await manager.save(reservation_coupon_entity_1.ReservationCoupon, coupon);
             }
+            const cuponConsumido = coupon;
             const status = form.confirmationMode === 'manual' || partySize > this.groupThreshold(form) ? 'pending' : 'confirmed';
             const booking = await manager.save(reservation_entity_1.Reservation, manager.create(reservation_entity_1.Reservation, {
                 organizationId: form.organizationId,
@@ -2044,6 +2047,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 } : {}),
                 couponCode: coupon?.code,
             }));
+            if (cuponConsumido) {
+                await manager.save(reservation_coupon_redemption_entity_1.ReservationCouponRedemption, manager.create(reservation_coupon_redemption_entity_1.ReservationCouponRedemption, {
+                    organizationId: form.organizationId,
+                    clientId: form.clientId ?? null,
+                    couponId: cuponConsumido.id,
+                    codigo: cuponConsumido.code,
+                    reservationId: booking.id,
+                    formId: form.id,
+                    canal: 'reserva',
+                    persona: (0, phone_1.normalizePhone)(dto.guestPhone) || dto.guestEmail?.trim().toLowerCase() || null,
+                }));
+            }
             await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, {
                 organizationId: form.organizationId,
                 clientId: form.clientId,
@@ -2950,6 +2965,35 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.assertLimitePorPersona(coupon);
         return this.coupons.save(coupon);
     }
+    async canjearCuponEnLocal(organizationId, couponId, userId, datos, clientIds) {
+        const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
+        if (!coupon)
+            throw new common_1.NotFoundException('Cupón no encontrado');
+        if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+            throw new common_1.ForbiddenException('No tienes acceso a este cupón');
+        }
+        if (!coupon.active)
+            throw new common_1.BadRequestException('El cupón está desactivado');
+        if (coupon.maxUses > 0 && coupon.usageCount >= coupon.maxUses) {
+            throw new common_1.BadRequestException('El cupón ya no tiene usos disponibles');
+        }
+        return this.dataSource.transaction(async (manager) => {
+            await manager.increment(reservation_coupon_entity_1.ReservationCoupon, { id: coupon.id }, 'usageCount', 1);
+            return manager.save(reservation_coupon_redemption_entity_1.ReservationCouponRedemption, manager.create(reservation_coupon_redemption_entity_1.ReservationCouponRedemption, {
+                organizationId,
+                clientId: coupon.clientId ?? null,
+                couponId: coupon.id,
+                codigo: coupon.code,
+                reservationId: null,
+                canal: 'local',
+                monto: datos.monto === undefined ? null : String(datos.monto),
+                descuento: datos.descuento === undefined ? null : String(datos.descuento),
+                persona: datos.persona?.trim() || null,
+                nota: datos.nota?.trim() || null,
+                registradoPor: userId,
+            }));
+        });
+    }
     async usoDeCupones(organizationId, clientId, clientIds) {
         const filtro = clientId
             ? { sql: 'AND client_id = ?', args: [clientId] }
@@ -3111,6 +3155,7 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
     __param(15, (0, typeorm_1.InjectRepository)(reservation_group_request_entity_1.ReservationGroupRequest)),
     __param(17, (0, typeorm_1.InjectRepository)(reservation_management_token_entity_1.ReservationManagementToken)),
     __param(18, (0, typeorm_1.InjectRepository)(reservation_hold_entity_1.ReservationHold)),
+    __param(21, (0, typeorm_1.InjectRepository)(reservation_coupon_redemption_entity_1.ReservationCouponRedemption)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -3131,5 +3176,6 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         typeorm_2.Repository,
         typeorm_2.Repository,
         alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva,
-        destinatarios_de_avisos_service_1.DestinatariosDeAvisosService])
+        destinatarios_de_avisos_service_1.DestinatariosDeAvisosService,
+        typeorm_2.Repository])
 ], ReservationsService);

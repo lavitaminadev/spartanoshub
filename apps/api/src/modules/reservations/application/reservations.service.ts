@@ -14,6 +14,7 @@ import { AvailabilityBlock } from '../domain/availability-block.entity';
 import { ReservationEvent } from '../domain/reservation-event.entity';
 import { ReservationFormEvent } from '../domain/reservation-form-event.entity';
 import { ReservationCoupon } from '../domain/reservation-coupon.entity';
+import { ReservationCouponRedemption } from '../domain/reservation-coupon-redemption.entity';
 import { SurveyContactRequest } from '../domain/survey-contact-request.entity';
 import { ReservationManagementToken } from '../domain/reservation-management-token.entity';
 import { ReservationHold } from '../domain/reservation-hold.entity';
@@ -229,6 +230,10 @@ export class ReservationsService {
     // Al final por el mismo motivo: las pruebas construyen este servicio por posición.
     private readonly altaEnLaLista: AltaDeSuscriptorDesdeReserva,
     private readonly destinatariosDeAvisos: DestinatariosDeAvisosService,
+    // Al final por el mismo motivo que los anteriores: las pruebas construyen este servicio con
+    // argumentos posicionales, y meterlo junto a los demás repositorios desplazaba todo lo que
+    // venía detrás.
+    @InjectRepository(ReservationCouponRedemption) private readonly canjes: Repository<ReservationCouponRedemption>,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -1944,8 +1949,19 @@ export class ReservationsService {
    */
   private async plantillaDeAviso(form: ReservationForm, prefijo: string): Promise<{ encendido: boolean; asunto: string; cuerpo: string }> {
     const deFabrica = (parte: string) => ORGANIZATION_SETTINGS.find((ajuste) => ajuste.key === `${prefijo}_${parte}`)?.defaultValue;
+    /*
+     * Cada reserva puede decir lo suyo.
+     *
+     * Una cena corriente y un evento con montaje comparten empresa y no comparten lo que hay que
+     * escribirle a quien reserva. Antes el texto era el mismo para todas las reservas de una
+     * empresa, porque éste era el único punto por donde pasan confirmación, cambio, cancelación
+     * y pendiente, y resolvía sólo hasta el nivel de empresa.
+     *
+     * Lo que la reserva no redefina sigue cayendo a la empresa, así que lo ya configurado no
+     * cambia de comportamiento.
+     */
     const [encendido, asunto, cuerpo] = await Promise.all(['enabled', 'subject', 'body']
-      .map((parte) => this.parametros.get(`${prefijo}_${parte}`, form.clientId, null, form.organizationId)));
+      .map((parte) => this.parametros.get(`${prefijo}_${parte}`, form.clientId, null, form.organizationId, form.id)));
     return {
       encendido: Boolean(encendido ?? deFabrica('enabled')),
       asunto: String(asunto ?? deFabrica('subject') ?? ''),
@@ -2489,6 +2505,7 @@ export class ReservationsService {
         coupon.usageCount += 1;
         await manager.save(ReservationCoupon, coupon);
       }
+      const cuponConsumido = coupon;
 
       // Los grupos grandes siempre pasan por el equipo: aunque exista cupo físico, un evento
       // puede requerir menú, montaje o confirmación especial.
@@ -2564,6 +2581,29 @@ export class ReservationsService {
         } : {}),
         couponCode: coupon?.code,
       }));
+
+      /*
+       * Constancia del canje, aparte del contador.
+       *
+       * El contador decide si quedan usos; esta fila dice cuándo se usó, en qué reserva y con qué
+       * se reconoció a la persona. Sin ella no se puede ver en qué semana rindió un cupón ni
+       * justificar el descuento, que es lo único que el contador nunca pudo responder.
+       *
+       * Va dentro de la misma transacción que la reserva: un canje anotado sobre una reserva que
+       * no llegó a existir contaría dos veces el mismo cupón.
+       */
+      if (cuponConsumido) {
+        await manager.save(ReservationCouponRedemption, manager.create(ReservationCouponRedemption, {
+          organizationId: form.organizationId,
+          clientId: form.clientId ?? null,
+          couponId: cuponConsumido.id,
+          codigo: cuponConsumido.code,
+          reservationId: booking.id,
+          formId: form.id,
+          canal: 'reserva',
+          persona: normalizePhone(dto.guestPhone) || dto.guestEmail?.trim().toLowerCase() || null,
+        }));
+      }
 
       await manager.save(ReservationEvent, manager.create(ReservationEvent, {
         organizationId: form.organizationId,
@@ -3731,6 +3771,56 @@ export class ReservationsService {
     if (coupon.validFromTime && coupon.validUntilTime && this.minutes(coupon.validFromTime) >= this.minutes(coupon.validUntilTime)) throw new BadRequestException('La hora de inicio del cupón debe ser anterior a la de término');
     this.assertLimitePorPersona(coupon);
     return this.coupons.save(coupon);
+  }
+
+  /**
+   * Anota un cupón canjeado en el local, sin reserva de por medio.
+   *
+   * Alguien llega con el código en el teléfono y consume sin haber reservado. Hasta ahora ese
+   * canje no tenía dónde registrarse: se aplicaba el descuento y no quedaba rastro, así que el
+   * contador del cupón decía menos usos de los reales y no había con qué justificar el descuento.
+   *
+   * Respeta el tope de usos igual que la validación de una reserva. Lo que **no** comprueba son
+   * los días y horas del cupón: quien está en el mostrador tiene delante a la persona y ve lo que
+   * el sistema no, y negarle un canje por una franja horaria cuando el cliente ya está sentado
+   * crea un problema peor que el que evita. Queda anotado quién lo registró.
+   *
+   * @param persona - Teléfono, correo o documento con que se reconoció a quien lo usó.
+   */
+  async canjearCuponEnLocal(
+    organizationId: string,
+    couponId: string,
+    userId: string,
+    datos: { monto?: number; descuento?: number; persona?: string; nota?: string },
+    clientIds?: string[],
+  ) {
+    const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
+    if (!coupon) throw new NotFoundException('Cupón no encontrado');
+    if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+      throw new ForbiddenException('No tienes acceso a este cupón');
+    }
+    if (!coupon.active) throw new BadRequestException('El cupón está desactivado');
+    if (coupon.maxUses > 0 && coupon.usageCount >= coupon.maxUses) {
+      throw new BadRequestException('El cupón ya no tiene usos disponibles');
+    }
+    return this.dataSource.transaction(async (manager) => {
+      // El contador y la constancia se escriben juntos: si uno de los dos quedara fuera, el
+      // cupón diría una cantidad de usos distinta de la que se puede demostrar.
+      await manager.increment(ReservationCoupon, { id: coupon.id }, 'usageCount', 1);
+      return manager.save(ReservationCouponRedemption, manager.create(ReservationCouponRedemption, {
+        organizationId,
+        clientId: coupon.clientId ?? null,
+        couponId: coupon.id,
+        codigo: coupon.code,
+        reservationId: null,
+        canal: 'local',
+        monto: datos.monto === undefined ? null : String(datos.monto),
+        descuento: datos.descuento === undefined ? null : String(datos.descuento),
+        persona: datos.persona?.trim() || null,
+        nota: datos.nota?.trim() || null,
+        registradoPor: userId,
+      }));
+    });
   }
 
   /**
