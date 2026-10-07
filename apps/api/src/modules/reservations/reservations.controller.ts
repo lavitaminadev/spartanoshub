@@ -437,6 +437,30 @@ export class ReservationsController {
    * Pide el mismo permiso de edición que cambiar el cupón: anotar un canje consume un uso y
    * entrega un descuento, así que no es una lectura.
    */
+  /**
+   * Busca un cupón por el código que trae la persona.
+   *
+   * Lectura, pero pide `edit` igual que canjear: la respuesta dice cuántos usos quedan y hasta
+   * cuándo vale, y eso es información de la oferta de una empresa, no de un cupón suelto.
+   */
+  @Get('coupons/buscar')
+  @RequiresPermission('reservations', 'edit')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async buscarCupon(@Req() req: AuthenticatedRequest, @Query('codigo') codigo: string) {
+    if (!codigo?.trim()) throw new BadRequestException('Escribe el código del cupón');
+    const scope = await this.scope(req);
+    return this.service.buscarCuponPorCodigo(req.organizationId, codigo, scope.clientIds);
+  }
+
+  /** Qué pasó con un cupón: cuándo se usó, por qué camino y cuánto costó. */
+  @Get('coupons/:id/metricas')
+  @RequiresPermission('reservations', 'view')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async metricasDeCupon(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const scope = await this.scope(req);
+    return this.service.metricasDeCupon(req.organizationId, id, scope.clientIds);
+  }
+
   @Post('coupons/:id/canjes')
   @RequiresPermission('reservations', 'edit')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)

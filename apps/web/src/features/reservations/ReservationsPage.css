@@ -510,3 +510,24 @@
 .reservation-scope-picker { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
 .reservation-scope-picker > span { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .reservation-scope-picker > .input { width: auto; min-width: 220px; max-width: 100%; }
+
+/*
+ * Anotar un cupón usado en el local.
+ *
+ * La ficha del cupón encontrado se separa del formulario: entre buscar y anotar hay una decisión
+ * —«¿es éste el que trae la persona?»— y mezclarla con los campos invita a confirmar sin mirar.
+ */
+.canje-ficha {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  border-radius: 10px;
+  background: var(--soft, #f6f4f5);
+  border: 0.8px solid var(--line, #e7e1e5);
+}
+.canje-ficha > strong { font-size: 17px; letter-spacing: .04em; }
+.canje-ficha > span { font-weight: 600; }
+.canje-ficha > small { color: var(--muted); font-size: 11px; }
+/* Un cupón que no se puede canjear se ve distinto antes de que nadie lea por qué. */
+.canje-ficha.no-canjeable { opacity: .7; border-style: dashed; }

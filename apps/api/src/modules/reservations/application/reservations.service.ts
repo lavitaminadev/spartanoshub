@@ -3825,6 +3825,141 @@ export class ReservationsService {
    *
    * @param persona - Teléfono, correo o documento con que se reconoció a quien lo usó.
    */
+  /**
+   * Qué pasó con un cupón: cuándo se usó, por qué camino y cuánto costó.
+   *
+   * Sale de los canjes anotados y no del contador. El contador dice «siete» y no permite
+   * preguntarle nada más: ni en qué semana, ni cuántos fueron gente que reservó frente a gente
+   * que llegó con el código, ni cuánto descuento se entregó.
+   *
+   * **Empieza desde que existen los canjes.** Lo usado antes sigue contado en `usageCount` y no
+   * aparece acá: inventarle una fecha a un canje que nadie anotó sería peor que admitir que no
+   * se sabe, y por eso la respuesta trae el total del contador al lado.
+   */
+  async metricasDeCupon(organizationId: string, couponId: string, clientIds?: string[]) {
+    const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
+    if (!coupon) throw new NotFoundException('Cupón no encontrado');
+    if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+      throw new ForbiddenException('No tienes acceso a este cupón');
+    }
+
+    const canjes = await this.canjes.find({
+      where: { organizationId, couponId },
+      order: { createdAt: 'DESC' },
+    });
+    const suma = (lista: typeof canjes, campo: 'monto' | 'descuento') => lista
+      .reduce((total, canje) => total + Number(canje[campo] ?? 0), 0);
+
+    // Por día y no por canje suelto: lo que se mira de un cupón es si rindió en el tiempo, y una
+    // lista de cien filas no responde eso.
+    const porDia = new Map<string, number>();
+    for (const canje of canjes) {
+      const dia = canje.createdAt.toISOString().slice(0, 10);
+      porDia.set(dia, (porDia.get(dia) ?? 0) + 1);
+    }
+
+    return {
+      codigo: coupon.code,
+      /** Lo que dice el contador, incluidos los usos anteriores a que existiera el registro. */
+      usosTotales: coupon.usageCount,
+      /** Los que sí tienen constancia. Menor que el total mientras queden usos viejos. */
+      canjesRegistrados: canjes.length,
+      porReserva: canjes.filter((canje) => canje.canal === 'reserva').length,
+      enElLocal: canjes.filter((canje) => canje.canal === 'local').length,
+      /** Nulo cuando nadie anotó importes: cero significaría que consumieron cero. */
+      montoTotal: canjes.some((canje) => canje.monto !== null) ? suma(canjes, 'monto') : null,
+      descuentoTotal: canjes.some((canje) => canje.descuento !== null) ? suma(canjes, 'descuento') : null,
+      porDia: [...porDia.entries()].map(([dia, total]) => ({ dia, total })).sort((a, b) => a.dia.localeCompare(b.dia)),
+      ultimos: canjes.slice(0, 20).map((canje) => ({
+        fecha: canje.createdAt,
+        canal: canje.canal,
+        persona: canje.persona,
+        monto: canje.monto,
+        descuento: canje.descuento,
+        nota: canje.nota,
+      })),
+    };
+  }
+
+  /**
+   * Busca un cupón por su código y dice si se puede canjear ahora.
+   *
+   * Quien está en la caja tiene el código, no el identificador: escribe lo que trae la persona en
+   * el teléfono. Devuelve el cupón aunque no se pueda canjear, con el motivo, porque «este cupón
+   * venció el martes» se le puede explicar al cliente y «no válido» no.
+   *
+   * Separa los impedimentos de los avisos. Los primeros bloquean; los segundos —hoy no es un día
+   * del cupón, estamos fuera de su horario— se muestran y se deja decidir a quien atiende, que
+   * ve a la persona y sabe si corresponde hacer una excepción.
+   */
+  async buscarCuponPorCodigo(organizationId: string, codigo: string, clientIds?: string[]) {
+    const coupon = await this.coupons.findOne({
+      where: { organizationId, code: codigo.trim().toUpperCase() },
+    });
+    if (!coupon) throw new NotFoundException('No existe un cupón con ese código');
+    if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+      throw new ForbiddenException('No tienes acceso a este cupón');
+    }
+
+    let impedimento: string | null = null;
+    try {
+      this.assertCanjeable(coupon);
+    } catch (error) {
+      impedimento = error instanceof BadRequestException ? error.message : 'No se puede canjear';
+    }
+
+    const ahora = new Date();
+    const avisos: string[] = [];
+    if (coupon.validDaysOfWeek?.length && !coupon.validDaysOfWeek.includes(ahora.getDay())) {
+      avisos.push('Hoy no es uno de los días en que aplica este cupón.');
+    }
+    if (coupon.validFromTime || coupon.validUntilTime) {
+      const minutos = ahora.getHours() * 60 + ahora.getMinutes();
+      const desde = coupon.validFromTime ? this.minutes(coupon.validFromTime) : 0;
+      const hasta = coupon.validUntilTime ? this.minutes(coupon.validUntilTime) : 24 * 60;
+      if (minutos < desde || minutos > hasta) avisos.push('Estamos fuera del horario del cupón.');
+    }
+    if (coupon.maxUsesPerPerson > 0) {
+      avisos.push(`Este cupón se puede usar ${coupon.maxUsesPerPerson} ${coupon.maxUsesPerPerson === 1 ? 'vez' : 'veces'} por persona.`);
+    }
+
+    return {
+      id: coupon.id,
+      code: coupon.code,
+      discountType: coupon.discountType,
+      value: coupon.value,
+      clientId: coupon.clientId ?? null,
+      usos: coupon.usageCount,
+      maxUsos: coupon.maxUses,
+      validUntil: coupon.validUntil ?? null,
+      canjeable: impedimento === null,
+      impedimento,
+      avisos,
+    };
+  }
+
+  /**
+   * Las condiciones que no puede saltarse quien está en el mostrador.
+   *
+   * La división no es caprichosa: son las que el sistema sabe con certeza y la persona que
+   * atiende no puede comprobar mejor que él. Un cupón vencido está vencido aunque el cliente
+   * insista, y uno sin usos entregaría un descuento que ya se dio.
+   *
+   * **Fuera quedan los días y las horas a propósito.** El mostrador tiene delante a la persona y
+   * ve lo que el sistema no —que llegó diez minutos tarde, que es el mismo grupo de ayer—, y
+   * negar un canje por una franja horaria con el cliente ya sentado crea un problema peor que el
+   * que evita. Lo mismo con el tope por persona: si se repite, se verá en los canjes anotados.
+   */
+  private assertCanjeable(coupon: ReservationCoupon): void {
+    if (!coupon.active) throw new BadRequestException('El cupón está desactivado');
+    const ahora = new Date();
+    if (coupon.validFrom && ahora < coupon.validFrom) throw new BadRequestException('El cupón todavía no empieza');
+    if (coupon.validUntil && ahora > coupon.validUntil) throw new BadRequestException('El cupón ya venció');
+    if (coupon.maxUses > 0 && coupon.usageCount >= coupon.maxUses) {
+      throw new BadRequestException('El cupón ya no tiene usos disponibles');
+    }
+  }
+
   async canjearCuponEnLocal(
     organizationId: string,
     couponId: string,
@@ -3837,11 +3972,21 @@ export class ReservationsService {
     if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
       throw new ForbiddenException('No tienes acceso a este cupón');
     }
-    if (!coupon.active) throw new BadRequestException('El cupón está desactivado');
-    if (coupon.maxUses > 0 && coupon.usageCount >= coupon.maxUses) {
-      throw new BadRequestException('El cupón ya no tiene usos disponibles');
-    }
+    this.assertCanjeable(coupon);
     return this.dataSource.transaction(async (manager) => {
+      /*
+       * Se relee con cerrojo dentro de la transacción.
+       *
+       * Entre la comprobación de arriba y este punto puede entrar otro canje —dos personas en la
+       * caja, o una reserva por la web— y el último uso de un cupón se entregaría dos veces. El
+       * cerrojo hace que el segundo espere y vuelva a ver el contador ya subido.
+       */
+      const vigente = await manager.getRepository(ReservationCoupon).findOne({
+        where: { id: coupon.id, organizationId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!vigente) throw new NotFoundException('Cupón no encontrado');
+      this.assertCanjeable(vigente);
       // El contador y la constancia se escriben juntos: si uno de los dos quedara fuera, el
       // cupón diría una cantidad de usos distinta de la que se puede demostrar.
       await manager.increment(ReservationCoupon, { id: coupon.id }, 'usageCount', 1);

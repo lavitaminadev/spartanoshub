@@ -1,6 +1,7 @@
 import { Fragment, useDeferredValue, useEffect, useState } from 'react';
 import { LimitePorPersona, limiteValido, type ClaveDePersona } from './LimitePorPersona';
 import { CuponAutomatico } from './CuponAutomatico';
+import { CanjeEnElLocal } from './CanjeEnElLocal';
 import { PanelCompartir } from '../../shared/PanelCompartir';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -154,6 +155,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const [manualOpen, setManualOpen] = useState(searchParams.get('nueva') === '1');
   const [manualForm, setManualForm] = useState({ formId: searchParams.get('nueva') === '1' ? searchParams.get('formId') ?? '' : '', startsAt: '', guestName: '', guestEmail: '', guestPhone: '', partySize: 1, serviceId: '', resourceId: '', internalNotes: '', skipAvailability: false });
   const [couponCreateOpen, setCouponCreateOpen] = useState(false);
+  const [canjeAbierto, setCanjeAbierto] = useState(false);
   const [couponForm, setCouponForm] = useState({ code: '', discountType: 'percentage', value: 0, maxUses: 0, validFrom: '', validUntil: '', formIds: '', validDaysOfWeek: [] as number[], validFromTime: '', validUntilTime: '', maxUsesPerPerson: 0, personKeys: ['phone', 'email'] as ClaveDePersona[] });
   const [couponSearch, setCouponSearch] = useState('');
   const [viewingCouponCode, setViewingCouponCode] = useState('');
@@ -795,7 +797,13 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     {tab === 'metrics' && <ReservationResults clientId={clientFilter || undefined} headingLevel={1} />}
 
     {tab === 'coupons' && <section>
-      <div className="reservation-section-head"><div><span className="page-eyebrow">CUPONES</span><h1>Gestión de cupones</h1></div><button className="btn btn-outline btn-sm" disabled={!clientFilter && user?.role !== 'client'} title={!clientFilter && user?.role !== 'client' ? 'Elige arriba la empresa del cupón' : undefined} onClick={() => setCouponCreateOpen(true)}>+ Nuevo cupón</button></div>
+      <div className="reservation-section-head"><div><span className="page-eyebrow">CUPONES</span><h1>Gestión de cupones</h1></div><div className="reservation-flow-actions">
+        {/* Anotar un canje va primero: es lo que se hace a diario, con alguien esperando en la
+            caja, mientras que crear un cupón ocurre de vez en cuando y sin apuro. */}
+        <button className="btn btn-primary btn-sm" type="button" onClick={() => setCanjeAbierto(true)}>Anotar cupón usado</button>
+        <CanjeEnElLocal abierto={canjeAbierto} alCerrar={() => setCanjeAbierto(false)} />
+        <button className="btn btn-outline btn-sm" disabled={!clientFilter && user?.role !== 'client'} title={!clientFilter && user?.role !== 'client' ? 'Elige arriba la empresa del cupón' : undefined} onClick={() => setCouponCreateOpen(true)}>+ Nuevo cupón</button>
+      </div></div>
       {!clientFilter && user?.role !== 'client' && <p className="page-subtitle">Para crear un cupón, elige primero la empresa arriba: cada cupón vale sólo en los locales de su empresa.</p>}
       {(clientFilter || user?.clientId) && (
         <CuponAutomatico
