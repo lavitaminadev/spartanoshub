@@ -9,16 +9,16 @@
 import { useMemo, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { useUrlFilters } from '../../shared/use-url-filters';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
-import { STAGE_LABEL } from './stage-labels';
+import { STAGE_LABEL, STAGES } from './stage-labels';
 import { useCrmScope } from './crm-scope';
-import { useStageLabels } from './use-stage-labels';
+import { useEtapasOcultas, useStageLabels } from './use-stage-labels';
 import { useVocabulario } from './use-vocabulario';
 import './crm-dashboard.css';
 
@@ -103,16 +103,34 @@ const ALTO = 240;
  * Horizontales y no verticales porque las categorías son texto —«Visita agendada», el nombre de
  * una fuente— y en vertical esas etiquetas se rotan o se recortan. El eje arranca en cero y la
  * escala la fija el propio gráfico: recortar el eje exagera diferencias que no existen.
+ *
+ * Cada barra lleva su cantidad y su parte del total al final. El largo solo permite comparar
+ * entre barras; la cifra responde cuánto es, y el porcentaje responde de qué depende el embudo
+ * —que una fuente sea la mitad del flujo es lo que decide dónde duele si esa fuente se corta—.
+ *
+ * `destacarMayor` tiñe la barra más alta y deja el resto atenuado. Se activa donde la pregunta
+ * es cuál manda; en el embudo por etapa se omite, porque ahí la mayor es siempre la primera
+ * etapa y señalarla no informa de nada.
  */
-function Barras({ datos, etiqueta, color = ACENTO }: { datos: Conteo[]; etiqueta: (key: string) => string; color?: string }): JSX.Element {
+function Barras({ datos, etiqueta, color = ACENTO, unidad = 'Leads', destacarMayor = false }: {
+  datos: Conteo[];
+  etiqueta: (key: string) => string;
+  color?: string;
+  unidad?: string;
+  destacarMayor?: boolean;
+}): JSX.Element {
   const filas = datos.map((dato) => ({ ...dato, nombre: etiqueta(dato.key) }));
+  const suma = filas.reduce((acumulado, fila) => acumulado + fila.total, 0);
+  const mayor = Math.max(...filas.map((fila) => fila.total), 0);
   // Cada barra necesita su alto mínimo legible; con muchas categorías el panel crece en vez de
   // apretarlas hasta que dejan de distinguirse.
   const alto = Math.max(ALTO, filas.length * 34);
 
   return (
     <ResponsiveContainer width="100%" height={alto}>
-      <BarChart data={filas} layout="vertical" margin={{ top: 4, right: 28, bottom: 4, left: 8 }}>
+      {/* El margen derecho reserva el ancho de «24 · 48%»: sin él la etiqueta de la barra más
+          larga queda fuera del área de dibujo y no se ve. */}
+      <BarChart data={filas} layout="vertical" margin={{ top: 4, right: 76, bottom: 4, left: 8 }}>
         <XAxis type="number" hide />
         <YAxis
           type="category"
@@ -124,10 +142,20 @@ function Barras({ datos, etiqueta, color = ACENTO }: { datos: Conteo[]; etiqueta
         />
         <Tooltip
           cursor={{ fill: 'rgba(23,199,138,.08)' }}
-          formatter={(valor) => [Number(valor), 'Leads']}
+          formatter={(valor) => [`${Number(valor)} · ${porcentaje(Number(valor), suma)}`, unidad]}
           contentStyle={{ fontSize: 12, borderRadius: 8 }}
         />
-        <Bar dataKey="total" fill={color} radius={[0, 4, 4, 0]} maxBarSize={22} />
+        <Bar dataKey="total" fill={color} radius={[0, 4, 4, 0]} maxBarSize={22}>
+          {destacarMayor ? filas.map((fila) => (
+            <Cell key={fila.key} fill={fila.total === mayor ? color : `${color}73`} />
+          )) : null}
+          <LabelList
+            dataKey="total"
+            position="right"
+            style={{ fontSize: 11, fill: 'var(--muted)' }}
+            formatter={(valor) => `${Number(valor)} · ${porcentaje(Number(valor), suma)}`}
+          />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
@@ -138,6 +166,7 @@ export function CrmDashboardPage(): JSX.Element {
   const scope = useCrmScope();
   const { user } = useAuth();
   const rotulos = useStageLabels(scope.clientId);
+  const etapasOcultas = useEtapasOcultas(scope.clientId);
   // Cómo llama esta empresa a sus cosas. De fábrica para lo que no haya renombrado.
   const { termino } = useVocabulario(scope.clientId);
   const filtros = useUrlFilters(['dias']);
@@ -180,12 +209,71 @@ export function CrmDashboardPage(): JSX.Element {
     [totals.leads, ventana],
   );
 
+  /**
+   * El embudo tal como esta empresa lo tiene configurado.
+   *
+   * La API agrupa por estado y ordena de mayor a menor, que sirve para fuentes y motivos pero no
+   * para un embudo: éste se lee en el orden en que se recorre, y ordenado por cantidad una etapa
+   * intermedia con más leads que la anterior sube y el dibujo deja de representar un proceso.
+   *
+   * Agrupar por estado tampoco distingue una etapa sin leads de una etapa que no existe: la
+   * primera tiene que aparecer en cero —que nadie haya llegado ahí es justamente el dato— y la
+   * segunda no debe aparecer. Por eso la lista la manda la configuración y no lo que devolvió la
+   * consulta: se recorren las etapas activas en su orden y cada una toma su conteo, o cero.
+   *
+   * Las etapas ocultas se excluyen también del total, de modo que los porcentajes suman cien
+   * entre las barras que se están viendo.
+   */
+  const embudo = useMemo(() => {
+    const totalesPorEtapa = new Map(porEtapa.map((etapa) => [etapa.key, etapa.total]));
+    const activas = STAGES
+      .filter((etapa) => !etapasOcultas.includes(etapa))
+      .map((etapa) => ({ key: etapa as string, total: totalesPorEtapa.get(etapa) ?? 0 }));
+    // Un estado fuera del catálogo —uno viejo, o uno que llegó por integración— no tendría dónde
+    // dibujarse y sus leads desaparecerían sin aviso. Si aparece alguno se muestra lo que
+    // devolvió la consulta: un embudo desordenado se nota, uno al que le faltan leads no.
+    //
+    // Los leads en etapas ocultas no cuentan como desaparecidos: esconder la etapa es la
+    // decisión de la empresa, no una pérdida.
+    const conocidas = new Set<string>(STAGES as readonly string[]);
+    const hayDesconocidas = porEtapa.some((etapa) => !conocidas.has(etapa.key));
+    return hayDesconocidas ? porEtapa : activas;
+  }, [porEtapa, etapasOcultas]);
+
+  /**
+   * La serie diaria con los días vacíos en cero.
+   *
+   * La API devuelve solo los días que tuvieron al menos un lead, y dibujarlos seguidos reparte el
+   * eje entre los días que existen: una semana muerta ocupa lo mismo que una activa y los
+   * períodos secos desaparecen. Con los ceros presentes el eje vuelve a ser tiempo y una caída se
+   * ve como lo que es.
+   *
+   * Las claves son `YYYY-MM-DD` tal como las entrega la consulta, de modo que se comparan como
+   * texto y no hay conversión de zona horaria que pueda correr un día.
+   */
+  const porDiaCompleto = useMemo(() => {
+    if (!porDia.length) return porDia;
+    const totalesPorDia = new Map(porDia.map((dia) => [dia.key, dia.total]));
+    const dias: Conteo[] = [];
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    cursor.setDate(cursor.getDate() - (ventana - 1));
+    for (let i = 0; i < ventana; i += 1) {
+      const clave = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+      dias.push({ key: clave, total: totalesPorDia.get(clave) ?? 0 });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    // Si la ventana no cubriera alguna clave devuelta por la API, se conserva el dato crudo antes
+    // que mostrar un gráfico al que le faltan leads que sí existen.
+    return dias.some((dia) => dia.total > 0) ? dias : porDia;
+  }, [porDia, ventana]);
+
   if (isLoading) return <LoadingSpinner text="Calculando el embudo..." />;
   if (error) {
     return <QueryErrorState title="No pudimos cargar el panel" message={(error as Error).message} onRetry={() => void refetch()} />;
   }
 
-  const maxDia = Math.max(...porDia.map((d) => d.total), 1);
+  const maxDia = Math.max(...porDiaCompleto.map((d) => d.total), 1);
 
   return (
     <div className="page crm-dash">
@@ -325,8 +413,8 @@ export function CrmDashboardPage(): JSX.Element {
         <h2>Embudo por etapa</h2>
         {/* El embudo se rotula como lo llama esta empresa: el panel y el tablero deben decir lo
             mismo, o el gráfico parece de otro CRM. */}
-        {porEtapa.length ? (
-          <Barras datos={porEtapa} etiqueta={(key) => rotulos[key] ?? STAGE_LABEL[key] ?? key} />
+        {embudo.length ? (
+          <Barras datos={embudo} etiqueta={(key) => rotulos[key] ?? STAGE_LABEL[key] ?? key} unidad={termino('leads')} />
         ) : (
           <p className="crm-dash-vacio">Sin leads en el período.</p>
         )}
@@ -335,11 +423,11 @@ export function CrmDashboardPage(): JSX.Element {
       <div className="crm-dash-dos">
         <section className="crm-dash-panel">
           <h2>{termino('leads')} por día</h2>
-          {porDia.length ? (
+          {porDiaCompleto.length ? (
             /* Barras verticales y no una línea: con pocos días una línea sugiere continuidad
                entre puntos que son conteos sueltos, no una serie que evolucione. */
             <ResponsiveContainer width="100%" height={ALTO}>
-              <BarChart data={porDia} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+              <BarChart data={porDiaCompleto} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
                 <XAxis
                   dataKey="key"
                   tickLine={false}
@@ -354,11 +442,21 @@ export function CrmDashboardPage(): JSX.Element {
                 <YAxis width={32} allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--muted)' }} />
                 <Tooltip
                   cursor={{ fill: 'rgba(23,199,138,.08)' }}
-                  formatter={(valor) => [Number(valor), 'Leads']}
+                  formatter={(valor) => [Number(valor), termino('leads')]}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />
+                {/* El promedio del período, el mismo que la tarjeta de arriba muestra como texto.
+                    Dibujado, cada barra se lee como «sobre» o «bajo lo normal» sin tener que
+                    recordar la cifra ni compararla de memoria entre paneles. */}
+                <ReferenceLine
+                  y={Number(porDiaPromedio)}
+                  stroke="var(--muted)"
+                  strokeDasharray="4 4"
+                  strokeOpacity={0.7}
+                  label={{ value: `promedio ${porDiaPromedio}`, position: 'insideTopLeft', fontSize: 10, fill: 'var(--muted)' }}
+                />
                 <Bar dataKey="total" radius={[3, 3, 0, 0]} maxBarSize={26}>
-                  {porDia.map((dia) => (
+                  {porDiaCompleto.map((dia) => (
                     // El día más alto se destaca: es la pregunta que se le hace a este gráfico
                     // —«¿cuándo entró el pico?»— y buscarlo a ojo entre noventa barras iguales
                     // es justamente lo que cuesta.
@@ -375,7 +473,7 @@ export function CrmDashboardPage(): JSX.Element {
         <section className="crm-dash-panel">
           <h2>{termino('leads')} por fuente</h2>
           {porFuente.length ? (
-            <Barras datos={porFuente} etiqueta={(key) => key} />
+            <Barras datos={porFuente} etiqueta={(key) => key} unidad={termino('leads')} destacarMayor />
           ) : (
             <p className="crm-dash-vacio">Sin fuentes registradas.</p>
           )}
@@ -435,7 +533,7 @@ export function CrmDashboardPage(): JSX.Element {
       <section className="crm-dash-panel">
         <h2>Por qué perdemos negocios</h2>
         {motivos.length ? (
-          <Barras datos={motivos} etiqueta={(key) => key} color={ACENTO_PERDIDA} />
+          <Barras datos={motivos} etiqueta={(key) => key} color={ACENTO_PERDIDA} unidad={termino('leads')} destacarMayor />
         ) : (
           /* Distinto de «no hay datos»: puede haber leads descartados sin motivo anotado, y
              decirlo es lo que empuja a que se anote. */
