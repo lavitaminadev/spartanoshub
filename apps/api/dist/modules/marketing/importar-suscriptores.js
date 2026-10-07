@@ -51,7 +51,7 @@ function partirLinea(linea) {
 function interpretarCsv(contenido, maximo = 5000) {
     const lineas = contenido.split(/\r?\n/).filter((linea) => linea.trim().length > 0);
     if (lineas.length < 2) {
-        return { filas: [], descartadas: [{ linea: 1, motivo: 'El archivo no tiene encabezado y datos' }] };
+        return { filas: [], descartadas: [{ linea: 1, motivo: 'El archivo no tiene encabezado y datos' }], ignoradas: [], reconocidas: { email: '' } };
     }
     const encabezados = partirLinea(lineas[0]);
     const iEmail = columnaDe(encabezados, COLUMNAS.email);
@@ -59,6 +59,8 @@ function interpretarCsv(contenido, maximo = 5000) {
         return {
             filas: [],
             descartadas: [{ linea: 1, motivo: 'No se encontró una columna de correo' }],
+            ignoradas: encabezados.filter((cabecera) => cabecera.trim()),
+            reconocidas: { email: '' },
         };
     }
     const iNombre = columnaDe(encabezados, COLUMNAS.name);
@@ -90,5 +92,16 @@ function interpretarCsv(contenido, maximo = 5000) {
             respuestaCruda,
         });
     }
-    return { filas, descartadas };
+    const usadas = new Set([iEmail, iNombre, iConsent].filter((indice) => indice >= 0));
+    const ignoradas = encabezados.filter((cabecera, indice) => !usadas.has(indice) && cabecera.trim());
+    return {
+        filas,
+        descartadas,
+        ignoradas,
+        reconocidas: {
+            email: encabezados[iEmail],
+            nombre: iNombre >= 0 ? encabezados[iNombre] : undefined,
+            consentimiento: iConsent >= 0 ? encabezados[iConsent] : undefined,
+        },
+    };
 }

@@ -115,7 +115,15 @@ export function SuscriptoresPage() {
    * sale del sistema es una dirección a la que se le va a seguir escribiendo sin que el enlace de
    * baja sirva de nada.
    */
-  const descargar = async () => {
+  /**
+   * @param formato - `csv` para abrir en una planilla; `json` para pasárselo a otro sistema.
+   *
+   * No hay PDF ni Excel binario. Un PDF de direcciones de correo no se puede pegar en ninguna
+   * parte: hay que transcribirlo, y transcribir correos a mano termina en direcciones mal
+   * escritas a las que se les escribe igual. El `.xlsx` necesitaría una biblioteca entera en el
+   * navegador para producir lo que el CSV ya abre con doble clic en Excel.
+   */
+  const descargar = async (formato: 'csv' | 'json' = 'csv') => {
     const destino = empresa || (esEmpresa ? user?.clientId ?? 'agencia' : 'agencia');
     const respuesta = await api
       .get<{ empresa: string; total: number; data: Array<Record<string, unknown>> }>(`/marketing/suscriptores/descargar?empresa=${encodeURIComponent(destino)}`)
@@ -123,11 +131,26 @@ export function SuscriptoresPage() {
     if (!respuesta?.data?.length) { triggerToast('No hay suscritos que descargar.', 'info'); return; }
 
     const columnas = ['email', 'nombre', 'aceptoEl', 'origen', 'detalle'];
-    const filas = respuesta.data.map((fila) => columnas.map((columna) => `"${String(fila[columna] ?? '').replaceAll('"', '""')}"`).join(','));
-    const csv = [columnas.join(','), ...filas].join('\n');
+    const nombre = `suscriptores-${nombreDe(empresa || null).replace(/\W+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}`;
+
+    let contenido: string;
+    let tipo: string;
+    if (formato === 'json') {
+      // Sólo las columnas que exporta el CSV, y no la fila entera: lo que el servidor devuelva de
+      // más no tiene por qué salir del sistema sin que nadie lo haya decidido.
+      contenido = JSON.stringify(respuesta.data.map((fila) => Object.fromEntries(columnas.map((columna) => [columna, fila[columna] ?? null]))), null, 2);
+      tipo = 'application/json;charset=utf-8';
+    } else {
+      const filas = respuesta.data.map((fila) => columnas.map((columna) => `"${String(fila[columna] ?? '').replaceAll('"', '""')}"`).join(','));
+      // La marca de orden al principio: sin ella Excel abre los acentos rotos y alguien «corrige»
+      // a mano nombres que estaban bien.
+      contenido = `﻿${[columnas.join(','), ...filas].join('\n')}`;
+      tipo = 'text/csv;charset=utf-8';
+    }
+
     const enlace = document.createElement('a');
-    enlace.href = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }));
-    enlace.download = `suscriptores-${nombreDe(empresa || null).replace(/\W+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
+    enlace.href = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+    enlace.download = `${nombre}.${formato}`;
     enlace.click();
     URL.revokeObjectURL(enlace.href);
     triggerToast(`${respuesta.total} direcciones descargadas. Vuelve a descargarla antes de cada envío: las bajas nuevas no llegan solas a tu copia.`, 'success');
@@ -146,7 +169,14 @@ export function SuscriptoresPage() {
         <div className="page-header-actions">
           {/* Importar es de la agencia: es quien responde por el respaldo de cada dirección. */}
           {!esEmpresa && <ImportarSuscriptores empresas={empresas} />}
-          <button type="button" className="btn btn-outline" onClick={() => void descargar()}>Descargar los suscritos</button>
+          {/*
+            * Dos botones y no un desplegable con dos opciones.
+            *
+            * El CSV es lo que busca casi todo el mundo —se abre con doble clic en Excel— y
+            * esconderlo tras un menú le agrega un paso a lo habitual para acomodar lo raro.
+            */}
+          <button type="button" className="btn btn-outline" onClick={() => void descargar('csv')}>Descargar los suscritos</button>
+          <button type="button" className="btn btn-outline btn-sm" title="Para pasárselo a otro sistema" onClick={() => void descargar('json')}>JSON</button>
         </div>
       </div>
 

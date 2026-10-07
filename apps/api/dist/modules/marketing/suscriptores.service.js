@@ -31,9 +31,10 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         return (0, node_crypto_1.randomBytes)(24).toString('base64url');
     }
     async importarCsv(organizationId, contenido, origen, detalle, textoConsentimiento, clientId) {
-        const { filas, descartadas } = (0, importar_suscriptores_1.interpretarCsv)(contenido);
+        const { filas, descartadas, ignoradas, reconocidas } = (0, importar_suscriptores_1.interpretarCsv)(contenido);
         const resultado = {
             creados: 0, actualizados: 0, respetadosDeBaja: 0, excluidos: 0, descartados: descartadas,
+            ignoradas, reconocidas,
         };
         const empresa = clientId ?? null;
         for (const fila of filas) {

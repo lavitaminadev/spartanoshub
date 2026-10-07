@@ -86,14 +86,14 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null, dto.formId ?? null);
     }
-    async correos(request, clientId) {
+    async correos(request, clientId, formId) {
         clientId = await this.empresaDeLaSesion(request, clientId);
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         const puede = await this.modulosQuePuedeEditar(request, clientId);
         if (puede.size === 0)
             throw new common_1.ForbiddenException('No hay plantillas que puedas editar en esta empresa');
-        const ajustes = await this.settings.list(organizationId, clientId ?? null);
+        const ajustes = await this.settings.list(organizationId, clientId ?? null, formId ?? null);
         return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key)
             && modulosDeCorreo(ajuste.key).some((modulo) => puede.has(modulo)));
     }
@@ -143,7 +143,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             throw new common_1.ForbiddenException(`No puedes editar estas plantillas: ${sinPermiso.join(', ')}`);
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
-        return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);
+        return this.settings.update(organizationId, request.user.id, valores, clientId ?? null, dto.formId ?? null);
     }
     async estadoDelCorreo(request, clientId) {
         await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
@@ -259,8 +259,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
+    __param(2, (0, common_1.Query)('formId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], OrganizationSettingsController.prototype, "correos", null);
 __decorate([

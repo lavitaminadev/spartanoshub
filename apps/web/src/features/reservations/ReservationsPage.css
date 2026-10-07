@@ -531,3 +531,33 @@
 .canje-ficha > small { color: var(--muted); font-size: 11px; }
 /* Un cupón que no se puede canjear se ve distinto antes de que nadie lea por qué. */
 .canje-ficha.no-canjeable { opacity: .7; border-style: dashed; }
+
+/*
+ * Canjes por día de un cupón.
+ *
+ * Barras y no una línea: son conteos de días sueltos, y una línea sugeriría que entre dos días
+ * con canjes hubo una progresión que nadie midió.
+ */
+.cupon-por-dia {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 90px;
+  margin: 14px 0;
+  padding-bottom: 16px;
+  border-bottom: 0.8px solid var(--line, #e7e1e5);
+}
+.cupon-dia { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; }
+.cupon-dia > span { display: block; width: 100%; min-height: 3px; border-radius: 3px 3px 0 0; background: var(--primary, #cc0a55); }
+.cupon-dia > small {
+  position: absolute;
+  bottom: -15px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 9px;
+  color: var(--muted);
+  /* Con muchos días las fechas se pisan; se recortan antes que superponerse. */
+  overflow: hidden;
+  white-space: nowrap;
+}
