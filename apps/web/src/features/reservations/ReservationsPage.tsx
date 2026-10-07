@@ -223,7 +223,16 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
 
   const { data: formsArray = [], isLoading, error: formsError, refetch: refetchForms, isFetching: fetchingForms } = useQuery<ReservationForm[]>({ queryKey: ['reservation-forms', clientFilter], queryFn: () => api.get(`/reservations/forms${clientQuery}`) });
   const forms = Array.isArray(formsArray) ? formsArray : [];
-  const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients'), enabled: !clientView });
+  /*
+   * Las empresas que esta cuenta alcanza.
+   *
+   * También se piden en la vista del cliente, aunque antes se omitían. Quien atiende dos
+   * empresas entraba a Reservas sin lista y sin selector, y por tanto sin forma de decir cuál
+   * miraba: veía lo que el servidor eligiera por él. El endpoint ya responde sólo lo que la
+   * cuenta alcanza, así que pedirlo no expone nada que no le corresponda, y con una sola
+   * empresa el selector no se dibuja.
+   */
+  const { data: clientsResp } = useQuery<{ data: Client[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = empresasConServicio((Array.isArray(clientsResp?.data) ? clientsResp?.data : undefined) ?? [], 'reservations');
   // El catálogo de Pixels está restringido a administración, operaciones y dirección
   // comercial; el resto de los roles no ve la etiqueta de estado.
@@ -538,12 +547,40 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           : ([['forms', 'Páginas de reserva'], ['bookings', 'Todas las reservas'], ['groups', 'Grupos y eventos'], ['coupons', 'Cupones']] as const)
         ).map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{key === 'bookings' && bookingPage?.total ? <span>{bookingPage.total}</span> : null}{key === 'groups' && gruposPendientes ? <span>{gruposPendientes}</span> : null}</button>)}
       </nav>}
+      {/*
+        * La empresa se elige una sola vez, arriba de las cuatro pestañas.
+        *
+        * Estaba escrito tres veces, dentro de los filtros de «Páginas de reserva», «Reservas» y
+        * «Grupos». Cupones usa el mismo valor pero no tenía copia, así que su botón de crear
+        * decía «elige arriba la empresa del cupón» sobre una pestaña donde no había nada arriba
+        * que elegir: había que ir a otra, elegirla y volver.
+        *
+        * Las cuatro pestañas son la misma ruta con distinta consulta y ya compartían el estado;
+        * lo único que faltaba era que el control viviera donde se ve desde todas.
+        *
+        * Con una sola empresa no se dibuja: un selector de una opción no es una elección, es un
+        * control que ocupa lugar y sugiere que hay algo que decidir.
+        */}
+      {clients.length > 1 && (
+        <label className="reservation-scope-picker">
+          <span>Empresa</span>
+          <select
+            className="input"
+            aria-label="Empresa cuyas reservas se están mirando"
+            value={clientFilter}
+            onChange={(evento) => { setClientFilter(evento.target.value); resetFilters({ formId: '' }); setPage(1); }}
+          >
+            <option value="">Todas las empresas</option>
+            {clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}
+          </select>
+        </label>
+      )}
       {selectedFilterForm && <div className="reservation-scope-banner"><div><span>GESTIONANDO ESTA RESERVA</span><strong>{selectedFilterForm.name}</strong><small>Los filtros, resultados, exportación y cupones de esta vista se limitan a este local.</small></div><Link className="btn btn-outline btn-sm" to={formPath(selectedFilterForm.id)}>Volver a la reserva</Link></div>}
 
       {tab === 'forms' && <section>
       <div className="reservation-section-head"><div><span className="page-eyebrow">{clientView ? 'TU OPERACIÓN' : 'ADMINISTRACIÓN'}</span><h1>{clientView ? 'Tus páginas de reserva' : 'Reservas de la empresa'}</h1></div><div className="reservation-actions"><p>{visibleForms.length} de {reservationClientForms.length} reservas visibles</p><div className="reservation-flow-actions">{!clientView && <button className="btn btn-primary btn-sm" onClick={() => openCreateFlow('appointment')}>Agregar otra reserva</button>}<button className={`btn btn-sm ${clientView ? 'btn-primary' : 'btn-outline duplica-menu'}`} onClick={() => setManualOpen(true)}>Anotar reserva</button>{!clientView && ofreceEncuestas && <Link className="btn btn-outline btn-sm" to="/surveys">Ir a Encuestas</Link>}</div></div></div>
       <div className="reservation-status-summary" aria-label="Resumen de formularios"><button className={!formFilters.status ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: '' }))}><strong>{reservationClientForms.length}</strong><span>Todos</span></button><button className={formFilters.status === 'published' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'published' }))}><strong>{formCounts.published || 0}</strong><span>Publicados</span></button><button className={formFilters.status === 'paused' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'paused' }))}><strong>{formCounts.paused || 0}</strong><span>Pausados</span></button><button className={formFilters.status === 'draft' ? 'active' : ''} onClick={() => setFormFilters((current) => ({ ...current, status: 'draft' }))}><strong>{formCounts.draft || 0}</strong><span>Borradores</span></button></div>
-      <div className="reservation-form-filters"><input className="input" type="search" aria-label="Buscar una reserva" placeholder="Buscar por nombre o enlace" value={formFilters.search} onChange={(event) => setFormFilters((current) => ({ ...current, search: event.target.value }))} />{!clientView && <select className="input" aria-label="Filtrar formularios por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todas las empresas</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<select className="input" aria-label="Filtrar formularios por estado" value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Todos los estados</option><option value="published">Publicados</option><option value="paused">Pausados</option><option value="draft">Borradores</option></select><button type="button" className="btn btn-outline btn-sm" disabled={!formFilters.search && !formFilters.status && !clientFilter && formFilters.flow === 'all'} onClick={() => { setFormFilters({ search: '', status: '', flow: 'all' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{visibleForms.length} reserva{visibleForms.length === 1 ? '' : 's'}</span></div>
+      <div className="reservation-form-filters"><input className="input" type="search" aria-label="Buscar una reserva" placeholder="Buscar por nombre o enlace" value={formFilters.search} onChange={(event) => setFormFilters((current) => ({ ...current, search: event.target.value }))} /><select className="input" aria-label="Filtrar formularios por estado" value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Todos los estados</option><option value="published">Publicados</option><option value="paused">Pausados</option><option value="draft">Borradores</option></select><button type="button" className="btn btn-outline btn-sm" disabled={!formFilters.search && !formFilters.status && formFilters.flow === 'all'} onClick={() => setFormFilters({ search: '', status: '', flow: 'all' })}>Limpiar</button><span className="filter-result-count">{visibleForms.length} reserva{visibleForms.length === 1 ? '' : 's'}</span></div>
       {/*
         * El vacío dice cosas distintas según quién mire, porque las dos no pueden hacer lo mismo.
         *
@@ -634,7 +671,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         {(selectedFilterForm?.resourcesConfig || []).length > 0 && <select className="input" aria-label="Filtrar por zona" value={filters.resourceId} onChange={(event) => { setPage(1); setFilters((actuales) => ({ ...actuales, resourceId: event.target.value })); }}>
           <option value="">Todas las zonas</option>
           {(selectedFilterForm?.resourcesConfig || []).map((zona) => <option key={zona.id} value={zona.id}>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ''}</option>)}
-        </select>}{!clientView && <select className="input" aria-label="Filtrar reservas por cliente" value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); resetFilters({ formId: '' }); setPage(1); }}><option value="">Todas las empresas</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}<label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={!filters.search && !filters.formId && !filters.status && !filters.from && !filters.to && !clientFilter} onClick={() => { resetFilters({ search: '', formId: '', status: '', from: '', to: '' }); setClientFilter(''); }}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
+        </select>}<label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={!filters.search && !filters.formId && !filters.status && !filters.from && !filters.to} onClick={() => resetFilters({ search: '', formId: '', status: '', from: '', to: '' })}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
       {bookingsError ? (isForbiddenError(bookingsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas" message={bookingsError.message} onRetry={() => void refetchBookings()} retrying={loadingBookings} />)
         : loadingBookings && !bookingPage ? <LoadingSpinner text="Buscando reservas..." />
         : bookings.length === 0 ? <EmptyState icon="calendar" title="Sin reservas para estos filtros" description="Las nuevas solicitudes aparecerán aquí en tiempo real." /> : <div className="booking-list" aria-busy={loadingBookings}>
@@ -700,8 +737,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         */}
       <div className="reservation-filters">
         <select className="input" aria-label="Filtrar solicitudes por página de reserva" value={filters.formId} onChange={(event) => resetFilters({ formId: event.target.value })}><option value="">Todas las páginas de reserva</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}</select>
-        {!clientView && <select className="input" aria-label="Filtrar solicitudes por cliente" value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); resetFilters({ formId: '' }); }}><option value="">Todas las empresas</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select>}
-        <button type="button" className="btn btn-outline btn-sm" disabled={!filters.formId && !clientFilter} onClick={() => { resetFilters({ formId: '' }); setClientFilter(''); }}>Limpiar</button>
+        
+        <button type="button" className="btn btn-outline btn-sm" disabled={!filters.formId} onClick={() => resetFilters({ formId: '' })}>Limpiar</button>
         <span className="filter-result-count">{grupos.length} solicitud{grupos.length === 1 ? '' : 'es'}</span>
       </div>
       {errorGrupos ? <QueryErrorState message={errorGrupos.message} onRetry={() => { void recargarGrupos(); }} />
