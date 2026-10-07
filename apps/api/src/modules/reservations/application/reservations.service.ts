@@ -1949,8 +1949,19 @@ export class ReservationsService {
    */
   private async plantillaDeAviso(form: ReservationForm, prefijo: string): Promise<{ encendido: boolean; asunto: string; cuerpo: string }> {
     const deFabrica = (parte: string) => ORGANIZATION_SETTINGS.find((ajuste) => ajuste.key === `${prefijo}_${parte}`)?.defaultValue;
+    /*
+     * Cada reserva puede decir lo suyo.
+     *
+     * Una cena corriente y un evento con montaje comparten empresa y no comparten lo que hay que
+     * escribirle a quien reserva. Antes el texto era el mismo para todas las reservas de una
+     * empresa, porque éste era el único punto por donde pasan confirmación, cambio, cancelación
+     * y pendiente, y resolvía sólo hasta el nivel de empresa.
+     *
+     * Lo que la reserva no redefina sigue cayendo a la empresa, así que lo ya configurado no
+     * cambia de comportamiento.
+     */
     const [encendido, asunto, cuerpo] = await Promise.all(['enabled', 'subject', 'body']
-      .map((parte) => this.parametros.get(`${prefijo}_${parte}`, form.clientId, null, form.organizationId)));
+      .map((parte) => this.parametros.get(`${prefijo}_${parte}`, form.clientId, null, form.organizationId, form.id)));
     return {
       encendido: Boolean(encendido ?? deFabrica('enabled')),
       asunto: String(asunto ?? deFabrica('subject') ?? ''),

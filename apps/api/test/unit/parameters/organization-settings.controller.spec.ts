@@ -52,7 +52,7 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
 
     // El cuarto argumento es la empresa: `null` significa que se edita el valor general, que es lo
     // que corresponde cuando no se elige ninguna.
-    expect(settings.update).toHaveBeenCalledWith('org-1', 'admin-1', { 'security.password.expiryDays': '90' }, null);
+    expect(settings.update).toHaveBeenCalledWith('org-1', 'admin-1', { 'security.password.expiryDays': '90' }, null, null);
   });
 
   it('permite que dev cambie el ciclo de vida de módulos', async () => {
@@ -61,7 +61,7 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
 
     await controller.update(request, { values: { 'modules.lifecycle.production': 'active' } });
 
-    expect(settings.update).toHaveBeenCalledWith('org-1', 'dev-1', { 'modules.lifecycle.production': 'active' }, null);
+    expect(settings.update).toHaveBeenCalledWith('org-1', 'dev-1', { 'modules.lifecycle.production': 'active' }, null, null);
   });
 
   it('Correos sólo lee y guarda plantillas de correo, nunca el resto de la configuración', async () => {

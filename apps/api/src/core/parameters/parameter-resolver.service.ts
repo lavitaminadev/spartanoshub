@@ -19,14 +19,25 @@ export class ParameterResolver {
     @InjectRepository(ParameterValue) private valueRepo: Repository<ParameterValue>,
   ) {}
 
-  async get(key: string, clientId?: string | null, planId?: string | null, organizationId?: string | null): Promise<any> {
-    const cacheKey = this.cacheKey(key, clientId, planId, organizationId);
+  /**
+   * @param formId - Reserva que se apartó del texto de su empresa. Va al final por ser opcional,
+   *   aunque es el nivel de **mayor** precedencia: formulario, empresa, plan, organización. Quien
+   *   no tenga un formulario en la mano lo omite y nada cambia.
+   */
+  async get(
+    key: string,
+    clientId?: string | null,
+    planId?: string | null,
+    organizationId?: string | null,
+    formId?: string | null,
+  ): Promise<any> {
+    const cacheKey = this.cacheKey(key, clientId, planId, organizationId, formId);
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;
     }
 
-    const value = await this.resolveFromDb(key, clientId, planId, organizationId);
+    const value = await this.resolveFromDb(key, clientId, planId, organizationId, formId);
 
     this.cache.set(cacheKey, { value, expiresAt: Date.now() + this.ttlMs });
     return value;
@@ -39,10 +50,16 @@ export class ParameterResolver {
 
   invalidate(key: string, clientId?: string | null, planId?: string | null, organizationId?: string | null): void {
     this.cache.delete(this.cacheKey(key, clientId, planId, organizationId));
+    // Lo que una empresa cambia alcanza a sus formularios que no lo hayan redefinido, y esas
+    // entradas llevan el id del formulario en la clave: sin barrerlas, una plantilla corregida
+    // seguiría saliendo con el texto viejo hasta que venciera el minuto de caché.
+    const prefijo = `${this.cacheKey(key, clientId, planId, organizationId)}:form:`;
+    for (const clave of this.cache.keys()) if (clave.startsWith(prefijo)) this.cache.delete(clave);
   }
 
-  private cacheKey(key: string, clientId?: string | null, planId?: string | null, organizationId?: string | null): string {
-    return `param:${key}:${clientId ?? 'null'}:${planId ?? 'null'}:${organizationId ?? 'null'}`;
+  private cacheKey(key: string, clientId?: string | null, planId?: string | null, organizationId?: string | null, formId?: string | null): string {
+    const base = `param:${key}:${clientId ?? 'null'}:${planId ?? 'null'}:${organizationId ?? 'null'}`;
+    return formId ? `${base}:form:${formId}` : base;
   }
 
   /**
@@ -104,9 +121,17 @@ export class ParameterResolver {
     return resolved;
   }
 
-  private async resolveFromDb(key: string, clientId?: string | null, planId?: string | null, organizationId?: string | null): Promise<any> {
+  private async resolveFromDb(key: string, clientId?: string | null, planId?: string | null, organizationId?: string | null, formId?: string | null): Promise<any> {
     const definition = await this.definitionRepo.findOne({ where: { key } });
     if (!definition) return null;
+
+    // La reserva manda sobre su empresa, igual que la empresa sobre la organización. Lo que no
+    // haya escrito cae al nivel siguiente, que es lo que hace útil la cascada: cambiar una línea
+    // no obliga a copiar la plantilla entera.
+    if (formId) {
+      const value = await this.findActiveValue(definition.id, 'form', formId);
+      if (value !== null) return value;
+    }
 
     if (clientId) {
       const value = await this.findActiveValue(definition.id, 'client', clientId);
