@@ -266,6 +266,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     servia: ServiaElProspecto; tocado: boolean;
     /** Los de la tanda que sí servían, con su propio motivo. El resto va con el común. */
     excepciones: Set<string>; motivoExcepciones: string;
+    /** Vale para toda la tanda: el lote se descarta por un mismo criterio de gestión. */
+    intentos: IntentosDeContacto;
   } | null>(null);
   /*
    * Ver también los descartados de meses cerrados.
@@ -484,7 +486,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     mutationFn: async ({ ids, status, discardReason, porLead }: {
       ids: string[]; status: string; discardReason?: string;
       /** Lo propio de cada ficha, cuando no todas comparten motivo ni calificación. */
-      porLead?: Record<string, { discardReason?: string; fitStatus?: string }>;
+      porLead?: Record<string, { discardReason?: string; fitStatus?: string; intentosDeContacto?: number }>;
     }) => {
       const comun = discardReason ? { status, discardReason } : { status };
       const resultados = await Promise.allSettled(ids.map((id) => (
@@ -940,7 +942,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
               // Descartar exige una causa en el servidor. Pedir una común acá conserva la
               // acción masiva sin convertir el informe de pérdidas en filas sin explicación.
               if (etapaEnLote === 'lost') {
-                setDescartandoEnLote({ ids: seleccionVisible, motivo: '', detalle: '', servia: 'nose', tocado: false, excepciones: new Set(), motivoExcepciones: '' });
+                setDescartandoEnLote({ ids: seleccionVisible, motivo: '', detalle: '', servia: 'nose', tocado: false, excepciones: new Set(), motivoExcepciones: '', intentos: null });
                 return;
               }
               moverEnLote.mutate({ ids: seleccionVisible, status: etapaEnLote });
@@ -1554,12 +1556,29 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                 );
               })()}
             </div>
+            {/*
+              * Los intentos valen para toda la tanda.
+              *
+              * Preguntarlos ficha por ficha devolvería al descarte masivo justo lo que lo hace
+              * útil: cerrar veinte de una vez. Se descartan juntas porque comparten criterio, y
+              * el esfuerzo de contacto es parte de ese criterio.
+              */}
+            <CuantosIntentos
+              valor={descartandoEnLote.intentos}
+              onCambiar={(intentos) => setDescartandoEnLote({ ...descartandoEnLote, intentos })}
+              avisoDeContradiccion={descartandoEnLote.intentos === 0 && descartandoEnLote.motivo === 'Nunca respondió'
+                ? 'Si no se intentó ninguna vez, el motivo no es que no respondieran. Revisa si corresponde otro.'
+                : null}
+            />
             <div className="modal-actions">
               <button type="button" className="btn btn-outline" onClick={() => setDescartandoEnLote(null)}>Cancelar</button>
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={moverEnLote.isPending || !descartandoEnLote.motivo || (descartandoEnLote.motivo === 'Otro' && !descartandoEnLote.detalle.trim())}
+                disabled={moverEnLote.isPending
+                  || !descartandoEnLote.motivo
+                  || (descartandoEnLote.motivo === 'Otro' && !descartandoEnLote.detalle.trim())
+                  || descartandoEnLote.intentos === null}
                 onClick={() => {
                   const comun = descartandoEnLote.motivo === 'Otro'
                     ? `Otro: ${descartandoEnLote.detalle.trim()}`
@@ -1585,10 +1604,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                        * el motivo y sin tocar su calificación, igual que en el descarte suelto.
                        */
                       const ficha = leads.find((fila) => fila.id === id);
-                      if (ficha && !necesitaPregunta(ficha)) return [id, { discardReason: comun }];
+                      const intentos = descartandoEnLote.intentos ?? undefined;
+                      if (ficha && !necesitaPregunta(ficha)) return [id, { discardReason: comun, intentosDeContacto: intentos }];
                       return [id, descartandoEnLote.excepciones.has(id)
-                        ? { discardReason: descartandoEnLote.motivoExcepciones, fitStatus: calificacionDe('si') }
-                        : { discardReason: comun, fitStatus: calificacionDe(descartandoEnLote.servia) }];
+                        ? { discardReason: descartandoEnLote.motivoExcepciones, fitStatus: calificacionDe('si'), intentosDeContacto: intentos }
+                        : { discardReason: comun, fitStatus: calificacionDe(descartandoEnLote.servia), intentosDeContacto: intentos }];
                     })),
                   });
                   setDescartandoEnLote(null);

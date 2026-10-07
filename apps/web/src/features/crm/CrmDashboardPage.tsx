@@ -44,6 +44,7 @@ interface Panel {
   totals: {
     leads: number; calificados: number; conVisita: number; ventas: number;
     montoVendido: number; pipelineAbierto: number; ticketPromedio: number; estancados: number;
+    cerradosSinSaber: number;
   };
   /** Días promedio de ingreso a venta. `null` mientras no haya ninguna cerrada. */
   tiempoDeCierre: number | null;
@@ -196,7 +197,7 @@ export function CrmDashboardPage(): JSX.Element {
 
   const totals = data?.totals ?? {
     leads: 0, calificados: 0, conVisita: 0, ventas: 0,
-    montoVendido: 0, pipelineAbierto: 0, ticketPromedio: 0, estancados: 0,
+    montoVendido: 0, pipelineAbierto: 0, ticketPromedio: 0, estancados: 0, cerradosSinSaber: 0,
   };
   const porDia = data?.porDia ?? [];
   const porEtapa = data?.porEtapa ?? [];
@@ -347,6 +348,19 @@ export function CrmDashboardPage(): JSX.Element {
           <strong>{totals.estancados}</strong>
           <span>{termino('leads')} estancados</span>
           <small>Sin gestión hace +7 días</small>
+        </article>
+        {/*
+          * Cerrados sin saber si la persona servía.
+          *
+          * Va junto a los demás indicadores y no dentro de los motivos de descarte porque no mide
+          * lo mismo: el total de descartes sube con el tráfico, y éste sube cuando se está
+          * cerrando gente con la que nunca se habló. Es la cifra que no existía en ninguna
+          * pantalla y la que explica por qué la pauta recibe poca señal de perfil.
+          */}
+        <article>
+          <strong>{totals.cerradosSinSaber}</strong>
+          <span>Cerrados sin saber si servían</span>
+          <small>{porcentaje(totals.cerradosSinSaber, totals.leads)} del período · no enseñan nada a la pauta</small>
         </article>
         {/*
           La comisión sale del panel.

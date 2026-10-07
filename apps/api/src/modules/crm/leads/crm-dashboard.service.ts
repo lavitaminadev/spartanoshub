@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, LessThan, Repository } from 'typeorm';
 import { Lead } from './lead.entity';
 import { LeadStatus } from './lead-status.enum';
+import { LeadFitStatus } from './lead-fit-status.enum';
 
 /** Una fila de conteo por clave, ya normalizada a número. */
 export interface ConteoPorClave { key: string; total: number }
@@ -90,13 +91,31 @@ export class CrmDashboardService {
       this.agrupar(base, 'discard_reason', LeadStatus.LOST),
     ]);
 
-    const [montoVendido, pipelineAbierto, estancados] = await Promise.all([
+    /*
+     * Cerrados sin saber si la persona servía.
+     *
+     * El descarte propone «no se sabe» cuando el motivo no permite deducirlo —«nunca respondió»
+     * es el caso que manda—, y entonces la ficha queda en revisión en vez de inventar un
+     * veredicto. Es lo correcto, pero tiene una consecuencia que no se veía en ninguna pantalla:
+     * esos cierres no le enseñan nada a la pauta, porque no hay perfil que reportar.
+     *
+     * Por eso se cuenta aparte y no junto a los descartes. El total de descartes sube con el
+     * volumen de tráfico; éste sube cuando se está cerrando gente con la que nunca se habló, que
+     * es un problema distinto y de otro dueño.
+     */
+    const [montoVendido, pipelineAbierto, estancados, cerradosSinSaber] = await Promise.all([
       this.sumar(base, LeadStatus.WON),
       this.sumarAbiertos(base),
       this.leads.count({
         where: criterio({
           status: In([LeadStatus.CONTACTED, LeadStatus.QUOTE_SENT, LeadStatus.NEGOTIATION]),
           updatedAt: LessThan(new Date(Date.now() - 7 * 86_400_000)),
+        }) as never,
+      }),
+      this.leads.count({
+        where: criterio({
+          status: LeadStatus.LOST,
+          fitStatus: In([LeadFitStatus.REVIEW, LeadFitStatus.IN_REVIEW]),
         }) as never,
       }),
     ]);
@@ -140,6 +159,8 @@ export class CrmDashboardService {
         // valor cerrado con valor estimado, y el número dejaría de significar nada.
         ticketPromedio: ventas > 0 ? Math.round(montoVendido / ventas) : 0,
         estancados,
+        // Cerrados sin veredicto sobre el perfil: no suman señal para la pauta.
+        cerradosSinSaber,
       },
       porEtapa,
       porFuente,
