@@ -824,3 +824,21 @@
 .publish-link-secundario > small { color:rgba(255,255,255,.5); line-height:1.5; }
 /* El campo antiguo manda sobre la tabla: se avisa donde se equivoca la gente, no en general. */
 .casillas-equipo-aviso { margin:0; padding:9px 11px; border-radius:var(--radius-md, 10px); background:#fff4d6; color:#6b4d00; font-size:12px; line-height:1.55; }
+
+/*
+ * Textos de correo propios de una reserva.
+ *
+ * Se distingue lo que esta reserva escribió de lo que hereda: sin esa marca, abrir la lista no
+ * dice cuáles están afinados y cuáles siguen a su empresa, que es la única pregunta que se le
+ * hace a esta pantalla.
+ */
+.correos-de-la-reserva { border-top: 0.8px solid var(--line, #e7e1e5); padding-top: 12px; margin-top: 12px; }
+.correos-reserva-lista { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.correos-reserva-lista > li { padding: 10px 12px; border: 0.8px solid var(--line, #e7e1e5); border-radius: 10px; }
+.correos-reserva-lista > li.es-propio { border-color: var(--primary, #cc0a55); }
+.correo-reserva-cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.correo-reserva-cabecera > strong { flex: 1 1 auto; font-size: 13px; }
+.correo-reserva-cabecera > span { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.correos-reserva-lista > li.es-propio .correo-reserva-cabecera > span { color: var(--primary, #cc0a55); }
+.correo-reserva-editor { display: grid; gap: 8px; margin-top: 10px; }
+.correo-reserva-acciones { display: flex; justify-content: flex-end; gap: 6px; }

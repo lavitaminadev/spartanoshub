@@ -21,6 +21,15 @@ export interface ResultadoDeImportacion {
    */
   excluidos: number;
   descartados: Array<{ linea: number; motivo: string }>;
+  /**
+   * Columnas del archivo que no se usaron, y cuáles sí se reconocieron.
+   *
+   * Lo desconocido se descarta a propósito, pero callarlo convierte un error de encabezado en
+   * una pérdida silenciosa: quien puso el consentimiento en una columna llamada «autoriza» ve
+   * que se importó bien y no se entera de que nadie quedó marcado como que aceptó.
+   */
+  ignoradas: string[];
+  reconocidas: { email: string; nombre?: string; consentimiento?: string };
 }
 
 @Injectable()
@@ -66,9 +75,10 @@ export class SuscriptoresService {
     textoConsentimiento?: string,
     clientId?: string | null,
   ): Promise<ResultadoDeImportacion> {
-    const { filas, descartadas } = interpretarCsv(contenido);
+    const { filas, descartadas, ignoradas, reconocidas } = interpretarCsv(contenido);
     const resultado: ResultadoDeImportacion = {
       creados: 0, actualizados: 0, respetadosDeBaja: 0, excluidos: 0, descartados: descartadas,
+      ignoradas, reconocidas,
     };
     const empresa = clientId ?? null;
 

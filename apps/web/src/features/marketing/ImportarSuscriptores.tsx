@@ -10,6 +10,10 @@ interface ResultadoDeImportacion {
   respetadosDeBaja: number;
   excluidos: number;
   descartados: Array<{ linea: number; motivo: string }>;
+  /** Columnas del archivo que no se usaron. */
+  ignoradas: string[];
+  /** Qué encabezado se reconoció para cada dato. */
+  reconocidas: { email: string; nombre?: string; consentimiento?: string };
 }
 
 /**
@@ -78,6 +82,30 @@ export function ImportarSuscriptores({ empresas }: { empresas: Array<{ id: strin
               {resultado.excluidos} habían pedido no recibir nunca más, así que no entraron. Si son
               muchos, conviene revisar de dónde salió este archivo.
             </p>
+          )}
+          {/*
+            * Qué columna se usó para cada dato.
+            *
+            * Va antes que los descartes porque responde la duda más cara: si el consentimiento
+            * no se reconoció, nadie quedó marcado como que aceptó y la importación igual dice
+            * que salió bien.
+            */}
+          <p className="importacion-nota">
+            Se usó <strong>«{resultado.reconocidas.email}»</strong> como correo
+            {resultado.reconocidas.nombre ? <>, <strong>«{resultado.reconocidas.nombre}»</strong> como nombre</> : null}
+            {resultado.reconocidas.consentimiento
+              ? <>, y <strong>«{resultado.reconocidas.consentimiento}»</strong> como consentimiento.</>
+              : <>. <strong>No se reconoció ninguna columna de consentimiento</strong>, así que nadie quedó marcado como que aceptó.</>}
+          </p>
+          {resultado.ignoradas.length > 0 && (
+            <details className="importacion-descartes">
+              <summary>{resultado.ignoradas.length} {resultado.ignoradas.length === 1 ? 'columna ignorada' : 'columnas ignoradas'}</summary>
+              <ul>{resultado.ignoradas.map((columna) => <li key={columna}>{columna}</li>)}</ul>
+              <p>
+                No se guardan para no meter en la lista datos que nadie pidió. Si alguna era el
+                consentimiento o el nombre, renómbrala en el archivo y vuelve a subirlo.
+              </p>
+            </details>
           )}
           {resultado.descartados.length > 0 && (
             <details className="importacion-descartes">

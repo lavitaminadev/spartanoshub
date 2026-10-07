@@ -191,14 +191,19 @@ export class OrganizationSettingsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @Get('correos')
   @ApiOperation({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' })
-  async correos(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+  async correos(
+    @Req() request: AuthenticatedRequest,
+    @Query('clientId') clientId?: string,
+    /* Con reserva se ve lo que ella haya escrito y, para lo demas, lo de su empresa. */
+    @Query('formId') formId?: string,
+  ) {
     clientId = await this.empresaDeLaSesion(request, clientId);
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
     // Sólo las plantillas de los módulos que esta persona puede editar: las demás no se muestran.
     const puede = await this.modulosQuePuedeEditar(request, clientId);
     if (puede.size === 0) throw new ForbiddenException('No hay plantillas que puedas editar en esta empresa');
-    const ajustes = await this.settings.list(organizationId, clientId ?? null) as Array<{ key: string }>;
+    const ajustes = await this.settings.list(organizationId, clientId ?? null, formId ?? null) as Array<{ key: string }>;
     return ajustes.filter((ajuste) => ES_CLAVE_DE_CORREO(ajuste.key)
       && modulosDeCorreo(ajuste.key).some((modulo) => puede.has(modulo)));
   }
@@ -299,7 +304,8 @@ export class OrganizationSettingsController {
     if (sinPermiso.length) throw new ForbiddenException(`No puedes editar estas plantillas: ${sinPermiso.join(', ')}`);
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
-    return this.settings.update(organizationId, request.user.id, valores, clientId ?? null);
+    // Con reserva, el texto se guarda sólo para ella y el resto de sus hermanas sigue heredando.
+    return this.settings.update(organizationId, request.user.id, valores, clientId ?? null, dto.formId ?? null);
   }
 
   /**

@@ -74,7 +74,7 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
 
     await controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } }, 'c-1');
     expect(accountAccess.assertClient).toHaveBeenCalledWith('org-1', request.user, 'c-1');
-    expect(settings.update).toHaveBeenCalledWith('org-1', 'cd-1', { 'email.reservation_confirmation_subject': 'Hola' }, 'c-1');
+    expect(settings.update).toHaveBeenCalledWith('org-1', 'cd-1', { 'email.reservation_confirmation_subject': 'Hola' }, 'c-1', null);
   });
 
   /*
@@ -174,7 +174,7 @@ describe('Correos: la empresa no edita el texto', () => {
   it('sí puede encenderlo o apagarlo', async () => {
     settings.update.mockResolvedValue([]);
     await controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_enabled': false } });
-    expect(settings.update).toHaveBeenCalledWith('org-1', 'ana', { 'email.reservation_confirmation_enabled': false }, 'c-1');
+    expect(settings.update).toHaveBeenCalledWith('org-1', 'ana', { 'email.reservation_confirmation_enabled': false }, 'c-1', null);
   });
 
   it('el equipo de Espartanos sigue escribiendo el texto', async () => {

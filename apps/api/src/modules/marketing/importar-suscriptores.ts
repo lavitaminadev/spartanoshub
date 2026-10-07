@@ -25,6 +25,18 @@ export interface ResumenDeImportacion {
   filas: FilaImportada[];
   /** Filas descartadas y por qué, para poder decírselo a quien subió el archivo. */
   descartadas: Array<{ linea: number; motivo: string }>;
+  /**
+   * Columnas que traía el archivo y que no se usaron.
+   *
+   * Descartar lo desconocido es deliberado —importar columnas que nadie pidió es como acaban
+   * datos personales en una lista de envío— pero hacerlo **en silencio** no: quien sube un
+   * archivo con el consentimiento en una columna llamada «autoriza» ve que se importó bien y no
+   * se entera de que esa columna se perdió. Decir cuáles quedaron fuera permite corregir el
+   * encabezado y volver a subirlo.
+   */
+  ignoradas: string[];
+  /** Qué encabezado se reconoció para cada dato, para que se vea qué entendió el sistema. */
+  reconocidas: { email: string; nombre?: string; consentimiento?: string };
 }
 
 /**
@@ -107,7 +119,7 @@ export function partirLinea(linea: string): string[] {
 export function interpretarCsv(contenido: string, maximo = 5000): ResumenDeImportacion {
   const lineas = contenido.split(/\r?\n/).filter((linea) => linea.trim().length > 0);
   if (lineas.length < 2) {
-    return { filas: [], descartadas: [{ linea: 1, motivo: 'El archivo no tiene encabezado y datos' }] };
+    return { filas: [], descartadas: [{ linea: 1, motivo: 'El archivo no tiene encabezado y datos' }], ignoradas: [], reconocidas: { email: '' } };
   }
 
   const encabezados = partirLinea(lineas[0]);
@@ -116,6 +128,10 @@ export function interpretarCsv(contenido: string, maximo = 5000): ResumenDeImpor
     return {
       filas: [],
       descartadas: [{ linea: 1, motivo: 'No se encontró una columna de correo' }],
+      // Sin columna de correo no se usó ninguna: se devuelven todas para que quien subió el
+      // archivo vea qué encabezados tiene y pueda renombrar el que corresponde.
+      ignoradas: encabezados.filter((cabecera) => cabecera.trim()),
+      reconocidas: { email: '' },
     };
   }
   const iNombre = columnaDe(encabezados, COLUMNAS.name);
@@ -151,5 +167,19 @@ export function interpretarCsv(contenido: string, maximo = 5000): ResumenDeImpor
     });
   }
 
-  return { filas, descartadas };
+  // Las que quedaron fuera, con su nombre tal como venía: quien corrige el archivo busca ese
+  // texto, no una versión normalizada.
+  const usadas = new Set([iEmail, iNombre, iConsent].filter((indice) => indice >= 0));
+  const ignoradas = encabezados.filter((cabecera, indice) => !usadas.has(indice) && cabecera.trim());
+
+  return {
+    filas,
+    descartadas,
+    ignoradas,
+    reconocidas: {
+      email: encabezados[iEmail],
+      nombre: iNombre >= 0 ? encabezados[iNombre] : undefined,
+      consentimiento: iConsent >= 0 ? encabezados[iConsent] : undefined,
+    },
+  };
 }

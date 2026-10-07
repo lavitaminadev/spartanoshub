@@ -162,10 +162,10 @@ describe('Correos: la empresa que se está mirando', () => {
   it('lee y guarda las plantillas de la empresa que mira, no las de su cuenta', async () => {
     // Antes la empresa pedida se descartaba: mirando B se leían y guardaban las de A.
     await controller.correos(req, 'empresa-b');
-    expect(settings.list).toHaveBeenCalledWith('org-1', 'empresa-b');
+    expect(settings.list).toHaveBeenCalledWith('org-1', 'empresa-b', null);
 
     await controller.guardarCorreos(req, { values: { 'email.reservation_confirmation_enabled': 'false' } }, 'empresa-b');
-    expect(settings.update).toHaveBeenCalledWith('org-1', 'duenia', { 'email.reservation_confirmation_enabled': 'false' }, 'empresa-b');
+    expect(settings.update).toHaveBeenCalledWith('org-1', 'duenia', { 'email.reservation_confirmation_enabled': 'false' }, 'empresa-b', null);
   });
 
   it('una empresa que no alcanza cae en la de su cuenta, y ahí no administra', async () => {

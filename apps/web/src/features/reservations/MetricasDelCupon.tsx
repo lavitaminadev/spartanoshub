@@ -48,10 +48,19 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
     queryFn: () => api.get(`/reservations/coupons/${couponId}/metricas`),
   });
 
-  const sinRegistro = data ? data.usosTotales - data.canjesRegistrados : 0;
+  /*
+   * Se leen con valores por omisión en vez de confiar en la forma que llegue.
+   *
+   * Una respuesta a la que le falte una lista —un servidor más viejo, una versión de prueba, un
+   * error que devuelva el objeto a medias— tumbaba la pestaña entera con el panel de recuperación
+   * encima. Un cupón sin métricas se puede dibujar; una pantalla caída no.
+   */
+  const porDia = data?.porDia ?? [];
+  const ultimos = data?.ultimos ?? [];
+  const sinRegistro = Math.max((data?.usosTotales ?? 0) - (data?.canjesRegistrados ?? 0), 0);
   // El día con más canjes manda la altura del resto: sin un tope común, dos barras de 1 y 7 se
   // dibujarían iguales y el gráfico diría lo contrario de lo que pasó.
-  const maximo = Math.max(...(data?.porDia ?? []).map((dia) => dia.total), 1);
+  const maximo = Math.max(...porDia.map((dia) => dia.total), 1);
 
   return (
     <div className="coupon-usages">
@@ -63,17 +72,17 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
       {isLoading || !data ? <LoadingSpinner text="Buscando los canjes…" /> : (
         <>
           <div className="reservation-metric-grid reservation-metric-grid-four">
-            <div><span>Usos totales</span><strong>{data.usosTotales}</strong></div>
-            <div><span>Por una reserva</span><strong>{data.porReserva}</strong></div>
-            <div><span>En el local</span><strong>{data.enElLocal}</strong></div>
+            <div><span>Usos totales</span><strong>{data.usosTotales ?? 0}</strong></div>
+            <div><span>Por una reserva</span><strong>{data.porReserva ?? 0}</strong></div>
+            <div><span>En el local</span><strong>{data.enElLocal ?? 0}</strong></div>
             <div>
               <span>Descuento entregado</span>
               {/* Nulo y cero dicen cosas distintas: nadie lo anotó, o se entregó cero. */}
-              <strong>{data.descuentoTotal === null ? 'Sin anotar' : pesos(data.descuentoTotal)}</strong>
+              <strong>{data.descuentoTotal == null ? 'Sin anotar' : pesos(data.descuentoTotal)}</strong>
             </div>
           </div>
 
-          {data.montoTotal !== null ? (
+          {data.montoTotal != null ? (
             <p className="form-hint">Consumo anotado en esos canjes: <strong>{pesos(data.montoTotal)}</strong>.</p>
           ) : null}
 
@@ -89,9 +98,9 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
             </p>
           ) : null}
 
-          {data.porDia.length > 0 ? (
+          {porDia.length > 0 ? (
             <div className="cupon-por-dia" role="img" aria-label={`Canjes por día de ${codigo}`}>
-              {data.porDia.map((dia) => (
+              {porDia.map((dia) => (
                 <div key={dia.dia} className="cupon-dia" title={`${dia.dia}: ${dia.total}`}>
                   <span style={{ height: `${Math.round((dia.total / maximo) * 100)}%` }} />
                   <small>{dia.dia.slice(5)}</small>
@@ -100,14 +109,14 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
             </div>
           ) : null}
 
-          {data.ultimos.length === 0 ? (
+          {ultimos.length === 0 ? (
             <p className="crm-dash-vacio">Todavía no hay canjes registrados de este cupón.</p>
           ) : (
             <div className="crm-table-container">
               <table className="data-table">
                 <thead><tr><th>Cuándo</th><th>Cómo</th><th>Quién</th><th>Consumo</th><th>Descuento</th><th>Nota</th></tr></thead>
                 <tbody>
-                  {data.ultimos.map((canje) => (
+                  {ultimos.map((canje) => (
                     <tr key={`${canje.fecha}-${canje.persona ?? ''}`}>
                       <td>{new Date(canje.fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</td>
                       <td>{canje.canal === 'local' ? 'En el local' : 'Con reserva'}</td>

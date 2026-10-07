@@ -19,6 +19,7 @@ import { imageOverlayAlpha, leerOcasiones, safeDesignChoice, safeNumber, uuid, v
 import { safeUrl } from '../../core/safe-url';
 import { camposVisibles } from '@espartanos/shared';
 import { CasillasDelEquipo } from './CasillasDelEquipo';
+import { CorreosDeLaReserva } from './CorreosDeLaReserva';
 
 const FIELD_LIBRARY = [
   ['text', 'Texto corto'], ['textarea', 'Texto largo'], ['email', 'Correo'],
@@ -944,7 +945,13 @@ export function ReservationBuilderPage() {
             {(encuestasDeLaEmpresa ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer').map((encuesta) => <option key={encuesta.id} value={encuesta.id}>{encuesta.title}</option>)}
           </select>
         </label>}
-        {draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}</section>
+        {draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}
+        {/* La empresa enciende y apaga los correos de esta reserva —un evento privado puede no
+            querer recordatorio automático— pero el texto lo redacta la agencia: una plantilla a
+            medio editar, sin el enlace de gestión o con una variable borrada, llega igual a
+            todos sus clientes. */}
+        {data?.id && data?.clientId ? <CorreosDeLaReserva formId={data.id} clientId={data.clientId} soloInterruptores={clientMode} /> : null}
+      </section>
       {/*
         * Tres finalidades distintas, tres casillas separadas.
         *
