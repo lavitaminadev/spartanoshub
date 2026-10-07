@@ -69,3 +69,18 @@ deployment:
     # `passenger-error.log`— y la cabecera de version oculta. Va despues del reinicio para poder
     # comprobar la API de verdad; si algo sale mal, el propio script restaura su respaldo.
     - /bin/bash scripts/deploy/asegurar-htaccess-refugio.sh
+
+    # Las tareas programadas, con el despliegue y no a mano.
+    #
+    # Instalarlas era un paso aparte que alguien tenia que acordarse de repetir cuando se agregaba
+    # una. No se repitio: `leads-parados` existia en la API desde hacia meses, su correo estaba
+    # escrito, y la linea del crontab nunca se puso. No fallo nada; simplemente ningun responsable
+    # recibio aviso de que una ficha llevaba dias parada.
+    #
+    # El instalador reemplaza sus propias lineas y conserva las ajenas, asi que correrlo en cada
+    # despliegue deja el crontab igual cuando no hubo cambios. Va al final, despues de reiniciar:
+    # las tareas llaman a la API y no tiene sentido programarlas contra una que todavia no levanto.
+    #
+    # No detiene el despliegue si falla. Una aplicacion publicada sin recordatorios funciona; una
+    # que no se publico porque el crontab dio error, no.
+    - /bin/bash scripts/deploy/setup-crontab.sh https://refugio.espartanos.cl || echo "CRONTAB: no se pudo instalar; revisalo a mano con scripts/deploy/setup-crontab.sh"

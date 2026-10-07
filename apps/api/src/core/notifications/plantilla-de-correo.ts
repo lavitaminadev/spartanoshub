@@ -67,6 +67,19 @@ function comoParrafos(texto: string): string {
     .join('');
 }
 
+/**
+ * La empresa que firma el correo, junto a la agencia.
+ *
+ * Opcional en todo el camino: sin ella el correo sale como siempre, con la marca de la agencia
+ * sola. No se deduce de ningún sitio —hay correos que manda la agencia por su cuenta— y por eso
+ * la pasa quien sabe de qué empresa es el envío.
+ */
+export interface MarcaDelCorreo {
+  /** Dirección absoluta del logo. Una relativa no resuelve en un cliente de correo. */
+  logo?: string | null;
+  nombre?: string | null;
+}
+
 /** Un botón, cuando el correo lleva a hacer algo concreto. */
 export interface AccionDeCorreo {
   texto: string;
@@ -85,6 +98,43 @@ export interface AccionDeCorreo {
 function urlDelLogo(): string {
   const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '') ?? '';
   return `${base}/brand/espartanos-helmet.png`;
+}
+
+/**
+ * La cabecera del correo, con el logo de la empresa cuando lo tiene.
+ *
+ * **Quien recibe el correo es cliente del local, no de la agencia.** Un recordatorio de reserva
+ * firmado sólo por Espartanos se lee como de un desconocido, y un desconocido que sabe a qué hora
+ * vas a cenar se parece bastante a spam. El logo de la empresa va primero por eso.
+ *
+ * Los dos juntos y no uno en lugar del otro: la agencia es quien responde por el envío —el pie
+ * lleva su dirección y el enlace de baja—, y borrarla de la cabecera dejaría un correo cuyo
+ * remitente no coincide con nadie visible.
+ *
+ * Sin logo propio se dibuja sólo el de Espartanos, como hasta ahora. El separador aparece
+ * únicamente cuando hay dos cosas que separar.
+ *
+ * @param logo - Dirección absoluta del logo de la empresa. Vacío o relativa se ignoran: un
+ *   `src` relativo en un correo no resuelve contra nada y deja un cuadro roto.
+ */
+function cabeceraDeMarca(logo?: string | null, nombre?: string | null): string {
+  const propio = typeof logo === 'string' && /^https?:\/\//i.test(logo.trim()) ? logo.trim() : '';
+  const marcaDeLaAgencia = `<img src="${escaparHtml(urlDelLogo())}" alt="${escaparHtml(BRAND.name)}" width="36" height="36"
+                   style="display:block;border:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;
+                          font-weight:700;color:#ea0f63;">`;
+  if (!propio) return marcaDeLaAgencia;
+
+  // Una tabla y no `flex`: Outlook no interpreta flex, y dos imágenes sueltas se apilarían.
+  // La altura manda y el ancho queda libre, para que un logo apaisado no se deforme.
+  return `<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                <td style="padding-right:10px;">
+                  <img src="${escaparHtml(propio)}" alt="${escaparHtml(nombre || '')}" height="36"
+                       style="display:block;border:0;max-height:36px;font-family:Helvetica,Arial,sans-serif;
+                              font-size:15px;font-weight:700;color:#22242a;">
+                </td>
+                <td style="padding-right:10px;border-left:1px solid #e7e1e5;"></td>
+                <td>${marcaDeLaAgencia}</td>
+              </tr></table>`;
 }
 
 /**
@@ -142,7 +192,9 @@ function detalleDeCorreo(filas: DetalleDeCorreo[]): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 2px;border-top:1px solid #ececf0;padding-top:10px;">${celdas}</table>`;
 }
 
-export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionDeCorreo, extra?: { titulo: string; tarjetas: TarjetaDeCorreo[] }, detalle?: DetalleDeCorreo[], preheader?: string, baja?: string): string {
+export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionDeCorreo, extra?: { titulo: string; tarjetas: TarjetaDeCorreo[] }, detalle?: DetalleDeCorreo[], preheader?: string, baja?: string, marca?: MarcaDelCorreo): string {
+  const logoDelCliente = marca?.logo;
+  const nombreDelCliente = marca?.nombre;
   const boton = accion
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px;">
          <tr><td style="border-radius:8px;background:#ea0f63;">
@@ -216,9 +268,7 @@ export function armazonDeCorreo(titulo: string, cuerpo: string, accion?: AccionD
                class="tarjeta" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;">
           <tr>
             <td class="cabecera" style="padding:22px 26px 6px;">
-              <img src="${escaparHtml(urlDelLogo())}" alt="${escaparHtml(BRAND.name)}" width="36" height="36"
-                   style="display:block;border:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;
-                          font-weight:700;color:#ea0f63;">
+              ${cabeceraDeMarca(logoDelCliente, nombreDelCliente)}
             </td>
           </tr>
           <tr>
@@ -281,6 +331,8 @@ export function componerCorreo(
   detalle?: DetalleDeCorreo[],
   /** Dirección de baja, sólo en el correo comercial. Va en el pie, no como botón. */
   baja?: string,
+  /** Empresa que firma junto a la agencia. Sin ella el correo sale como siempre. */
+  marca?: MarcaDelCorreo,
 ): { subject: string; html: string; text: string } {
   // El asunto se rellena sin escapar y luego se limpia: no es HTML, y un `&amp;` en la bandeja
   // de entrada se lee como el error que es.
@@ -307,7 +359,7 @@ export function componerCorreo(
   const preheader = cuerpoEnTexto.split('\n').map((linea) => linea.trim()).find(Boolean)?.slice(0, 140);
   return {
     subject,
-    html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader, baja),
+    html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader, baja, marca),
     text: comoTextoPlano(subject, cuerpoEnTexto, accion, detalle),
   };
 }
