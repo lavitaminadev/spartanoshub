@@ -8,6 +8,7 @@ import { ReservationForm } from '../../../modules/reservations/domain/reservatio
 import { Survey } from '../../../modules/surveys/survey.entity';
 import { crearInvitacion } from '../../../modules/surveys/invitacion-a-encuesta';
 import { EmailService } from '../../notifications/email.service';
+import { MarcaDeLaEmpresaService } from '../../notifications/marca-de-la-empresa.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
 
@@ -48,6 +49,8 @@ export class EncuestaPostVisitaJob {
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
     @Optional() private readonly servicios?: ClientCapabilityService,
+    // Al final por ser opcional en las pruebas, que construyen este trabajo por posicion.
+    @Optional() private readonly marcas?: MarcaDeLaEmpresaService,
   ) {}
 
   async handle(): Promise<{ enviados: number; revisados: number }> {
@@ -120,6 +123,11 @@ export class EncuestaPostVisitaJob {
             fecha: reserva.startsAt.toLocaleDateString('es-CL', { dateStyle: 'long', timeZone: form.timezone }),
           },
           { texto: 'Contar cómo nos fue', url: enlace },
+          undefined,
+          undefined,
+          undefined,
+          // Firma la empresa junto a la agencia, como el resto de los correos de esa reserva.
+          await this.marcas?.de(form.clientId),
         );
 
         const soporte = typeof (form.designConfig as Record<string, unknown>)?.supportEmail === 'string'

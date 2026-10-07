@@ -3,7 +3,7 @@ import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, VERSION_BENEFICIOS_RED, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
@@ -33,7 +33,8 @@ import { GoogleCalendarService } from '../../integrations/google/google-calendar
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { EmailService } from '../../../core/notifications/email.service';
-import { componerCorreo, type DetalleDeCorreo, type TarjetaDeCorreo } from '../../../core/notifications/plantilla-de-correo';
+import { componerCorreo, type DetalleDeCorreo, type MarcaDelCorreo, type TarjetaDeCorreo } from '../../../core/notifications/plantilla-de-correo';
+import { MarcaDeLaEmpresaService } from '../../../core/notifications/marca-de-la-empresa.service';
 import { ORGANIZATION_SETTINGS } from '../../../core/parameters/organization-settings.catalog';
 import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 import { leerPlantilla } from '../../../core/parameters/plantilla-resuelta';
@@ -234,6 +235,11 @@ export class ReservationsService {
     // argumentos posicionales, y meterlo junto a los demás repositorios desplazaba todo lo que
     // venía detrás.
     @InjectRepository(ReservationCouponRedemption) private readonly canjes: Repository<ReservationCouponRedemption>,
+    // Al final, como los anteriores: las pruebas construyen este servicio por posicion.
+    //
+    // Opcional porque una marca ausente no impide nada: el correo sale con la de la agencia
+    // sola, que es como salia antes. Exigirla convertiria un adorno en un motivo de fallo.
+    @Optional() private readonly marcas?: MarcaDeLaEmpresaService,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -651,7 +657,7 @@ export class ReservationsService {
       if (!equipo.correos.length) return;
       const plantilla = await this.plantillaDeAviso(form, 'email.team_operation');
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+      const { subject, html } = this.componerConMarca(plantilla, {
         titulo, local: form.name, detalle: texto, quien: quien ?? 'alguien del equipo',
       });
       void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
@@ -1711,7 +1717,7 @@ export class ReservationsService {
       const local = locales.get(booking.formId) ?? form;
       const token = await this.createManagementToken(booking.id, booking.endsAt);
       const url = base ? `${base}/book/manage/${token}` : undefined;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo,
+      const { subject, html } = this.componerConMarca(plantilla,
         { nombre: booking.guestName, local: local.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: local.timezone }), personas: booking.partySize, codigo: booking.referenceCode },
         url ? { texto: 'Gestionar mi reserva', url } : undefined);
       void this.emails.send(correo, subject, html, { replyTo: this.respuestaAlLocal(local) })
@@ -1878,7 +1884,7 @@ export class ReservationsService {
       if (equipo.correos.length) {
         const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.team_group_request' : 'email.team_waitlist');
         if (plantilla.encendido) {
-          const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, variables);
+          const { subject, html } = this.componerConMarca(plantilla, variables);
           void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
             .catch((err) => this.logger.warn(`Aviso al equipo de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
@@ -1890,7 +1896,7 @@ export class ReservationsService {
       if (!datos.guestEmail) return;
       const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.group_request_ack' : 'email.waitlist_ack');
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, variables);
+      const { subject, html } = this.componerConMarca(plantilla, variables);
       void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
         .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
     } catch (err) {
@@ -1915,7 +1921,7 @@ export class ReservationsService {
       const cuando = booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
       for (const persona of esperando) {
         if (!persona.guestEmail) continue;
-        const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo,
+        const { subject, html } = this.componerConMarca(plantilla,
           { nombre: persona.guestName, local: form.name, fecha: cuando },
           url ? { texto: 'Reservar ahora', url } : undefined);
         void this.emails.send(persona.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
@@ -1947,7 +1953,7 @@ export class ReservationsService {
    * se usa el valor de fábrica del mismo catálogo, para que el texto de respaldo viva en un solo
    * lugar y no se desalinee del que ve quien edita.
    */
-  private async plantillaDeAviso(form: ReservationForm, prefijo: string): Promise<{ encendido: boolean; asunto: string; cuerpo: string }> {
+  private async plantillaDeAviso(form: ReservationForm, prefijo: string): Promise<{ encendido: boolean; asunto: string; cuerpo: string; marca?: MarcaDelCorreo }> {
     const deFabrica = (parte: string) => ORGANIZATION_SETTINGS.find((ajuste) => ajuste.key === `${prefijo}_${parte}`)?.defaultValue;
     /*
      * Cada reserva puede decir lo suyo.
@@ -1966,7 +1972,40 @@ export class ReservationsService {
       encendido: Boolean(encendido ?? deFabrica('enabled')),
       asunto: String(asunto ?? deFabrica('subject') ?? ''),
       cuerpo: String(cuerpo ?? deFabrica('body') ?? ''),
+      marca: await this.marcas?.de(form.clientId),
     };
+  }
+
+  /**
+   * El logo y el nombre de la empresa dueña de la reserva.
+   *
+   * Quien recibe estos correos es cliente del local, no de la agencia: un recordatorio firmado
+   * sólo por Espartanos se lee como de un desconocido que sabe a qué hora vas a cenar.
+   *
+   * Se guarda en memoria por un rato. El logo se cambia muy de vez en cuando y estos correos se
+   * componen uno por reserva: sin la caché, una tanda de recordatorios haría una consulta por
+   * cada persona para traer el mismo dato.
+   *
+   * Un fallo acá no puede impedir un correo. Sin marca el mensaje sale como salía antes, que es
+   * peor de aspecto y mejor que no salir.
+   */
+  /**
+   * Compone un correo de reserva con la marca de su empresa ya puesta.
+   *
+   * Recibe la plantilla entera y no su asunto y su cuerpo sueltos: así la marca viaja con ella y
+   * no hay forma de componer uno de estos correos olvidándola. Eran ocho sitios de llamada con
+   * formas distintas, y enhebrar un octavo argumento por posición en cada uno es justo donde se
+   * cuela el error que nadie ve hasta que un cliente recibe el correo equivocado.
+   */
+  private componerConMarca(
+    plantilla: { asunto: string; cuerpo: string; marca?: MarcaDelCorreo },
+    variables: Parameters<typeof componerCorreo>[2],
+    accion?: Parameters<typeof componerCorreo>[3],
+    extra?: Parameters<typeof componerCorreo>[4],
+    detalle?: Parameters<typeof componerCorreo>[5],
+    baja?: Parameters<typeof componerCorreo>[6],
+  ) {
+    return componerCorreo(plantilla.asunto, plantilla.cuerpo, variables, accion, extra, detalle, baja, plantilla.marca);
   }
 
   /**
@@ -2050,7 +2089,7 @@ export class ReservationsService {
       const reason = cancellationReason?.trim();
       const plantilla = await this.plantillaDeAviso(form, cancelled ? 'email.reservation_cancellation' : 'email.reservation_change');
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+      const { subject, html } = this.componerConMarca(plantilla, {
         nombre: booking.guestName,
         local: form.name,
         // La fecha en la zona del local, no la del servidor.
@@ -2134,7 +2173,7 @@ export class ReservationsService {
         { asunto: titulo, cuerpo: detalle.replace(/\{\{/g, '{ {') },
       );
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+      const { subject, html } = this.componerConMarca(plantilla, {
         nombre: booking.guestName,
         codigo: booking.referenceCode,
         local: form.name,
@@ -2965,9 +3004,8 @@ export class ReservationsService {
       if (!confirmacion || !plantilla.encendido) return;
 
       const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);
-      const { subject, html } = componerCorreo(
-        plantilla.asunto,
-        plantilla.cuerpo,
+      const { subject, html } = this.componerConMarca(
+        plantilla,
         {
           nombre: booking.guestName,
           local: form.name,
@@ -3014,7 +3052,7 @@ export class ReservationsService {
       if (equipo.correos.length === 0) return;
       const plantilla = await this.plantillaDeAviso(form, 'email.team_new_reservation');
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+      const { subject, html } = this.componerConMarca(plantilla, {
         nombre: booking.guestName, local: form.name, personas: booking.partySize, codigo: booking.referenceCode,
         fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
       });

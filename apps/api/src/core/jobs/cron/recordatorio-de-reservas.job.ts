@@ -5,6 +5,7 @@ import { Between, In, IsNull, Not, Repository } from 'typeorm';
 import { Reservation } from '../../../modules/reservations/domain/reservation.entity';
 import { ReservationForm } from '../../../modules/reservations/domain/reservation-form.entity';
 import { EmailService } from '../../notifications/email.service';
+import { MarcaDeLaEmpresaService } from '../../notifications/marca-de-la-empresa.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
 import { ReservationManagementToken } from '../../../modules/reservations/domain/reservation-management-token.entity';
@@ -47,6 +48,8 @@ export class RecordatorioDeReservasJob {
     private readonly parametros: ParameterResolver,
     @InjectRepository(ReservationManagementToken) private readonly enlaces?: Repository<ReservationManagementToken>,
     @Optional() private readonly servicios?: ClientCapabilityService,
+    // Al final por ser opcional en las pruebas, que construyen este trabajo por posicion.
+    @Optional() private readonly marcas?: MarcaDeLaEmpresaService,
   ) {}
 
   async handle(): Promise<void> {
@@ -172,6 +175,12 @@ export class RecordatorioDeReservasJob {
         gestion,
       },
       gestion ? { texto: 'Confirmar, reagendar o cancelar', url: gestion } : undefined,
+      undefined,
+      undefined,
+      undefined,
+      // La empresa firma junto a la agencia, igual que en la confirmacion: dos correos de la
+      // misma reserva que se vean distintos parecen venir de sitios distintos.
+      await this.marcas?.de(form.clientId),
     );
     await this.correo.send(reserva.guestEmail as string, subject, html);
   }
