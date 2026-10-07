@@ -50,6 +50,16 @@ export class Lead {
   @Column({ name: 'traffic_light', type: 'varchar', length: 10, nullable: true })
   trafficLight?: 'green' | 'yellow' | 'red' | null;
   @Column({ name: 'discard_reason', type: 'text', nullable: true }) discardReason?: string;
+  /**
+   * Cuántas veces se intentó contactar antes de cerrar la ficha.
+   *
+   * Cero y nulo dicen cosas distintas: cero es «no se intentó», una respuesta válida cuando los
+   * datos vienen errados o el perfil está claramente fuera; nulo es que la ficha se cerró antes
+   * de que se preguntara. Sin esa distinción no se puede separar la falta de gestión de la falta
+   * de registro.
+   */
+  @Column({ name: 'intentos_de_contacto', type: 'tinyint', unsigned: true, nullable: true })
+  intentosDeContacto?: number | null;
   @Column({ name: 'assigned_to', type: 'uuid', nullable: true }) assignedTo?: string | null;
   @Column({ type: 'text', nullable: true }) notes?: string;
   @Column({ name: 'consent_captured_at', type: 'timestamp', nullable: true }) consentCapturedAt?: Date;

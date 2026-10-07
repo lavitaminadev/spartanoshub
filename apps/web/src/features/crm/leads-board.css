@@ -288,3 +288,20 @@
  * uno, y un renglón apelmazado se salta.
  */
 .servia-excepciones label > span { display: grid; gap: 1px; }
+
+/*
+ * Cuántas veces se intentó contactar, en el descarte.
+ *
+ * Botones y no un desplegable: son cinco opciones y se eligen de un toque, también en teléfono,
+ * donde un desplegable abre una hoja que tapa el resto del diálogo.
+ */
+.pregunta-intentos { border: 0; margin: 12px 0 0; padding: 0; }
+.pregunta-intentos > legend { font-size: 13px; font-weight: 700; padding: 0; margin-bottom: 6px; }
+.pregunta-intentos-opciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.pregunta-intentos-opciones .is-elegida {
+  background: var(--primary, #cc0a55);
+  border-color: var(--primary, #cc0a55);
+  color: #fff;
+}
+/* El aviso de contradicción no bloquea: se lee distinto del resto de las ayudas y nada más. */
+.form-hint-aviso { color: var(--warning-ink, #8a5a12); font-weight: 600; margin-top: 6px; }

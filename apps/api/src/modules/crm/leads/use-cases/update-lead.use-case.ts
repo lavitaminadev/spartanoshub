@@ -59,7 +59,7 @@ export class UpdateLeadUseCase {
     data: {
       name?: string; phone?: string; email?: string; company?: string;
       campaignName?: string;
-      status?: string; notes?: string; fitStatus?: string; discardReason?: string;
+      status?: string; notes?: string; fitStatus?: string; discardReason?: string; intentosDeContacto?: number;
       tags?: string[]; estimatedAmount?: number; assignedTo?: string | null;
       source?: string; clientId?: string | null; trafficLight?: 'green' | 'yellow' | 'red' | null;
       excludedFromMeta?: boolean;
@@ -118,6 +118,7 @@ export class UpdateLeadUseCase {
     if (data.campaignName !== undefined) lead.campaignName = data.campaignName.trim() || null;
     if (data.notes !== undefined) lead.notes = data.notes;
     if (data.discardReason !== undefined) lead.discardReason = data.discardReason;
+    if (data.intentosDeContacto !== undefined) lead.intentosDeContacto = data.intentosDeContacto;
     if (data.tags !== undefined) lead.tags = data.tags;
     if (data.estimatedAmount !== undefined) lead.estimatedAmount = data.estimatedAmount;
     if (data.trafficLight !== undefined) lead.trafficLight = data.trafficLight;
