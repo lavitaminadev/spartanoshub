@@ -83,4 +83,7 @@ deployment:
     #
     # No detiene el despliegue si falla. Una aplicacion publicada sin recordatorios funciona; una
     # que no se publico porque el crontab dio error, no.
-    - /bin/bash scripts/deploy/setup-crontab.sh https://refugio.espartanos.cl || echo "CRONTAB: no se pudo instalar; revisalo a mano con scripts/deploy/setup-crontab.sh"
+    # Entre comillas y sin dos puntos seguidos de espacio dentro del texto: cPanel lee este
+    # archivo como YAML, y un `: ` en un escalar sin comillas lo convierte en un mapa. La linea
+    # llego a la consola como HASH(0x...) y la tarea no corrio, con el despliegue marcado en 2.
+    - "/bin/bash scripts/deploy/setup-crontab.sh https://refugio.espartanos.cl || echo CRONTAB-FALLO-revisalo-con-scripts-deploy-setup-crontab-sh"
