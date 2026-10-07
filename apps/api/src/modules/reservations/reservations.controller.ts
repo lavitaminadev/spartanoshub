@@ -16,7 +16,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { ActualizarOperacionDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
@@ -429,6 +429,20 @@ export class ReservationsController {
   async updateCoupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateCouponDto) {
     const scope = await this.scope(req);
     return this.service.updateCoupon(req.organizationId, id, dto, scope.clientIds);
+  }
+
+  /**
+   * Anota un cupón canjeado en el local, de alguien que no reservó.
+   *
+   * Pide el mismo permiso de edición que cambiar el cupón: anotar un canje consume un uso y
+   * entrega un descuento, así que no es una lectura.
+   */
+  @Post('coupons/:id/canjes')
+  @RequiresPermission('reservations', 'edit')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async canjearCuponEnLocal(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: CanjeDeCuponDto) {
+    const scope = await this.scope(req);
+    return this.service.canjearCuponEnLocal(req.organizationId, id, req.user.id, dto, scope.clientIds);
   }
 
   @Get('export/csv')
