@@ -251,8 +251,8 @@ let ReservationsController = class ReservationsController {
         const scope = await this.scope(req);
         return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
     }
-    async listCoupons(req) {
-        const scope = await this.scope(req);
+    async listCoupons(req, query) {
+        const scope = await this.requestedScope(req, query.clientId);
         const [cupones, uso] = await Promise.all([
             this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds),
             this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds),
@@ -275,6 +275,16 @@ let ReservationsController = class ReservationsController {
     async updateCoupon(req, id, dto) {
         const scope = await this.scope(req);
         return this.service.updateCoupon(req.organizationId, id, dto, scope.clientIds);
+    }
+    async buscarCupon(req, codigo) {
+        if (!codigo?.trim())
+            throw new common_1.BadRequestException('Escribe el código del cupón');
+        const scope = await this.scope(req);
+        return this.service.buscarCuponPorCodigo(req.organizationId, codigo, scope.clientIds);
+    }
+    async metricasDeCupon(req, id) {
+        const scope = await this.scope(req);
+        return this.service.metricasDeCupon(req.organizationId, id, scope.clientIds);
     }
     async canjearCuponEnLocal(req, id, dto) {
         const scope = await this.scope(req);
@@ -615,13 +625,14 @@ __decorate([
     (0, common_1.Get)('coupons'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "listCoupons", null);
 __decorate([
     (0, common_1.Post)('coupons'),
-    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'manage'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -631,7 +642,7 @@ __decorate([
 ], ReservationsController.prototype, "createCoupon", null);
 __decorate([
     (0, common_1.Patch)('coupons/:id'),
-    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'manage'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -640,6 +651,26 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, reservation_dto_1.UpdateCouponDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "updateCoupon", null);
+__decorate([
+    (0, common_1.Get)('coupons/buscar'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('codigo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "buscarCupon", null);
+__decorate([
+    (0, common_1.Get)('coupons/:id/metricas'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "metricasDeCupon", null);
 __decorate([
     (0, common_1.Post)('coupons/:id/canjes'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),

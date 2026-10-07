@@ -4,6 +4,7 @@ import { ParameterDefinition } from '../parameters/parameter-definition.entity';
 import { ParameterValue } from '../parameters/parameter-value.entity';
 import { ParameterResolver } from '../parameters/parameter-resolver.service';
 import { EmailService } from './email.service';
+import { MarcaDeLaEmpresaService } from './marca-de-la-empresa.service';
 import { RegistroDeCorreo } from './registro-de-correo.entity';
 import { RegistroDeCorreosController } from './registro-de-correos.controller';
 
@@ -17,7 +18,7 @@ import { RegistroDeCorreosController } from './registro-de-correos.controller';
 @Module({
   imports: [TypeOrmModule.forFeature([ParameterDefinition, ParameterValue, RegistroDeCorreo])],
   controllers: [RegistroDeCorreosController],
-  providers: [EmailService, ParameterResolver],
-  exports: [EmailService],
+  providers: [EmailService, ParameterResolver, MarcaDeLaEmpresaService],
+  exports: [EmailService, MarcaDeLaEmpresaService],
 })
 export class EmailModule {}

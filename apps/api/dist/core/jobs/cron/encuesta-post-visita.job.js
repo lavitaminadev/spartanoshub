@@ -25,6 +25,7 @@ const reservation_form_entity_1 = require("../../../modules/reservations/domain/
 const survey_entity_1 = require("../../../modules/surveys/survey.entity");
 const invitacion_a_encuesta_1 = require("../../../modules/surveys/invitacion-a-encuesta");
 const email_service_1 = require("../../notifications/email.service");
+const marca_de_la_empresa_service_1 = require("../../notifications/marca-de-la-empresa.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 const UNA_HORA = 3_600_000;
@@ -32,13 +33,14 @@ const DIAS_ENTRE_ENCUESTAS = 7;
 exports.HORAS_POST_VISITA_POR_DEFECTO = 3;
 exports.MARGEN_MAXIMO_HORAS = 48;
 let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJob {
-    constructor(reservas, formularios, encuestas, correo, parametros, servicios) {
+    constructor(reservas, formularios, encuestas, correo, parametros, servicios, marcas) {
         this.reservas = reservas;
         this.formularios = formularios;
         this.encuestas = encuestas;
         this.correo = correo;
         this.parametros = parametros;
         this.servicios = servicios;
+        this.marcas = marcas;
         this.logger = new common_1.Logger(EncuestaPostVisitaJob_1.name);
     }
     async handle() {
@@ -100,7 +102,7 @@ let EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 = class EncuestaPostVisitaJo
                     nombre: reserva.guestName?.trim().split(/\s+/)[0] || '',
                     local: form.name,
                     fecha: reserva.startsAt.toLocaleDateString('es-CL', { dateStyle: 'long', timeZone: form.timezone }),
-                }, { texto: 'Contar cómo nos fue', url: enlace });
+                }, { texto: 'Contar cómo nos fue', url: enlace }, undefined, undefined, undefined, await this.marcas?.de(form.clientId));
                 const soporte = typeof form.designConfig?.supportEmail === 'string'
                     ? String(form.designConfig.supportEmail) : undefined;
                 const salio = await this.correo.send(reserva.guestEmail, subject, html, soporte ? { replyTo: soporte } : undefined);
@@ -147,12 +149,14 @@ exports.EncuestaPostVisitaJob = EncuestaPostVisitaJob = EncuestaPostVisitaJob_1 
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
     __param(2, (0, typeorm_1.InjectRepository)(survey_entity_1.Survey)),
     __param(5, (0, common_1.Optional)()),
+    __param(6, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
         parameter_resolver_service_1.ParameterResolver,
-        client_capability_service_1.ClientCapabilityService])
+        client_capability_service_1.ClientCapabilityService,
+        marca_de_la_empresa_service_1.MarcaDeLaEmpresaService])
 ], EncuestaPostVisitaJob);
 function encuestaUtil(encuesta, form) {
     if (encuesta.status !== 'active' || encuesta.type !== 'customer')

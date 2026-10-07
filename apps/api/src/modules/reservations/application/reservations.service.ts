@@ -3,7 +3,7 @@ import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, VERSION_BENEFICIOS_RED, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
@@ -33,7 +33,8 @@ import { GoogleCalendarService } from '../../integrations/google/google-calendar
 import { MetaConversionOutboxService } from '../../integrations/meta/meta-conversion-outbox.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { EmailService } from '../../../core/notifications/email.service';
-import { componerCorreo, type DetalleDeCorreo, type TarjetaDeCorreo } from '../../../core/notifications/plantilla-de-correo';
+import { componerCorreo, type DetalleDeCorreo, type MarcaDelCorreo, type TarjetaDeCorreo } from '../../../core/notifications/plantilla-de-correo';
+import { MarcaDeLaEmpresaService } from '../../../core/notifications/marca-de-la-empresa.service';
 import { ORGANIZATION_SETTINGS } from '../../../core/parameters/organization-settings.catalog';
 import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 import { leerPlantilla } from '../../../core/parameters/plantilla-resuelta';
@@ -234,6 +235,11 @@ export class ReservationsService {
     // argumentos posicionales, y meterlo junto a los demás repositorios desplazaba todo lo que
     // venía detrás.
     @InjectRepository(ReservationCouponRedemption) private readonly canjes: Repository<ReservationCouponRedemption>,
+    // Al final, como los anteriores: las pruebas construyen este servicio por posicion.
+    //
+    // Opcional porque una marca ausente no impide nada: el correo sale con la de la agencia
+    // sola, que es como salia antes. Exigirla convertiria un adorno en un motivo de fallo.
+    @Optional() private readonly marcas?: MarcaDeLaEmpresaService,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -651,7 +657,7 @@ export class ReservationsService {
       if (!equipo.correos.length) return;
       const plantilla = await this.plantillaDeAviso(form, 'email.team_operation');
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+      const { subject, html } = this.componerConMarca(plantilla, {
         titulo, local: form.name, detalle: texto, quien: quien ?? 'alguien del equipo',
       });
       void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
@@ -1711,7 +1717,7 @@ export class ReservationsService {
       const local = locales.get(booking.formId) ?? form;
       const token = await this.createManagementToken(booking.id, booking.endsAt);
       const url = base ? `${base}/book/manage/${token}` : undefined;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo,
+      const { subject, html } = this.componerConMarca(plantilla,
         { nombre: booking.guestName, local: local.name, fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: local.timezone }), personas: booking.partySize, codigo: booking.referenceCode },
         url ? { texto: 'Gestionar mi reserva', url } : undefined);
       void this.emails.send(correo, subject, html, { replyTo: this.respuestaAlLocal(local) })
@@ -1878,7 +1884,7 @@ export class ReservationsService {
       if (equipo.correos.length) {
         const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.team_group_request' : 'email.team_waitlist');
         if (plantilla.encendido) {
-          const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, variables);
+          const { subject, html } = this.componerConMarca(plantilla, variables);
           void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
             .catch((err) => this.logger.warn(`Aviso al equipo de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
@@ -1890,7 +1896,7 @@ export class ReservationsService {
       if (!datos.guestEmail) return;
       const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.group_request_ack' : 'email.waitlist_ack');
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, variables);
+      const { subject, html } = this.componerConMarca(plantilla, variables);
       void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
         .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
     } catch (err) {
@@ -1915,7 +1921,7 @@ export class ReservationsService {
       const cuando = booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone });
       for (const persona of esperando) {
         if (!persona.guestEmail) continue;
-        const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo,
+        const { subject, html } = this.componerConMarca(plantilla,
           { nombre: persona.guestName, local: form.name, fecha: cuando },
           url ? { texto: 'Reservar ahora', url } : undefined);
         void this.emails.send(persona.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
@@ -1947,7 +1953,7 @@ export class ReservationsService {
    * se usa el valor de fábrica del mismo catálogo, para que el texto de respaldo viva en un solo
    * lugar y no se desalinee del que ve quien edita.
    */
-  private async plantillaDeAviso(form: ReservationForm, prefijo: string): Promise<{ encendido: boolean; asunto: string; cuerpo: string }> {
+  private async plantillaDeAviso(form: ReservationForm, prefijo: string): Promise<{ encendido: boolean; asunto: string; cuerpo: string; marca?: MarcaDelCorreo }> {
     const deFabrica = (parte: string) => ORGANIZATION_SETTINGS.find((ajuste) => ajuste.key === `${prefijo}_${parte}`)?.defaultValue;
     /*
      * Cada reserva puede decir lo suyo.
@@ -1966,7 +1972,40 @@ export class ReservationsService {
       encendido: Boolean(encendido ?? deFabrica('enabled')),
       asunto: String(asunto ?? deFabrica('subject') ?? ''),
       cuerpo: String(cuerpo ?? deFabrica('body') ?? ''),
+      marca: await this.marcas?.de(form.clientId),
     };
+  }
+
+  /**
+   * El logo y el nombre de la empresa dueña de la reserva.
+   *
+   * Quien recibe estos correos es cliente del local, no de la agencia: un recordatorio firmado
+   * sólo por Espartanos se lee como de un desconocido que sabe a qué hora vas a cenar.
+   *
+   * Se guarda en memoria por un rato. El logo se cambia muy de vez en cuando y estos correos se
+   * componen uno por reserva: sin la caché, una tanda de recordatorios haría una consulta por
+   * cada persona para traer el mismo dato.
+   *
+   * Un fallo acá no puede impedir un correo. Sin marca el mensaje sale como salía antes, que es
+   * peor de aspecto y mejor que no salir.
+   */
+  /**
+   * Compone un correo de reserva con la marca de su empresa ya puesta.
+   *
+   * Recibe la plantilla entera y no su asunto y su cuerpo sueltos: así la marca viaja con ella y
+   * no hay forma de componer uno de estos correos olvidándola. Eran ocho sitios de llamada con
+   * formas distintas, y enhebrar un octavo argumento por posición en cada uno es justo donde se
+   * cuela el error que nadie ve hasta que un cliente recibe el correo equivocado.
+   */
+  private componerConMarca(
+    plantilla: { asunto: string; cuerpo: string; marca?: MarcaDelCorreo },
+    variables: Parameters<typeof componerCorreo>[2],
+    accion?: Parameters<typeof componerCorreo>[3],
+    extra?: Parameters<typeof componerCorreo>[4],
+    detalle?: Parameters<typeof componerCorreo>[5],
+    baja?: Parameters<typeof componerCorreo>[6],
+  ) {
+    return componerCorreo(plantilla.asunto, plantilla.cuerpo, variables, accion, extra, detalle, baja, plantilla.marca);
   }
 
   /**
@@ -2050,7 +2089,7 @@ export class ReservationsService {
       const reason = cancellationReason?.trim();
       const plantilla = await this.plantillaDeAviso(form, cancelled ? 'email.reservation_cancellation' : 'email.reservation_change');
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+      const { subject, html } = this.componerConMarca(plantilla, {
         nombre: booking.guestName,
         local: form.name,
         // La fecha en la zona del local, no la del servidor.
@@ -2134,7 +2173,7 @@ export class ReservationsService {
         { asunto: titulo, cuerpo: detalle.replace(/\{\{/g, '{ {') },
       );
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+      const { subject, html } = this.componerConMarca(plantilla, {
         nombre: booking.guestName,
         codigo: booking.referenceCode,
         local: form.name,
@@ -2965,9 +3004,8 @@ export class ReservationsService {
       if (!confirmacion || !plantilla.encendido) return;
 
       const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);
-      const { subject, html } = componerCorreo(
-        plantilla.asunto,
-        plantilla.cuerpo,
+      const { subject, html } = this.componerConMarca(
+        plantilla,
         {
           nombre: booking.guestName,
           local: form.name,
@@ -3014,7 +3052,7 @@ export class ReservationsService {
       if (equipo.correos.length === 0) return;
       const plantilla = await this.plantillaDeAviso(form, 'email.team_new_reservation');
       if (!plantilla.encendido) return;
-      const { subject, html } = componerCorreo(plantilla.asunto, plantilla.cuerpo, {
+      const { subject, html } = this.componerConMarca(plantilla, {
         nombre: booking.guestName, local: form.name, personas: booking.partySize, codigo: booking.referenceCode,
         fecha: booking.startsAt.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }),
       });
@@ -3787,6 +3825,141 @@ export class ReservationsService {
    *
    * @param persona - Teléfono, correo o documento con que se reconoció a quien lo usó.
    */
+  /**
+   * Qué pasó con un cupón: cuándo se usó, por qué camino y cuánto costó.
+   *
+   * Sale de los canjes anotados y no del contador. El contador dice «siete» y no permite
+   * preguntarle nada más: ni en qué semana, ni cuántos fueron gente que reservó frente a gente
+   * que llegó con el código, ni cuánto descuento se entregó.
+   *
+   * **Empieza desde que existen los canjes.** Lo usado antes sigue contado en `usageCount` y no
+   * aparece acá: inventarle una fecha a un canje que nadie anotó sería peor que admitir que no
+   * se sabe, y por eso la respuesta trae el total del contador al lado.
+   */
+  async metricasDeCupon(organizationId: string, couponId: string, clientIds?: string[]) {
+    const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
+    if (!coupon) throw new NotFoundException('Cupón no encontrado');
+    if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+      throw new ForbiddenException('No tienes acceso a este cupón');
+    }
+
+    const canjes = await this.canjes.find({
+      where: { organizationId, couponId },
+      order: { createdAt: 'DESC' },
+    });
+    const suma = (lista: typeof canjes, campo: 'monto' | 'descuento') => lista
+      .reduce((total, canje) => total + Number(canje[campo] ?? 0), 0);
+
+    // Por día y no por canje suelto: lo que se mira de un cupón es si rindió en el tiempo, y una
+    // lista de cien filas no responde eso.
+    const porDia = new Map<string, number>();
+    for (const canje of canjes) {
+      const dia = canje.createdAt.toISOString().slice(0, 10);
+      porDia.set(dia, (porDia.get(dia) ?? 0) + 1);
+    }
+
+    return {
+      codigo: coupon.code,
+      /** Lo que dice el contador, incluidos los usos anteriores a que existiera el registro. */
+      usosTotales: coupon.usageCount,
+      /** Los que sí tienen constancia. Menor que el total mientras queden usos viejos. */
+      canjesRegistrados: canjes.length,
+      porReserva: canjes.filter((canje) => canje.canal === 'reserva').length,
+      enElLocal: canjes.filter((canje) => canje.canal === 'local').length,
+      /** Nulo cuando nadie anotó importes: cero significaría que consumieron cero. */
+      montoTotal: canjes.some((canje) => canje.monto !== null) ? suma(canjes, 'monto') : null,
+      descuentoTotal: canjes.some((canje) => canje.descuento !== null) ? suma(canjes, 'descuento') : null,
+      porDia: [...porDia.entries()].map(([dia, total]) => ({ dia, total })).sort((a, b) => a.dia.localeCompare(b.dia)),
+      ultimos: canjes.slice(0, 20).map((canje) => ({
+        fecha: canje.createdAt,
+        canal: canje.canal,
+        persona: canje.persona,
+        monto: canje.monto,
+        descuento: canje.descuento,
+        nota: canje.nota,
+      })),
+    };
+  }
+
+  /**
+   * Busca un cupón por su código y dice si se puede canjear ahora.
+   *
+   * Quien está en la caja tiene el código, no el identificador: escribe lo que trae la persona en
+   * el teléfono. Devuelve el cupón aunque no se pueda canjear, con el motivo, porque «este cupón
+   * venció el martes» se le puede explicar al cliente y «no válido» no.
+   *
+   * Separa los impedimentos de los avisos. Los primeros bloquean; los segundos —hoy no es un día
+   * del cupón, estamos fuera de su horario— se muestran y se deja decidir a quien atiende, que
+   * ve a la persona y sabe si corresponde hacer una excepción.
+   */
+  async buscarCuponPorCodigo(organizationId: string, codigo: string, clientIds?: string[]) {
+    const coupon = await this.coupons.findOne({
+      where: { organizationId, code: codigo.trim().toUpperCase() },
+    });
+    if (!coupon) throw new NotFoundException('No existe un cupón con ese código');
+    if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+      throw new ForbiddenException('No tienes acceso a este cupón');
+    }
+
+    let impedimento: string | null = null;
+    try {
+      this.assertCanjeable(coupon);
+    } catch (error) {
+      impedimento = error instanceof BadRequestException ? error.message : 'No se puede canjear';
+    }
+
+    const ahora = new Date();
+    const avisos: string[] = [];
+    if (coupon.validDaysOfWeek?.length && !coupon.validDaysOfWeek.includes(ahora.getDay())) {
+      avisos.push('Hoy no es uno de los días en que aplica este cupón.');
+    }
+    if (coupon.validFromTime || coupon.validUntilTime) {
+      const minutos = ahora.getHours() * 60 + ahora.getMinutes();
+      const desde = coupon.validFromTime ? this.minutes(coupon.validFromTime) : 0;
+      const hasta = coupon.validUntilTime ? this.minutes(coupon.validUntilTime) : 24 * 60;
+      if (minutos < desde || minutos > hasta) avisos.push('Estamos fuera del horario del cupón.');
+    }
+    if (coupon.maxUsesPerPerson > 0) {
+      avisos.push(`Este cupón se puede usar ${coupon.maxUsesPerPerson} ${coupon.maxUsesPerPerson === 1 ? 'vez' : 'veces'} por persona.`);
+    }
+
+    return {
+      id: coupon.id,
+      code: coupon.code,
+      discountType: coupon.discountType,
+      value: coupon.value,
+      clientId: coupon.clientId ?? null,
+      usos: coupon.usageCount,
+      maxUsos: coupon.maxUses,
+      validUntil: coupon.validUntil ?? null,
+      canjeable: impedimento === null,
+      impedimento,
+      avisos,
+    };
+  }
+
+  /**
+   * Las condiciones que no puede saltarse quien está en el mostrador.
+   *
+   * La división no es caprichosa: son las que el sistema sabe con certeza y la persona que
+   * atiende no puede comprobar mejor que él. Un cupón vencido está vencido aunque el cliente
+   * insista, y uno sin usos entregaría un descuento que ya se dio.
+   *
+   * **Fuera quedan los días y las horas a propósito.** El mostrador tiene delante a la persona y
+   * ve lo que el sistema no —que llegó diez minutos tarde, que es el mismo grupo de ayer—, y
+   * negar un canje por una franja horaria con el cliente ya sentado crea un problema peor que el
+   * que evita. Lo mismo con el tope por persona: si se repite, se verá en los canjes anotados.
+   */
+  private assertCanjeable(coupon: ReservationCoupon): void {
+    if (!coupon.active) throw new BadRequestException('El cupón está desactivado');
+    const ahora = new Date();
+    if (coupon.validFrom && ahora < coupon.validFrom) throw new BadRequestException('El cupón todavía no empieza');
+    if (coupon.validUntil && ahora > coupon.validUntil) throw new BadRequestException('El cupón ya venció');
+    if (coupon.maxUses > 0 && coupon.usageCount >= coupon.maxUses) {
+      throw new BadRequestException('El cupón ya no tiene usos disponibles');
+    }
+  }
+
   async canjearCuponEnLocal(
     organizationId: string,
     couponId: string,
@@ -3799,11 +3972,21 @@ export class ReservationsService {
     if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
       throw new ForbiddenException('No tienes acceso a este cupón');
     }
-    if (!coupon.active) throw new BadRequestException('El cupón está desactivado');
-    if (coupon.maxUses > 0 && coupon.usageCount >= coupon.maxUses) {
-      throw new BadRequestException('El cupón ya no tiene usos disponibles');
-    }
+    this.assertCanjeable(coupon);
     return this.dataSource.transaction(async (manager) => {
+      /*
+       * Se relee con cerrojo dentro de la transacción.
+       *
+       * Entre la comprobación de arriba y este punto puede entrar otro canje —dos personas en la
+       * caja, o una reserva por la web— y el último uso de un cupón se entregaría dos veces. El
+       * cerrojo hace que el segundo espere y vuelva a ver el contador ya subido.
+       */
+      const vigente = await manager.getRepository(ReservationCoupon).findOne({
+        where: { id: coupon.id, organizationId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!vigente) throw new NotFoundException('Cupón no encontrado');
+      this.assertCanjeable(vigente);
       // El contador y la constancia se escriben juntos: si uno de los dos quedara fuera, el
       // cupón diría una cantidad de usos distinta de la que se puede demostrar.
       await manager.increment(ReservationCoupon, { id: coupon.id }, 'usageCount', 1);

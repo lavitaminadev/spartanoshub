@@ -21,6 +21,7 @@ const typeorm_2 = require("typeorm");
 const reservation_entity_1 = require("../../../modules/reservations/domain/reservation.entity");
 const reservation_form_entity_1 = require("../../../modules/reservations/domain/reservation-form.entity");
 const email_service_1 = require("../../notifications/email.service");
+const marca_de_la_empresa_service_1 = require("../../notifications/marca-de-la-empresa.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 const reservation_management_token_entity_1 = require("../../../modules/reservations/domain/reservation-management-token.entity");
@@ -29,13 +30,14 @@ const UNA_HORA = 3_600_000;
 const HORAS_POR_DEFECTO = 24;
 const CERRADAS = ['cancelled', 'no_show', 'attended', 'completed'];
 let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class RecordatorioDeReservasJob {
-    constructor(reservas, formularios, correo, parametros, enlaces, servicios) {
+    constructor(reservas, formularios, correo, parametros, enlaces, servicios, marcas) {
         this.reservas = reservas;
         this.formularios = formularios;
         this.correo = correo;
         this.parametros = parametros;
         this.enlaces = enlaces;
         this.servicios = servicios;
+        this.marcas = marcas;
         this.logger = new common_1.Logger(RecordatorioDeReservasJob_1.name);
     }
     async handle() {
@@ -132,7 +134,7 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
             personas: reserva.partySize,
             codigo: reserva.referenceCode,
             gestion,
-        }, gestion ? { texto: 'Confirmar, reagendar o cancelar', url: gestion } : undefined);
+        }, gestion ? { texto: 'Confirmar, reagendar o cancelar', url: gestion } : undefined, undefined, undefined, undefined, await this.marcas?.de(form.clientId));
         await this.correo.send(reserva.guestEmail, subject, html);
     }
     async crearEnlace(reservationId) {
@@ -154,10 +156,12 @@ exports.RecordatorioDeReservasJob = RecordatorioDeReservasJob = RecordatorioDeRe
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
     __param(4, (0, typeorm_1.InjectRepository)(reservation_management_token_entity_1.ReservationManagementToken)),
     __param(5, (0, common_1.Optional)()),
+    __param(6, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
         parameter_resolver_service_1.ParameterResolver,
         typeorm_2.Repository,
-        client_capability_service_1.ClientCapabilityService])
+        client_capability_service_1.ClientCapabilityService,
+        marca_de_la_empresa_service_1.MarcaDeLaEmpresaService])
 ], RecordatorioDeReservasJob);
