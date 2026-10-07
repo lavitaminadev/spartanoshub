@@ -180,6 +180,8 @@ export interface LeadResponse {
     qualityScore: number;
     trafficLight?: LeadTrafficLight;
     discardReason?: string;
+    /** Cuántas veces se intentó contactar. Cero es «no se intentó»; ausente, que no se preguntó. */
+    intentosDeContacto?: number | null;
     assignedTo?: string;
     notes?: string;
     consentCapturedAt?: Date;
