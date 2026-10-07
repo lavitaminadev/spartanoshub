@@ -156,6 +156,13 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const [manualForm, setManualForm] = useState({ formId: searchParams.get('nueva') === '1' ? searchParams.get('formId') ?? '' : '', startsAt: '', guestName: '', guestEmail: '', guestPhone: '', partySize: 1, serviceId: '', resourceId: '', internalNotes: '', skipAvailability: false });
   const [couponCreateOpen, setCouponCreateOpen] = useState(false);
   const [canjeAbierto, setCanjeAbierto] = useState(false);
+  /*
+   * Quien puede definir la oferta, no sólo registrarla.
+   *
+   * `manage` sobre Reservas. De fábrica una cuenta de empresa llega a `edit`, de modo que crea
+   * cupones quien administra esa empresa y los canjea cualquiera de su equipo.
+   */
+  const puedeCrearCupones = user?.permissions?.reservations === "manage";
   const [couponForm, setCouponForm] = useState({ code: '', discountType: 'percentage', value: 0, maxUses: 0, validFrom: '', validUntil: '', formIds: '', validDaysOfWeek: [] as number[], validFromTime: '', validUntilTime: '', maxUsesPerPerson: 0, personKeys: ['phone', 'email'] as ClaveDePersona[] });
   const [couponSearch, setCouponSearch] = useState('');
   const [viewingCouponCode, setViewingCouponCode] = useState('');
@@ -802,7 +809,19 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
             caja, mientras que crear un cupón ocurre de vez en cuando y sin apuro. */}
         <button className="btn btn-primary btn-sm" type="button" onClick={() => setCanjeAbierto(true)}>Anotar cupón usado</button>
         <CanjeEnElLocal abierto={canjeAbierto} alCerrar={() => setCanjeAbierto(false)} />
-        <button className="btn btn-outline btn-sm" disabled={!clientFilter && user?.role !== 'client'} title={!clientFilter && user?.role !== 'client' ? 'Elige arriba la empresa del cupón' : undefined} onClick={() => setCouponCreateOpen(true)}>+ Nuevo cupón</button>
+        {/*
+          * Crear un cupón pide `manage`; anotar uno usado, `edit`.
+          *
+          * Son decisiones distintas: crear define una oferta y compromete descuentos a futuro,
+          * anotar registra algo que ya pasó con la persona delante. Un usuario normal de la
+          * empresa canjea en la caja y no crea.
+          *
+          * Se esconde en vez de deshabilitarse: un botón apagado sin explicación invita a
+          * preguntar qué falta, y acá la respuesta no es algo que esa persona pueda cambiar.
+          */}
+        {puedeCrearCupones ? (
+          <button className="btn btn-outline btn-sm" disabled={!clientFilter && user?.role !== 'client'} title={!clientFilter && user?.role !== 'client' ? 'Elige arriba la empresa del cupón' : undefined} onClick={() => setCouponCreateOpen(true)}>+ Nuevo cupón</button>
+        ) : null}
       </div></div>
       {!clientFilter && user?.role !== 'client' && <p className="page-subtitle">Para crear un cupón, elige primero la empresa arriba: cada cupón vale sólo en los locales de su empresa.</p>}
       {(clientFilter || user?.clientId) && (

@@ -387,8 +387,18 @@ export class ReservationsController {
 
   @Get('coupons')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async listCoupons(@Req() req: AuthenticatedRequest) {
-    const scope = await this.scope(req);
+  async listCoupons(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
+    /*
+     * La empresa elegida arriba filtra la lista.
+     *
+     * La pantalla ya mandaba `clientId` y esta ruta lo ignoraba: el selector cambiaba todas las
+     * demás pestañas y en Cupones seguían viéndose los de todas las empresas. Nadie lo notaba
+     * mientras hubiera una sola.
+     *
+     * `requestedScope` comprueba que la cuenta alcance esa empresa antes de aceptarla, así que
+     * pedir una ajena por la dirección no devuelve nada que no corresponda.
+     */
+    const scope = await this.requestedScope(req, query.clientId);
     /*
      * La lista viene con lo que pasó con cada cupón, no sólo con su configuración.
      *
@@ -407,8 +417,19 @@ export class ReservationsController {
     }));
   }
 
+  /**
+   * Crear un cupón pide `manage`, no `edit`.
+   *
+   * No es la misma decisión que anotar uno usado. Crear define una oferta pública y compromete
+   * descuentos a futuro: quien lo hace fija cuánto se regala, a cuántas personas y hasta cuándo.
+   * Anotar un canje registra algo que ya ocurrió, con la persona delante, y es lo que hay que
+   * poder hacer en la caja sin ir a buscar a nadie.
+   *
+   * De fábrica una cuenta de empresa tiene `reservations: edit`, así que con esto un usuario
+   * normal canjea y no crea, y quien administra la empresa hace las dos cosas.
+   */
   @Post('coupons')
-  @RequiresPermission('reservations', 'edit')
+  @RequiresPermission('reservations', 'manage')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async createCoupon(@Req() req: AuthenticatedRequest, @Body() dto: CreateCouponDto) {
     // Una cuenta de empresa crea cupones sólo para sí misma, diga lo que diga el cuerpo.
@@ -423,8 +444,9 @@ export class ReservationsController {
     return this.service.createCoupon(req.organizationId, req.user.id, dto, dto.clientId);
   }
 
+  /** Cambiar un cupón es cambiar la oferta: el mismo `manage` que crearlo. */
   @Patch('coupons/:id')
-  @RequiresPermission('reservations', 'edit')
+  @RequiresPermission('reservations', 'manage')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateCoupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateCouponDto) {
     const scope = await this.scope(req);
