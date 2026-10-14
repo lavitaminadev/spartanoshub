@@ -54,6 +54,8 @@ interface Panel {
   mejorCampana: { campaignName: string; ventas: number; monto: number } | null;
   comision: { tasa: number; ganada: number; proyectada: number };
   porEtapa: Conteo[];
+  /** Qué pasó con los eventos de estos leads hacia la pauta. Nulo sin cola de Meta. */
+  pauta?: { entregados: number; enCurso: number; perdidos: number; sinEvento: number } | null;
   porFuente: Conteo[];
   porDia: Conteo[];
   motivosDeCierre: Conteo[];
@@ -541,6 +543,37 @@ export function CrmDashboardPage(): JSX.Element {
               solo; si nadie lo usa, esto seguirá en cero aunque se esté llamando por fuera.
             </p>
           ) : null}
+        </section>
+      ) : null}
+
+      {/*
+        * Qué pasó con los eventos de estos leads hacia la pauta.
+        *
+        * Un evento puede perderse sin que nadie lo note: la cola lo marca fallido o vencido y ahí
+        * queda. El panel contaba leads, la cola contaba eventos, y nadie cruzaba las dos cosas.
+        *
+        * «Entregado» significa que Meta lo aceptó. Si lo usó para optimizar, o a quién se lo
+        * atribuyó, no es algo que este sistema pueda saber, y por eso no se dice.
+        */}
+      {data?.pauta ? (
+        <section className="crm-dash-panel">
+          <h2>Lo que se le informó a la pauta</h2>
+          <div className="crm-dash-cifras">
+            <div><strong>{data.pauta.entregados}</strong><span>Entregados a Meta</span></div>
+            <div><strong>{data.pauta.enCurso}</strong><span>En camino</span></div>
+            <div><strong>{data.pauta.perdidos}</strong><span>No llegaron</span></div>
+            <div><strong>{data.pauta.sinEvento}</strong><span>Sin evento</span></div>
+          </div>
+          {data.pauta.perdidos > 0 ? (
+            <p className="form-hint form-hint-aviso">
+              {data.pauta.perdidos} {data.pauta.perdidos === 1 ? 'evento se intentó y no llegó' : 'eventos se intentaron y no llegaron'}.
+              El motivo de cada uno está en la cola de conversiones.
+            </p>
+          ) : null}
+          <p className="form-hint">
+            «Sin evento» es lo esperable para un {termino('leads').toLowerCase()} que todavía no
+            cambió de etapa. Entregado quiere decir que Meta lo aceptó, no que lo haya atribuido.
+          </p>
         </section>
       ) : null}
 
