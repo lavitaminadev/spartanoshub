@@ -57,6 +57,20 @@ export interface SurveyQuestion {
   sensible?: boolean;
   /** Cuándo cambió su redacción teniendo ya respuestas. */
   editadaEn?: string;
+  /**
+   * Número de versión dentro de su familia; ausente equivale a 1.
+   *
+   * Una pregunta abre una versión nueva cuando deja de medir lo mismo: cambia de tipo, o quien
+   * edita declara que ahora pregunta otra cosa. Cada versión conserva su propio `id`, así que sus
+   * respuestas nunca se suman con las de otra versión.
+   */
+  version?: number;
+  /** `id` de la primera versión: agrupa todas las versiones de una misma pregunta. Ausente = es la primera. */
+  raizId?: string;
+  /** Desde cuándo esta versión recibe respuestas. Ausente en la primera versión: desde que se creó la encuesta. */
+  vigenteDesde?: string;
+  /** Cuándo fue reemplazada por una versión nueva. Presente sólo en las versiones cerradas. */
+  vigenteHasta?: string;
 }
 
 /** Aceptación que se pide cuando la encuesta solicita datos personales. */

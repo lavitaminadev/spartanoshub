@@ -392,6 +392,8 @@ export function SurveyResultsPage(): JSX.Element {
   }
   if (!summary || !resumen) return <EmptyState icon="chart" title="Sin resultados todavía" description="Los resultados aparecerán en cuanto lleguen respuestas." />;
 
+  // Inicio de la ventana que se está mirando, para no listar versiones cerradas antes de ella.
+  const desdeMs = rangoActivo ? (rango.desde ? new Date(rango.desde).getTime() : null) : periodo === 'todo' ? null : Date.now() - Number(periodo) * 86400000;
   const notas = filtradas.map((r) => r.rating).filter((n): n is number => typeof n === 'number');
   const promedio = notas.length ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10 : null;
   const nps = resumen.questions.find((q) => q.type === 'nps');
@@ -454,7 +456,7 @@ export function SurveyResultsPage(): JSX.Element {
 
       {summary.totalResponses > 0 && hayDetalle && <div className="results-medicion">
         <TendenciaSemanal respuestas={summary.respuestas ?? []} />
-        <PorOrigen respuestas={filtradas} visitas={summary.visitasPorDia ?? []} desde={rangoActivo ? (rango.desde ? new Date(rango.desde).getTime() : null) : periodo === 'todo' ? null : Date.now() - Number(periodo) * 86400000} />
+        <PorOrigen respuestas={filtradas} visitas={summary.visitasPorDia ?? []} desde={desdeMs} />
         <PorCampana campanas={summary.campanas ?? []} />
       </div>}
 
@@ -462,7 +464,15 @@ export function SurveyResultsPage(): JSX.Element {
         <EmptyState icon="chart" title={summary.totalResponses === 0 ? 'Todavía no hay respuestas' : 'Sin respuestas en este período'} description={summary.totalResponses === 0 ? 'Cuando alguien responda, los resultados de cada pregunta aparecerán aquí.' : rangoActivo ? 'Nadie respondió entre esas fechas. Prueba a correrlas o quítalas.' : 'Elige un período más largo.'} />
       ) : (
         <div className="results-grid">
-          {resumen.questions.map((result) => <QuestionResultCard key={result.questionId} result={result} editadaEn={survey.questions.find((q) => q.id === result.questionId)?.editadaEn} />)}
+          {/*
+            Una versión cerrada antes de la ventana que se mira no tiene nada que mostrar en ella:
+            listarla con cero respuestas haría pensar que la pregunta dejó de contestarse.
+          */}
+          {resumen.questions.filter((result) => {
+            const pregunta = survey.questions.find((q) => q.id === result.questionId);
+            if (!pregunta?.vigenteHasta || desdeMs === null) return true;
+            return new Date(pregunta.vigenteHasta).getTime() >= desdeMs;
+          }).map((result) => <QuestionResultCard key={result.questionId} result={result} editadaEn={survey.questions.find((q) => q.id === result.questionId)?.editadaEn} />)}
         </div>
       )}
 

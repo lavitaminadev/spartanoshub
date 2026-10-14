@@ -6,10 +6,33 @@
 
 import type {
   Survey,
+  SurveyQuestion,
   SurveyQuestionResult,
   SurveyResponse,
   SurveyResultsSummary,
 } from './types/survey';
+
+const diaCorto = (iso: string) => {
+  const [, mes, jornada] = iso.slice(0, 10).split('-');
+  return jornada ? `${jornada}/${mes}` : iso;
+};
+
+/**
+ * Cómo se nombra una pregunta en resultados.
+ *
+ * Las versiones se rotulan con su número y su vigencia, nunca se suman entre ellas: quien lee ve
+ * «v2 (desde 14/10)» y «v1 (hasta 14/10)» como dos bloques, porque no miden lo mismo. Una pregunta
+ * simplemente quitada sigue rotulada como archivada.
+ */
+export function etiquetaDePregunta(question: SurveyQuestion): string {
+  const notas: string[] = [];
+  if ((question.version ?? 1) > 1 || question.raizId || question.vigenteHasta) notas.push(`v${question.version ?? 1}`);
+  if (question.vigenteHasta) notas.push(`hasta ${diaCorto(question.vigenteHasta)}`);
+  else if (question.vigenteDesde) notas.push(`desde ${diaCorto(question.vigenteDesde)}`);
+  // «Cerrada por una versión nueva» ya se lee en «hasta …»; archivada se dice sólo si se quitó.
+  if (question.archivada && !question.vigenteHasta) notas.push('archivada');
+  return notas.length ? `${question.question} (${notas.join(' · ')})` : question.question;
+}
 
 /** Puntaje NPS: % promotores (9-10) menos % detractores (0-6), sobre las respuestas válidas. */
 function aggregateNps(values: number[]): { score: number | null; promoters: number; passives: number; detractors: number } {
@@ -47,9 +70,11 @@ function aggregateChoice(values: string[]): Record<string, number> {
  */
 export function computeSurveyResults(survey: Survey, responses: SurveyResponse[]): SurveyResultsSummary {
   // Los datos de contacto identifican a una persona: se leen en cada respuesta, no se agregan.
-  // Las archivadas siguen en resultados con su marca: sus respuestas se conservan.
+  // Las archivadas y las versiones cerradas siguen en resultados con su marca: cada id agrupa sólo
+  // sus propias respuestas, así que dos versiones nunca se promedian juntas.
   const questions: SurveyQuestionResult[] = survey.questions.filter((question) => !question.dato).map((original) => {
-    const question = original.archivada ? { ...original, question: `${original.question} (archivada)` } : original;
+    const etiqueta = etiquetaDePregunta(original);
+    const question = etiqueta === original.question ? original : { ...original, question: etiqueta };
     const raw = responses
       .map((response) => response.answers[question.id])
       .filter((value): value is string | number => value !== undefined && value !== '');

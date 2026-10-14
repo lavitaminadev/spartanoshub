@@ -221,8 +221,9 @@ export class SurveysController {
     const cambios: string[] = [];
     if (dto.questions) {
       this.assertUniqueQuestionIds(dto.questions);
-      // Con respuestas se edita sin perder nada: lo quitado se archiva y el tipo no cambia.
-      const edicion = aplicarEdicionDePreguntas(survey.questions ?? [], dto.questions as SurveyQuestion[], survey.responseCount > 0, ahora);
+      // Con respuestas se edita sin perder nada: lo quitado se archiva y lo que deja de medir lo
+      // mismo abre una versión nueva, con sus resultados aparte.
+      const edicion = aplicarEdicionDePreguntas(survey.questions ?? [], dto.questions as SurveyQuestion[], survey.responseCount > 0, ahora, dto.nuevasVersiones ?? []);
       if (edicion.error) throw new BadRequestException(edicion.error);
       survey.questions = edicion.preguntas;
       cambios.push(...edicion.cambios);

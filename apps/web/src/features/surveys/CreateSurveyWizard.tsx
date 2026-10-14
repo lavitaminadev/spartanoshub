@@ -65,6 +65,11 @@ interface WizardState {
   type: SurveyType;
   clientId: string;
   questions: SurveyQuestion[];
+  /**
+   * Preguntas cuyo cambio de redacción se declaró como «ahora pregunta otra cosa»: abren una
+   * versión nueva en vez de seguir sumando sobre las respuestas anteriores.
+   */
+  nuevasVersiones: string[];
   distribution: SurveyDistributionChannel[];
   recipients: string;
   primaryColor: string;
@@ -97,6 +102,7 @@ function blankState(): WizardState {
     type: 'customer',
     clientId: '',
     questions: [blankQuestion()],
+    nuevasVersiones: [],
     distribution: [],
     recipients: '',
     primaryColor: '#0fb9b1',
@@ -317,12 +323,19 @@ function PasoInicio({ state, setState, clients, conRespuestas, isEdit }: {
 }
 
 /** Paso 2: datos de quien responde y preguntas con reglas. */
-function PasoPreguntas({ questions, onChange, conRespuestas, idsGuardados, state, setState }: { state: WizardState; setState: SetState; questions: SurveyQuestion[]; onChange: (next: SurveyQuestion[]) => void; conRespuestas: boolean; idsGuardados: Set<string> }) {
+function PasoPreguntas({ questions, onChange, conRespuestas, guardadas, state, setState }: { state: WizardState; setState: SetState; questions: SurveyQuestion[]; onChange: (next: SurveyQuestion[]) => void; conRespuestas: boolean; guardadas: Map<string, SurveyQuestion> }) {
   const set = (patch: Partial<WizardState>) => setState((c) => ({ ...c, ...patch }));
   const preguntas = questions.filter((q) => !q.dato);
   const datos = questions.filter((q) => q.dato);
   /** Si una pregunta pudo recibir respuestas: entonces se archiva en vez de quitarse. */
-  const tieneRespuestas = (id: string) => conRespuestas && idsGuardados.has(id);
+  const tieneRespuestas = (id: string) => conRespuestas && guardadas.has(id);
+  /** Si el enunciado guardado y el editado ya no coinciden: sólo entonces hay que decidir qué fue. */
+  const redaccionCambiada = (question: SurveyQuestion) => {
+    const guardada = guardadas.get(question.id);
+    return Boolean(conRespuestas && guardada && !guardada.archivada && guardada.question.trim() !== question.question.trim());
+  };
+  /** Marca «ahora pregunta otra cosa»: el cambio de redacción abrirá una versión nueva. */
+  const versionar = (id: string, abrir: boolean) => set({ nuevasVersiones: abrir ? [...new Set([...state.nuevasVersiones, id])] : state.nuevasVersiones.filter((otro) => otro !== id) });
   const activas = preguntas.filter((q) => !q.archivada).length;
   const conDatos = (lista: SurveyQuestion[]) => [...lista, ...datos];
   const update = (id: string, patch: Partial<SurveyQuestion>) => onChange(questions.map((q) => (q.id === id ? { ...q, ...patch } : q)));
@@ -350,7 +363,7 @@ function PasoPreguntas({ questions, onChange, conRespuestas, idsGuardados, state
 
   return (
     <div className="wizard-step-body">
-      {conRespuestas && <div className="alert alert-info survey-edicion-nota">Esta encuesta ya tiene respuestas y se puede editar sin perderlas: cambiar la redacción, agregar o reordenar mantiene lo contestado; <strong>quitar archiva</strong> la pregunta (deja de mostrarse, pero sus respuestas siguen en resultados). El tipo de una pregunta con respuestas no se cambia. Todo lo que cambies queda en el historial.</div>}
+      {conRespuestas && <div className="alert alert-info survey-edicion-nota">Esta encuesta ya tiene respuestas y se puede editar sin perderlas: corregir la redacción, agregar o reordenar mantiene lo contestado; <strong>quitar archiva</strong> la pregunta (deja de mostrarse, pero sus respuestas siguen en resultados). Si una pregunta deja de medir lo mismo —cambia de tipo, o ahora pregunta otra cosa— se abre una <strong>versión nueva</strong> y sus resultados se muestran aparte, nunca sumados. Todo lo que cambies queda en el historial.</div>}
       <fieldset className="questions-editor-fieldset">
         <section className="survey-datos">
           <header>
@@ -399,14 +412,37 @@ function PasoPreguntas({ questions, onChange, conRespuestas, idsGuardados, state
                 <label>Enunciado
                   <input className="input" required value={question.question} onChange={(event) => update(question.id, { question: event.target.value })} placeholder="Ej. ¿Cómo fue tu visita?" />
                 </label>
+                {/*
+                  Corregir cómo se dice algo y preguntar otra cosa se ven igual desde el código: sólo
+                  quien edita sabe si lo contestado antes sigue sirviendo para el mismo promedio.
+                */}
+                {redaccionCambiada(question) && (
+                  <div className="question-version" role="group" aria-label="Qué cambió en el enunciado">
+                    <span>Esta pregunta ya tiene respuestas. ¿Qué cambiaste?</span>
+                    <div>
+                      <button type="button" aria-pressed={!state.nuevasVersiones.includes(question.id)} className={`survey-chip ${state.nuevasVersiones.includes(question.id) ? '' : 'active'}`} onClick={() => versionar(question.id, false)}>Sólo cómo se dice</button>
+                      <button type="button" aria-pressed={state.nuevasVersiones.includes(question.id)} className={`survey-chip ${state.nuevasVersiones.includes(question.id) ? 'active' : ''}`} onClick={() => versionar(question.id, true)}>Ahora pregunto otra cosa</button>
+                    </div>
+                    <small>{state.nuevasVersiones.includes(question.id)
+                      ? 'Se abre una versión nueva: lo que ya respondieron queda en un bloque aparte, con su fecha de cierre.'
+                      : 'Se conserva la pregunta: lo que ya respondieron sigue contando en el mismo promedio.'}</small>
+                  </div>
+                )}
                 <div className="form-row">
                   <label>Tipo de pregunta
-                    <select className="input" value={question.type} disabled={tieneRespuestas(question.id)} title={tieneRespuestas(question.id) ? 'Ya tiene respuestas: agrega una pregunta nueva para otro tipo' : undefined} onChange={(event) => {
+                    <select className="input" value={question.type} title={tieneRespuestas(question.id) ? 'Ya tiene respuestas: cambiar el tipo abre una versión nueva y los resultados quedan aparte' : undefined} onChange={(event) => {
                       const type = event.target.value as QuestionType;
-                      // Cambiar el tipo invalida las reglas que dependían de sus valores.
+                      /*
+                       * Cambiar el tipo invalida las reglas que dependían de sus valores.
+                       *
+                       * Con respuestas no se quitan aquí: el cambio abre una versión nueva y es
+                       * `aplicarEdicionDePreguntas` quien decide qué pasa con cada regla, dejando
+                       * el motivo escrito en el historial. Quitarlas antes lo borraría.
+                       */
+                      const versiona = tieneRespuestas(question.id);
                       onChange(questions.map((q) => q.id === question.id
                         ? { ...q, type, options: type === 'multiple-choice' ? q.options ?? ['', ''] : undefined }
-                        : q.mostrarSi?.preguntaId === question.id ? { ...q, mostrarSi: undefined } : q));
+                        : !versiona && q.mostrarSi?.preguntaId === question.id ? { ...q, mostrarSi: undefined } : q));
                     }}>
                       {(Object.entries(QUESTION_TYPE_LABELS) as Array<[QuestionType, string]>).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
                     </select>
@@ -586,11 +622,13 @@ function DistributionSelector({ selected, recipients, onToggleChannel, onRecipie
 }
 
 /** Paso 5: resumen antes de guardar. */
-function ReviewAndSubmit({ state, isEdit, cambiosPrevistos, errorDeEdicion }: { state: WizardState; isEdit: boolean; cambiosPrevistos: string[]; errorDeEdicion?: string }) {
+function ReviewAndSubmit({ state, isEdit, cambiosPrevistos, errorDeEdicion, preguntasPrevistas }: { state: WizardState; isEdit: boolean; cambiosPrevistos: string[]; errorDeEdicion?: string; preguntasPrevistas: SurveyQuestion[] }) {
   const recipientCount = state.recipients.split(',').map((value) => value.trim()).filter(Boolean).length;
-  const preguntas = state.questions.filter((q) => !q.dato && !q.archivada);
-  const datos = state.questions.filter((q) => q.dato && !q.archivada);
-  const porId = new Map(state.questions.map((q) => [q.id, q]));
+  // El resumen muestra la encuesta como quedará guardada, no como está en el editor: si abrir una
+  // versión nueva se lleva por delante una regla, aquí ya no aparece y la lista de arriba lo explica.
+  const preguntas = preguntasPrevistas.filter((q) => !q.dato && !q.archivada);
+  const datos = preguntasPrevistas.filter((q) => q.dato && !q.archivada);
+  const porId = new Map(preguntasPrevistas.map((q) => [q.id, q]));
   const condicionales = preguntas.filter((q) => q.mostrarSi).length;
   return (
     <div className="wizard-step-body">
@@ -658,10 +696,10 @@ export function CreateSurveyWizard(): JSX.Element {
   if ((editId || duplicarId) && isLoading) return <LoadingSpinner text="Cargando encuesta..." />;
 
   const conRespuestas = Boolean(editId && (existingSurvey?.responses ?? 0) > 0);
-  const idsGuardados = new Set((existingSurvey?.questions ?? []).map((q) => q.id));
+  const guardadas = new Map((existingSurvey?.questions ?? []).map((q) => [q.id, q]));
   // Mismo cálculo que hará el servidor: lo que se ve aquí es lo que queda en el historial.
   const edicionPrevista = editId && existingSurvey
-    ? aplicarEdicionDePreguntas(existingSurvey.questions ?? [], ordenarParaMostrar(state.questions), conRespuestas, new Date().toISOString())
+    ? aplicarEdicionDePreguntas(existingSurvey.questions ?? [], ordenarParaMostrar(state.questions), conRespuestas, new Date().toISOString(), state.nuevasVersiones)
     : null;
   const cambiosPrevistos = [
     ...(edicionPrevista?.cambios ?? []),
@@ -698,8 +736,10 @@ export function CreateSurveyWizard(): JSX.Element {
       // Las preguntas viajan sólo si cambiaron: con respuestas el servidor no admite tocarlas, y
       // reenviarlas iguales hacía fallar el guardado de la bienvenida o el fondo.
       const preguntasCambiaron = !existingSurvey || firmaDePreguntas(questions) !== firmaDePreguntas(existingSurvey.questions ?? []);
+      // Lo declarado viaja sólo con las preguntas, y sólo para las que siguen en la encuesta.
+      const nuevasVersiones = state.nuevasVersiones.filter((id) => questions.some((q) => q.id === id));
       updateMutation.mutate(
-        { id: editId, patch: { ...comun, ...(preguntasCambiaron ? { questions } : {}) } },
+        { id: editId, patch: { ...comun, ...(preguntasCambiaron ? { questions, nuevasVersiones } : {}) } },
         { onSuccess: () => { triggerToast('Encuesta actualizada'); navigate('/surveys'); } },
       );
       return;
@@ -736,7 +776,7 @@ export function CreateSurveyWizard(): JSX.Element {
           />
 
           {step === 0 && <PasoInicio state={state} setState={setState} clients={clients} conRespuestas={conRespuestas} isEdit={Boolean(editId)} />}
-          {step === 1 && <PasoPreguntas state={state} setState={setState} questions={state.questions} conRespuestas={conRespuestas} idsGuardados={idsGuardados} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
+          {step === 1 && <PasoPreguntas state={state} setState={setState} questions={state.questions} conRespuestas={conRespuestas} guardadas={guardadas} onChange={(questions) => setState((current) => ({ ...current, questions }))} />}
           {step === 2 && <PasoDiseno state={state} setState={setState} />}
           {step === 3 && (
             <DistributionSelector
@@ -751,7 +791,7 @@ export function CreateSurveyWizard(): JSX.Element {
               onGa4Change={(ga4MeasurementId) => setState((current) => ({ ...current, ga4MeasurementId }))}
             />
           )}
-          {step === 4 && <ReviewAndSubmit state={state} isEdit={Boolean(editId)} cambiosPrevistos={cambiosPrevistos} errorDeEdicion={edicionPrevista?.error} />}
+          {step === 4 && <ReviewAndSubmit state={state} isEdit={Boolean(editId)} cambiosPrevistos={cambiosPrevistos} errorDeEdicion={edicionPrevista?.error} preguntasPrevistas={edicionPrevista?.preguntas ?? state.questions} />}
 
           {mutation.error && <div className="alert alert-error">{mutation.error.message}</div>}
 
