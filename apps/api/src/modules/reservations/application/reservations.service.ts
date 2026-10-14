@@ -1754,6 +1754,7 @@ export class ReservationsService {
     record.usedAt = new Date();
     await this.managementTokens.save(record);
     void this.sendCalendarUpdate(reservation, 'CANCELLED');
+    void this.sincronizarCalendarioDelLocal(saved, 'borrar');
     void this.avisarCupoLiberado(saved);
     void this.avisarCambioDelCliente(saved, 'cancelada');
     return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
@@ -2105,6 +2106,55 @@ export class ReservationsService {
     }
   }
 
+  /**
+   * Deja el evento del calendario del local igual que la reserva.
+   *
+   * Es otra cosa que `sendCalendarUpdate`: ése manda un .ics al comensal, a su propio calendario.
+   * Esto toca el evento que vive en el Google Calendar del local, el que mira el equipo antes de
+   * abrir. Hasta ahora se creaba al reservar y no se volvía a tocar: una reserva movida al sábado
+   * seguía anotada el jueves, y una cancelada seguía ocupando la hora.
+   *
+   * Sin esperar y sin fallar: el estado de la reserva ya quedó guardado, y que Google no responda
+   * no es motivo para devolverle un error a quien acaba de cancelar. Queda en el registro.
+   *
+   * Si Google dice que el evento ya no está —lo borró alguien desde el calendario— se limpia
+   * `calendarEventId`, porque seguir guardando el id de algo que no existe sólo hace que el próximo
+   * intento vuelva a preguntar por él.
+   *
+   * @param accion - `mover` reescribe hora y título; `borrar` lo quita del calendario.
+   */
+  private async sincronizarCalendarioDelLocal(booking: Reservation, accion: 'mover' | 'borrar'): Promise<void> {
+    try {
+      if (!booking.calendarEventId) return;
+      const form = await this.forms.findOne({ where: { id: booking.formId } });
+      if (!form?.calendarEnabled) return;
+
+      if (accion === 'borrar') {
+        await this.calendar.deleteEvent(form.organizationId, booking.calendarEventId);
+        await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined });
+        return;
+      }
+
+      const resultado = await this.calendar.updateEvent(form.organizationId, booking.calendarEventId, {
+        summary: `${form.name}: ${booking.guestName}`,
+        description: `Reserva ${booking.referenceCode}`,
+        start: booking.startsAt,
+        durationMinutes: Math.round((booking.endsAt.getTime() - booking.startsAt.getTime()) / 60000),
+      });
+      if (!resultado.existe) {
+        // El evento ya no está. Se olvida el id: el trabajo que recupera integraciones pendientes
+        // busca justamente las reservas sin `calendar_event_id`, así que volverá a crearlo.
+        await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined });
+        return;
+      }
+      if (resultado.calendarUrl && resultado.calendarUrl !== booking.calendarUrl) {
+        await this.reservations.update(booking.id, { calendarUrl: resultado.calendarUrl });
+      }
+    } catch (err) {
+      this.logger.warn(`No se pudo sincronizar el calendario del local para la reserva ${booking.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   async reschedulePublicManagement(token: string, requestedStartsAt: string, requestedPartySize?: number) {
     const { record, reservation } = await this.managementReservation(token);
     if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede reagendar');
@@ -2140,6 +2190,7 @@ export class ReservationsService {
     record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
     await this.managementTokens.save(record);
     void this.sendCalendarUpdate(saved, 'PUBLISH');
+    void this.sincronizarCalendarioDelLocal(saved, 'mover');
     void this.avisarCambioDelCliente(saved, 'cambiada', reservation.startsAt);
     return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
   }
@@ -3147,6 +3198,14 @@ export class ReservationsService {
     let formForMeta: ReservationForm | undefined;
     let statusChangedTo: string | undefined;
     let calendarNotification: 'CANCELLED' | 'PUBLISH' | undefined;
+    /*
+     * El calendario del local se decide aparte del aviso al comensal.
+     *
+     * No coinciden: al comensal sólo se le avisa si canceló el local —si canceló él, ya lo sabe—,
+     * pero del calendario del local hay que quitar la reserva cancelase quien la cancelase, porque
+     * si no sigue ocupando la hora para el equipo.
+     */
+    let calendarioDelLocal: 'mover' | 'borrar' | undefined;
     // Confirmar a mano era el unico paso del flujo del que nadie se enteraba fuera del panel.
     let confirmoUnaPendiente = false;
     // Una espera confirmada por el equipo es una reserva nueva para las campañas.
@@ -3177,7 +3236,7 @@ export class ReservationsService {
         statusChangedTo = dto.status;
         item.status = dto.status;
         if (dto.status === 'cancelled_business') calendarNotification = 'CANCELLED';
-        if (dto.status.startsWith('cancelled')) { await this.devolverCupon(manager, item); liberoCupo = true; }
+        if (dto.status.startsWith('cancelled')) { await this.devolverCupon(manager, item); liberoCupo = true; calendarioDelLocal = 'borrar'; }
       }
       if (dto.internalNotes !== undefined) item.internalNotes = dto.internalNotes;
       /*
@@ -3199,7 +3258,7 @@ export class ReservationsService {
         }
         item.resourceId = destino || undefined;
       }
-      const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) calendarNotification = 'PUBLISH'; if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
+      const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) { calendarNotification = 'PUBLISH'; calendarioDelLocal = calendarioDelLocal ?? 'mover'; } if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
     const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
     // Intencionalmente no se envía evento de Meta CAPI para 'no_show': la Conversions API no tiene
     // concepto de conversión negativa/revertida, así que no hay nada correcto que enviarle a Meta
@@ -3236,6 +3295,7 @@ export class ReservationsService {
       }
     }
     if (calendarNotification) void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
+    if (calendarioDelLocal) void this.sincronizarCalendarioDelLocal(saved, calendarioDelLocal);
     if (liberoCupo) void this.avisarCupoLiberado(saved);
     return saved;
   }
