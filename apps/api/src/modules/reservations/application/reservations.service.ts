@@ -3076,7 +3076,22 @@ export class ReservationsService {
   }
 
   async listReservations(organizationId: string, query: ListReservationsDto, clientId?: string, clientIds?: string[], includeInternalNotes = true) {
-    const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.asistenciaSupuesta === 'true') qb.andWhere(ASISTENCIA_SUPUESTA_SQL); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); if (query.resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId }); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
+    const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.asistenciaSupuesta === 'true') qb.andWhere(ASISTENCIA_SUPUESTA_SQL); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); if (query.resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId });
+    /*
+     * De donde vino la reserva.
+     *
+     * Coinciden exactas y no por fragmento: un LIKE con comodin inicial impediria usar el indice
+     * de la columna, y para buscar por un trozo del nombre ya esta el buscador general.
+     *
+     * `origen` no filtra una columna de texto sino la marca de como se supo: `origin_detected`
+     * distingue lo que el sistema dedujo del encabezado de lo que venia declarado en el enlace,
+     * y mezclarlos presentaria una suposicion como dato.
+     */
+    if (query.utmSource) qb.andWhere('r.utm_source = :utmSource', { utmSource: query.utmSource });
+    if (query.utmCampaign) qb.andWhere('r.utm_campaign = :utmCampaign', { utmCampaign: query.utmCampaign });
+    if (query.utmMedium) qb.andWhere('r.utm_medium = :utmMedium', { utmMedium: query.utmMedium });
+    if (query.origen === 'detectado') qb.andWhere('r.origin_detected = 1');
+    if (query.origen === 'declarado') qb.andWhere('(r.origin_detected = 0 OR r.origin_detected IS NULL)'); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
     const conversions = await this.metaConversionStatus(organizationId, items);
     const supuestas = await this.asistenciasSupuestas(safeItems.filter((item) => item.status === 'attended').map((item) => item.id));
     const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id), ...(supuestas.has(item.id) ? { asistenciaSupuesta: true } : {}) }));
