@@ -358,16 +358,27 @@ function QuestionResultCard({ result, editadaEn }: { result: SurveyQuestionResul
 export function SurveyResultsPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const { data: survey, isLoading: loadingSurvey, error: surveyError } = useSurvey(id);
-  const { data: summary, isLoading: loadingResults, error: resultsError, refetch, isFetching } = useSurveyResults(survey);
   const [periodo, setPeriodo] = useState<Periodo>('todo');
+  /*
+   * Las fechas a medida van al servidor; los atajos no.
+   *
+   * Los atajos se resuelven sobre el detalle que ya está en memoria y responden al instante. Un
+   * rango concreto, en cambio, se pide recortado: es la única forma de ver un mes de hace un año
+   * sin quedar limitado al tope de respuestas que trae el detalle.
+   */
+  const [rango, setRango] = useState<{ desde: string; hasta: string }>({ desde: '', hasta: '' });
+  const rangoActivo = Boolean(rango.desde || rango.hasta);
+  const { data: summary, isLoading: loadingResults, error: resultsError, refetch, isFetching } = useSurveyResults(survey, rango);
 
   // Con el detalle por persona, todo se recalcula para el período con la misma función que usa el servidor.
   const filtradas = useMemo(() => {
     const todas = summary?.respuestas ?? [];
-    if (periodo === 'todo') return todas;
+    // Con un rango a medida el recorte ya lo hizo el servidor: volver a filtrar aquí por el atajo
+    // dejaría fuera respuestas que el período pedido sí incluye.
+    if (periodo === 'todo' || rangoActivo) return todas;
     const desde = Date.now() - Number(periodo) * 86400000;
     return todas.filter((r) => new Date(r.submittedAt).getTime() >= desde);
-  }, [summary?.respuestas, periodo]);
+  }, [summary?.respuestas, periodo, rangoActivo]);
   const resumen = useMemo(() => {
     if (!survey || !summary?.respuestas) return summary;
     return { ...summary, ...computeSurveyResults(survey, filtradas.map((r) => ({ surveyId: survey.id, respondentId: r.id, answers: r.answers, submittedAt: r.submittedAt }))), completionRate: summary.completionRate, respuestas: filtradas };
@@ -397,7 +408,9 @@ export function SurveyResultsPage(): JSX.Element {
         actions={<div className="results-acciones">
           {/* El informe es lo que se manda al local; los CSV quedan para abrir en una planilla. */}
           <button type="button" className="btn btn-primary" disabled={!resumen.totalResponses} onClick={() => {
-            const periodoLegible = periodo === 'todo' ? 'Todas las respuestas' : `Últimos ${periodo} días`;
+            const periodoLegible = rangoActivo
+              ? `Del ${rango.desde || 'inicio'} al ${rango.hasta || 'hoy'}`
+              : periodo === 'todo' ? 'Todas las respuestas' : `Últimos ${periodo} días`;
             if (!abrirInformeDeEncuesta({ survey, resumen, periodo: periodoLegible, promedio, completaron })) triggerToast('El navegador bloqueó la ventana del informe: permite las ventanas emergentes e inténtalo otra vez.', 'error');
           }}>Descargar informe PDF</button>
           {hayDetalle && <button type="button" className="btn btn-outline" disabled={!filtradas.length} onClick={() => exportarRespuestasCsv(survey, filtradas)}>Respuestas (CSV)</button>}
@@ -408,8 +421,25 @@ export function SurveyResultsPage(): JSX.Element {
       {summary.totalResponses > 0 && hayDetalle && (
         <div className="results-periodo" role="group" aria-label="Período">
           {PERIODOS.map(([valor, etiqueta]) => (
-            <button key={valor} type="button" aria-pressed={periodo === valor} className={periodo === valor ? 'active' : ''} onClick={() => setPeriodo(valor)}>{etiqueta}</button>
+            <button
+              key={valor}
+              type="button"
+              aria-pressed={!rangoActivo && periodo === valor}
+              className={!rangoActivo && periodo === valor ? 'active' : ''}
+              onClick={() => { setRango({ desde: '', hasta: '' }); setPeriodo(valor); }}
+            >{etiqueta}</button>
           ))}
+          <label className="results-periodo-fecha">
+            Desde
+            <input type="date" value={rango.desde} max={rango.hasta || undefined} onChange={(e) => setRango((actual) => ({ ...actual, desde: e.target.value }))} />
+          </label>
+          <label className="results-periodo-fecha">
+            Hasta
+            <input type="date" value={rango.hasta} min={rango.desde || undefined} onChange={(e) => setRango((actual) => ({ ...actual, hasta: e.target.value }))} />
+          </label>
+          {rangoActivo && (
+            <button type="button" className="btn btn-link" onClick={() => setRango({ desde: '', hasta: '' })}>Quitar fechas</button>
+          )}
         </div>
       )}
 
@@ -424,12 +454,12 @@ export function SurveyResultsPage(): JSX.Element {
 
       {summary.totalResponses > 0 && hayDetalle && <div className="results-medicion">
         <TendenciaSemanal respuestas={summary.respuestas ?? []} />
-        <PorOrigen respuestas={filtradas} visitas={summary.visitasPorDia ?? []} desde={periodo === 'todo' ? null : Date.now() - Number(periodo) * 86400000} />
+        <PorOrigen respuestas={filtradas} visitas={summary.visitasPorDia ?? []} desde={rangoActivo ? (rango.desde ? new Date(rango.desde).getTime() : null) : periodo === 'todo' ? null : Date.now() - Number(periodo) * 86400000} />
         <PorCampana campanas={summary.campanas ?? []} />
       </div>}
 
       {resumen.totalResponses === 0 ? (
-        <EmptyState icon="chart" title={summary.totalResponses === 0 ? 'Todavía no hay respuestas' : 'Sin respuestas en este período'} description={summary.totalResponses === 0 ? 'Cuando alguien responda, los resultados de cada pregunta aparecerán aquí.' : 'Elige un período más largo.'} />
+        <EmptyState icon="chart" title={summary.totalResponses === 0 ? 'Todavía no hay respuestas' : 'Sin respuestas en este período'} description={summary.totalResponses === 0 ? 'Cuando alguien responda, los resultados de cada pregunta aparecerán aquí.' : rangoActivo ? 'Nadie respondió entre esas fechas. Prueba a correrlas o quítalas.' : 'Elige un período más largo.'} />
       ) : (
         <div className="results-grid">
           {resumen.questions.map((result) => <QuestionResultCard key={result.questionId} result={result} editadaEn={survey.questions.find((q) => q.id === result.questionId)?.editadaEn} />)}

@@ -540,6 +540,10 @@
 .results-periodo { display: inline-flex; flex-wrap: wrap; width: max-content; max-width: 100%; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); }
 .results-periodo button { min-height: 34px; padding: 4px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 700; cursor: pointer; }
 .results-periodo button.active { background: var(--ink); color: var(--white); }
+/* Las fechas a medida van en la misma píldora que los atajos: es un solo control de período. */
+.results-periodo-fecha { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.results-periodo-fecha input { min-height: 34px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); color: var(--ink); font: inherit; font-weight: 600; }
+.results-periodo .btn-link { min-height: 34px; padding: 4px 10px; color: var(--muted); font-size: 12px; text-decoration: underline; }
 .results-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .results-kpis > div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--card-radius, 12px); background: var(--white); }
 .results-kpis span { color: var(--muted); font-size: 12px; font-weight: 700; }

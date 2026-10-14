@@ -18,7 +18,7 @@ import { UserRole } from '../organizations/user-role.enum';
 import { aplicarEdicionDePreguntas, MAXIMO_HISTORIAL, problemasDeRespuesta, type SurveyQuestion } from '@espartanos/shared';
 import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
-import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurveyResponseDto } from './dto/survey.dto';
+import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurveyResponseDto, SurveyResultsQueryDto } from './dto/survey.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { EmailService } from '../../core/notifications/email.service';
@@ -26,8 +26,20 @@ import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 import { leerPlantilla } from '../../core/parameters/plantilla-resuelta';
 import { exigirEncuestasHabilitadas } from './encuestas-de-la-empresa';
-import { In, IsNull } from 'typeorm';
+import { Between, In, IsNull, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
+
+/**
+ * El instante en que termina el día de una fecha dada.
+ *
+ * Una fecha suelta —«2026-10-31»— se interpreta a medianoche, de modo que usarla como extremo
+ * superior dejaría fuera todo lo del propio día. Si la fecha ya trae hora se respeta tal cual.
+ */
+function finDelDia(fecha: string): Date {
+  const momento = new Date(fecha);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim())) momento.setHours(23, 59, 59, 999);
+  return momento;
+}
 
 /** Correo plausible. La validación real la hace el servidor de correo; esto evita basura obvia. */
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -284,9 +296,26 @@ export class SurveysController {
   @Get(':id/results')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Resultados agregados de una encuesta' })
-  async results(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+  async results(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() periodo?: SurveyResultsQueryDto) {
     const survey = await this.findOwned(id, req);
-    const rows = await this.responses.find({ where: { surveyId: survey.id }, order: { submittedAt: 'ASC' } });
+    /*
+     * El período acota las respuestas, no la encuesta.
+     *
+     * Hasta ahora se traían todas las filas de la encuesta y se agregaban en memoria: una
+     * encuesta que lleva meses abierta devolvía su historia completa cada vez que alguien abría
+     * el panel, sin forma de preguntar «y este mes». `hasta` se corre al final del día porque la
+     * fecha se escribe sin hora y nadie espera que «al 31» excluya el 31.
+     */
+    const desde = periodo?.desde ? new Date(periodo.desde) : null;
+    const hasta = periodo?.hasta ? finDelDia(periodo.hasta) : null;
+    if (desde && hasta && desde > hasta) throw new BadRequestException('El período empieza después de terminar');
+    const rows = await this.responses.find({
+      where: {
+        surveyId: survey.id,
+        ...(desde && hasta ? { submittedAt: Between(desde, hasta) } : desde ? { submittedAt: MoreThanOrEqual(desde) } : hasta ? { submittedAt: LessThanOrEqual(hasta) } : {}),
+      },
+      order: { submittedAt: 'ASC' },
+    });
     const responses: SurveyResponseContract[] = rows.map((row) => ({
       surveyId: row.surveyId,
       respondentId: row.respondentId,
@@ -374,7 +403,19 @@ export class SurveysController {
     }));
     // La misma función que usa el frontend para su respaldo local: un solo cálculo evita que
     // el panel muestre un NPS y la copia sin red muestre otro.
-    return { ...computeSurveyResults(this.toContract(survey), responses), respuestas: detalle, visitasPorDia, campanas };
+    /*
+     * El período se devuelve para que el panel pueda decir qué está mostrando.
+     *
+     * Las visitas y las campañas no se recortan: son el denominador con el que se comparan las
+     * respuestas, y el frontend ya las tiene por día para cualquier tramo que se elija.
+     */
+    return {
+      ...computeSurveyResults(this.toContract(survey), responses),
+      respuestas: detalle,
+      visitasPorDia,
+      campanas,
+      periodo: { desde: desde ? desde.toISOString() : null, hasta: hasta ? hasta.toISOString() : null },
+    };
   }
 
   /**
