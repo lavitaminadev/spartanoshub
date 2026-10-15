@@ -15,7 +15,8 @@ import { hayIndice } from './helpers/catalogo';
  * El índice viejo queda redundante: `survey_id` es el prefijo de este, así que cualquier consulta
  * y la llave foránea pueden usar el nuevo. Se intenta quitarlo para no pagar su escritura en cada
  * respuesta, pero si el motor lo rechaza la migración sigue: tener dos índices es un costo, no una
- * falla.
+ * falla. El rechazo queda escrito con el motivo, porque si no, quedarían dos índices para siempre
+ * y nadie tendría cómo enterarse.
  *
  * Correrla dos veces no cambia el resultado.
  */
@@ -30,9 +31,17 @@ export class RespuestasPorPeriodo1790000000176 implements MigrationInterface {
       );
     }
     if (await hayIndice(queryRunner, 'survey_responses', 'IDX_survey_response_survey')) {
-      await queryRunner
-        .query('DROP INDEX IDX_survey_response_survey ON survey_responses')
-        .catch(() => undefined);
+      try {
+        await queryRunner.query('DROP INDEX IDX_survey_response_survey ON survey_responses');
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[migration 0176] No se pudo quitar IDX_survey_response_survey: '
+          + `${error instanceof Error ? error.message : error}. `
+          + 'Quedan dos índices sobre survey_responses; el nuevo ya sirve, el viejo sólo cuesta escritura. '
+          + 'Revisar si alguna llave foránea lo está reteniendo y quitarlo a mano.',
+        );
+      }
     }
   }
 

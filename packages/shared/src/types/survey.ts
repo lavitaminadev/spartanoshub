@@ -220,6 +220,28 @@ export interface SurveyResultsSummary {
    * carta y el cartel del mesón llevan la misma— y cruzarlas daría una fila por cada par.
    */
   campanas?: CampanaDeEncuesta[];
+  /**
+   * Respuestas de toda la encuesta, sin el recorte del período.
+   *
+   * Distingue «todavía no responde nadie» de «nadie respondió en estas fechas», que piden
+   * mensajes distintos.
+   */
+  totalDeLaEncuesta?: number;
+  /** En el período hay más respuestas de las que trae `respuestas`: el detalle viene recortado. */
+  detalleTruncado?: boolean;
+  /**
+   * Indicadores del período sobre **todas** sus respuestas, no sólo sobre el detalle.
+   *
+   * Van aparte porque el detalle se recorta para no mandar una encuesta entera en cada carga, y
+   * calcularlos sobre lo recortado daría una nota promedio de las últimas respuestas nada más.
+   */
+  delPeriodo?: {
+    /** Promedio de la nota de la reserva, con un decimal. `null` si ninguna la trae. */
+    promedio: number | null;
+    conMensaje: number;
+    /** Porcentaje que llegó hasta el final. `null` si no hubo respuestas. */
+    completaron: number | null;
+  };
 }
 
 /** Lo que una campaña trajo a una encuesta. */

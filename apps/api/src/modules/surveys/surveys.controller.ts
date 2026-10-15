@@ -410,11 +410,26 @@ export class SurveysController {
      * Las visitas y las campañas no se recortan: son el denominador con el que se comparan las
      * respuestas, y el frontend ya las tiene por día para cualquier tramo que se elija.
      */
+    /*
+     * Los indicadores del período se calculan aquí, sobre todas sus filas.
+     *
+     * El detalle va recortado para no mandar una encuesta entera en cada carga, así que el panel
+     * no puede derivarlos de él: con más respuestas que el tope daría la nota de las últimas y no
+     * la del período. Este es el único lugar que las tiene todas.
+     */
+    const notasDelPeriodo = rows.map((row) => row.rating).filter((nota): nota is number => typeof nota === 'number');
     return {
       ...computeSurveyResults(this.toContract(survey), responses),
       respuestas: detalle,
       visitasPorDia,
       campanas,
+      totalDeLaEncuesta: survey.responseCount,
+      detalleTruncado: rows.length > detalle.length,
+      delPeriodo: {
+        promedio: notasDelPeriodo.length ? Math.round((notasDelPeriodo.reduce((suma, nota) => suma + nota, 0) / notasDelPeriodo.length) * 10) / 10 : null,
+        conMensaje: rows.filter((row) => row.teamMessage).length,
+        completaron: rows.length ? Math.round((rows.filter((row) => row.completedAt).length / rows.length) * 100) : null,
+      },
       periodo: { desde: desde ? desde.toISOString() : null, hasta: hasta ? hasta.toISOString() : null },
     };
   }

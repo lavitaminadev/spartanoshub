@@ -886,7 +886,9 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/surveys\/visual-survey\/responses\/[^/]+\/attention$/, (config) => ({ attendedAt: visualRequestBody(config).atendida ? new Date().toISOString() : null })],
   [/\/public\/surveys\/visual-survey$/, () => VISUAL_SURVEY],
   [/\/surveys\/visual-survey\/send-email$/, () => ({ enviados: 2, fallidos: 0, invalidos: 1 })],
-  [/\/surveys\/visual-survey\/results$/, () => ({
+  // Con `?desde=`/`?hasta=`: los resultados se piden por período, y anclar en `$` dejaba fuera
+  // cualquier ventana que no fuera «Todo», que caía en la respuesta genérica sin preguntas.
+  [/\/surveys\/visual-survey\/results(\?.*)?$/, () => ({
     surveyId: 'visual-survey', totalResponses: 6, completionRate: null,
     visitasPorDia: [
       { origen: 'qr-mesa', dia: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), total: 42 },

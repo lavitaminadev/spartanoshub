@@ -13,7 +13,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
 import { useSurvey, useSurveyResults } from './useSurveys';
-import { computeSurveyResults, DATOS_DE_CONTACTO } from '@espartanos/shared';
+import { DATOS_DE_CONTACTO } from '@espartanos/shared';
 import type {
   CampanaDeEncuesta,
   Survey,
@@ -368,21 +368,22 @@ export function SurveyResultsPage(): JSX.Element {
    */
   const [rango, setRango] = useState<{ desde: string; hasta: string }>({ desde: '', hasta: '' });
   const rangoActivo = Boolean(rango.desde || rango.hasta);
-  const { data: summary, isLoading: loadingResults, error: resultsError, refetch, isFetching } = useSurveyResults(survey, rango);
-
-  // Con el detalle por persona, todo se recalcula para el período con la misma función que usa el servidor.
-  const filtradas = useMemo(() => {
-    const todas = summary?.respuestas ?? [];
-    // Con un rango a medida el recorte ya lo hizo el servidor: volver a filtrar aquí por el atajo
-    // dejaría fuera respuestas que el período pedido sí incluye.
-    if (periodo === 'todo' || rangoActivo) return todas;
-    const desde = Date.now() - Number(periodo) * 86400000;
-    return todas.filter((r) => new Date(r.submittedAt).getTime() >= desde);
-  }, [summary?.respuestas, periodo, rangoActivo]);
-  const resumen = useMemo(() => {
-    if (!survey || !summary?.respuestas) return summary;
-    return { ...summary, ...computeSurveyResults(survey, filtradas.map((r) => ({ surveyId: survey.id, respondentId: r.id, answers: r.answers, submittedAt: r.submittedAt }))), completionRate: summary.completionRate, respuestas: filtradas };
-  }, [survey, summary, filtradas]);
+  /*
+   * El período se pide, no se recalcula.
+   *
+   * Los atajos también viajan al servidor, como las fechas a medida: el detalle viene recortado
+   * y recalcular sobre él daba el NPS de las últimas respuestas en vez del del período. El
+   * servidor es el único que las tiene todas, y con el índice `(survey_id, submitted_at)` el
+   * rango se recorre directo. React Query guarda cada ventana, así que volver a una ya vista
+   * responde al instante.
+   */
+  const ventana = useMemo(() => {
+    if (rangoActivo) return rango;
+    if (periodo === 'todo') return { desde: '', hasta: '' };
+    return { desde: new Date(Date.now() - Number(periodo) * 86400000).toISOString().slice(0, 10), hasta: '' };
+  }, [rangoActivo, rango, periodo]);
+  const { data: summary, isLoading: loadingResults, error: resultsError, refetch, isFetching } = useSurveyResults(survey, ventana);
+  const filtradas = summary?.respuestas ?? [];
 
   if (loadingSurvey || (survey && loadingResults)) return <LoadingSpinner text="Cargando resultados..." />;
   if (surveyError) return <QueryErrorState title="No pudimos cargar la encuesta" message={surveyError.message} />;
@@ -390,16 +391,24 @@ export function SurveyResultsPage(): JSX.Element {
   if (resultsError) {
     return <QueryErrorState title="No pudimos cargar los resultados" message={resultsError.message} onRetry={() => void refetch()} retrying={isFetching} />;
   }
-  if (!summary || !resumen) return <EmptyState icon="chart" title="Sin resultados todavía" description="Los resultados aparecerán en cuanto lleguen respuestas." />;
+  // Sin `questions` no hay resultados que mostrar. Se comprueba y no se asume: una respuesta con
+  // otra forma dejaba la página entera en blanco tras el recuperador de errores.
+  if (!summary?.questions) return <EmptyState icon="chart" title="Sin resultados todavía" description="Los resultados aparecerán en cuanto lleguen respuestas." />;
 
   // Inicio de la ventana que se está mirando, para no listar versiones cerradas antes de ella.
-  const desdeMs = rangoActivo ? (rango.desde ? new Date(rango.desde).getTime() : null) : periodo === 'todo' ? null : Date.now() - Number(periodo) * 86400000;
+  const desdeMs = ventana.desde ? new Date(ventana.desde).getTime() : null;
+  /*
+   * Los indicadores vienen del servidor, que los calculó sobre todo el período. Sin red se
+   * derivan del respaldo local, que es todo lo que hay.
+   */
   const notas = filtradas.map((r) => r.rating).filter((n): n is number => typeof n === 'number');
-  const promedio = notas.length ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10 : null;
-  const nps = resumen.questions.find((q) => q.type === 'nps');
-  const conMensaje = filtradas.filter((r) => r.teamMessage).length;
-  const completaron = filtradas.length ? Math.round((filtradas.filter((r) => r.completedAt).length / filtradas.length) * 100) : null;
+  const promedio = summary.delPeriodo ? summary.delPeriodo.promedio : notas.length ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10 : null;
+  const nps = summary.questions.find((q) => q.type === 'nps');
+  const conMensaje = summary.delPeriodo ? summary.delPeriodo.conMensaje : filtradas.filter((r) => r.teamMessage).length;
+  const completaron = summary.delPeriodo ? summary.delPeriodo.completaron : filtradas.length ? Math.round((filtradas.filter((r) => r.completedAt).length / filtradas.length) * 100) : null;
   const hayDetalle = Boolean(summary.respuestas);
+  // Sin respuestas en el período: saber si la encuesta tiene alguna decide qué decirle a quien mira.
+  const totalDeLaEncuesta = summary.totalDeLaEncuesta ?? summary.totalResponses;
 
   return (
     <div className="page survey-module">
@@ -409,14 +418,14 @@ export function SurveyResultsPage(): JSX.Element {
         subtitle={`${summary.totalResponses} respuesta${summary.totalResponses === 1 ? '' : 's'}${summary.completionRate !== null ? ` · ${summary.completionRate}% de finalización` : ''}`}
         actions={<div className="results-acciones">
           {/* El informe es lo que se manda al local; los CSV quedan para abrir en una planilla. */}
-          <button type="button" className="btn btn-primary" disabled={!resumen.totalResponses} onClick={() => {
+          <button type="button" className="btn btn-primary" disabled={!summary.totalResponses} onClick={() => {
             const periodoLegible = rangoActivo
               ? `Del ${rango.desde || 'inicio'} al ${rango.hasta || 'hoy'}`
               : periodo === 'todo' ? 'Todas las respuestas' : `Últimos ${periodo} días`;
-            if (!abrirInformeDeEncuesta({ survey, resumen, periodo: periodoLegible, promedio, completaron })) triggerToast('El navegador bloqueó la ventana del informe: permite las ventanas emergentes e inténtalo otra vez.', 'error');
+            if (!abrirInformeDeEncuesta({ survey, resumen: summary, periodo: periodoLegible, promedio, completaron })) triggerToast('El navegador bloqueó la ventana del informe: permite las ventanas emergentes e inténtalo otra vez.', 'error');
           }}>Descargar informe PDF</button>
           {hayDetalle && <button type="button" className="btn btn-outline" disabled={!filtradas.length} onClick={() => exportarRespuestasCsv(survey, filtradas)}>Respuestas (CSV)</button>}
-          <button type="button" className="btn btn-outline" onClick={() => exportResultsCsv(survey.title, resumen)}>Resumen (CSV)</button>
+          <button type="button" className="btn btn-outline" onClick={() => exportResultsCsv(survey.title, summary)}>Resumen (CSV)</button>
         </div>}
       />
 
@@ -446,7 +455,7 @@ export function SurveyResultsPage(): JSX.Element {
       )}
 
       {summary.totalResponses > 0 && <div className="results-kpis">
-        <div><span>Respuestas</span><b>{resumen.totalResponses}</b></div>
+        <div><span>Respuestas</span><b>{summary.totalResponses}</b></div>
         {promedio !== null && <div className={promedio < 3.5 ? 'alerta' : ''}><span>Nota promedio</span><b>{promedio}<small>/5</small></b></div>}
         {nps?.type === 'nps' && <div><span>NPS</span><b>{nps.score ?? '—'}</b></div>}
         {hayDetalle && <div className={conMensaje ? 'alerta' : ''}><span>Mensajes al equipo</span><b>{conMensaje}</b></div>}
@@ -460,15 +469,15 @@ export function SurveyResultsPage(): JSX.Element {
         <PorCampana campanas={summary.campanas ?? []} />
       </div>}
 
-      {resumen.totalResponses === 0 ? (
-        <EmptyState icon="chart" title={summary.totalResponses === 0 ? 'Todavía no hay respuestas' : 'Sin respuestas en este período'} description={summary.totalResponses === 0 ? 'Cuando alguien responda, los resultados de cada pregunta aparecerán aquí.' : rangoActivo ? 'Nadie respondió entre esas fechas. Prueba a correrlas o quítalas.' : 'Elige un período más largo.'} />
+      {summary.totalResponses === 0 ? (
+        <EmptyState icon="chart" title={totalDeLaEncuesta === 0 ? 'Todavía no hay respuestas' : 'Sin respuestas en este período'} description={totalDeLaEncuesta === 0 ? 'Cuando alguien responda, los resultados de cada pregunta aparecerán aquí.' : rangoActivo ? 'Nadie respondió entre esas fechas. Prueba a correrlas o quítalas.' : 'Elige un período más largo.'} />
       ) : (
         <div className="results-grid">
           {/*
             Una versión cerrada antes de la ventana que se mira no tiene nada que mostrar en ella:
             listarla con cero respuestas haría pensar que la pregunta dejó de contestarse.
           */}
-          {resumen.questions.filter((result) => {
+          {summary.questions.filter((result) => {
             const pregunta = survey.questions.find((q) => q.id === result.questionId);
             if (!pregunta?.vigenteHasta || desdeMs === null) return true;
             return new Date(pregunta.vigenteHasta).getTime() >= desdeMs;
@@ -490,6 +499,13 @@ export function SurveyResultsPage(): JSX.Element {
         </details>
       )}
 
+      {/*
+        El recorte del detalle se dice, no se calla: los indicadores de arriba sí cubren todo el
+        período, pero esta tabla no, y sin el aviso parecería que el período tuvo menos respuestas.
+      */}
+      {summary.detalleTruncado && (
+        <p className="page-subtitle">Mostrando las {filtradas.length} respuestas más recientes de {summary.totalResponses}. Los indicadores y los resultados por pregunta sí cubren todo el período; para ver las demás una por una, acota las fechas.</p>
+      )}
       {/* Presente cuando el servidor lo entrega; la copia local sin red no tiene quién respondió. */}
       {filtradas.length > 0 && (
         <RespuestasPorPersona surveyId={survey.id} respuestas={filtradas} preguntas={survey.questions} />
