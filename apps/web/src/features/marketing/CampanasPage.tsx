@@ -61,16 +61,32 @@ export function CampanasPage() {
    * el cupón que reparte cada campaña se guarda desde la 0164 sin que se pudiera preguntar por
    * él. Buscar un cupón exigía abrirlas una por una.
    */
-  const [recorte, setRecorte] = useState<{ estado: string; cupon: string; conCupon: string }>({ estado: '', cupon: '', conCupon: '' });
+  const RECORTE_VACIO = { estado: '', cupon: '', conCupon: '', clientId: '', asunto: '', destino: '', desde: '', hasta: '' };
+  const [recorte, setRecorte] = useState(RECORTE_VACIO);
+  const [pagina, setPagina] = useState(1);
   const cuponBuscado = useDeferredValue(recorte.cupon.trim());
-  const { data, isLoading, error, refetch } = useQuery<Campana[]>({
-    queryKey: ['campanas', recorte.estado, cuponBuscado, recorte.conCupon],
+  const asuntoBuscado = useDeferredValue(recorte.asunto.trim());
+  // Cambiar un filtro vuelve a la primera página: quedarse en la cuatro de una lista nueva muestra
+  // un vacío que parece «no hay nada» cuando lo que pasa es que hay menos páginas.
+  const recortar = (patch: Partial<typeof RECORTE_VACIO>) => { setRecorte((actual) => ({ ...actual, ...patch })); setPagina(1); };
+  const { data: pagi, isLoading, error, refetch } = useQuery<{ data: Campana[]; total: number; pageSize: number }>({
+    queryKey: ['campanas', recorte.estado, cuponBuscado, recorte.conCupon, recorte.clientId, asuntoBuscado, recorte.destino, recorte.desde, recorte.hasta, pagina],
     queryFn: () => api.get(`/marketing/campanas?${new URLSearchParams({
+      page: String(pagina),
       ...(recorte.estado ? { estado: recorte.estado } : {}),
       ...(cuponBuscado ? { cupon: cuponBuscado } : {}),
       ...(recorte.conCupon ? { conCupon: recorte.conCupon } : {}),
+      ...(recorte.clientId ? { clientId: recorte.clientId } : {}),
+      ...(asuntoBuscado ? { asunto: asuntoBuscado } : {}),
+      ...(recorte.destino ? { destino: recorte.destino } : {}),
+      ...(recorte.desde ? { desde: recorte.desde } : {}),
+      ...(recorte.hasta ? { hasta: recorte.hasta } : {}),
     })}`),
+    placeholderData: (previa) => previa,
   });
+  const data = pagi?.data;
+  const total = pagi?.total ?? 0;
+  const paginas = Math.max(Math.ceil(total / (pagi?.pageSize || 50)), 1);
 
   const refrescar = () => void clienteDeConsultas.invalidateQueries({ queryKey: ['campanas'] });
 
@@ -108,21 +124,36 @@ export function CampanasPage() {
       </p>
 
       <div className="reservation-filters">
-        <select className="input" aria-label="Filtrar campañas por estado" value={recorte.estado} onChange={(evento) => setRecorte((actual) => ({ ...actual, estado: evento.target.value }))}>
+        <input className="input" type="search" aria-label="Buscar por asunto" placeholder="Buscar por asunto" value={recorte.asunto} onChange={(evento) => recortar({ asunto: evento.target.value })} />
+        <select className="input" aria-label="Filtrar campañas por empresa" value={recorte.clientId} onChange={(evento) => recortar({ clientId: evento.target.value })}>
+          <option value="">Todas las empresas</option>
+          {(empresasResp?.data ?? []).map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+        </select>
+        <select className="input" aria-label="Filtrar campañas por estado" value={recorte.estado} onChange={(evento) => recortar({ estado: evento.target.value })}>
           <option value="">Todos los estados</option>
           <option value="draft">Borradores</option>
           <option value="sending">Enviándose</option>
           <option value="sent">Enviadas</option>
         </select>
-        <select className="input" aria-label="Filtrar campañas por cupón" value={recorte.conCupon} onChange={(evento) => setRecorte((actual) => ({ ...actual, conCupon: evento.target.value }))}>
+        {/* La lista de marketing y quienes administran son dos correos muy distintos. */}
+        <select className="input" aria-label="Filtrar campañas por destino" value={recorte.destino} onChange={(evento) => recortar({ destino: evento.target.value })}>
+          <option value="">A cualquier lista</option>
+          <option value="lista">A la lista de marketing</option>
+          <option value="administradores">A quienes administran</option>
+        </select>
+        <select className="input" aria-label="Filtrar campañas por cupón" value={recorte.conCupon} onChange={(evento) => recortar({ conCupon: evento.target.value })}>
           <option value="">Con y sin cupón</option>
           <option value="true">Sólo las que reparten uno</option>
           <option value="false">Sólo las que no</option>
         </select>
-        <input className="input" type="search" aria-label="Buscar por código de cupón" placeholder="Código del cupón" value={recorte.cupon} onChange={(evento) => setRecorte((actual) => ({ ...actual, cupon: evento.target.value }))} />
-        {recorte.estado || recorte.cupon || recorte.conCupon ? (
-          <button type="button" className="btn btn-link" onClick={() => setRecorte({ estado: '', cupon: '', conCupon: '' })}>Limpiar</button>
+        <input className="input" type="search" aria-label="Buscar por código de cupón" placeholder="Código del cupón" value={recorte.cupon} onChange={(evento) => recortar({ cupon: evento.target.value })} />
+        {/* Acotan por cuándo salió, así que dejan fuera los borradores: nunca se mandaron. */}
+        <label className="filter-date">Enviadas desde<input className="input" type="date" value={recorte.desde} max={recorte.hasta || undefined} onChange={(evento) => recortar({ desde: evento.target.value })} /></label>
+        <label className="filter-date">Hasta<input className="input" type="date" value={recorte.hasta} min={recorte.desde || undefined} onChange={(evento) => recortar({ hasta: evento.target.value })} /></label>
+        {Object.values(recorte).some(Boolean) ? (
+          <button type="button" className="btn btn-link" onClick={() => { setRecorte(RECORTE_VACIO); setPagina(1); }}>Limpiar</button>
         ) : null}
+        <span className="filter-result-count">{total} campaña{total === 1 ? '' : 's'}</span>
       </div>
 
       {error ? <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} /> : (
@@ -147,14 +178,20 @@ export function CampanasPage() {
             {
               key: 'cupon',
               label: 'Cupón',
-              render: (fila) => (fila.cupon ? <code>{fila.cupon}</code> : '—'),
+              // El código y lo que trajo, juntos: el código solo es una regla, no una medición.
+              render: (fila) => (fila.cupon
+                ? <span className="campana-destino"><code>{fila.cupon}</code>{fila.estado === 'sent' ? <RetornoDelCupon campanaId={fila.id} /> : null}</span>
+                : '—'),
             },
             { key: 'estado', label: 'Estado', render: (fila) => ESTADO[fila.estado] ?? fila.estado },
             {
               key: 'enviados',
               label: 'Llegó a',
               render: (fila) => {
-                if (fila.estado === 'sent') return `${fila.enviados} de ${fila.destinatarios}`;
+                if (fila.estado === 'sent') return <span className="campana-destino">
+                  <strong>{fila.enviados} de {fila.destinatarios}</strong>
+                  <FallidosDeLaCampana campanaId={fila.id} cuantos={fila.destinatarios - fila.enviados} />
+                </span>;
                 if (fila.estado === 'sending') return <AvanceDelEnvio campanaId={fila.id} total={fila.destinatarios} />;
                 return '—';
               },
@@ -179,6 +216,18 @@ export function CampanasPage() {
           ]}
         />
       )}
+
+      {/*
+        La lista venía topada en cien sin decirlo: la campaña ciento uno era invisible y la
+        pantalla parecía estar mostrándolo todo.
+      */}
+      {paginas > 1 ? (
+        <div className="tabla-paginacion">
+          <button type="button" className="btn btn-outline btn-sm" disabled={pagina <= 1} onClick={() => setPagina((actual) => actual - 1)}>Anterior</button>
+          <span>Página {pagina} de {paginas}</span>
+          <button type="button" className="btn btn-outline btn-sm" disabled={pagina >= paginas} onClick={() => setPagina((actual) => actual + 1)}>Siguiente</button>
+        </div>
+      ) : null}
 
       {editando && (
         <EditorDeCampana
@@ -450,6 +499,68 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
  * preguntar más seguido no adelanta nada; se consulta a este ritmo para que el número se mueva
  * poco después de cada pasada y no parezca que la pantalla se quedó colgada.
  */
+/**
+ * Qué trajo el cupón de una campaña ya enviada.
+ *
+ * Los dos extremos estaban guardados —la campaña anota qué código repartió, los canjes anotan
+ * cuándo se usó cada uno— y nada los juntaba: el cupón se veía como una regla y nunca como una
+ * medición. Cuenta desde que salió, nunca antes: el mismo código puede estar en un cartel desde
+ * hace meses, y atribuirle esos usos sería contarle lo que no trajo.
+ */
+function RetornoDelCupon({ campanaId }: { campanaId: string }) {
+  const { data } = useQuery<{ canjes: number; enviados: number; enElLocal: number; reservas: number | null } | undefined>({
+    queryKey: ['campana-retorno', campanaId],
+    queryFn: () => api.get(`/marketing/campanas/${campanaId}/retorno`),
+  });
+
+  if (!data) return null;
+  /*
+   * Las reservas son `null` en las campañas que salieron antes del marcado.
+   *
+   * Un cero ahí se leería como «no trajo ninguna», y lo que pasa es que no se sabe: esos correos
+   * salieron sin marca y no hay forma de reconocer lo que trajeron.
+   */
+  const partes = [
+    data.canjes > 0 ? `${data.canjes} ${data.canjes === 1 ? 'canje' : 'canjes'}` : null,
+    data.reservas !== null && data.reservas > 0 ? `${data.reservas} ${data.reservas === 1 ? 'reserva' : 'reservas'}` : null,
+  ].filter(Boolean);
+  if (!partes.length) return <small>{data.reservas === null ? 'Salió sin marca: no se puede atribuir' : 'Sin canjes ni reservas todavía'}</small>;
+  return <small>{partes.join(' · ')} desde el envío</small>;
+}
+
+/**
+ * A quiénes no les llegó, bajo demanda.
+ *
+ * El recuento de fallidos estaba a la vista y los nombres no: `last_error` se escribía en cada
+ * intento y no lo leía nadie, así que un dominio mal escrito y una casilla llena eran el mismo
+ * silencio. Va plegado porque lo normal es que no haya ninguno.
+ */
+function FallidosDeLaCampana({ campanaId, cuantos }: { campanaId: string; cuantos: number }) {
+  const [abierto, setAbierto] = useState(false);
+  const { data } = useQuery<{ fallidos: Array<{ email: string; estado: string; intentos: number; motivo: string | null }> }>({
+    queryKey: ['campana-fallidos', campanaId],
+    queryFn: () => api.get(`/marketing/campanas/${campanaId}/fallidos`),
+    enabled: abierto,
+  });
+
+  if (cuantos <= 0) return null;
+  return (
+    <details className="campana-fallidos" open={abierto} onToggle={(evento) => setAbierto((evento.target as HTMLDetailsElement).open)}>
+      <summary>{cuantos} sin entregar</summary>
+      {!data ? <small className="tabla-nota">Buscando…</small> : (
+        <ul>
+          {data.fallidos.map((fallo) => (
+            <li key={fallo.email}>
+              <strong>{fallo.email}</strong>
+              <small>{fallo.motivo ?? (fallo.estado === 'expired' ? 'Se dio de baja antes de que saliera' : 'Sin detalle')} · {fallo.intentos} {fallo.intentos === 1 ? 'intento' : 'intentos'}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
+  );
+}
+
 function AvanceDelEnvio({ campanaId, total }: { campanaId: string; total: number }) {
   const { data } = useQuery<{ enviados: number; pendientes: number; fallidos: number }>({
     queryKey: ['campana-avance', campanaId],

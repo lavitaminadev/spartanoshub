@@ -1,13 +1,16 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { Campana, EstadoDeCampana } from './campana.entity';
 import { SuscriptoresService } from './suscriptores.service';
 import { ReservationCoupon } from '../reservations/domain/reservation-coupon.entity';
+import { ReservationCouponRedemption } from '../reservations/domain/reservation-coupon-redemption.entity';
+import { Reservation } from '../reservations/domain/reservation.entity';
 import { User } from '../users/user.entity';
 import { UserRole } from '../organizations/user-role.enum';
 import { EnviosDeCampanaService } from './envios-de-campana.service';
 import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
+import { nombreDeCampana } from './marcar-enlaces';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 
 /** Cómo quedó un envío, para decírselo a quien lo mandó sin que tenga que ir a buscarlo. */
@@ -38,6 +41,15 @@ export class CampanasService {
     private readonly parametros: ParameterResolver,
     @InjectRepository(ReservationCoupon) private readonly cupones: Repository<ReservationCoupon>,
     @InjectRepository(User) private readonly usuarios: Repository<User>,
+    /*
+     * Al final, como el resto del repositorio: las pruebas construyen este servicio por
+     * posición, y meterlo junto a `cupones` desplazaba `usuarios` sin que nada lo avisara.
+     *
+     * Sólo se leen: quien registra un canje es Reservas.
+     */
+    @InjectRepository(ReservationCouponRedemption) private readonly canjes: Repository<ReservationCouponRedemption>,
+    // También sólo de lectura: la reserva la crea Reservas, acá sólo se cuenta.
+    @InjectRepository(Reservation) private readonly reservas: Repository<Reservation>,
   ) {}
 
   /** `agencia` y vacío significan la lista sin empresa; en la base eso es `null`. */
@@ -53,17 +65,51 @@ export class CampanasService {
   async listar(
     organizationId: string,
     encerradoEn?: string,
-    filtros?: { estado?: string; cupon?: string; conCupon?: 'true' | 'false' },
-  ): Promise<Campana[]> {
+    filtros?: {
+      estado?: string; cupon?: string; conCupon?: 'true' | 'false';
+      clientId?: string; asunto?: string; destino?: string; desde?: string; hasta?: string;
+      page?: number; pageSize?: number;
+    },
+  ): Promise<{ data: Campana[]; total: number; page: number; pageSize: number }> {
     const qb = this.repo.createQueryBuilder('campana')
       .where('campana.organization_id = :organizationId', { organizationId });
+    // El encierro de una cuenta de portal manda sobre la empresa pedida: no es un filtro, es su límite.
     if (encerradoEn) qb.andWhere('campana.client_id = :encerradoEn', { encerradoEn });
+    else if (filtros?.clientId) qb.andWhere('campana.client_id = :clientId', { clientId: filtros.clientId });
     if (filtros?.estado) qb.andWhere('campana.estado = :estado', { estado: filtros.estado });
+    if (filtros?.destino) qb.andWhere('campana.destino = :destino', { destino: filtros.destino });
+    if (filtros?.asunto) qb.andWhere('campana.asunto LIKE :asunto', { asunto: `%${filtros.asunto}%` });
     if (filtros?.cupon) qb.andWhere('campana.cupon LIKE :cupon', { cupon: `%${filtros.cupon}%` });
     // Una cadena vacía cuenta como «sin cupón»: es lo que deja un campo que se borró a medias.
     if (filtros?.conCupon === 'true') qb.andWhere("campana.cupon IS NOT NULL AND campana.cupon <> ''");
     if (filtros?.conCupon === 'false') qb.andWhere("campana.cupon IS NULL OR campana.cupon = ''");
-    return qb.orderBy('campana.created_at', 'DESC').take(100).getMany();
+    /*
+     * Las fechas acotan por cuándo salió, no por cuándo se escribió.
+     *
+     * Un borrador no tiene `sent_at`, así que acotar por fechas lo deja fuera: es lo correcto,
+     * porque «qué mandé en octubre» no incluye lo que nunca se mandó.
+     */
+    if (filtros?.desde) qb.andWhere('campana.sent_at >= :desde', { desde: new Date(filtros.desde) });
+    if (filtros?.hasta) {
+      const hasta = new Date(filtros.hasta);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(filtros.hasta.trim())) hasta.setHours(23, 59, 59, 999);
+      qb.andWhere('campana.sent_at <= :hasta', { hasta });
+    }
+
+    /*
+     * Paginado, no topado en cien.
+     *
+     * El tope fijo hacía invisible la campaña ciento uno, sin decirlo: la pantalla mostraba una
+     * lista completa que no lo era. Devolver el total deja que la pantalla diga cuántas hay.
+     */
+    const page = Math.max(filtros?.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(filtros?.pageSize ?? 50, 1), 100);
+    const [data, total] = await qb
+      .orderBy('campana.created_at', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+    return { data, total, page, pageSize };
   }
 
   async crear(datos: {
@@ -225,7 +271,15 @@ export class CampanasService {
       : (cupon.clientId ?? null) !== clientId ? 'es de otra empresa'
         : !cupon.active ? 'está desactivado'
           : cupon.validUntil && cupon.validUntil <= ahora ? 'ya venció'
-            : null;
+            /*
+             * Sin usos libres la caja lo rechaza igual que si hubiera vencido.
+             *
+             * Faltaba, y era el agujero con más alcance de los cuatro: un cupón con tope se agota
+             * sin cambiar de estado ni de fecha, así que pasaba la comprobación y salía anunciado
+             * a toda la lista. `maxUses = 0` es sin tope.
+             */
+            : cupon.maxUses > 0 && cupon.usageCount >= cupon.maxUses ? 'ya agotó sus usos'
+              : null;
     if (problema) {
       throw new BadRequestException(`El cupón ${codigo} ${problema}. Revísalo en Cupones antes de mandar la campaña: un código que la caja rechaza delante del cliente es peor que no ofrecer ninguno.`);
     }
@@ -252,6 +306,21 @@ export class CampanasService {
       throw new ConflictException('Esta campaña ya se envió');
     }
 
+    /*
+     * El cupón se vuelve a comprobar aquí, no sólo al guardar.
+     *
+     * Entre escribir una campaña y mandarla pueden pasar semanas, y en ese rato el cupón se puede
+     * desactivar, vencer o agotar sin que nadie lo relacione con la campaña que lo anuncia.
+     * Comprobarlo sólo al guardar dejaba salir doscientos correos con un código muerto.
+     *
+     * Falla el envío en vez de salir sin cupón: el correo entero está escrito alrededor de esa
+     * oferta, y mandarlo sin ella es otra campaña que nadie aprobó.
+     */
+    if (campana.cupon) {
+      campana.cuponVence = await this.comprobarCupon(organizationId, campana.clientId ?? null, campana.cupon);
+      await this.repo.update(campana.id, { cuponVence: campana.cuponVence });
+    }
+
     // La misma consulta que mostró la pantalla antes de apretar: si dieran distinto, el número que
     // se vio al decidir no sería el que salió.
     const destinatarios = await this.aQuienes(
@@ -263,6 +332,18 @@ export class CampanasService {
       throw new ConflictException(campana.destino === 'administradores'
           ? 'No hay cuentas activas que administren esta empresa'
           : 'No hay nadie suscrito en esta lista ahora mismo');
+    }
+
+    /*
+     * El nombre con el que se marcará se fija ahora, antes de que salga el primer correo.
+     *
+     * Deducirlo del asunto al leer habría bastado hasta el día en que alguien edita el asunto de
+     * una campaña ya enviada: desde ese momento el nombre guardado en las reservas y el calculado
+     * dejarían de coincidir, y lo atribuido se perdería sin que nada fallara.
+     */
+    if (!campana.utmCampaign) {
+      campana.utmCampaign = nombreDeCampana(campana.asunto);
+      await this.repo.update(campana.id, { utmCampaign: campana.utmCampaign });
     }
 
     const tomada = await this.repo.update(
@@ -282,6 +363,79 @@ export class CampanasService {
   async avance(id: string, organizationId: string) {
     const campana = await this.buscar(id, organizationId);
     return { estado: campana.estado, ...await this.envios.avanceDe(campana.id) };
+  }
+
+  /** A quiénes no les llegó el correo, y por qué. */
+  async fallidos(id: string, organizationId: string) {
+    const campana = await this.buscar(id, organizationId);
+    return { asunto: campana.asunto, fallidos: await this.envios.fallidosDe(campana.id) };
+  }
+
+  /**
+   * Qué trajo la campaña: cuántos canjearon el cupón que repartió.
+   *
+   * Es la pregunta que justifica el módulo y la única que no se podía responder. Los dos
+   * extremos estaban guardados desde hacía tiempo —la campaña anota qué código reparte, los
+   * canjes anotan cuándo y por dónde se usó cada uno— y no había una sola consulta que los
+   * juntara.
+   *
+   * **Se cuenta desde que salió**, no desde que existe el cupón. El mismo código puede estar en
+   * un cartel y en el mesón desde antes; atribuirle a la campaña los canjes anteriores a su
+   * envío sería contarle usos que no trajo. Por el mismo motivo esto no dice «la campaña causó
+   * estos canjes» sino «esto pasó con su cupón después de salir»: quien lo vio en el mesón y lo
+   * usó ese mismo día también cuenta, y no hay forma de separarlos.
+   *
+   * @returns `undefined` si la campaña no reparte cupón o todavía no salió: no hay nada que
+   *   contar, que es distinto de contar cero.
+   */
+  async retorno(id: string, organizationId: string) {
+    const campana = await this.buscar(id, organizationId);
+    if (!campana.cupon || !campana.sentAt) return undefined;
+
+    const cupon = await this.cupones.findOne({ where: { organizationId, code: campana.cupon } });
+    if (!cupon) return undefined;
+
+    const canjes = await this.canjes.find({
+      where: { organizationId, couponId: cupon.id, createdAt: MoreThanOrEqual(campana.sentAt) },
+      order: { createdAt: 'DESC' },
+    });
+    const suma = (campo: 'monto' | 'descuento') => canjes
+      .reduce((total, canje) => total + Number(canje[campo] ?? 0), 0);
+
+    return {
+      cupon: campana.cupon,
+      desde: campana.sentAt,
+      enviados: campana.enviados,
+      canjes: canjes.length,
+      porReserva: canjes.filter((canje) => canje.canal === 'reserva').length,
+      enElLocal: canjes.filter((canje) => canje.canal === 'local').length,
+      /** Nulo cuando nadie anotó importes: cero significaría que consumieron cero. */
+      consumo: canjes.some((canje) => canje.monto !== null) ? suma('monto') : null,
+      descuento: canjes.some((canje) => canje.descuento !== null) ? suma('descuento') : null,
+      reservas: await this.reservasAtribuidas(campana),
+    };
+  }
+
+  /**
+   * Reservas que llegaron por los enlaces marcados de esta campaña.
+   *
+   * Es la otra mitad del retorno y mide algo distinto del cupón: el cupón lo puede usar quien lo
+   * vio en un cartel, mientras que esto son las personas que entraron desde este correo. Una
+   * campaña sin cupón sólo tiene esta mitad.
+   *
+   * **Sólo cuenta desde el envío y sólo con la marca de esta campaña.** `null` cuando la campaña
+   * salió antes de que existiera el marcado: nadie puso ahí un cero, simplemente no se sabe, y
+   * un cero se leería como que no funcionó.
+   */
+  private async reservasAtribuidas(campana: Campana): Promise<number | null> {
+    if (!campana.utmCampaign || !campana.sentAt) return null;
+    return this.reservas.count({
+      where: {
+        organizationId: campana.organizationId,
+        utmCampaign: campana.utmCampaign,
+        createdAt: MoreThanOrEqual(campana.sentAt),
+      },
+    });
   }
 
   private async buscar(id: string, organizationId: string): Promise<Campana> {

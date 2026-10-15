@@ -84,6 +84,15 @@ export class Campana {
   /** Hasta cuándo vale, copiado al enviar: el correo tiene que poder decirlo. */
   @Column({ name: 'cupon_vence', type: 'timestamp', nullable: true }) cuponVence?: Date | null;
 
+  /**
+   * Nombre con el que esta campaña marca los enlaces propios de su correo.
+   *
+   * Es la llave contra `reservations.utm_campaign`, y por eso tiene su mismo largo. Se fija al
+   * enviar y no se recalcula: el asunto se puede editar después, y rehacerlo entonces
+   * desordenaría la atribución de lo ya mandado.
+   */
+  @Column({ name: 'utm_campaign', type: 'varchar', length: 180, nullable: true }) utmCampaign?: string | null;
+
   @Column({ type: 'varchar', length: 20, default: EstadoDeCampana.BORRADOR })
   estado: EstadoDeCampana;
 

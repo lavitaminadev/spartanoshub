@@ -9,6 +9,7 @@ import { SuscriptoresService } from './suscriptores.service';
 import { EmailService } from '../../core/notifications/email.service';
 import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
 import { enlaceDeBaja } from '../../core/notifications/enlace-de-baja';
+import { marcarEnlacesPropios } from './marcar-enlaces';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 
 /**
@@ -119,6 +120,38 @@ export class EnviosDeCampanaService extends OutboxProcessor<EnvioDeCampana> {
   }
 
   /**
+   * A quiénes no les llegó, y por qué.
+   *
+   * El avance cuenta tres números y ahí se acababa: la pantalla decía «142 de 184» y los otros
+   * 42 no existían para nadie. `last_error` se escribe en cada intento fallido desde que esto
+   * se encola por tandas, y hasta ahora no lo leía nadie —a diferencia de la cola de Meta, las
+   * automatizaciones y los orígenes del CRM, que sí lo muestran—. Sin esa línea, un dominio mal
+   * escrito y una casilla llena son el mismo silencio.
+   *
+   * @param limite - Tope de filas. Una campaña grande puede fallar entera y la pantalla no
+   *   necesita las dos mil para decir qué está pasando.
+   */
+  async fallidosDe(campanaId: string, limite = 200): Promise<Array<{
+    email: string; estado: string; intentos: number; motivo: string | null; cuando: Date | null;
+  }>> {
+    const filas = await this.repository.find({
+      where: [
+        { campanaId, status: 'failed' },
+        { campanaId, status: 'expired' },
+      ],
+      order: { processedAt: 'DESC' },
+      take: limite,
+    });
+    return filas.map((fila) => ({
+      email: fila.email,
+      estado: fila.status,
+      intentos: fila.attempts,
+      motivo: fila.lastError ?? null,
+      cuando: fila.processedAt ?? null,
+    }));
+  }
+
+  /**
    * Una baja entre el encolado y el envío se respeta.
    *
    * Es el motivo por el que esto se comprueba aquí y no al encolar: entre que se aprieta el botón
@@ -174,7 +207,16 @@ export class EnviosDeCampanaService extends OutboxProcessor<EnvioDeCampana> {
       baja,
     );
 
-    const salio = await this.correo.send(suscriptor.email, subject, html, baja ? { bajaUrl: baja } : undefined);
+    /*
+     * Los enlaces propios salen marcados; los de terceros, intactos.
+     *
+     * Es lo que convierte la campaña en algo medible: sin marca, la reserva que llega desde este
+     * correo es indistinguible de cualquier otra. Se marca al enviar y no al guardar, porque el
+     * nombre se fija recién al salir.
+     */
+    const marcado = marcarEnlacesPropios(html, process.env.APP_PUBLIC_URL, campana.utmCampaign ?? '');
+
+    const salio = await this.correo.send(suscriptor.email, subject, marcado, baja ? { bajaUrl: baja } : undefined);
     if (!salio) throw new Error('El servidor de correo no aceptó el mensaje');
   }
 
