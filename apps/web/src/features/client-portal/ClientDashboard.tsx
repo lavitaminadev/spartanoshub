@@ -13,7 +13,15 @@ interface Inicio {
   /** Ausente cuando la empresa no tiene CRM contratado. No es lo mismo que estar en cero. */
   crm?: { leadsDelMes: number; pendientes: Pendiente[] };
   reservas?: { proximasDosDias: number; sinConfirmar: number };
+  /**
+   * Presupuesto de diseño del mes. Ausente si no se contrató la visibilidad, o si el mes todavía
+   * no tiene presupuesto abierto: en ninguno de los dos casos hay nada que contar.
+   */
+  presupuesto?: { contratado: number; reservado: number; consumido: number; disponible: number; mes: string; cerrado: boolean };
 }
+
+/** Las UD se guardan con dos decimales, pero los enteros se leen mejor sin el «,00». */
+const ud = (valor: number) => (Number.isInteger(valor) ? String(valor) : valor.toFixed(2).replace('.', ','));
 
 /**
  * Cómo se lee cada pendiente, y por qué importa.
@@ -92,7 +100,7 @@ export function ClientDashboard() {
       />
       {isPortalPulseVisible(user) ? <PulsoEspartano compact /> : null}
 
-      {data?.crm || data?.reservas ? (
+      {data?.crm || data?.reservas || data?.presupuesto ? (
         <div className="card-grid portal-resumen">
           {data.crm ? (
             <div className="card portal-home-card">
@@ -134,6 +142,36 @@ export function ClientDashboard() {
                 <p className="portal-pendiente es-ok"><strong>Todo confirmado</strong><span>No queda ninguna esperando.</span></p>
               )}
               <Link to="/portal/reservations" className="btn btn-primary btn-sm">Abrir reservas</Link>
+            </div>
+          ) : null}
+
+          {/*
+            El saldo de diseño: lo que le queda, no lo que gastó.
+
+            La cifra grande es lo disponible porque es la que decide si puede pedir una pieza
+            más. Lo reservado va aparte de lo consumido: es trabajo comprometido que todavía
+            puede soltarse, y sumarlo se leería como gastado sin estarlo.
+          */}
+          {data.presupuesto ? (
+            <div className="card portal-home-card">
+              <h3>{ud(data.presupuesto.disponible)}</h3>
+              <p>UD disponibles de {ud(data.presupuesto.contratado)} este mes</p>
+              {data.presupuesto.reservado > 0 ? (
+                <p className="portal-pendiente es-alto">
+                  <strong>{ud(data.presupuesto.reservado)} reservadas</strong>
+                  <span>Piezas comprometidas que aún no se cierran.</span>
+                </p>
+              ) : null}
+              <p className="portal-pendiente es-ok">
+                <strong>{ud(data.presupuesto.consumido)} consumidas</strong>
+                <span>{data.presupuesto.cerrado ? 'El mes ya está cerrado.' : 'Piezas terminadas y aprobadas.'}</span>
+              </p>
+              {data.presupuesto.disponible <= 0 && !data.presupuesto.cerrado ? (
+                <p className="portal-pendiente es-critico">
+                  <strong>Sin UD disponibles</strong>
+                  <span>Para pedir otra pieza este mes, habla con tu contacto en Espartanos.</span>
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>

@@ -10,6 +10,7 @@ import { ClientCapabilityService } from '../../core/client-scope/client-capabili
 import { CrmHomeService } from '../crm/leads/crm-home.service';
 import { Reservation } from '../reservations/domain/reservation.entity';
 import { Client } from '../clients/client.entity';
+import { UDBudget } from '../design-budget/ud-budget.entity';
 import { normalizeClientCapabilities } from '../clients/client-capabilities';
 import { UserRole } from '../organizations/user-role.enum';
 
@@ -47,6 +48,7 @@ export class PortalHomeController {
     @InjectRepository(Reservation) private readonly reservas: Repository<Reservation>,
     private readonly accesos: AccountAccessService,
     @InjectRepository(Client) private readonly clientes: Repository<Client>,
+    @InjectRepository(UDBudget) private readonly presupuestos: Repository<UDBudget>,
   ) {}
 
   /**
@@ -105,17 +107,55 @@ export class PortalHomeController {
     const clientId = pedida || req.user.clientId;
     if (!clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
 
-    const [tieneCrm, tieneReservas] = await Promise.all([
+    const [tieneCrm, tieneReservas, tienePresupuesto] = await Promise.all([
       this.capacidades.tiene(req.organizationId, clientId, 'crm'),
       this.capacidades.tiene(req.organizationId, clientId, 'reservations'),
+      this.capacidades.tiene(req.organizationId, clientId, 'budgetVisibility'),
     ]);
 
-    const [crm, reservas] = await Promise.all([
+    const [crm, reservas, presupuesto] = await Promise.all([
       tieneCrm ? this.bloqueCrm(req.organizationId, clientId) : Promise.resolve(undefined),
       tieneReservas ? this.bloqueReservas(req.organizationId, clientId) : Promise.resolve(undefined),
+      tienePresupuesto ? this.bloquePresupuesto(clientId) : Promise.resolve(undefined),
     ]);
 
-    return { crm, reservas };
+    return { crm, reservas, presupuesto };
+  }
+
+  /**
+   * Su presupuesto de diseño del mes: cuánto contrató, cuánto lleva y cuánto le queda.
+   *
+   * `budgetVisibility` existía como interruptor desde hacía tiempo —la ficha lo guardaba y el
+   * panel lo ofrecía— pero nadie lo leía: la empresa no veía nada. Éste es el lector.
+   *
+   * Lo disponible se calcula igual que en `reserve-ud.use-case.ts`, que es quien decide si una
+   * pieza cabe: contratado menos reservado menos consumido. Con otra fórmula, el portal diría
+   * que quedan UD y el motor rechazaría la pieza a continuación.
+   *
+   * Lo reservado se muestra aparte y no se suma a lo consumido: es trabajo comprometido que
+   * todavía puede soltarse, y mezclarlo haría leer como gastado algo que aún no lo está.
+   *
+   * @returns `undefined` si el mes no tiene presupuesto abierto. Es distinto de uno en cero: no
+   *   hay nada que contar todavía, y un cero se leería como que se acabó.
+   */
+  private async bloquePresupuesto(clientId: string) {
+    const ahora = new Date();
+    const presupuesto = await this.presupuestos.findOne({
+      where: { clientId, year: ahora.getFullYear(), month: ahora.getMonth() + 1 },
+    });
+    if (!presupuesto) return undefined;
+
+    const contratado = Number(presupuesto.contracted);
+    const reservado = Number(presupuesto.reserved);
+    const consumido = Number(presupuesto.consumed);
+    return {
+      contratado,
+      reservado,
+      consumido,
+      disponible: Math.round((contratado - reservado - consumido) * 100) / 100,
+      mes: `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}`,
+      cerrado: presupuesto.status !== 'open',
+    };
   }
 
   /**

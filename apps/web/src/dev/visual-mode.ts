@@ -976,6 +976,19 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   })],
   // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
   [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
+  /*
+   * El resumen del portal, con los tres bloques contratados.
+   *
+   * Cada clave ausente significa «no contratado», así que quitar una de aquí es la forma de
+   * revisar cómo se ve el portal de una empresa que sólo lleva uno de los servicios. El
+   * presupuesto trae reservado y consumido distintos de cero: con todo en cero no se verían ni
+   * el aviso de lo comprometido ni la resta que da lo disponible.
+   */
+  [/\/portal\/inicio/, () => ({
+    crm: { leadsDelMes: 12, pendientes: [{ key: 'sin_contactar', count: 3, level: 'critico' }, { key: 'calificados_sin_visita', count: 0, level: 'alto' }] },
+    reservas: { proximasDosDias: 4, sinConfirmar: 1 },
+    presupuesto: { contratado: 40, reservado: 7.5, consumido: 12.25, disponible: 20.25, mes: '2026-10', cerrado: false },
+  })],
   [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],
   /*
    * Datos de ejemplo del CRM.
