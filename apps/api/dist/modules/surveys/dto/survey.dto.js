@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubmitSurveyResponseDto = exports.SurveyVisitDto = exports.AttendSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = exports.SurveyShowRuleDto = void 0;
+exports.SurveyResultsQueryDto = exports.SubmitSurveyResponseDto = exports.SurveyVisitDto = exports.AttendSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = exports.SurveyShowRuleDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const QUESTION_TYPES = ['nps', 'rating', 'text', 'multiple-choice'];
@@ -87,6 +87,31 @@ __decorate([
     (0, class_validator_1.MaxLength)(40),
     __metadata("design:type", String)
 ], SurveyQuestionDto.prototype, "editadaEn", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(999),
+    __metadata("design:type", Number)
+], SurveyQuestionDto.prototype, "version", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    __metadata("design:type", String)
+], SurveyQuestionDto.prototype, "raizId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], SurveyQuestionDto.prototype, "vigenteDesde", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], SurveyQuestionDto.prototype, "vigenteHasta", void 0);
 class CreateSurveyDto {
 }
 exports.CreateSurveyDto = CreateSurveyDto;
@@ -173,6 +198,13 @@ __decorate([
     (0, class_validator_1.ArrayMaxSize)(50),
     __metadata("design:type", Array)
 ], UpdateSurveyDto.prototype, "questions", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    (0, class_validator_1.ArrayMaxSize)(50),
+    __metadata("design:type", Array)
+], UpdateSurveyDto.prototype, "nuevasVersiones", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(SURVEY_STATUSES),
@@ -316,3 +348,16 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], SubmitSurveyResponseDto.prototype, "aceptaPrivacidad", void 0);
+class SurveyResultsQueryDto {
+}
+exports.SurveyResultsQueryDto = SurveyResultsQueryDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], SurveyResultsQueryDto.prototype, "desde", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], SurveyResultsQueryDto.prototype, "hasta", void 0);

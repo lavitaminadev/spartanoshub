@@ -120,6 +120,10 @@ __decorate([
     __metadata("design:type", String)
 ], Lead.prototype, "discardReason", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'intentos_de_contacto', type: 'tinyint', unsigned: true, nullable: true }),
+    __metadata("design:type", Object)
+], Lead.prototype, "intentosDeContacto", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'assigned_to', type: 'uuid', nullable: true }),
     __metadata("design:type", Object)
 ], Lead.prototype, "assignedTo", void 0);

@@ -50,6 +50,20 @@ export interface SurveyQuestion {
     sensible?: boolean;
     /** Cuándo cambió su redacción teniendo ya respuestas. */
     editadaEn?: string;
+    /**
+     * Número de versión dentro de su familia; ausente equivale a 1.
+     *
+     * Una pregunta abre una versión nueva cuando deja de medir lo mismo: cambia de tipo, o quien
+     * edita declara que ahora pregunta otra cosa. Cada versión conserva su propio `id`, así que sus
+     * respuestas nunca se suman con las de otra versión.
+     */
+    version?: number;
+    /** `id` de la primera versión: agrupa todas las versiones de una misma pregunta. Ausente = es la primera. */
+    raizId?: string;
+    /** Desde cuándo esta versión recibe respuestas. Ausente en la primera versión: desde que se creó la encuesta. */
+    vigenteDesde?: string;
+    /** Cuándo fue reemplazada por una versión nueva. Presente sólo en las versiones cerradas. */
+    vigenteHasta?: string;
 }
 /** Aceptación que se pide cuando la encuesta solicita datos personales. */
 export interface SurveyConsent {
@@ -203,6 +217,28 @@ export interface SurveyResultsSummary {
      * carta y el cartel del mesón llevan la misma— y cruzarlas daría una fila por cada par.
      */
     campanas?: CampanaDeEncuesta[];
+    /**
+     * Respuestas de toda la encuesta, sin el recorte del período.
+     *
+     * Distingue «todavía no responde nadie» de «nadie respondió en estas fechas», que piden
+     * mensajes distintos.
+     */
+    totalDeLaEncuesta?: number;
+    /** En el período hay más respuestas de las que trae `respuestas`: el detalle viene recortado. */
+    detalleTruncado?: boolean;
+    /**
+     * Indicadores del período sobre **todas** sus respuestas, no sólo sobre el detalle.
+     *
+     * Van aparte porque el detalle se recorta para no mandar una encuesta entera en cada carga, y
+     * calcularlos sobre lo recortado daría una nota promedio de las últimas respuestas nada más.
+     */
+    delPeriodo?: {
+        /** Promedio de la nota de la reserva, con un decimal. `null` si ninguna la trae. */
+        promedio: number | null;
+        conMensaje: number;
+        /** Porcentaje que llegó hasta el final. `null` si no hubo respuestas. */
+        completaron: number | null;
+    };
 }
 /** Lo que una campaña trajo a una encuesta. */
 export interface CampanaDeEncuesta {

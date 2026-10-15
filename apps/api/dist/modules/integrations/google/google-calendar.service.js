@@ -20,40 +20,66 @@ const integration_entity_1 = require("../integration.entity");
 const integration_provider_enum_1 = require("../integration-provider.enum");
 const integration_secrets_1 = require("../../../shared/security/integration-secrets");
 const google_oauth_service_1 = require("./google-oauth.service");
+const CALENDARIO = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
 let GoogleCalendarService = class GoogleCalendarService {
     constructor(integrations, oauth) {
         this.integrations = integrations;
         this.oauth = oauth;
     }
     async createEvent(organizationId, event) {
+        const response = await this.conToken(organizationId, (token) => fetch(`${CALENDARIO}?conferenceDataVersion=1`, {
+            method: 'POST', headers: this.cabeceras(token), signal: AbortSignal.timeout(15000),
+            body: JSON.stringify({ ...this.cuerpo(event), conferenceData: { createRequest: { requestId: `espartanos-${crypto.randomUUID()}` } } }),
+        }));
+        const data = await response.json();
+        if (!response.ok)
+            throw new common_1.BadRequestException(data.error?.message ?? 'Google Calendar event creation failed');
+        return { externalId: data.id, calendarUrl: data.htmlLink, meetingLink: data.hangoutLink };
+    }
+    async updateEvent(organizationId, eventId, event) {
+        const response = await this.conToken(organizationId, (token) => fetch(`${CALENDARIO}/${encodeURIComponent(eventId)}`, {
+            method: 'PATCH', headers: this.cabeceras(token), signal: AbortSignal.timeout(15000),
+            body: JSON.stringify(this.cuerpo(event)),
+        }));
+        if (response.status === 404 || response.status === 410)
+            return { existe: false };
+        const data = await response.json();
+        if (!response.ok)
+            throw new common_1.BadRequestException(data.error?.message ?? 'Google Calendar event update failed');
+        return { existe: true, calendarUrl: data.htmlLink };
+    }
+    async deleteEvent(organizationId, eventId) {
+        const response = await this.conToken(organizationId, (token) => fetch(`${CALENDARIO}/${encodeURIComponent(eventId)}`, {
+            method: 'DELETE', headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000),
+        }));
+        if (response.status === 404 || response.status === 410)
+            return false;
+        if (!response.ok) {
+            const detalle = await response.text().catch(() => '');
+            throw new common_1.BadRequestException(`Google Calendar event deletion failed: ${response.status} ${detalle.slice(0, 200)}`);
+        }
+        return true;
+    }
+    async conToken(organizationId, pedir) {
         let integration = await this.integrations.findOne({ where: { organizationId, provider: integration_provider_enum_1.IntegrationProvider.GOOGLE } });
         if (!integration)
             throw new common_1.BadRequestException('Google is not connected');
         integration = await this.refreshIfExpiring(integration, organizationId);
-        let token = this.revealAccessToken(integration);
-        let response;
+        let response = await this.intentar(pedir, this.revealAccessToken(integration));
+        if (response.status === 401) {
+            integration = await this.oauth.refreshIntegration(integration.id, organizationId);
+            response = await this.intentar(pedir, this.revealAccessToken(integration));
+        }
+        return response;
+    }
+    async intentar(pedir, token) {
         try {
-            response = await this.sendEvent(token, event);
+            return await pedir(token);
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown network error';
             throw new common_1.BadRequestException(`Google Calendar request failed: ${message}`);
         }
-        if (response.status === 401) {
-            integration = await this.oauth.refreshIntegration(integration.id, organizationId);
-            token = this.revealAccessToken(integration);
-            try {
-                response = await this.sendEvent(token, event);
-            }
-            catch (error) {
-                const message = error instanceof Error ? error.message : 'Unknown network error';
-                throw new common_1.BadRequestException(`Google Calendar request failed: ${message}`);
-            }
-        }
-        const data = await response.json();
-        if (!response.ok)
-            throw new common_1.BadRequestException(data.error?.message ?? 'Google Calendar event creation failed');
-        return { externalId: data.id, calendarUrl: data.htmlLink, meetingLink: data.hangoutLink };
     }
     async refreshIfExpiring(integration, organizationId) {
         const expiry = typeof integration.config?.expiryDate === 'string' ? new Date(integration.config.expiryDate).getTime() : Number.NaN;
@@ -67,12 +93,17 @@ let GoogleCalendarService = class GoogleCalendarService {
             throw new common_1.BadRequestException('Google access token is unavailable');
         return token;
     }
-    sendEvent(token, event) {
+    cabeceras(token) {
+        return { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    }
+    cuerpo(event) {
         const end = new Date(event.start.getTime() + event.durationMinutes * 60_000);
-        return fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
-            method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, signal: AbortSignal.timeout(15000),
-            body: JSON.stringify({ summary: event.summary, description: event.description, start: { dateTime: event.start.toISOString() }, end: { dateTime: end.toISOString() }, conferenceData: { createRequest: { requestId: `espartanos-${crypto.randomUUID()}` } } }),
-        });
+        return {
+            summary: event.summary,
+            description: event.description,
+            start: { dateTime: event.start.toISOString() },
+            end: { dateTime: end.toISOString() },
+        };
     }
 };
 exports.GoogleCalendarService = GoogleCalendarService;

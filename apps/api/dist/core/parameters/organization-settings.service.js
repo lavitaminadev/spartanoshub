@@ -29,7 +29,7 @@ let OrganizationSettingsService = class OrganizationSettingsService {
         this.audit = audit;
         this.resolver = resolver;
     }
-    async list(organizationId, clientId) {
+    async list(organizationId, clientId, formId) {
         const definitions = await this.ensureDefinitions();
         const definitionByKey = new Map(definitions.map((definition) => [definition.key, definition]));
         const idsDeDefinicion = definitions.map((definition) => definition.id);
@@ -55,6 +55,19 @@ let OrganizationSettingsService = class OrganizationSettingsService {
         const propios = new Set(deLaEmpresa.map((value) => value.definitionId));
         for (const value of deLaEmpresa)
             valueByDefinition.set(value.definitionId, value);
+        const deLaReserva = formId
+            ? await this.valueRepo.find({
+                where: {
+                    definitionId: (0, typeorm_2.In)(idsDeDefinicion),
+                    scopeType: 'form',
+                    scopeId: formId,
+                    validTo: (0, typeorm_2.IsNull)(),
+                },
+            })
+            : [];
+        const deLaPropiaReserva = new Set(deLaReserva.map((value) => value.definitionId));
+        for (const value of deLaReserva)
+            valueByDefinition.set(value.definitionId, value);
         return organization_settings_catalog_1.ORGANIZATION_SETTINGS.map((setting) => {
             const definition = definitionByKey.get(setting.key);
             const override = valueByDefinition.get(definition.id);
@@ -69,7 +82,12 @@ let OrganizationSettingsService = class OrganizationSettingsService {
             };
         });
     }
-    async update(organizationId, actorId, requestedValues, clientId) {
+    async update(organizationId, actorId, requestedValues, clientId, formId) {
+        const ambito = formId
+            ? { tipo: 'form', id: formId }
+            : clientId
+                ? { tipo: 'client', id: clientId }
+                : { tipo: 'organization', id: organizationId };
         const catalogByKey = new Map(organization_settings_catalog_1.ORGANIZATION_SETTINGS.map((setting) => [setting.key, setting]));
         const normalizedValues = new Map();
         for (const [key, value] of Object.entries(requestedValues)) {
@@ -101,8 +119,8 @@ let OrganizationSettingsService = class OrganizationSettingsService {
                     const propia = await valueRepo.findOne({
                         where: {
                             definitionId: definition.id,
-                            scopeType: clientId ? 'client' : 'organization',
-                            scopeId: clientId ?? organizationId,
+                            scopeType: ambito.tipo,
+                            scopeId: ambito.id,
                             validTo: (0, typeorm_2.IsNull)(),
                         },
                         order: { version: 'DESC' },
@@ -118,8 +136,8 @@ let OrganizationSettingsService = class OrganizationSettingsService {
                 const active = await valueRepo.findOne({
                     where: {
                         definitionId: definition.id,
-                        scopeType: clientId ? 'client' : 'organization',
-                        scopeId: clientId ?? organizationId,
+                        scopeType: ambito.tipo,
+                        scopeId: ambito.id,
                         validTo: (0, typeorm_2.IsNull)(),
                     },
                     order: { version: 'DESC' },
@@ -133,8 +151,8 @@ let OrganizationSettingsService = class OrganizationSettingsService {
                 }
                 await valueRepo.save(valueRepo.create({
                     definitionId: definition.id,
-                    scopeType: clientId ? 'client' : 'organization',
-                    scopeId: clientId ?? organizationId,
+                    scopeType: ambito.tipo,
+                    scopeId: ambito.id,
                     valueJson: { value },
                     version: (active?.version ?? 0) + 1,
                     validFrom: now,

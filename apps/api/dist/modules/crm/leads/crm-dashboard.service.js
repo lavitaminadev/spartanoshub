@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var CrmDashboardService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CrmDashboardService = exports.TASA_COMISION = void 0;
 const common_1 = require("@nestjs/common");
@@ -18,10 +19,43 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const lead_entity_1 = require("./lead.entity");
 const lead_status_enum_1 = require("./lead-status.enum");
+const lead_fit_status_enum_1 = require("./lead-fit-status.enum");
 exports.TASA_COMISION = 0.02;
-let CrmDashboardService = class CrmDashboardService {
+let CrmDashboardService = CrmDashboardService_1 = class CrmDashboardService {
     constructor(leads) {
         this.leads = leads;
+        this.logger = new common_1.Logger(CrmDashboardService_1.name);
+    }
+    async conciliacionConLaPauta(base, desde) {
+        try {
+            const filas = await this.leads.manager.query(`SELECT
+           SUM(CASE WHEN o.entregados > 0 THEN 1 ELSE 0 END) AS entregados,
+           SUM(CASE WHEN o.entregados = 0 AND o.enCurso > 0 THEN 1 ELSE 0 END) AS enCurso,
+           SUM(CASE WHEN o.entregados = 0 AND o.enCurso = 0 AND o.total > 0 THEN 1 ELSE 0 END) AS perdidos,
+           SUM(CASE WHEN o.total IS NULL THEN 1 ELSE 0 END) AS sinEvento
+         FROM leads l
+         LEFT JOIN (
+           SELECT SUBSTRING(event_id, LOCATE(':', event_id) + 1) AS lead_id,
+                  COUNT(*) AS total,
+                  SUM(status = 'processed') AS entregados,
+                  SUM(status IN ('pending', 'retry', 'processing')) AS enCurso
+           FROM meta_conversion_outbox
+           WHERE organization_id = ? AND event_id LIKE 'lead-%'
+           GROUP BY lead_id
+         ) o ON o.lead_id = l.id
+         WHERE l.organization_id = ? AND l.created_at >= ?`, [base.organizationId, base.organizationId, desde]);
+            const fila = filas[0] ?? {};
+            return {
+                entregados: Number(fila.entregados ?? 0),
+                enCurso: Number(fila.enCurso ?? 0),
+                perdidos: Number(fila.perdidos ?? 0),
+                sinEvento: Number(fila.sinEvento ?? 0),
+            };
+        }
+        catch (error) {
+            this.logger.warn(`No se pudo conciliar con la pauta: ${error instanceof Error ? error.message : error}`);
+            return null;
+        }
     }
     async dashboard(organizationId, days, alcance = {}) {
         const desde = new Date(Date.now() - days * 86_400_000);
@@ -47,7 +81,7 @@ let CrmDashboardService = class CrmDashboardService {
             this.porDia(base, desde),
             this.agrupar(base, 'discard_reason', lead_status_enum_1.LeadStatus.LOST),
         ]);
-        const [montoVendido, pipelineAbierto, estancados] = await Promise.all([
+        const [montoVendido, pipelineAbierto, estancados, cerradosSinSaber] = await Promise.all([
             this.sumar(base, lead_status_enum_1.LeadStatus.WON),
             this.sumarAbiertos(base),
             this.leads.count({
@@ -56,12 +90,19 @@ let CrmDashboardService = class CrmDashboardService {
                     updatedAt: (0, typeorm_2.LessThan)(new Date(Date.now() - 7 * 86_400_000)),
                 }),
             }),
+            this.leads.count({
+                where: criterio({
+                    status: lead_status_enum_1.LeadStatus.LOST,
+                    fitStatus: (0, typeorm_2.In)([lead_fit_status_enum_1.LeadFitStatus.REVIEW, lead_fit_status_enum_1.LeadFitStatus.IN_REVIEW]),
+                }),
+            }),
         ]);
-        const [tiempoDeCierre, conversionPorSetter, mejorCampana, contacto] = await Promise.all([
+        const [tiempoDeCierre, conversionPorSetter, mejorCampana, contacto, pauta] = await Promise.all([
             this.tiempoDeCierre(base),
             this.conversionPorSetter(base),
             this.mejorCampana(base),
             this.contacto(base, desde),
+            this.conciliacionConLaPauta(base, desde),
         ]);
         const mejorSetter = conversionPorSetter
             .filter((fila) => fila.leads >= 3)
@@ -87,12 +128,14 @@ let CrmDashboardService = class CrmDashboardService {
                 pipelineAbierto,
                 ticketPromedio: ventas > 0 ? Math.round(montoVendido / ventas) : 0,
                 estancados,
+                cerradosSinSaber,
             },
             porEtapa,
             porFuente,
             porDia,
             motivosDeCierre: motivos,
             contacto,
+            pauta,
         };
     }
     async sumar(base, status) {
@@ -234,7 +277,7 @@ let CrmDashboardService = class CrmDashboardService {
     }
 };
 exports.CrmDashboardService = CrmDashboardService;
-exports.CrmDashboardService = CrmDashboardService = __decorate([
+exports.CrmDashboardService = CrmDashboardService = CrmDashboardService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
     __metadata("design:paramtypes", [typeorm_2.Repository])

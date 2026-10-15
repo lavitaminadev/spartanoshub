@@ -78,6 +78,8 @@ let UpdateLeadUseCase = UpdateLeadUseCase_1 = class UpdateLeadUseCase {
             lead.notes = data.notes;
         if (data.discardReason !== undefined)
             lead.discardReason = data.discardReason;
+        if (data.intentosDeContacto !== undefined)
+            lead.intentosDeContacto = data.intentosDeContacto;
         if (data.tags !== undefined)
             lead.tags = data.tags;
         if (data.estimatedAmount !== undefined)

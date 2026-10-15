@@ -34,6 +34,23 @@ function urlDelLogo() {
     const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '') ?? '';
     return `${base}/brand/espartanos-helmet.png`;
 }
+function cabeceraDeMarca(logo, nombre) {
+    const propio = typeof logo === 'string' && /^https?:\/\//i.test(logo.trim()) ? logo.trim() : '';
+    const marcaDeLaAgencia = `<img src="${escaparHtml(urlDelLogo())}" alt="${escaparHtml(brand_1.BRAND.name)}" width="36" height="36"
+                   style="display:block;border:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;
+                          font-weight:700;color:#ea0f63;">`;
+    if (!propio)
+        return marcaDeLaAgencia;
+    return `<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                <td style="padding-right:10px;">
+                  <img src="${escaparHtml(propio)}" alt="${escaparHtml(nombre || '')}" height="36"
+                       style="display:block;border:0;max-height:36px;font-family:Helvetica,Arial,sans-serif;
+                              font-size:15px;font-weight:700;color:#22242a;">
+                </td>
+                <td style="padding-right:10px;border-left:1px solid #e7e1e5;"></td>
+                <td>${marcaDeLaAgencia}</td>
+              </tr></table>`;
+}
 function tarjetasDeCorreo(titulo, tarjetas) {
     if (tarjetas.length === 0)
         return '';
@@ -61,7 +78,9 @@ function detalleDeCorreo(filas) {
     </tr>`).join('');
     return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 2px;border-top:1px solid #ececf0;padding-top:10px;">${celdas}</table>`;
 }
-function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader, baja) {
+function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader, baja, marca) {
+    const logoDelCliente = marca?.logo;
+    const nombreDelCliente = marca?.nombre;
     const boton = accion
         ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px;">
          <tr><td style="border-radius:8px;background:#ea0f63;">
@@ -134,9 +153,7 @@ function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader, baja
                class="tarjeta" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;">
           <tr>
             <td class="cabecera" style="padding:22px 26px 6px;">
-              <img src="${escaparHtml(urlDelLogo())}" alt="${escaparHtml(brand_1.BRAND.name)}" width="36" height="36"
-                   style="display:block;border:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;
-                          font-weight:700;color:#ea0f63;">
+              ${cabeceraDeMarca(logoDelCliente, nombreDelCliente)}
             </td>
           </tr>
           <tr>
@@ -178,7 +195,7 @@ function armazonDeCorreo(titulo, cuerpo, accion, extra, detalle, preheader, baja
 </body>
 </html>`;
 }
-function componerCorreo(asunto, cuerpo, variables, accion, extra, detalle, baja) {
+function componerCorreo(asunto, cuerpo, variables, accion, extra, detalle, baja, marca) {
     const subject = asunto.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (_todo, nombre) => {
         const valor = variables[nombre];
         return valor === null || valor === undefined ? '' : String(valor);
@@ -187,7 +204,7 @@ function componerCorreo(asunto, cuerpo, variables, accion, extra, detalle, baja)
     const preheader = cuerpoEnTexto.split('\n').map((linea) => linea.trim()).find(Boolean)?.slice(0, 140);
     return {
         subject,
-        html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader, baja),
+        html: armazonDeCorreo(subject, cuerpoEnTexto, accion, extra, detalle, preheader, baja, marca),
         text: comoTextoPlano(subject, cuerpoEnTexto, accion, detalle),
     };
 }
