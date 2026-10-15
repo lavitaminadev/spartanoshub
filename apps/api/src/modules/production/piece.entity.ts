@@ -23,6 +23,14 @@ export class Piece {
    */
   @Column({ type: 'varchar', length: 50 }) type: string;
   @Column({ type: 'varchar', length: 255 }) title: string;
+  /**
+   * El brief del que salió esta pieza, si salió de uno.
+   *
+   * Nulo es un caso legítimo y seguirá siéndolo: un arreglo pedido por teléfono o una corrección
+   * nacen sin brief, y exigirlo convertiría el vínculo en un trámite. Sin llave foránea, para que
+   * borrar un brief no arrastre el trabajo ya producido ni quede bloqueado por él.
+   */
+  @Column({ name: 'brief_id', type: 'char', length: 36, nullable: true }) briefId?: string | null;
   @Column({ type: 'varchar', length: 50, default: PieceStatus.BACKLOG }) status: PieceStatus;
 
   /** De quien fue la decision de cancelar; se declara al cancelar y no se deduce del cargo. */

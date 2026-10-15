@@ -27,6 +27,7 @@ import { ApprovalRequestStatus } from '../approvals/approval-request-status.enum
 import { PieceVersion } from './piece-version.entity';
 import { UdValuesService } from '../design-budget/ud-values.service';
 import { Client } from '../clients/client.entity';
+import { Brief } from '../briefs/brief.entity';
 import { User } from '../users/user.entity';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
@@ -45,6 +46,8 @@ export class ProductionController {
     @InjectRepository(PieceVersion) private versionRepo: Repository<PieceVersion>,
     @InjectRepository(Client) private clientRepo: Repository<Client>,
     @InjectRepository(User) private userRepo: Repository<User>,
+    // Sólo de lectura: el brief lo escribe su propio módulo.
+    @InjectRepository(Brief) private briefRepo: Repository<Brief>,
     private readonly accountAccess: AccountAccessService,
     private readonly workflow: ProductionWorkflowService,
     private readonly parameters: ParameterResolver,
@@ -69,12 +72,32 @@ export class ProductionController {
       const dependencyCount = await this.pieceRepo.count({ where: { id: In(dto.dependencyIds), organizationId: req.organizationId } });
       if (dependencyCount !== new Set(dto.dependencyIds).size) throw new BadRequestException('Una o más dependencias no pertenecen a esta organización');
     }
+    /*
+     * El brief viaja con la pieza, y lo que ya decía no se vuelve a escribir.
+     *
+     * Los dos módulos vivían uno al lado del otro sin tocarse: alguien redactaba el pedido y otra
+     * persona lo tecleaba de nuevo al crear la pieza, con lo que las dos versiones empezaban a
+     * separarse desde el primer día. Lo escrito en la pieza manda —quien crea puede precisar el
+     * título— y el brief sólo rellena lo que venga vacío.
+     *
+     * Se comprueba que sea de la misma empresa: un brief de otra convertiría este campo en una
+     * forma de mirar lo que esa cuenta no alcanza.
+     */
+    const brief = dto.briefId
+      ? await this.briefRepo.findOne({ where: { id: dto.briefId, organizationId: req.organizationId } })
+      : null;
+    if (dto.briefId && !brief) throw new BadRequestException('El brief no existe en esta organización');
+    if (brief && brief.clientId && brief.clientId !== dto.clientId) {
+      throw new BadRequestException('Ese brief es de otra empresa: una pieza no puede nacer del pedido de un cliente distinto');
+    }
+
     const { carouselSlides, deadlineAt, ...pieceData } = dto;
     const piece = this.pieceRepo.create({
       ...pieceData,
       organizationId: req.organizationId,
       status: PieceStatus.BACKLOG,
-      title: dto.title.trim(),
+      title: dto.title.trim() || brief?.title || '',
+      description: dto.description?.trim() || brief?.description || undefined,
       deadlineAt: deadlineAt ? new Date(deadlineAt) : undefined,
       udAmount: await this.udValues.udFor(dto.type, carouselSlides, req.organizationId),
     });
