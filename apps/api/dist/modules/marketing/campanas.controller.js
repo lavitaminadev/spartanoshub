@@ -21,6 +21,24 @@ const module_scope_decorator_1 = require("../../core/authorization/module-scope.
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const campanas_service_1 = require("./campanas.service");
+class ListarCampanasDto {
+}
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['draft', 'sending', 'sent']),
+    __metadata("design:type", String)
+], ListarCampanasDto.prototype, "estado", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], ListarCampanasDto.prototype, "cupon", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['true', 'false']),
+    __metadata("design:type", String)
+], ListarCampanasDto.prototype, "conCupon", void 0);
 class CrearCampanaDto {
 }
 __decorate([
@@ -80,8 +98,8 @@ let CampanasController = class CampanasController {
     constructor(campanas) {
         this.campanas = campanas;
     }
-    listar(req) {
-        return this.campanas.listar(req.organizationId || req.user.organizationId);
+    listar(req, filtros) {
+        return this.campanas.listar(req.organizationId || req.user.organizationId, undefined, filtros);
     }
     async destinatarios(req, empresa, destino) {
         return this.campanas.destinatarios(req.organizationId || req.user.organizationId, empresa, destino === 'administradores' ? 'administradores' : 'lista');
@@ -119,8 +137,9 @@ __decorate([
     (0, common_1.Get)(),
     (0, swagger_1.ApiOperation)({ summary: 'Campañas escritas, enviadas y en borrador' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, ListarCampanasDto]),
     __metadata("design:returntype", void 0)
 ], CampanasController.prototype, "listar", null);
 __decorate([

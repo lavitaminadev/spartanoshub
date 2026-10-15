@@ -3059,6 +3059,42 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             })),
         };
     }
+    async canjesDeCupon(organizationId, couponId, clientIds, filtros) {
+        const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
+        if (!coupon)
+            throw new common_1.NotFoundException('Cupón no encontrado');
+        if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+            throw new common_1.ForbiddenException('No tienes acceso a este cupón');
+        }
+        const qb = this.canjes.createQueryBuilder('canje')
+            .where('canje.organization_id = :organizationId', { organizationId })
+            .andWhere('canje.coupon_id = :couponId', { couponId });
+        if (filtros.desde)
+            qb.andWhere('canje.created_at >= :desde', { desde: new Date(filtros.desde) });
+        if (filtros.hasta) {
+            const hasta = new Date(filtros.hasta);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(filtros.hasta.trim()))
+                hasta.setHours(23, 59, 59, 999);
+            qb.andWhere('canje.created_at <= :hasta', { hasta });
+        }
+        if (filtros.canal)
+            qb.andWhere('canje.canal = :canal', { canal: filtros.canal });
+        const filas = await qb.orderBy('canje.created_at', 'DESC').take(filtros.limite ?? 500).getMany();
+        return {
+            codigo: coupon.code,
+            total: filas.length,
+            canjes: filas.map((canje) => ({
+                id: canje.id,
+                fecha: canje.createdAt,
+                canal: canje.canal,
+                persona: canje.persona,
+                monto: canje.monto,
+                descuento: canje.descuento,
+                nota: canje.nota,
+                reservationId: canje.reservationId,
+            })),
+        };
+    }
     async buscarCuponPorCodigo(organizationId, codigo, clientIds) {
         const coupon = await this.coupons.findOne({
             where: { organizationId, code: codigo.trim().toUpperCase() },
@@ -3186,7 +3222,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             volvieronDelCorreo: Number(fila.volvieron) || 0,
         }));
     }
-    listCoupons(organizationId, clientId, clientIds) {
+    listCoupons(organizationId, clientId, clientIds, filtros) {
         const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
         if (clientId)
             qb.andWhere('coupon.client_id = :clientId', { clientId });
@@ -3194,6 +3230,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             qb.andWhere('coupon.client_id IN (:...clientIds)', { clientIds });
         else if (clientIds !== undefined)
             qb.andWhere('1 = 0');
+        if (filtros?.codigo)
+            qb.andWhere('coupon.code LIKE :codigo', { codigo: `%${filtros.codigo}%` });
+        const VIGENTE = 'coupon.active = 1 AND (coupon.valid_from IS NULL OR coupon.valid_from <= NOW()) AND (coupon.valid_until IS NULL OR coupon.valid_until >= NOW()) AND (coupon.max_uses = 0 OR coupon.usage_count < coupon.max_uses)';
+        if (filtros?.estado === 'vigente')
+            qb.andWhere(VIGENTE);
+        if (filtros?.estado === 'vencido')
+            qb.andWhere(`NOT (${VIGENTE})`);
+        if (filtros?.estado === 'inactivo')
+            qb.andWhere('coupon.active = 0');
         return qb.orderBy('coupon.created_at', 'DESC').getMany();
     }
     async validatePublicCoupon(slug, code, startsAt) {
