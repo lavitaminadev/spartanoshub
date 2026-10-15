@@ -510,6 +510,10 @@
 .question-regla-valores { display: grid; gap: 6px; }
 .question-regla-valores > span { font-size: 12px; font-weight: 700; color: var(--muted); }
 .question-regla-valores > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.question-version { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-left: 3px solid var(--cyan); border-radius: 8px; background: #faf8f9; }
+.question-version > span { font-size: 12px; font-weight: 700; color: var(--muted); }
+.question-version > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.question-version > small { color: #4f4852; font-size: 12px; }
 .survey-chip { min-height: 32px; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; }
 .survey-chip.active { border-color: var(--cyan); background: var(--cyan-soft); color: var(--cyan-text, var(--ink)); }
 
@@ -540,6 +544,10 @@
 .results-periodo { display: inline-flex; flex-wrap: wrap; width: max-content; max-width: 100%; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); }
 .results-periodo button { min-height: 34px; padding: 4px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 700; cursor: pointer; }
 .results-periodo button.active { background: var(--ink); color: var(--white); }
+/* Las fechas a medida van en la misma píldora que los atajos: es un solo control de período. */
+.results-periodo-fecha { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.results-periodo-fecha input { min-height: 34px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); color: var(--ink); font: inherit; font-weight: 600; }
+.results-periodo .btn-link { min-height: 34px; padding: 4px 10px; color: var(--muted); font-size: 12px; text-decoration: underline; }
 .results-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .results-kpis > div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--card-radius, 12px); background: var(--white); }
 .results-kpis span { color: var(--muted); font-size: 12px; font-weight: 700; }

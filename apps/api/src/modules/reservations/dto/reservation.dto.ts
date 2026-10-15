@@ -425,6 +425,25 @@ export class ListReservationsDto {
   @IsOptional() @IsString() @MaxLength(120) resourceId?: string;
   /** Sólo las asistencias que dio por hechas el cierre automático, sin que nadie las marcara. */
   @IsOptional() @IsIn(['true']) asistenciaSupuesta?: string;
+  /*
+   * De dónde vino la reserva.
+   *
+   * Las columnas existían desde hacía meses y ninguna se podía consultar: se sabía de qué campaña
+   * venía cada reserva mirando la fila, y no había forma de preguntarlo desde la aplicación.
+   *
+   * Coinciden exactamente y no por fragmento. Una campaña se llama como se llama, y un `LIKE` con
+   * comodín inicial impide usar cualquier índice sobre la columna; para buscar por un trozo del
+   * nombre ya está el buscador general.
+   */
+  @IsOptional() @IsString() @MaxLength(120) utmSource?: string;
+  @IsOptional() @IsString() @MaxLength(120) utmCampaign?: string;
+  @IsOptional() @IsString() @MaxLength(120) utmMedium?: string;
+  /**
+   * `detectado` deja sólo lo que el sistema dedujo del encabezado; `declarado`, lo que venía
+   * marcado en el enlace. Mezclarlos presenta una suposición como dato, que es justo lo que la
+   * columna `origin_detected` existe para separar.
+   */
+  @IsOptional() @IsIn(['detectado', 'declarado']) origen?: 'detectado' | 'declarado';
 }
 export class UpdateCouponDto {
   @IsOptional() @IsBoolean() active?: boolean;
@@ -447,6 +466,25 @@ export class ExportFormReservationsDto {
   @IsOptional() @IsDateString() dateFrom?: string;
   @IsOptional() @IsDateString() dateTo?: string;
   @IsArray() @IsString({ each: true }) @MaxLength(120, { each: true }) fields: string[];
+}
+
+/** Filtros de la lista de cupones. Aparte del alcance porque sólo los usa esa pantalla. */
+export class ListCouponsDto {
+  @IsOptional() @IsUUID() clientId?: string;
+  /** `vigente` es lo canjeable hoy: encendido, dentro de fechas y con usos libres. */
+  @IsOptional() @IsIn(['vigente', 'vencido', 'inactivo']) estado?: 'vigente' | 'vencido' | 'inactivo';
+  /** Coincide por fragmento: se busca un cupón recordando la mitad del código. */
+  @IsOptional() @IsString() @MaxLength(80) codigo?: string;
+}
+
+/** Filtros de la lista de canjes de un cupón. */
+export class ListCanjesDto {
+  @IsOptional() @IsDateString() desde?: string;
+  /** Se corre al final del día: «al 31» incluye el 31. */
+  @IsOptional() @IsDateString() hasta?: string;
+  /** `reserva` es el que se aplicó al reservar; `local`, el que anotó alguien en la caja. */
+  @IsOptional() @IsIn(['reserva', 'local']) canal?: 'reserva' | 'local';
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(2000) limite?: number;
 }
 
 export class ReservationScopeDto {

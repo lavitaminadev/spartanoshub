@@ -279,6 +279,10 @@ __decorate([
     __metadata("design:type", String)
 ], Reservation.prototype, "calendarUrl", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'calendar_sync_pending', type: 'varchar', length: 10, nullable: true }),
+    __metadata("design:type", Object)
+], Reservation.prototype, "calendarSyncPending", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'coupon_code', type: 'varchar', length: 80, nullable: true }),
     __metadata("design:type", String)
 ], Reservation.prototype, "couponCode", void 0);

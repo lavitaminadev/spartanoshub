@@ -254,7 +254,7 @@ let ReservationsController = class ReservationsController {
     async listCoupons(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
         const [cupones, uso] = await Promise.all([
-            this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds),
+            this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds, { estado: query.estado, codigo: query.codigo }),
             this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds),
         ]);
         const porCodigo = new Map(uso.map((fila) => [fila.code, fila]));
@@ -285,6 +285,10 @@ let ReservationsController = class ReservationsController {
     async metricasDeCupon(req, id) {
         const scope = await this.scope(req);
         return this.service.metricasDeCupon(req.organizationId, id, scope.clientIds);
+    }
+    async canjesDeCupon(req, id, query) {
+        const scope = await this.scope(req);
+        return this.service.canjesDeCupon(req.organizationId, id, scope.clientIds, query);
     }
     async canjearCuponEnLocal(req, id, dto) {
         const scope = await this.scope(req);
@@ -627,7 +631,7 @@ __decorate([
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ListCouponsDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "listCoupons", null);
 __decorate([
@@ -671,6 +675,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "metricasDeCupon", null);
+__decorate([
+    (0, common_1.Get)('coupons/:id/canjes'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.ListCanjesDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "canjesDeCupon", null);
 __decorate([
     (0, common_1.Post)('coupons/:id/canjes'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),

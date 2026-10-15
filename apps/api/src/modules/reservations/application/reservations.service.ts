@@ -1754,6 +1754,7 @@ export class ReservationsService {
     record.usedAt = new Date();
     await this.managementTokens.save(record);
     void this.sendCalendarUpdate(reservation, 'CANCELLED');
+    void this.sincronizarCalendarioDelLocal(saved, 'borrar');
     void this.avisarCupoLiberado(saved);
     void this.avisarCambioDelCliente(saved, 'cancelada');
     return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
@@ -2105,6 +2106,65 @@ export class ReservationsService {
     }
   }
 
+  /**
+   * Deja el evento del calendario del local igual que la reserva.
+   *
+   * Es otra cosa que `sendCalendarUpdate`: ése manda un .ics al comensal, a su propio calendario.
+   * Esto toca el evento que vive en el Google Calendar del local, el que mira el equipo antes de
+   * abrir. Hasta ahora se creaba al reservar y no se volvía a tocar: una reserva movida al sábado
+   * seguía anotada el jueves, y una cancelada seguía ocupando la hora.
+   *
+   * Sin esperar y sin fallar: el estado de la reserva ya quedó guardado, y que Google no responda
+   * no es motivo para devolverle un error a quien acaba de cancelar. Queda en el registro.
+   *
+   * Si Google dice que el evento ya no está —lo borró alguien desde el calendario— se limpia
+   * `calendarEventId`, porque seguir guardando el id de algo que no existe sólo hace que el próximo
+   * intento vuelva a preguntar por él.
+   *
+   * @param accion - `mover` reescribe hora y título; `borrar` lo quita del calendario.
+   */
+  private async sincronizarCalendarioDelLocal(booking: Reservation, accion: 'mover' | 'borrar'): Promise<void> {
+    try {
+      if (!booking.calendarEventId) return;
+      const form = await this.forms.findOne({ where: { id: booking.formId } });
+      if (!form?.calendarEnabled) return;
+
+      if (accion === 'borrar') {
+        await this.calendar.deleteEvent(form.organizationId, booking.calendarEventId);
+        await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
+        return;
+      }
+
+      const resultado = await this.calendar.updateEvent(form.organizationId, booking.calendarEventId, {
+        summary: `${form.name}: ${booking.guestName}`,
+        description: `Reserva ${booking.referenceCode}`,
+        start: booking.startsAt,
+        durationMinutes: Math.round((booking.endsAt.getTime() - booking.startsAt.getTime()) / 60000),
+      });
+      if (!resultado.existe) {
+        // El evento ya no está. Se olvida el id: el trabajo que recupera integraciones pendientes
+        // busca justamente las reservas sin `calendar_event_id`, así que volverá a crearlo.
+        await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
+        return;
+      }
+      await this.reservations.update(booking.id, {
+        calendarSyncPending: null,
+        ...(resultado.calendarUrl && resultado.calendarUrl !== booking.calendarUrl ? { calendarUrl: resultado.calendarUrl } : {}),
+      });
+    } catch (err) {
+      this.logger.warn(`No se pudo sincronizar el calendario del local para la reserva ${booking.id}: ${err instanceof Error ? err.message : err}`);
+      /*
+       * Queda anotado qué le falta al calendario, para que el trabajo de recuperación lo reintente.
+       *
+       * Sin esta marca el fallo era definitivo: el evento sigue existiendo con la hora vieja, así
+       * que la reserva no aparece en la búsqueda de «sin `calendar_event_id`» y nadie vuelve a
+       * intentarlo. Si ni siquiera se puede escribir la marca no hay nada más que hacer acá.
+       */
+      await this.reservations.update(booking.id, { calendarSyncPending: accion })
+        .catch((marcaErr) => this.logger.warn(`Tampoco se pudo anotar el calendario pendiente de la reserva ${booking.id}: ${marcaErr instanceof Error ? marcaErr.message : marcaErr}`));
+    }
+  }
+
   async reschedulePublicManagement(token: string, requestedStartsAt: string, requestedPartySize?: number) {
     const { record, reservation } = await this.managementReservation(token);
     if (!ACTIVE_STATUSES.includes(reservation.status)) throw new ConflictException('Esta reserva ya no se puede reagendar');
@@ -2140,6 +2200,7 @@ export class ReservationsService {
     record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
     await this.managementTokens.save(record);
     void this.sendCalendarUpdate(saved, 'PUBLISH');
+    void this.sincronizarCalendarioDelLocal(saved, 'mover');
     void this.avisarCambioDelCliente(saved, 'cambiada', reservation.startsAt);
     return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
   }
@@ -3076,7 +3137,22 @@ export class ReservationsService {
   }
 
   async listReservations(organizationId: string, query: ListReservationsDto, clientId?: string, clientIds?: string[], includeInternalNotes = true) {
-    const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.asistenciaSupuesta === 'true') qb.andWhere(ASISTENCIA_SUPUESTA_SQL); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); if (query.resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId }); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
+    const page = query.page ?? 1; const pageSize = query.pageSize ?? 50; const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }); if (clientId) qb.andWhere('r.client_id = :clientId', { clientId }); else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds }); if (query.formId) qb.andWhere('r.form_id = :formId', { formId: query.formId }); if (query.status) qb.andWhere('r.status = :status', { status: query.status }); if (query.asistenciaSupuesta === 'true') qb.andWhere(ASISTENCIA_SUPUESTA_SQL); if (query.from) qb.andWhere('r.starts_at >= :from', { from: query.from }); if (query.to) qb.andWhere('r.starts_at <= :to', { to: query.to });     if (query.search) qb.andWhere('(r.guest_name LIKE :search OR r.guest_email LIKE :search OR r.guest_phone LIKE :search OR r.reference_code LIKE :search)', { search: `%${query.search}%` }); if (query.couponCode) qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode }); if (query.resourceId) qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId });
+    /*
+     * De donde vino la reserva.
+     *
+     * Coinciden exactas y no por fragmento: un LIKE con comodin inicial impediria usar el indice
+     * de la columna, y para buscar por un trozo del nombre ya esta el buscador general.
+     *
+     * `origen` no filtra una columna de texto sino la marca de como se supo: `origin_detected`
+     * distingue lo que el sistema dedujo del encabezado de lo que venia declarado en el enlace,
+     * y mezclarlos presentaria una suposicion como dato.
+     */
+    if (query.utmSource) qb.andWhere('r.utm_source = :utmSource', { utmSource: query.utmSource });
+    if (query.utmCampaign) qb.andWhere('r.utm_campaign = :utmCampaign', { utmCampaign: query.utmCampaign });
+    if (query.utmMedium) qb.andWhere('r.utm_medium = :utmMedium', { utmMedium: query.utmMedium });
+    if (query.origen === 'detectado') qb.andWhere('r.origin_detected = 1');
+    if (query.origen === 'declarado') qb.andWhere('(r.origin_detected = 0 OR r.origin_detected IS NULL)'); const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount(); const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
     const conversions = await this.metaConversionStatus(organizationId, items);
     const supuestas = await this.asistenciasSupuestas(safeItems.filter((item) => item.status === 'attended').map((item) => item.id));
     const withConversion = safeItems.map((item) => ({ ...item, metaConversion: conversions.get(item.id), ...(supuestas.has(item.id) ? { asistenciaSupuesta: true } : {}) }));
@@ -3132,6 +3208,14 @@ export class ReservationsService {
     let formForMeta: ReservationForm | undefined;
     let statusChangedTo: string | undefined;
     let calendarNotification: 'CANCELLED' | 'PUBLISH' | undefined;
+    /*
+     * El calendario del local se decide aparte del aviso al comensal.
+     *
+     * No coinciden: al comensal sólo se le avisa si canceló el local —si canceló él, ya lo sabe—,
+     * pero del calendario del local hay que quitar la reserva cancelase quien la cancelase, porque
+     * si no sigue ocupando la hora para el equipo.
+     */
+    let calendarioDelLocal: 'mover' | 'borrar' | undefined;
     // Confirmar a mano era el unico paso del flujo del que nadie se enteraba fuera del panel.
     let confirmoUnaPendiente = false;
     // Una espera confirmada por el equipo es una reserva nueva para las campañas.
@@ -3162,7 +3246,7 @@ export class ReservationsService {
         statusChangedTo = dto.status;
         item.status = dto.status;
         if (dto.status === 'cancelled_business') calendarNotification = 'CANCELLED';
-        if (dto.status.startsWith('cancelled')) { await this.devolverCupon(manager, item); liberoCupo = true; }
+        if (dto.status.startsWith('cancelled')) { await this.devolverCupon(manager, item); liberoCupo = true; calendarioDelLocal = 'borrar'; }
       }
       if (dto.internalNotes !== undefined) item.internalNotes = dto.internalNotes;
       /*
@@ -3184,7 +3268,7 @@ export class ReservationsService {
         }
         item.resourceId = destino || undefined;
       }
-      const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) calendarNotification = 'PUBLISH'; if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
+      const result = await repo.save(item); const changedStart = previousStart.getTime() !== result.startsAt.getTime(); if (changedStart) { calendarNotification = 'PUBLISH'; calendarioDelLocal = calendarioDelLocal ?? 'mover'; } if (previousStatus !== result.status || changedStart) await manager.save(ReservationEvent, manager.create(ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined })); return result; });
     const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
     // Intencionalmente no se envía evento de Meta CAPI para 'no_show': la Conversions API no tiene
     // concepto de conversión negativa/revertida, así que no hay nada correcto que enviarle a Meta
@@ -3221,6 +3305,7 @@ export class ReservationsService {
       }
     }
     if (calendarNotification) void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
+    if (calendarioDelLocal) void this.sincronizarCalendarioDelLocal(saved, calendarioDelLocal);
     if (liberoCupo) void this.avisarCupoLiberado(saved);
     return saved;
   }
@@ -3882,6 +3967,58 @@ export class ReservationsService {
   }
 
   /**
+   * Los canjes de un cupón, uno por uno y acotables.
+   *
+   * Las métricas resumen y devuelven los veinte últimos, que responde «cómo va» pero no «qué
+   * pasó el sábado» ni «cuáles se anotaron en la caja». Los canjes se guardaban desde la 0174 y
+   * su índice `(coupon_id, created_at)` se creó justo para recorrerlos por fecha; hasta ahora
+   * nada lo usaba, porque sólo existía la forma de crear uno.
+   *
+   * El recorte lo hace el motor y no la pantalla: filtrar en el navegador sobre lo ya traído
+   * deja fuera lo que no vino, que es el mismo defecto que los resultados de encuesta tenían.
+   */
+  async canjesDeCupon(
+    organizationId: string,
+    couponId: string,
+    clientIds: string[] | undefined,
+    filtros: { desde?: string; hasta?: string; canal?: 'reserva' | 'local'; limite?: number },
+  ) {
+    const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
+    if (!coupon) throw new NotFoundException('Cupón no encontrado');
+    if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+      throw new ForbiddenException('No tienes acceso a este cupón');
+    }
+
+    const qb = this.canjes.createQueryBuilder('canje')
+      .where('canje.organization_id = :organizationId', { organizationId })
+      .andWhere('canje.coupon_id = :couponId', { couponId });
+    if (filtros.desde) qb.andWhere('canje.created_at >= :desde', { desde: new Date(filtros.desde) });
+    // `hasta` se corre al final del día: la fecha se escribe sin hora y «al 31» incluye el 31.
+    if (filtros.hasta) {
+      const hasta = new Date(filtros.hasta);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(filtros.hasta.trim())) hasta.setHours(23, 59, 59, 999);
+      qb.andWhere('canje.created_at <= :hasta', { hasta });
+    }
+    if (filtros.canal) qb.andWhere('canje.canal = :canal', { canal: filtros.canal });
+
+    const filas = await qb.orderBy('canje.created_at', 'DESC').take(filtros.limite ?? 500).getMany();
+    return {
+      codigo: coupon.code,
+      total: filas.length,
+      canjes: filas.map((canje) => ({
+        id: canje.id,
+        fecha: canje.createdAt,
+        canal: canje.canal,
+        persona: canje.persona,
+        monto: canje.monto,
+        descuento: canje.descuento,
+        nota: canje.nota,
+        reservationId: canje.reservationId,
+      })),
+    };
+  }
+
+  /**
    * Busca un cupón por su código y dice si se puede canjear ahora.
    *
    * Quien está en la caja tiene el código, no el identificador: escribe lo que trae la persona en
@@ -4071,7 +4208,14 @@ export class ReservationsService {
     }));
   }
 
-  listCoupons(organizationId: string, clientId?: string, clientIds?: string[]) {
+  /**
+   * @param filtros - `estado` acota a los que se pueden usar ahora mismo (`vigente`), a los que
+   *   ya no (`vencido`: apagados, pasados de fecha o sin usos libres) o a los apagados a mano
+   *   (`inactivo`). `codigo` coincide por fragmento, que es como se busca un cupón cuando se
+   *   recuerda la mitad. El filtro vive acá y no en la pantalla porque filtrar en el navegador
+   *   sobre lo ya traído deja fuera lo que no vino.
+   */
+  listCoupons(organizationId: string, clientId?: string, clientIds?: string[], filtros?: { estado?: 'vigente' | 'vencido' | 'inactivo'; codigo?: string }) {
     const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
     /*
      * Cada empresa ve sólo sus cupones.
@@ -4084,6 +4228,20 @@ export class ReservationsService {
     if (clientId) qb.andWhere('coupon.client_id = :clientId', { clientId });
     else if (clientIds?.length) qb.andWhere('coupon.client_id IN (:...clientIds)', { clientIds });
     else if (clientIds !== undefined) qb.andWhere('1 = 0');
+
+    if (filtros?.codigo) qb.andWhere('coupon.code LIKE :codigo', { codigo: `%${filtros.codigo}%` });
+    /*
+     * «Vigente» es lo que se puede canjear hoy, no lo que está encendido.
+     *
+     * Son tres condiciones y hacen falta las tres: el interruptor, la ventana de fechas y que
+     * queden usos. Un cupón encendido que agotó sus usos no sirve en la caja, y mostrarlo como
+     * vigente hace que alguien se lo prometa a un cliente.
+     */
+    const VIGENTE = 'coupon.active = 1 AND (coupon.valid_from IS NULL OR coupon.valid_from <= NOW()) AND (coupon.valid_until IS NULL OR coupon.valid_until >= NOW()) AND (coupon.max_uses = 0 OR coupon.usage_count < coupon.max_uses)';
+    if (filtros?.estado === 'vigente') qb.andWhere(VIGENTE);
+    if (filtros?.estado === 'vencido') qb.andWhere(`NOT (${VIGENTE})`);
+    if (filtros?.estado === 'inactivo') qb.andWhere('coupon.active = 0');
+
     return qb.orderBy('coupon.created_at', 'DESC').getMany();
   }
 

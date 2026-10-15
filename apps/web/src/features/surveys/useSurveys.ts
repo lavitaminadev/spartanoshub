@@ -193,18 +193,42 @@ export function useDeleteSurvey(): UseMutationResult<void, Error, string> {
   });
 }
 
-/** Resultados agregados de una encuesta, listos para el dashboard. */
-export function useSurveyResults(survey: Survey | undefined) {
+/**
+ * Resultados agregados de una encuesta, listos para el dashboard.
+ *
+ * `rango` acota las respuestas en el servidor. Los atajos de la pantalla —7, 30, 90 días— se
+ * siguen resolviendo sobre el detalle que ya está cargado, que es instantáneo; el rango se usa
+ * cuando se piden fechas concretas, donde recortar en el servidor es además lo único que permite
+ * mirar más atrás del tope de respuestas que trae el detalle.
+ *
+ * El rango entra en la clave de la consulta para que cada período tenga su propia caché y volver
+ * a uno ya visto no cueste otra vuelta a la red.
+ */
+export function useSurveyResults(survey: Survey | undefined, rango?: { desde?: string; hasta?: string }) {
+  const desde = rango?.desde || undefined;
+  const hasta = rango?.hasta || undefined;
   return useQuery<SurveyResultsSummary | undefined>({
-    queryKey: ['surveys', survey?.id, 'results'],
+    queryKey: ['surveys', survey?.id, 'results', desde ?? '', hasta ?? ''],
     enabled: Boolean(survey),
     queryFn: async () => {
       if (!survey) return undefined;
+      const parametros = new URLSearchParams();
+      if (desde) parametros.set('desde', desde);
+      if (hasta) parametros.set('hasta', hasta);
+      const consulta = parametros.toString();
       try {
-        return await api.get<SurveyResultsSummary>(`/surveys/${survey.id}/results`);
+        return await api.get<SurveyResultsSummary>(`/surveys/${survey.id}/results${consulta ? `?${consulta}` : ''}`);
       } catch (error) {
         if (!isConnectionError(error)) throw error;
-        return computeSurveyResults(survey, readLocalResponses(survey.id));
+        // Sin red, el respaldo local se recorta con el mismo criterio: si no, el panel diría que
+        // está mostrando un período y mostraría otro.
+        const locales = readLocalResponses(survey.id).filter((respuesta) => {
+          const momento = new Date(respuesta.submittedAt).getTime();
+          if (desde && momento < new Date(desde).getTime()) return false;
+          if (hasta && momento > new Date(`${hasta}T23:59:59.999`).getTime()) return false;
+          return true;
+        });
+        return computeSurveyResults(survey, locales);
       }
     },
   });

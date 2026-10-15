@@ -89,10 +89,47 @@ let RecoverReservationIntegrationsJob = RecoverReservationIntegrationsJob_1 = cl
                 this.logger.warn(`CRM pendiente de la reserva ${booking.id}: ${error instanceof Error ? error.message : error}`);
             }
         }
+        for (const booking of await this.pendingSync(createdAfter)) {
+            const form = await this.formOf(booking);
+            if (!form?.calendarEnabled || !booking.calendarEventId) {
+                await this.reservations.update(booking.id, { calendarSyncPending: null });
+                continue;
+            }
+            try {
+                if (booking.calendarSyncPending === 'borrar') {
+                    await this.calendar.deleteEvent(form.organizationId, booking.calendarEventId);
+                    await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
+                }
+                else {
+                    const resultado = await this.calendar.updateEvent(form.organizationId, booking.calendarEventId, {
+                        summary: `${form.name}: ${booking.guestName}`,
+                        description: `Reserva ${booking.referenceCode}`,
+                        start: booking.startsAt,
+                        durationMinutes: Math.round((booking.endsAt.getTime() - booking.startsAt.getTime()) / 60000),
+                    });
+                    await this.reservations.update(booking.id, resultado.existe
+                        ? { calendarSyncPending: null, ...(resultado.calendarUrl ? { calendarUrl: resultado.calendarUrl } : {}) }
+                        : { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
+                }
+                calendar += 1;
+            }
+            catch (error) {
+                failed += 1;
+                this.logger.warn(`Calendario desactualizado de la reserva ${booking.id}: ${error instanceof Error ? error.message : error}`);
+            }
+        }
         if (calendar || crm || failed) {
             this.logger.log(`Integraciones recuperadas: ${calendar} de calendario, ${crm} de CRM, ${failed} con error`);
         }
         return { calendar, crm, failed };
+    }
+    pendingSync(updatedAfter) {
+        return this.reservations.createQueryBuilder('r')
+            .where('r.calendar_sync_pending IS NOT NULL')
+            .andWhere('r.updated_at > :updatedAfter', { updatedAfter })
+            .orderBy('r.updated_at', 'ASC')
+            .take(BATCH)
+            .getMany();
     }
     pending(column, createdAfter, createdBefore) {
         return this.reservations.createQueryBuilder('r')

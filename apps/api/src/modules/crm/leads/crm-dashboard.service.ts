@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, LessThan, Repository } from 'typeorm';
 import { Lead } from './lead.entity';
@@ -46,7 +46,64 @@ export const TASA_COMISION = 0.02;
  */
 @Injectable()
 export class CrmDashboardService {
+  private readonly logger = new Logger(CrmDashboardService.name);
+
   constructor(@InjectRepository(Lead) private readonly leads: Repository<Lead>) {}
+
+  /**
+   * Qué pasó con los eventos que estos leads debían generar hacia la pauta.
+   *
+   * Un evento puede perderse sin que nadie lo note: la cola lo marca fallido o vencido y ahí
+   * queda. El panel contaba leads y la cola contaba eventos, y nadie cruzaba las dos cosas, así
+   * que un lead calificado cuyo evento nunca salió se veía idéntico a uno que sí llegó.
+   *
+   * **Se cruza por el identificador, no por correo ni campaña.** El `event_id` de la cola tiene la
+   * forma `lead-<hecho>:<uuid>` y ese UUID es el del lead; emparejar por cualquier otro dato haría
+   * que dos personas con el mismo teléfono compartieran el estado de sus eventos.
+   *
+   * **Entregado no es atribuido.** `processed` dice que Meta aceptó el evento; si lo usó para
+   * optimizar o a quién se lo atribuyó no es algo que este sistema pueda saber, y la pantalla no
+   * debe sugerir lo contrario.
+   *
+   * Un fallo acá no tumba el panel: sin la tabla de la cola —una instalación sin Meta— devuelve
+   * nulo y la pantalla omite la sección.
+   */
+  private async conciliacionConLaPauta(base: Record<string, unknown>, desde: Date) {
+    try {
+      const filas = await this.leads.manager.query(
+        `SELECT
+           SUM(CASE WHEN o.entregados > 0 THEN 1 ELSE 0 END) AS entregados,
+           SUM(CASE WHEN o.entregados = 0 AND o.enCurso > 0 THEN 1 ELSE 0 END) AS enCurso,
+           SUM(CASE WHEN o.entregados = 0 AND o.enCurso = 0 AND o.total > 0 THEN 1 ELSE 0 END) AS perdidos,
+           SUM(CASE WHEN o.total IS NULL THEN 1 ELSE 0 END) AS sinEvento
+         FROM leads l
+         LEFT JOIN (
+           SELECT SUBSTRING(event_id, LOCATE(':', event_id) + 1) AS lead_id,
+                  COUNT(*) AS total,
+                  SUM(status = 'processed') AS entregados,
+                  SUM(status IN ('pending', 'retry', 'processing')) AS enCurso
+           FROM meta_conversion_outbox
+           WHERE organization_id = ? AND event_id LIKE 'lead-%'
+           GROUP BY lead_id
+         ) o ON o.lead_id = l.id
+         WHERE l.organization_id = ? AND l.created_at >= ?`,
+        [base.organizationId, base.organizationId, desde],
+      ) as Array<Record<string, string | null>>;
+
+      const fila = filas[0] ?? {};
+      return {
+        entregados: Number(fila.entregados ?? 0),
+        enCurso: Number(fila.enCurso ?? 0),
+        /** Quedaron en `failed` o `expired`: nacieron, se intentaron y no llegaron. */
+        perdidos: Number(fila.perdidos ?? 0),
+        /** Nunca se encoló nada. Es lo esperable para un lead que no cambió de etapa. */
+        sinEvento: Number(fila.sinEvento ?? 0),
+      };
+    } catch (error) {
+      this.logger.warn(`No se pudo conciliar con la pauta: ${error instanceof Error ? error.message : error}`);
+      return null;
+    }
+  }
 
   /**
    * @param days - Ventana en días. Se acota en el controlador; acá se asume ya validada.
@@ -120,11 +177,12 @@ export class CrmDashboardService {
       }),
     ]);
 
-    const [tiempoDeCierre, conversionPorSetter, mejorCampana, contacto] = await Promise.all([
+    const [tiempoDeCierre, conversionPorSetter, mejorCampana, contacto, pauta] = await Promise.all([
       this.tiempoDeCierre(base),
       this.conversionPorSetter(base),
       this.mejorCampana(base),
       this.contacto(base, desde),
+      this.conciliacionConLaPauta(base, desde),
     ]);
 
     // Quien más convierte, no quien más vende: con volúmenes distintos, el total premia a quien
@@ -167,6 +225,8 @@ export class CrmDashboardService {
       porDia,
       motivosDeCierre: motivos,
       contacto,
+      /** Qué pasó con los eventos de estos leads hacia la pauta. Nulo si no hay cola de Meta. */
+      pauta,
     };
   }
 

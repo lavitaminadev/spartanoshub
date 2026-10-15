@@ -1357,6 +1357,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         record.usedAt = new Date();
         await this.managementTokens.save(record);
         void this.sendCalendarUpdate(reservation, 'CANCELLED');
+        void this.sincronizarCalendarioDelLocal(saved, 'borrar');
         void this.avisarCupoLiberado(saved);
         void this.avisarCambioDelCliente(saved, 'cancelada');
         return { cancelled: true, referenceCode: saved.referenceCode, status: saved.status };
@@ -1575,6 +1576,39 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             this.logger.warn(`No se pudo componer el aviso de cambio de ${booking.id}: ${err instanceof Error ? err.message : err}`);
         }
     }
+    async sincronizarCalendarioDelLocal(booking, accion) {
+        try {
+            if (!booking.calendarEventId)
+                return;
+            const form = await this.forms.findOne({ where: { id: booking.formId } });
+            if (!form?.calendarEnabled)
+                return;
+            if (accion === 'borrar') {
+                await this.calendar.deleteEvent(form.organizationId, booking.calendarEventId);
+                await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
+                return;
+            }
+            const resultado = await this.calendar.updateEvent(form.organizationId, booking.calendarEventId, {
+                summary: `${form.name}: ${booking.guestName}`,
+                description: `Reserva ${booking.referenceCode}`,
+                start: booking.startsAt,
+                durationMinutes: Math.round((booking.endsAt.getTime() - booking.startsAt.getTime()) / 60000),
+            });
+            if (!resultado.existe) {
+                await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
+                return;
+            }
+            await this.reservations.update(booking.id, {
+                calendarSyncPending: null,
+                ...(resultado.calendarUrl && resultado.calendarUrl !== booking.calendarUrl ? { calendarUrl: resultado.calendarUrl } : {}),
+            });
+        }
+        catch (err) {
+            this.logger.warn(`No se pudo sincronizar el calendario del local para la reserva ${booking.id}: ${err instanceof Error ? err.message : err}`);
+            await this.reservations.update(booking.id, { calendarSyncPending: accion })
+                .catch((marcaErr) => this.logger.warn(`Tampoco se pudo anotar el calendario pendiente de la reserva ${booking.id}: ${marcaErr instanceof Error ? marcaErr.message : marcaErr}`));
+        }
+    }
     async reschedulePublicManagement(token, requestedStartsAt, requestedPartySize) {
         const { record, reservation } = await this.managementReservation(token);
         if (!ACTIVE_STATUSES.includes(reservation.status))
@@ -1612,6 +1646,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         record.expiresAt = new Date(saved.endsAt.getTime() + GESTION_TRAS_LA_VISITA_DIAS * 86400000);
         await this.managementTokens.save(record);
         void this.sendCalendarUpdate(saved, 'PUBLISH');
+        void this.sincronizarCalendarioDelLocal(saved, 'mover');
         void this.avisarCambioDelCliente(saved, 'cambiada', reservation.startsAt);
         return { referenceCode: saved.referenceCode, startsAt: saved.startsAt, endsAt: saved.endsAt, status: saved.status };
     }
@@ -2348,6 +2383,16 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             qb.andWhere('r.coupon_code = :couponCode', { couponCode: query.couponCode });
         if (query.resourceId)
             qb.andWhere('r.resource_id = :resourceId', { resourceId: query.resourceId });
+        if (query.utmSource)
+            qb.andWhere('r.utm_source = :utmSource', { utmSource: query.utmSource });
+        if (query.utmCampaign)
+            qb.andWhere('r.utm_campaign = :utmCampaign', { utmCampaign: query.utmCampaign });
+        if (query.utmMedium)
+            qb.andWhere('r.utm_medium = :utmMedium', { utmMedium: query.utmMedium });
+        if (query.origen === 'detectado')
+            qb.andWhere('r.origin_detected = 1');
+        if (query.origen === 'declarado')
+            qb.andWhere('(r.origin_detected = 0 OR r.origin_detected IS NULL)');
         const [items, total] = await qb.orderBy('r.starts_at', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount();
         const safeItems = includeInternalNotes ? items : items.map(({ internalNotes: _internalNotes, ...item }) => item);
         const conversions = await this.metaConversionStatus(organizationId, items);
@@ -2386,6 +2431,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         let formForMeta;
         let statusChangedTo;
         let calendarNotification;
+        let calendarioDelLocal;
         let confirmoUnaPendiente = false;
         let confirmoUnaEspera = false;
         let liberoCupo = false;
@@ -2439,6 +2485,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 if (dto.status.startsWith('cancelled')) {
                     await this.devolverCupon(manager, item);
                     liberoCupo = true;
+                    calendarioDelLocal = 'borrar';
                 }
             }
             if (dto.internalNotes !== undefined)
@@ -2457,8 +2504,10 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             }
             const result = await repo.save(item);
             const changedStart = previousStart.getTime() !== result.startsAt.getTime();
-            if (changedStart)
+            if (changedStart) {
                 calendarNotification = 'PUBLISH';
+                calendarioDelLocal = calendarioDelLocal ?? 'mover';
+            }
             if (previousStatus !== result.status || changedStart)
                 await manager.save(reservation_event_entity_1.ReservationEvent, manager.create(reservation_event_entity_1.ReservationEvent, { organizationId, clientId: result.clientId, reservationId: result.id, type: changedStart ? 'rescheduled' : 'status_changed', fromStatus: previousStatus, toStatus: result.status, actorId, actorType, metadata: changedStart ? { from: previousStart.toISOString(), to: result.startsAt.toISOString() } : dto.cancellationReason?.trim() ? { cancellationReason: dto.cancellationReason.trim() } : undefined }));
             return result;
@@ -2507,6 +2556,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         if (calendarNotification)
             void this.sendCalendarUpdate(saved, calendarNotification, statusChangedTo === 'cancelled_business' ? dto.cancellationReason : undefined);
+        if (calendarioDelLocal)
+            void this.sincronizarCalendarioDelLocal(saved, calendarioDelLocal);
         if (liberoCupo)
             void this.avisarCupoLiberado(saved);
         return saved;
@@ -3008,6 +3059,42 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             })),
         };
     }
+    async canjesDeCupon(organizationId, couponId, clientIds, filtros) {
+        const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
+        if (!coupon)
+            throw new common_1.NotFoundException('Cupón no encontrado');
+        if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+            throw new common_1.ForbiddenException('No tienes acceso a este cupón');
+        }
+        const qb = this.canjes.createQueryBuilder('canje')
+            .where('canje.organization_id = :organizationId', { organizationId })
+            .andWhere('canje.coupon_id = :couponId', { couponId });
+        if (filtros.desde)
+            qb.andWhere('canje.created_at >= :desde', { desde: new Date(filtros.desde) });
+        if (filtros.hasta) {
+            const hasta = new Date(filtros.hasta);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(filtros.hasta.trim()))
+                hasta.setHours(23, 59, 59, 999);
+            qb.andWhere('canje.created_at <= :hasta', { hasta });
+        }
+        if (filtros.canal)
+            qb.andWhere('canje.canal = :canal', { canal: filtros.canal });
+        const filas = await qb.orderBy('canje.created_at', 'DESC').take(filtros.limite ?? 500).getMany();
+        return {
+            codigo: coupon.code,
+            total: filas.length,
+            canjes: filas.map((canje) => ({
+                id: canje.id,
+                fecha: canje.createdAt,
+                canal: canje.canal,
+                persona: canje.persona,
+                monto: canje.monto,
+                descuento: canje.descuento,
+                nota: canje.nota,
+                reservationId: canje.reservationId,
+            })),
+        };
+    }
     async buscarCuponPorCodigo(organizationId, codigo, clientIds) {
         const coupon = await this.coupons.findOne({
             where: { organizationId, code: codigo.trim().toUpperCase() },
@@ -3135,7 +3222,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             volvieronDelCorreo: Number(fila.volvieron) || 0,
         }));
     }
-    listCoupons(organizationId, clientId, clientIds) {
+    listCoupons(organizationId, clientId, clientIds, filtros) {
         const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
         if (clientId)
             qb.andWhere('coupon.client_id = :clientId', { clientId });
@@ -3143,6 +3230,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             qb.andWhere('coupon.client_id IN (:...clientIds)', { clientIds });
         else if (clientIds !== undefined)
             qb.andWhere('1 = 0');
+        if (filtros?.codigo)
+            qb.andWhere('coupon.code LIKE :codigo', { codigo: `%${filtros.codigo}%` });
+        const VIGENTE = 'coupon.active = 1 AND (coupon.valid_from IS NULL OR coupon.valid_from <= NOW()) AND (coupon.valid_until IS NULL OR coupon.valid_until >= NOW()) AND (coupon.max_uses = 0 OR coupon.usage_count < coupon.max_uses)';
+        if (filtros?.estado === 'vigente')
+            qb.andWhere(VIGENTE);
+        if (filtros?.estado === 'vencido')
+            qb.andWhere(`NOT (${VIGENTE})`);
+        if (filtros?.estado === 'inactivo')
+            qb.andWhere('coupon.active = 0');
         return qb.orderBy('coupon.created_at', 'DESC').getMany();
     }
     async validatePublicCoupon(slug, code, startsAt) {

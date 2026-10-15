@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PurgeExpiredLeadsJob } from '../../../src/core/jobs/cron/purge-expired-leads.job';
+import { createDataProtectionDouble } from '../../helpers/data-protection.double';
 
 const leadRepo = {
   find: vi.fn(),
 };
 
-const dataProtection = {
-  anonymizeLead: vi.fn(),
-  anonymizeExpiredReservations: vi.fn().mockResolvedValue({ reviewed: 0, anonymized: 0 }),
-};
+const dataProtection = createDataProtectionDouble();
 
 describe('PurgeExpiredLeadsJob', () => {
   let job: PurgeExpiredLeadsJob;

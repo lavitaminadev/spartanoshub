@@ -18,7 +18,7 @@ import { UserRole } from '../organizations/user-role.enum';
 import { aplicarEdicionDePreguntas, MAXIMO_HISTORIAL, problemasDeRespuesta, type SurveyQuestion } from '@espartanos/shared';
 import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
-import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurveyResponseDto } from './dto/survey.dto';
+import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurveyResponseDto, SurveyResultsQueryDto } from './dto/survey.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { EmailService } from '../../core/notifications/email.service';
@@ -26,8 +26,20 @@ import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 import { leerPlantilla } from '../../core/parameters/plantilla-resuelta';
 import { exigirEncuestasHabilitadas } from './encuestas-de-la-empresa';
-import { In, IsNull } from 'typeorm';
+import { Between, In, IsNull, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
+
+/**
+ * El instante en que termina el día de una fecha dada.
+ *
+ * Una fecha suelta —«2026-10-31»— se interpreta a medianoche, de modo que usarla como extremo
+ * superior dejaría fuera todo lo del propio día. Si la fecha ya trae hora se respeta tal cual.
+ */
+function finDelDia(fecha: string): Date {
+  const momento = new Date(fecha);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim())) momento.setHours(23, 59, 59, 999);
+  return momento;
+}
 
 /** Correo plausible. La validación real la hace el servidor de correo; esto evita basura obvia. */
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -209,8 +221,9 @@ export class SurveysController {
     const cambios: string[] = [];
     if (dto.questions) {
       this.assertUniqueQuestionIds(dto.questions);
-      // Con respuestas se edita sin perder nada: lo quitado se archiva y el tipo no cambia.
-      const edicion = aplicarEdicionDePreguntas(survey.questions ?? [], dto.questions as SurveyQuestion[], survey.responseCount > 0, ahora);
+      // Con respuestas se edita sin perder nada: lo quitado se archiva y lo que deja de medir lo
+      // mismo abre una versión nueva, con sus resultados aparte.
+      const edicion = aplicarEdicionDePreguntas(survey.questions ?? [], dto.questions as SurveyQuestion[], survey.responseCount > 0, ahora, dto.nuevasVersiones ?? []);
       if (edicion.error) throw new BadRequestException(edicion.error);
       survey.questions = edicion.preguntas;
       cambios.push(...edicion.cambios);
@@ -284,9 +297,26 @@ export class SurveysController {
   @Get(':id/results')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Resultados agregados de una encuesta' })
-  async results(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+  async results(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() periodo?: SurveyResultsQueryDto) {
     const survey = await this.findOwned(id, req);
-    const rows = await this.responses.find({ where: { surveyId: survey.id }, order: { submittedAt: 'ASC' } });
+    /*
+     * El período acota las respuestas, no la encuesta.
+     *
+     * Hasta ahora se traían todas las filas de la encuesta y se agregaban en memoria: una
+     * encuesta que lleva meses abierta devolvía su historia completa cada vez que alguien abría
+     * el panel, sin forma de preguntar «y este mes». `hasta` se corre al final del día porque la
+     * fecha se escribe sin hora y nadie espera que «al 31» excluya el 31.
+     */
+    const desde = periodo?.desde ? new Date(periodo.desde) : null;
+    const hasta = periodo?.hasta ? finDelDia(periodo.hasta) : null;
+    if (desde && hasta && desde > hasta) throw new BadRequestException('El período empieza después de terminar');
+    const rows = await this.responses.find({
+      where: {
+        surveyId: survey.id,
+        ...(desde && hasta ? { submittedAt: Between(desde, hasta) } : desde ? { submittedAt: MoreThanOrEqual(desde) } : hasta ? { submittedAt: LessThanOrEqual(hasta) } : {}),
+      },
+      order: { submittedAt: 'ASC' },
+    });
     const responses: SurveyResponseContract[] = rows.map((row) => ({
       surveyId: row.surveyId,
       respondentId: row.respondentId,
@@ -374,7 +404,34 @@ export class SurveysController {
     }));
     // La misma función que usa el frontend para su respaldo local: un solo cálculo evita que
     // el panel muestre un NPS y la copia sin red muestre otro.
-    return { ...computeSurveyResults(this.toContract(survey), responses), respuestas: detalle, visitasPorDia, campanas };
+    /*
+     * El período se devuelve para que el panel pueda decir qué está mostrando.
+     *
+     * Las visitas y las campañas no se recortan: son el denominador con el que se comparan las
+     * respuestas, y el frontend ya las tiene por día para cualquier tramo que se elija.
+     */
+    /*
+     * Los indicadores del período se calculan aquí, sobre todas sus filas.
+     *
+     * El detalle va recortado para no mandar una encuesta entera en cada carga, así que el panel
+     * no puede derivarlos de él: con más respuestas que el tope daría la nota de las últimas y no
+     * la del período. Este es el único lugar que las tiene todas.
+     */
+    const notasDelPeriodo = rows.map((row) => row.rating).filter((nota): nota is number => typeof nota === 'number');
+    return {
+      ...computeSurveyResults(this.toContract(survey), responses),
+      respuestas: detalle,
+      visitasPorDia,
+      campanas,
+      totalDeLaEncuesta: survey.responseCount,
+      detalleTruncado: rows.length > detalle.length,
+      delPeriodo: {
+        promedio: notasDelPeriodo.length ? Math.round((notasDelPeriodo.reduce((suma, nota) => suma + nota, 0) / notasDelPeriodo.length) * 10) / 10 : null,
+        conMensaje: rows.filter((row) => row.teamMessage).length,
+        completaron: rows.length ? Math.round((rows.filter((row) => row.completedAt).length / rows.length) * 100) : null,
+      },
+      periodo: { desde: desde ? desde.toISOString() : null, hasta: hasta ? hasta.toISOString() : null },
+    };
   }
 
   /**

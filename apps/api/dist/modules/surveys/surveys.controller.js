@@ -40,6 +40,12 @@ const plantilla_resuelta_1 = require("../../core/parameters/plantilla-resuelta")
 const encuestas_de_la_empresa_1 = require("./encuestas-de-la-empresa");
 const typeorm_3 = require("typeorm");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
+function finDelDia(fecha) {
+    const momento = new Date(fecha);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim()))
+        momento.setHours(23, 59, 59, 999);
+    return momento;
+}
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 exports.MAXIMO_ENVIO_POR_PEDIDO = 500;
 function publicSurveyUrl(id) {
@@ -166,7 +172,7 @@ let SurveysController = class SurveysController {
         const cambios = [];
         if (dto.questions) {
             this.assertUniqueQuestionIds(dto.questions);
-            const edicion = (0, shared_2.aplicarEdicionDePreguntas)(survey.questions ?? [], dto.questions, survey.responseCount > 0, ahora);
+            const edicion = (0, shared_2.aplicarEdicionDePreguntas)(survey.questions ?? [], dto.questions, survey.responseCount > 0, ahora, dto.nuevasVersiones ?? []);
             if (edicion.error)
                 throw new common_1.BadRequestException(edicion.error);
             survey.questions = edicion.preguntas;
@@ -241,9 +247,19 @@ let SurveysController = class SurveysController {
         });
         return { removed: true };
     }
-    async results(req, id) {
+    async results(req, id, periodo) {
         const survey = await this.findOwned(id, req);
-        const rows = await this.responses.find({ where: { surveyId: survey.id }, order: { submittedAt: 'ASC' } });
+        const desde = periodo?.desde ? new Date(periodo.desde) : null;
+        const hasta = periodo?.hasta ? finDelDia(periodo.hasta) : null;
+        if (desde && hasta && desde > hasta)
+            throw new common_1.BadRequestException('El período empieza después de terminar');
+        const rows = await this.responses.find({
+            where: {
+                surveyId: survey.id,
+                ...(desde && hasta ? { submittedAt: (0, typeorm_3.Between)(desde, hasta) } : desde ? { submittedAt: (0, typeorm_3.MoreThanOrEqual)(desde) } : hasta ? { submittedAt: (0, typeorm_3.LessThanOrEqual)(hasta) } : {}),
+            },
+            order: { submittedAt: 'ASC' },
+        });
         const responses = rows.map((row) => ({
             surveyId: row.surveyId,
             respondentId: row.respondentId,
@@ -287,7 +303,21 @@ let SurveysController = class SurveysController {
             origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
             answers: row.answers ?? {},
         }));
-        return { ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses), respuestas: detalle, visitasPorDia, campanas };
+        const notasDelPeriodo = rows.map((row) => row.rating).filter((nota) => typeof nota === 'number');
+        return {
+            ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses),
+            respuestas: detalle,
+            visitasPorDia,
+            campanas,
+            totalDeLaEncuesta: survey.responseCount,
+            detalleTruncado: rows.length > detalle.length,
+            delPeriodo: {
+                promedio: notasDelPeriodo.length ? Math.round((notasDelPeriodo.reduce((suma, nota) => suma + nota, 0) / notasDelPeriodo.length) * 10) / 10 : null,
+                conMensaje: rows.filter((row) => row.teamMessage).length,
+                completaron: rows.length ? Math.round((rows.filter((row) => row.completedAt).length / rows.length) * 100) : null,
+            },
+            periodo: { desde: desde ? desde.toISOString() : null, hasta: hasta ? hasta.toISOString() : null },
+        };
     }
     async attend(req, id, responseId, dto) {
         const survey = await this.findOwned(id, req);
@@ -477,8 +507,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Resultados agregados de una encuesta' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, survey_dto_1.SurveyResultsQueryDto]),
     __metadata("design:returntype", Promise)
 ], SurveysController.prototype, "results", null);
 __decorate([

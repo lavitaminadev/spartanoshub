@@ -43,10 +43,56 @@ describe('editar una encuesta con respuestas sin perder datos', () => {
     expect(r.cambios).toEqual([]);
   });
 
-  it('no deja cambiar el tipo de una pregunta con respuestas', () => {
-    const r = aplicarEdicionDePreguntas(BASE, BASE.map((q) => (q.id === 'nota' ? { ...q, type: 'text' as const } : q)), true, AHORA);
-    expect(r.error).toMatch(/no se puede cambiar a texto libre/);
-    expect(r.preguntas).toBe(BASE);
+  it('cambiar el tipo abre una versión nueva y cierra la anterior con su fecha', () => {
+    const r = aplicarEdicionDePreguntas(BASE, BASE.map((q) => (q.id === 'nota' ? { ...q, type: 'nps' as const } : q)), true, AHORA);
+    expect(r.error).toBeUndefined();
+    const v2 = r.preguntas.find((q) => q.raizId === 'nota');
+    expect(v2).toMatchObject({ id: 'nota~v2', type: 'nps', version: 2, vigenteDesde: AHORA });
+    expect(v2!.archivada).toBeUndefined();
+    // La v1 queda cerrada: deja de mostrarse, pero sus respuestas siguen en resultados.
+    expect(r.preguntas.find((q) => q.id === 'nota')).toMatchObject({ type: 'rating', archivada: true, vigenteHasta: AHORA });
+    expect(r.cambios.some((c) => c.includes('Versión nueva de «¿Cómo fue?» (v2)') && c.includes('de estrellas a recomendación 0-10'))).toBe(true);
+    // Los dos bloques se rotulan aparte y ninguno suma las respuestas del otro.
+    const resultados = computeSurveyResults({ id: 's', title: 't', type: 'customer', questions: r.preguntas, status: 'active', createdAt: AHORA, createdBy: 'u', responses: 2 }, [
+      { surveyId: 's', respondentId: 'a', answers: { nota: 5 }, submittedAt: AHORA },
+      { surveyId: 's', respondentId: 'b', answers: { 'nota~v2': 10 }, submittedAt: AHORA },
+    ]);
+    expect(resultados.questions.find((q) => q.questionId === 'nota')).toMatchObject({ question: '¿Cómo fue? (v1 · hasta 15/09)', totalAnswers: 1 });
+    expect(resultados.questions.find((q) => q.questionId === 'nota~v2')).toMatchObject({ question: '¿Cómo fue? (v2 · desde 15/09)', totalAnswers: 1 });
+  });
+
+  it('cambiar el tipo deja sin regla a la pregunta que dependía de ella, y lo dice', () => {
+    const conRegla: SurveyQuestion[] = [BASE[0], { ...BASE[2], mostrarSi: { preguntaId: 'nota', valores: ['1', '2'] } }];
+    const r = aplicarEdicionDePreguntas(conRegla, conRegla.map((q) => (q.id === 'nota' ? { ...q, type: 'text' as const } : q)), true, AHORA);
+    expect(r.preguntas.find((q) => q.id === 'comentario')?.mostrarSi).toBeUndefined();
+    expect(r.cambios).toContain('«Comentario» ahora se muestra siempre: la pregunta de la que dependía cambió de tipo y sus respuestas ya no sirven como condición.');
+    // Y nunca queda apuntando a la versión cerrada, que ocultaría la dependiente para siempre.
+    expect(preguntasVisibles(r.preguntas, {}).map((q) => q.id)).toContain('comentario');
+  });
+
+  it('declarar «ahora pregunta otra cosa» versiona y repunta la regla a la versión nueva', () => {
+    const conRegla: SurveyQuestion[] = [BASE[0], { ...BASE[2], mostrarSi: { preguntaId: 'nota', valores: ['1', '2'] } }];
+    const editadas = conRegla.map((q) => (q.id === 'nota' ? { ...q, question: '¿Recomendarías el local?' } : q));
+    const r = aplicarEdicionDePreguntas(conRegla, editadas, true, AHORA, ['nota']);
+    expect(r.preguntas.find((q) => q.raizId === 'nota')).toMatchObject({ id: 'nota~v2', version: 2, question: '¿Recomendarías el local?' });
+    // El tipo no cambió: la regla sigue sirviendo, así que se repunta en vez de caerse.
+    expect(r.preguntas.find((q) => q.id === 'comentario')?.mostrarSi).toEqual({ preguntaId: 'nota~v2', valores: ['1', '2'] });
+    expect(r.cambios).toContain('«Comentario» ahora depende de la v2 de «¿Recomendarías el local?».');
+  });
+
+  it('sin declararlo, cambiar la redacción no versiona: sigue sumando en la misma pregunta', () => {
+    const editadas = BASE.map((q) => (q.id === 'nota' ? { ...q, question: '¿Qué tal estuvo?' } : q));
+    const r = aplicarEdicionDePreguntas(BASE, editadas, true, AHORA);
+    expect(r.preguntas.some((q) => q.raizId === 'nota')).toBe(false);
+    expect(r.preguntas.find((q) => q.id === 'nota')).toMatchObject({ editadaEn: AHORA });
+  });
+
+  it('una tercera versión se numera sobre la familia, no sobre el id editado', () => {
+    const v2 = aplicarEdicionDePreguntas(BASE, BASE.map((q) => (q.id === 'nota' ? { ...q, type: 'nps' as const } : q)), true, AHORA).preguntas;
+    const editadas = v2.filter((q) => !q.archivada).map((q) => (q.id === 'nota~v2' ? { ...q, type: 'text' as const } : q));
+    const r = aplicarEdicionDePreguntas(v2, editadas, true, AHORA);
+    expect(r.preguntas.find((q) => q.version === 3)).toMatchObject({ id: 'nota~v3', raizId: 'nota' });
+    expect(r.preguntas.find((q) => q.id === 'nota~v2')).toMatchObject({ archivada: true, vigenteHasta: AHORA });
   });
 
   it('describe agregados, opciones, obligatoriedad, restauración y orden', () => {

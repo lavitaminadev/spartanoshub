@@ -16,7 +16,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListCanjesDto, ListCouponsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
@@ -387,7 +387,7 @@ export class ReservationsController {
 
   @Get('coupons')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async listCoupons(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
+  async listCoupons(@Req() req: AuthenticatedRequest, @Query() query: ListCouponsDto) {
     /*
      * La empresa elegida arriba filtra la lista.
      *
@@ -407,7 +407,7 @@ export class ReservationsController {
      * podía ver hasta ahora.
      */
     const [cupones, uso] = await Promise.all([
-      this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds),
+      this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds, { estado: query.estado, codigo: query.codigo }),
       this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds),
     ]);
     const porCodigo = new Map(uso.map((fila) => [fila.code, fila]));
@@ -481,6 +481,21 @@ export class ReservationsController {
   async metricasDeCupon(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
     return this.service.metricasDeCupon(req.organizationId, id, scope.clientIds);
+  }
+
+  /**
+   * Los canjes de un cupón, uno por uno.
+   *
+   * Las métricas resumen y devuelven los veinte últimos; esto responde «qué pasó el sábado» y
+   * «cuáles se anotaron en la caja». Se guardaban desde la 0174 y hasta ahora sólo existía la
+   * forma de crear uno.
+   */
+  @Get('coupons/:id/canjes')
+  @RequiresPermission('reservations', 'view')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async canjesDeCupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: ListCanjesDto) {
+    const scope = await this.scope(req);
+    return this.service.canjesDeCupon(req.organizationId, id, scope.clientIds, query);
   }
 
   @Post('coupons/:id/canjes')

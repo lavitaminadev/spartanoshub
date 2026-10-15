@@ -38,12 +38,20 @@ let CampanasService = CampanasService_1 = class CampanasService {
     empresaDe(empresa) {
         return !empresa || empresa === 'agencia' ? null : empresa;
     }
-    async listar(organizationId, encerradoEn) {
-        return this.repo.find({
-            where: { organizationId, ...(encerradoEn ? { clientId: encerradoEn } : {}) },
-            order: { createdAt: 'DESC' },
-            take: 100,
-        });
+    async listar(organizationId, encerradoEn, filtros) {
+        const qb = this.repo.createQueryBuilder('campana')
+            .where('campana.organization_id = :organizationId', { organizationId });
+        if (encerradoEn)
+            qb.andWhere('campana.client_id = :encerradoEn', { encerradoEn });
+        if (filtros?.estado)
+            qb.andWhere('campana.estado = :estado', { estado: filtros.estado });
+        if (filtros?.cupon)
+            qb.andWhere('campana.cupon LIKE :cupon', { cupon: `%${filtros.cupon}%` });
+        if (filtros?.conCupon === 'true')
+            qb.andWhere("campana.cupon IS NOT NULL AND campana.cupon <> ''");
+        if (filtros?.conCupon === 'false')
+            qb.andWhere("campana.cupon IS NULL OR campana.cupon = ''");
+        return qb.orderBy('campana.created_at', 'DESC').take(100).getMany();
     }
     async crear(datos) {
         const asunto = datos.asunto?.trim();

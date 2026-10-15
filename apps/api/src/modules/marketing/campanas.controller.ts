@@ -8,6 +8,21 @@ import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { CampanasService } from './campanas.service';
 
+/**
+ * Filtros de la lista de campañas.
+ *
+ * `cupon` es el que faltaba: la campaña guarda el código que reparte y su vencimiento desde la
+ * migración 0164, y no había forma de preguntar «qué campañas llevaban este cupón» sin abrirlas
+ * una por una.
+ */
+class ListarCampanasDto {
+  @IsOptional() @IsIn(['draft', 'sending', 'sent']) estado?: 'draft' | 'sending' | 'sent';
+  /** Coincide por fragmento, igual que en cupones: se recuerda la mitad del código. */
+  @IsOptional() @IsString() @MaxLength(40) cupon?: string;
+  /** `true` deja sólo las que reparten algún cupón; `false`, sólo las que no. */
+  @IsOptional() @IsIn(['true', 'false']) conCupon?: 'true' | 'false';
+}
+
 class CrearCampanaDto {
   @IsString() @MinLength(3) @MaxLength(200) asunto: string;
   @IsString() @MinLength(3) cuerpo: string;
@@ -43,8 +58,8 @@ export class CampanasController {
 
   @Get()
   @ApiOperation({ summary: 'Campañas escritas, enviadas y en borrador' })
-  listar(@Req() req: AuthenticatedRequest) {
-    return this.campanas.listar(req.organizationId || req.user.organizationId);
+  listar(@Req() req: AuthenticatedRequest, @Query() filtros: ListarCampanasDto) {
+    return this.campanas.listar(req.organizationId || req.user.organizationId, undefined, filtros);
   }
 
   @Get('destinatarios')

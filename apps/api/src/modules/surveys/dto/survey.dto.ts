@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
+  ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import type { QuestionType, SurveyDistributionChannel, SurveyStatus, SurveyType } from '@espartanos/shared';
 
@@ -48,6 +48,22 @@ export class SurveyQuestionDto {
 
   @IsOptional() @IsString() @MaxLength(40)
   editadaEn?: string;
+
+  /*
+   * El rastro de versionado lo escribe el servidor en `aplicarEdicionDePreguntas`: se acepta de
+   * vuelta para no perderlo al reenviar la encuesta completa, pero lo guardado manda.
+   */
+  @IsOptional() @IsInt() @Min(1) @Max(999)
+  version?: number;
+
+  @IsOptional() @IsString() @MaxLength(64)
+  raizId?: string;
+
+  @IsOptional() @IsString() @MaxLength(40)
+  vigenteDesde?: string;
+
+  @IsOptional() @IsString() @MaxLength(40)
+  vigenteHasta?: string;
 }
 
 export class CreateSurveyDto {
@@ -103,6 +119,14 @@ export class UpdateSurveyDto {
 
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => SurveyQuestionDto) @ArrayMaxSize(50)
   questions?: SurveyQuestionDto[];
+
+  /**
+   * Ids de preguntas que quien edita declaró que «ahora preguntan otra cosa»: su cambio de
+   * redacción abre una versión nueva en vez de seguir sumando sobre las respuestas anteriores.
+   * Un cambio de tipo abre versión venga o no en esta lista.
+   */
+  @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(50)
+  nuevasVersiones?: string[];
 
   @IsOptional() @IsIn(SURVEY_STATUSES)
   status?: SurveyStatus;
@@ -196,4 +220,20 @@ export class SubmitSurveyResponseDto {
 
   @IsOptional() @IsBoolean()
   aceptaPrivacidad?: boolean;
+}
+
+/**
+ * Período a mirar en los resultados de una encuesta.
+ *
+ * Ambos extremos son opcionales e independientes: sin ninguno se devuelve todo, que es lo que
+ * siguen pidiendo los paneles ya escritos. `desde` incluye el día completo y `hasta` también —el
+ * controlador lo lleva al final de la jornada—, porque quien escribe «al 31» espera que el 31 esté
+ * dentro.
+ */
+export class SurveyResultsQueryDto {
+  @IsOptional() @IsDateString()
+  desde?: string;
+
+  @IsOptional() @IsDateString()
+  hasta?: string;
 }

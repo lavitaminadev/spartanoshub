@@ -8,28 +8,79 @@
  *   conserva su identificador, así que sus respuestas anteriores siguen contando en ella.
  * - Quitar una pregunta que ya pudo tener respuestas la **archiva**: deja de mostrarse a quien
  *   responde, pero sus respuestas siguen visibles en resultados, marcadas como archivadas.
- * - Cambiar el **tipo** de una pregunta con respuestas no se permite: sumar estrellas con texto
- *   libre no tiene sentido. Se crea una pregunta nueva y la anterior se archiva.
+ * - Cambiar el **tipo**, o declarar que la pregunta ahora pregunta otra cosa, abre una **versión
+ *   nueva**: la anterior se cierra con su fecha y la nueva nace con identificador propio, así que
+ *   sus respuestas nunca se suman. El criterio es uno solo: mismo identificador, misma cosa medida.
  *
  * Cada edición devuelve la lista de cambios en palabras, que se guarda como historial visible.
+ * Esa lista es el registro de auditoría: nombra la pregunta, su versión y el motivo, de modo que
+ * meses después se pueda reconstruir por qué un resultado quedó partido en dos bloques.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAXIMO_HISTORIAL = void 0;
+exports.raizDePregunta = raizDePregunta;
+exports.versionesDePregunta = versionesDePregunta;
 exports.aplicarEdicionDePreguntas = aplicarEdicionDePreguntas;
 const TIPOS = { nps: 'recomendación 0-10', rating: 'estrellas', text: 'texto libre', 'multiple-choice': 'opción múltiple' };
 const corto = (texto) => (texto.length > 70 ? `${texto.slice(0, 67)}…` : texto);
+/** Fecha corta para el historial: el día basta para ubicar el corte entre dos versiones. */
+const dia = (iso) => {
+    const [anio, mes, jornada] = iso.slice(0, 10).split('-');
+    return jornada ? `${jornada}/${mes}/${anio}` : iso;
+};
+/** La familia a la que pertenece una pregunta: el id de su primera versión. */
+function raizDePregunta(pregunta) {
+    return pregunta.raizId ?? pregunta.id;
+}
+/** Todas las versiones de una misma pregunta, de la más nueva a la más antigua. */
+function versionesDePregunta(preguntas, pregunta) {
+    const raiz = raizDePregunta(pregunta);
+    return preguntas.filter((otra) => raizDePregunta(otra) === raiz).sort((a, b) => (b.version ?? 1) - (a.version ?? 1));
+}
+/** Identificador de la versión siguiente, siempre libre dentro de la encuesta. */
+function idDeVersion(raiz, version, ocupados) {
+    let candidato = `${raiz}~v${version}`;
+    let siguiente = version;
+    while (ocupados.has(candidato))
+        candidato = `${raiz}~v${++siguiente}`;
+    return candidato;
+}
 /**
  * Compara las preguntas guardadas con las editadas y aplica las reglas.
  *
  * @param conRespuestas Si la encuesta ya recibió respuestas: sólo entonces se archiva en vez de
- *   quitar y se bloquea el cambio de tipo.
+ *   quitar y un cambio de tipo abre versión nueva.
  * @param ahora Fecha de la edición, para marcar las preguntas cuya redacción cambió.
+ * @param versionar Ids que quien edita declaró que «ahora preguntan otra cosa»: su cambio de
+ *   redacción abre versión nueva en vez de conservar el identificador. Un cambio de tipo abre
+ *   versión esté o no en esta lista, porque dos tipos distintos no se pueden agregar juntos.
  */
-function aplicarEdicionDePreguntas(anteriores, editadas, conRespuestas, ahora) {
+function aplicarEdicionDePreguntas(anteriores, editadas, conRespuestas, ahora, versionar = []) {
     const cambios = [];
     const previas = new Map(anteriores.map((pregunta) => [pregunta.id, pregunta]));
     const idsEditadas = new Set(editadas.map((pregunta) => pregunta.id));
     const resultado = [];
+    // Qué preguntas abren versión nueva se decide antes de recorrer: las reglas que apuntaban a la
+    // versión anterior tienen que repuntarse aunque la pregunta que las lleva venga antes en la lista.
+    const pedidas = new Set(versionar);
+    const ocupados = new Set([...previas.keys(), ...idsEditadas]);
+    const versionados = new Map();
+    if (conRespuestas) {
+        for (const nueva of editadas) {
+            const vieja = previas.get(nueva.id);
+            if (!vieja || vieja.archivada || nueva.archivada)
+                continue;
+            const porTipo = vieja.type !== nueva.type;
+            const otraPregunta = pedidas.has(nueva.id) && vieja.question.trim() !== nueva.question.trim();
+            if (!porTipo && !otraPregunta)
+                continue;
+            const raiz = raizDePregunta(vieja);
+            const version = Math.max(...versionesDePregunta(anteriores, vieja).map((q) => q.version ?? 1)) + 1;
+            const nuevoId = idDeVersion(raiz, version, ocupados);
+            ocupados.add(nuevoId);
+            versionados.set(vieja.id, { vieja, nuevoId, version, porTipo, enunciado: nueva.question });
+        }
+    }
     for (const nueva of editadas) {
         const vieja = previas.get(nueva.id);
         if (!vieja) {
@@ -37,10 +88,20 @@ function aplicarEdicionDePreguntas(anteriores, editadas, conRespuestas, ahora) {
             resultado.push({ ...nueva, archivada: undefined });
             continue;
         }
-        if (conRespuestas && vieja.type !== nueva.type) {
-            return { preguntas: anteriores, cambios: [], error: `«${corto(vieja.question)}» ya tiene respuestas de tipo ${TIPOS[vieja.type] ?? vieja.type}: no se puede cambiar a ${TIPOS[nueva.type] ?? nueva.type}. Agrega una pregunta nueva y archiva esta.` };
+        const versionado = versionados.get(vieja.id);
+        if (versionado) {
+            const { nuevoId, version, porTipo } = versionado;
+            const motivo = porTipo
+                ? `el tipo cambió de ${TIPOS[vieja.type] ?? vieja.type} a ${TIPOS[nueva.type] ?? nueva.type}`
+                : `ahora pregunta otra cosa («${corto(vieja.question)}» → «${corto(nueva.question)}»)`;
+            cambios.push(`Versión nueva de «${corto(nueva.question)}» (v${version}): ${motivo}. La v${vieja.version ?? 1} queda cerrada el ${dia(ahora)} y sus resultados se muestran aparte.`);
+            // La versión nueva nace limpia; la anterior queda cerrada con su fecha y sus respuestas.
+            resultado.push({ ...nueva, id: nuevoId, raizId: raizDePregunta(vieja), version, vigenteDesde: ahora, vigenteHasta: undefined, archivada: undefined, editadaEn: undefined });
+            resultado.push({ ...vieja, archivada: true, vigenteHasta: ahora });
+            continue;
         }
-        const siguiente = { ...nueva };
+        // El editor no maneja el versionado: su rastro se conserva desde lo guardado.
+        const siguiente = { ...nueva, raizId: vieja.raizId, version: vieja.version, vigenteDesde: vieja.vigenteDesde, vigenteHasta: vieja.vigenteHasta };
         if (vieja.archivada && !nueva.archivada)
             cambios.push(`Pregunta restaurada: «${corto(nueva.question)}»`);
         if (!vieja.archivada && nueva.archivada)
@@ -90,6 +151,24 @@ function aplicarEdicionDePreguntas(anteriores, editadas, conRespuestas, ahora) {
     const ordenNuevo = editadas.filter((pregunta) => previas.has(pregunta.id) && !pregunta.dato).map((pregunta) => pregunta.id).join('|');
     if (ordenViejo !== ordenNuevo)
         cambios.push('Cambió el orden de las preguntas');
+    // Las reglas que apuntaban a una pregunta versionada tienen que repuntarse o caerse: si quedaran
+    // apuntando a la versión cerrada, `preguntaVisible` ocultaría la pregunta dependiente para
+    // siempre y sin aviso, porque una pregunta archivada nunca se muestra.
+    if (versionados.size) {
+        for (const [indice, pregunta] of resultado.entries()) {
+            const destino = pregunta.mostrarSi && !pregunta.archivada ? versionados.get(pregunta.mostrarSi.preguntaId) : undefined;
+            if (!destino)
+                continue;
+            if (destino.porTipo) {
+                cambios.push(`«${corto(pregunta.question)}» ahora se muestra siempre: la pregunta de la que dependía cambió de tipo y sus respuestas ya no sirven como condición.`);
+                resultado[indice] = { ...pregunta, mostrarSi: undefined };
+            }
+            else {
+                cambios.push(`«${corto(pregunta.question)}» ahora depende de la v${destino.version} de «${corto(destino.enunciado)}».`);
+                resultado[indice] = { ...pregunta, mostrarSi: { ...pregunta.mostrarSi, preguntaId: destino.nuevoId } };
+            }
+        }
+    }
     return { preguntas: resultado, cambios };
 }
 /** Máximo de ediciones que se guardan: suficiente para auditar sin que el registro crezca sin fin. */

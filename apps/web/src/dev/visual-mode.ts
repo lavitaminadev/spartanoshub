@@ -886,7 +886,9 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/surveys\/visual-survey\/responses\/[^/]+\/attention$/, (config) => ({ attendedAt: visualRequestBody(config).atendida ? new Date().toISOString() : null })],
   [/\/public\/surveys\/visual-survey$/, () => VISUAL_SURVEY],
   [/\/surveys\/visual-survey\/send-email$/, () => ({ enviados: 2, fallidos: 0, invalidos: 1 })],
-  [/\/surveys\/visual-survey\/results$/, () => ({
+  // Con `?desde=`/`?hasta=`: los resultados se piden por período, y anclar en `$` dejaba fuera
+  // cualquier ventana que no fuera «Todo», que caía en la respuesta genérica sin preguntas.
+  [/\/surveys\/visual-survey\/results(\?.*)?$/, () => ({
     surveyId: 'visual-survey', totalResponses: 6, completionRate: null,
     visitasPorDia: [
       { origen: 'qr-mesa', dia: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), total: 42 },
@@ -974,6 +976,28 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   })],
   // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
   [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
+  /*
+   * El resumen del portal, con los tres bloques contratados.
+   *
+   * Cada clave ausente significa «no contratado», así que quitar una de aquí es la forma de
+   * revisar cómo se ve el portal de una empresa que sólo lleva uno de los servicios. El
+   * presupuesto trae reservado y consumido distintos de cero: con todo en cero no se verían ni
+   * el aviso de lo comprometido ni la resta que da lo disponible.
+   */
+  [/\/portal\/inicio/, () => ({
+    crm: { leadsDelMes: 12, pendientes: [{ key: 'sin_contactar', count: 3, level: 'critico' }, { key: 'calificados_sin_visita', count: 0, level: 'alto' }] },
+    reservas: { proximasDosDias: 4, sinConfirmar: 1 },
+    presupuesto: {
+      contratado: 40, reservado: 7.5, consumido: 12.25, disponible: 20.25, mes: '2026-10', cerrado: false,
+      // Un consumo, una reserva y una devolución: las tres formas que toma la lista.
+      movimientos: [
+        { fecha: new Date(Date.now() - 2 * 86400000).toISOString(), tipo: 'reservation', unidades: 7.5, pieza: 'Campaña día de la madre', motivo: null },
+        { fecha: new Date(Date.now() - 6 * 86400000).toISOString(), tipo: 'consumption', unidades: 8.25, pieza: 'Carta de primavera', motivo: 'Aprobada en la primera ronda' },
+        { fecha: new Date(Date.now() - 9 * 86400000).toISOString(), tipo: 'release', unidades: -3, pieza: 'Flyer de aniversario', motivo: 'El local bajó el trabajo' },
+        { fecha: new Date(Date.now() - 12 * 86400000).toISOString(), tipo: 'consumption', unidades: 4, pieza: 'Menú de invierno', motivo: null },
+      ],
+    },
+  })],
   [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],
   /*
    * Datos de ejemplo del CRM.

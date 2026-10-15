@@ -13,7 +13,35 @@ interface Inicio {
   /** Ausente cuando la empresa no tiene CRM contratado. No es lo mismo que estar en cero. */
   crm?: { leadsDelMes: number; pendientes: Pendiente[] };
   reservas?: { proximasDosDias: number; sinConfirmar: number };
+  /**
+   * Presupuesto de diseño del mes. Ausente si no se contrató la visibilidad, o si el mes todavía
+   * no tiene presupuesto abierto: en ninguno de los dos casos hay nada que contar.
+   */
+  presupuesto?: {
+    contratado: number; reservado: number; consumido: number; disponible: number; mes: string; cerrado: boolean;
+    /** En qué se fueron las UD, lo más reciente primero. Sin quién lo hizo: es reparto interno. */
+    movimientos: Array<{ fecha: string; tipo: string; unidades: number; pieza: string | null; motivo: string | null }>;
+  };
 }
+
+/** Las UD se guardan con dos decimales, pero los enteros se leen mejor sin el «,00». */
+const ud = (valor: number) => (Number.isInteger(valor) ? String(valor) : valor.toFixed(2).replace('.', ','));
+
+/**
+ * Cómo se nombra cada movimiento para quien no trabaja acá.
+ *
+ * Los nombres del motor —`consumption`, `release`— describen la operación; estos describen lo
+ * que le pasó a su presupuesto, que es la pregunta que trae quien abre el portal.
+ */
+const MOVIMIENTOS: Record<string, string> = {
+  budget_assigned: 'Presupuesto asignado',
+  reservation: 'Reservado para una pieza',
+  consumption: 'Pieza terminada',
+  release: 'Devuelto al presupuesto',
+  adjustment: 'Ajuste',
+  extra: 'Unidades extra',
+  rollover: 'Traspaso del mes anterior',
+};
 
 /**
  * Cómo se lee cada pendiente, y por qué importa.
@@ -92,7 +120,7 @@ export function ClientDashboard() {
       />
       {isPortalPulseVisible(user) ? <PulsoEspartano compact /> : null}
 
-      {data?.crm || data?.reservas ? (
+      {data?.crm || data?.reservas || data?.presupuesto ? (
         <div className="card-grid portal-resumen">
           {data.crm ? (
             <div className="card portal-home-card">
@@ -134,6 +162,60 @@ export function ClientDashboard() {
                 <p className="portal-pendiente es-ok"><strong>Todo confirmado</strong><span>No queda ninguna esperando.</span></p>
               )}
               <Link to="/portal/reservations" className="btn btn-primary btn-sm">Abrir reservas</Link>
+            </div>
+          ) : null}
+
+          {/*
+            El saldo de diseño: lo que le queda, no lo que gastó.
+
+            La cifra grande es lo disponible porque es la que decide si puede pedir una pieza
+            más. Lo reservado va aparte de lo consumido: es trabajo comprometido que todavía
+            puede soltarse, y sumarlo se leería como gastado sin estarlo.
+          */}
+          {data.presupuesto ? (
+            <div className="card portal-home-card">
+              <h3>{ud(data.presupuesto.disponible)}</h3>
+              <p>UD disponibles de {ud(data.presupuesto.contratado)} este mes</p>
+              {data.presupuesto.reservado > 0 ? (
+                <p className="portal-pendiente es-alto">
+                  <strong>{ud(data.presupuesto.reservado)} reservadas</strong>
+                  <span>Piezas comprometidas que aún no se cierran.</span>
+                </p>
+              ) : null}
+              <p className="portal-pendiente es-ok">
+                <strong>{ud(data.presupuesto.consumido)} consumidas</strong>
+                <span>{data.presupuesto.cerrado ? 'El mes ya está cerrado.' : 'Piezas terminadas y aprobadas.'}</span>
+              </p>
+              {data.presupuesto.disponible <= 0 && !data.presupuesto.cerrado ? (
+                <p className="portal-pendiente es-critico">
+                  <strong>Sin UD disponibles</strong>
+                  <span>Para pedir otra pieza este mes, habla con tu contacto en Espartanos.</span>
+                </p>
+              ) : null}
+              {/*
+                En qué se fueron, pieza por pieza.
+
+                Plegado y no abierto: la pregunta de cada día es cuánto queda, y el detalle es lo
+                que se mira cuando el número no cuadra con lo que uno esperaba.
+              */}
+              {data.presupuesto.movimientos.length > 0 ? (
+                <details className="portal-movimientos">
+                  <summary>En qué se usaron ({data.presupuesto.movimientos.length})</summary>
+                  <ul>
+                    {data.presupuesto.movimientos.map((movimiento, indice) => (
+                      <li key={`${movimiento.fecha}-${indice}`}>
+                        <span className="portal-movimiento-ud">{movimiento.unidades > 0 ? '−' : '+'}{ud(Math.abs(movimiento.unidades))} UD</span>
+                        <strong>{movimiento.pieza ?? MOVIMIENTOS[movimiento.tipo] ?? movimiento.tipo}</strong>
+                        <small>
+                          {new Date(movimiento.fecha).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
+                          {movimiento.pieza ? ` · ${MOVIMIENTOS[movimiento.tipo] ?? movimiento.tipo}` : ''}
+                          {movimiento.motivo ? ` · ${movimiento.motivo}` : ''}
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </div>
           ) : null}
         </div>

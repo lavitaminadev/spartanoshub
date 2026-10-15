@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReservationsService } from '../../../src/modules/reservations/application/reservations.service';
+import { createDestinatariosDeAvisosDouble } from '../../helpers/destinatarios-de-avisos.double';
+
+/** Posiciones 14 a 20 del constructor: estas pruebas no recorren nada que las use. */
+const SIN_USAR = undefined as never;
 
 const formQuery = { where: vi.fn(), setLock: vi.fn(), getOne: vi.fn() };
 formQuery.where.mockReturnValue(formQuery);
@@ -49,7 +53,7 @@ describe('ReservationsService', () => {
     dataSource.query.mockReset();
     dataSource.query.mockResolvedValue([{ status: 'active', capabilities: { reservations: true, crm: true, metaConversions: false } }]);
     formQuery.where.mockReturnValue(formQuery); formQuery.setLock.mockReturnValue(formQuery);
-    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
+    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never, SIN_USAR, SIN_USAR, SIN_USAR, SIN_USAR, SIN_USAR, SIN_USAR, SIN_USAR, createDestinatariosDeAvisosDouble());
   });
 
   it('does not expose tenant or attribution configuration in the public form', async () => {
@@ -581,7 +585,7 @@ describe('ReservationsService — portada operativa', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dataSource.query.mockReset();
-    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never);
+    service = new ReservationsService(forms as never, reservations as never, blocks as never, events as never, formEvents as never, coupons as never, dataSource as never, calendar as never, metaOutbox as never, clientPixels as never, notifications as never, emails as never, audit as never, SIN_USAR, SIN_USAR, SIN_USAR, SIN_USAR, SIN_USAR, SIN_USAR, SIN_USAR, createDestinatariosDeAvisosDouble());
   });
 
   /** Constructor de consultas encadenable que devuelve las reservas indicadas. */
