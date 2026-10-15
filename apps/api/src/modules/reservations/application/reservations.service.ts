@@ -2131,7 +2131,7 @@ export class ReservationsService {
 
       if (accion === 'borrar') {
         await this.calendar.deleteEvent(form.organizationId, booking.calendarEventId);
-        await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined });
+        await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
         return;
       }
 
@@ -2144,14 +2144,24 @@ export class ReservationsService {
       if (!resultado.existe) {
         // El evento ya no está. Se olvida el id: el trabajo que recupera integraciones pendientes
         // busca justamente las reservas sin `calendar_event_id`, así que volverá a crearlo.
-        await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined });
+        await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
         return;
       }
-      if (resultado.calendarUrl && resultado.calendarUrl !== booking.calendarUrl) {
-        await this.reservations.update(booking.id, { calendarUrl: resultado.calendarUrl });
-      }
+      await this.reservations.update(booking.id, {
+        calendarSyncPending: null,
+        ...(resultado.calendarUrl && resultado.calendarUrl !== booking.calendarUrl ? { calendarUrl: resultado.calendarUrl } : {}),
+      });
     } catch (err) {
       this.logger.warn(`No se pudo sincronizar el calendario del local para la reserva ${booking.id}: ${err instanceof Error ? err.message : err}`);
+      /*
+       * Queda anotado qué le falta al calendario, para que el trabajo de recuperación lo reintente.
+       *
+       * Sin esta marca el fallo era definitivo: el evento sigue existiendo con la hora vieja, así
+       * que la reserva no aparece en la búsqueda de «sin `calendar_event_id`» y nadie vuelve a
+       * intentarlo. Si ni siquiera se puede escribir la marca no hay nada más que hacer acá.
+       */
+      await this.reservations.update(booking.id, { calendarSyncPending: accion })
+        .catch((marcaErr) => this.logger.warn(`Tampoco se pudo anotar el calendario pendiente de la reserva ${booking.id}: ${marcaErr instanceof Error ? marcaErr.message : marcaErr}`));
     }
   }
 

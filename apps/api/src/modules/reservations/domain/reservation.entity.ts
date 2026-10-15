@@ -162,6 +162,15 @@ export class Reservation {
   @Column({ name: 'client_user_agent', type: 'varchar', length: 500, nullable: true }) clientUserAgent?: string | null;
   @Column({ name: 'calendar_event_id', type: 'varchar', length: 255, nullable: true }) calendarEventId?: string;
   @Column({ name: 'calendar_url', type: 'varchar', length: 500, nullable: true }) calendarUrl?: string;
+  /**
+   * Cambio que el calendario del local todavía no recibió, si Google no respondió.
+   *
+   * `mover` reescribe hora y título; `borrar` quita el evento. Se guarda la acción y no el valor
+   * nuevo a propósito: el reintento lee la reserva como está en ese momento, así que dos cambios
+   * seguidos con Google caído se resuelven aplicando el último y nunca uno vencido.
+   */
+  @Column({ name: 'calendar_sync_pending', type: 'varchar', length: 10, nullable: true })
+  calendarSyncPending?: 'mover' | 'borrar' | null;
   @Column({ name: 'coupon_code', type: 'varchar', length: 80, nullable: true }) couponCode?: string;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

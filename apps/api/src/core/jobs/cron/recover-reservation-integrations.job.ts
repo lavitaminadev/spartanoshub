@@ -28,6 +28,12 @@ const BATCH = 50;
  * `calendar_event_id` en un formulario con calendario activo es exactamente una pendiente.
  * Eso cubre además el caso que una cola en memoria no cubre —que el proceso muera entre la
  * confirmación y el intento—, porque la marca vive en la base y no en el proceso.
+ *
+ * Lo mismo vale para un cambio que el calendario no alcanzó a recibir: ahí el evento existe y lo
+ * que está mal es su contenido, así que la reserva lo dice con `calendar_sync_pending`. Guardar la
+ * acción y no el valor nuevo hace que el reintento sea idempotente —lee la reserva como está— y
+ * que varios cambios seguidos se resuelvan aplicando el último, que es lo que una cola de eventos
+ * no da sin ordenar ni descartar los vencidos.
  */
 @Injectable()
 export class RecoverReservationIntegrationsJob {
@@ -99,10 +105,66 @@ export class RecoverReservationIntegrationsJob {
       }
     }
 
+    /*
+     * Cambios que el calendario del local quedó debiendo.
+     *
+     * Son distintos de los de arriba: ahí falta el evento y acá existe con el contenido viejo, así
+     * que la reserva sí tiene `calendar_event_id` y la búsqueda por columna vacía no la alcanza.
+     * Se reintenta leyendo la reserva como está ahora, no como estaba al fallar: si se movió dos
+     * veces con Google caído, se aplica la última hora y no una vencida.
+     */
+    for (const booking of await this.pendingSync(createdAfter)) {
+      const form = await this.formOf(booking);
+      if (!form?.calendarEnabled || !booking.calendarEventId) {
+        // Sin evento que arreglar la marca sobra: dejarla haría que el trabajo la mirara en cada pase.
+        await this.reservations.update(booking.id, { calendarSyncPending: null });
+        continue;
+      }
+      try {
+        if (booking.calendarSyncPending === 'borrar') {
+          await this.calendar.deleteEvent(form.organizationId, booking.calendarEventId);
+          await this.reservations.update(booking.id, { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
+        } else {
+          const resultado = await this.calendar.updateEvent(form.organizationId, booking.calendarEventId, {
+            summary: `${form.name}: ${booking.guestName}`,
+            description: `Reserva ${booking.referenceCode}`,
+            start: booking.startsAt,
+            durationMinutes: Math.round((booking.endsAt.getTime() - booking.startsAt.getTime()) / 60000),
+          });
+          // Si el evento ya no está, se olvida el id y el pase de arriba vuelve a crearlo.
+          await this.reservations.update(booking.id, resultado.existe
+            ? { calendarSyncPending: null, ...(resultado.calendarUrl ? { calendarUrl: resultado.calendarUrl } : {}) }
+            : { calendarEventId: undefined, calendarUrl: undefined, calendarSyncPending: null });
+        }
+        calendar += 1;
+      } catch (error) {
+        // La marca se deja puesta: al próximo pase se reintenta, y al salir de la ventana se abandona.
+        failed += 1;
+        this.logger.warn(`Calendario desactualizado de la reserva ${booking.id}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
     if (calendar || crm || failed) {
       this.logger.log(`Integraciones recuperadas: ${calendar} de calendario, ${crm} de CRM, ${failed} con error`);
     }
     return { calendar, crm, failed };
+  }
+
+  /**
+   * Reservas con un cambio que el calendario del local no recibió.
+   *
+   * Dos diferencias con `pending`, y las dos importan. La ventana cuenta desde `updated_at` y no
+   * desde el alta, porque una reserva de hace un mes se puede mover hoy. Y no se excluyen las
+   * canceladas: una cancelación que no llegó a Google hay que reintentarla justamente sobre una
+   * reserva cancelada, que es el caso que deja una mesa ocupada en la pantalla del equipo.
+   */
+  private pendingSync(updatedAfter: Date): Promise<Reservation[]> {
+    return this.reservations.createQueryBuilder('r')
+      .where('r.calendar_sync_pending IS NOT NULL')
+      .andWhere('r.updated_at > :updatedAfter', { updatedAfter })
+      .orderBy('r.updated_at', 'ASC')
+      .take(BATCH)
+      .getMany();
   }
 
   /**
