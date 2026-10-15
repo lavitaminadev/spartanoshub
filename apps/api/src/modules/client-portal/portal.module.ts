@@ -5,6 +5,7 @@ import { AccountAccessModule } from '../../core/client-scope/account-access.modu
 import { Reservation } from '../reservations/domain/reservation.entity';
 import { Client } from '../clients/client.entity';
 import { UDBudget } from '../design-budget/ud-budget.entity';
+import { UDMovement } from '../design-budget/ud-movement.entity';
 import { PortalHomeController } from './portal-home.controller';
 
 /**
@@ -17,8 +18,9 @@ import { PortalHomeController } from './portal-home.controller';
  * Nadie lo importa, así que no puede crear un ciclo por más que crezca.
  */
 @Module({
-  // `UDBudget` se lee, nunca se escribe desde acá: quien reserva y consume UD es Diseño.
-  imports: [TypeOrmModule.forFeature([Reservation, Client, UDBudget]), CrmModule, AccountAccessModule],
+  // Presupuesto y movimientos se leen, nunca se escriben desde acá: quien reserva y consume UD
+  // es Diseño. El portal sólo cuenta lo que ya pasó.
+  imports: [TypeOrmModule.forFeature([Reservation, Client, UDBudget, UDMovement]), CrmModule, AccountAccessModule],
   controllers: [PortalHomeController],
 })
 export class PortalModule {}

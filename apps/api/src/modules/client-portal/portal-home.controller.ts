@@ -11,6 +11,7 @@ import { CrmHomeService } from '../crm/leads/crm-home.service';
 import { Reservation } from '../reservations/domain/reservation.entity';
 import { Client } from '../clients/client.entity';
 import { UDBudget } from '../design-budget/ud-budget.entity';
+import { UDMovement } from '../design-budget/ud-movement.entity';
 import { normalizeClientCapabilities } from '../clients/client-capabilities';
 import { UserRole } from '../organizations/user-role.enum';
 
@@ -49,6 +50,7 @@ export class PortalHomeController {
     private readonly accesos: AccountAccessService,
     @InjectRepository(Client) private readonly clientes: Repository<Client>,
     @InjectRepository(UDBudget) private readonly presupuestos: Repository<UDBudget>,
+    @InjectRepository(UDMovement) private readonly movimientos: Repository<UDMovement>,
   ) {}
 
   /**
@@ -155,7 +157,37 @@ export class PortalHomeController {
       disponible: Math.round((contratado - reservado - consumido) * 100) / 100,
       mes: `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}`,
       cerrado: presupuesto.status !== 'open',
+      movimientos: await this.movimientosDelMes(presupuesto.id),
     };
+  }
+
+  /**
+   * En qué se fueron las UD del mes, pieza por pieza.
+   *
+   * Los tres totales dicen cuánto queda; esto dice en qué se gastó, que es lo que una empresa
+   * pregunta a continuación. Incluye las devoluciones y los ajustes además de los consumos: una
+   * lista que sólo sumara no cuadraría con el total y haría dudar del número de arriba.
+   *
+   * **Quién lo hizo no viaja.** Los movimientos guardan `actorId`, pero qué persona de
+   * Espartanos movió qué es reparto interno, el mismo criterio por el que el bloque de CRM
+   * descarta `assignedToName`. El motivo sí va: es lo que explica un ajuste que de otro modo
+   * parecería arbitrario.
+   */
+  private async movimientosDelMes(presupuestoId: string) {
+    const filas = await this.movimientos.find({
+      where: { udBudgetId: presupuestoId },
+      relations: { piece: true },
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+    return filas.map((movimiento) => ({
+      fecha: movimiento.createdAt,
+      tipo: movimiento.type,
+      /** Positivo descuenta del presupuesto; una devolución llega en negativo desde el motor. */
+      unidades: Number(movimiento.amount),
+      pieza: movimiento.piece?.title ?? null,
+      motivo: movimiento.reason ?? null,
+    }));
   }
 
   /**

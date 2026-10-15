@@ -20,10 +20,11 @@ function montar(capacidades: Record<string, boolean>, presupuesto: Record<string
   const accesos = { allowedClientIds: vi.fn(), assertClient: vi.fn() };
   const clientes = { find: vi.fn() };
   const presupuestos = { findOne: vi.fn().mockResolvedValue(presupuesto) };
+  const movimientos = { find: vi.fn().mockResolvedValue([]) };
   const controller = new PortalHomeController(
-    crmHome as never, capacidadesSvc as never, reservas as never, accesos as never, clientes as never, presupuestos as never,
+    crmHome as never, capacidadesSvc as never, reservas as never, accesos as never, clientes as never, presupuestos as never, movimientos as never,
   );
-  return { controller, presupuestos };
+  return { controller, presupuestos, movimientos };
 }
 
 describe('saldo de presupuesto en el portal', () => {
@@ -54,6 +55,21 @@ describe('saldo de presupuesto en el portal', () => {
     const { controller } = montar({ budgetVisibility: true }, null);
 
     expect((await controller.inicio(PORTAL)).presupuesto).toBeUndefined();
+  });
+
+  it('el detalle dice en qué se usaron, con el motivo y sin quién lo hizo', async () => {
+    const { controller, movimientos } = montar({ budgetVisibility: true }, { contracted: 40, reserved: 0, consumed: 4, status: 'open' });
+    movimientos.find.mockResolvedValue([
+      { createdAt: new Date('2026-10-12T15:00:00Z'), type: 'consumption', amount: '4.00', reason: 'Aprobada en la primera ronda', actorId: 'u-interno', piece: { title: 'Carta de primavera' } },
+    ]);
+
+    const inicio = await controller.inicio(PORTAL);
+
+    expect(inicio.presupuesto?.movimientos).toEqual([
+      { fecha: new Date('2026-10-12T15:00:00Z'), tipo: 'consumption', unidades: 4, pieza: 'Carta de primavera', motivo: 'Aprobada en la primera ronda' },
+    ]);
+    // Qué persona de Espartanos movió qué es reparto interno: no sale al portal por ninguna clave.
+    expect(JSON.stringify(inicio.presupuesto?.movimientos)).not.toContain('u-interno');
   });
 
   it('un mes cerrado se entrega marcado, para que la pantalla no invite a pedir más', async () => {

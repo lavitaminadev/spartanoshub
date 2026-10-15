@@ -987,7 +987,16 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/portal\/inicio/, () => ({
     crm: { leadsDelMes: 12, pendientes: [{ key: 'sin_contactar', count: 3, level: 'critico' }, { key: 'calificados_sin_visita', count: 0, level: 'alto' }] },
     reservas: { proximasDosDias: 4, sinConfirmar: 1 },
-    presupuesto: { contratado: 40, reservado: 7.5, consumido: 12.25, disponible: 20.25, mes: '2026-10', cerrado: false },
+    presupuesto: {
+      contratado: 40, reservado: 7.5, consumido: 12.25, disponible: 20.25, mes: '2026-10', cerrado: false,
+      // Un consumo, una reserva y una devolución: las tres formas que toma la lista.
+      movimientos: [
+        { fecha: new Date(Date.now() - 2 * 86400000).toISOString(), tipo: 'reservation', unidades: 7.5, pieza: 'Campaña día de la madre', motivo: null },
+        { fecha: new Date(Date.now() - 6 * 86400000).toISOString(), tipo: 'consumption', unidades: 8.25, pieza: 'Carta de primavera', motivo: 'Aprobada en la primera ronda' },
+        { fecha: new Date(Date.now() - 9 * 86400000).toISOString(), tipo: 'release', unidades: -3, pieza: 'Flyer de aniversario', motivo: 'El local bajó el trabajo' },
+        { fecha: new Date(Date.now() - 12 * 86400000).toISOString(), tipo: 'consumption', unidades: 4, pieza: 'Menú de invierno', motivo: null },
+      ],
+    },
   })],
   [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],
   /*

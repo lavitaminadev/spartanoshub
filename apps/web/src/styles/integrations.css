@@ -286,3 +286,14 @@
 .portal-pendiente.es-alto { background: #fdf3e2; color: #8a5a12; }
 .portal-pendiente.es-ok { background: #e8f6ef; color: #0f6b4a; }
 
+
+/* El detalle del presupuesto: plegado, porque la pregunta de cada dia es cuanto queda. */
+.portal-movimientos { margin-top: 10px; }
+.portal-movimientos > summary { cursor: pointer; font-size: .85rem; font-weight: 700; color: var(--muted); }
+.portal-movimientos ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.portal-movimientos li { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: baseline; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.portal-movimientos li:last-child { border-bottom: 0; padding-bottom: 0; }
+/* Las unidades alineadas a la derecha en su columna: se comparan de un vistazo. */
+.portal-movimiento-ud { grid-row: span 2; font-variant-numeric: tabular-nums; font-weight: 700; font-size: .9rem; }
+.portal-movimientos li strong { font-size: .9rem; }
+.portal-movimientos li small { color: var(--muted); font-size: .8rem; }
