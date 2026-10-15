@@ -6,6 +6,7 @@ import { Reservation } from '../reservations/domain/reservation.entity';
 import { Client } from '../clients/client.entity';
 import { UDBudget } from '../design-budget/ud-budget.entity';
 import { UDMovement } from '../design-budget/ud-movement.entity';
+import { UsersModule } from '../users/users.module';
 import { PortalHomeController } from './portal-home.controller';
 
 /**
@@ -20,7 +21,7 @@ import { PortalHomeController } from './portal-home.controller';
 @Module({
   // Presupuesto y movimientos se leen, nunca se escriben desde acá: quien reserva y consume UD
   // es Diseño. El portal sólo cuenta lo que ya pasó.
-  imports: [TypeOrmModule.forFeature([Reservation, Client, UDBudget, UDMovement]), CrmModule, AccountAccessModule],
+  imports: [TypeOrmModule.forFeature([Reservation, Client, UDBudget, UDMovement]), CrmModule, AccountAccessModule, UsersModule],
   controllers: [PortalHomeController],
 })
 export class PortalModule {}

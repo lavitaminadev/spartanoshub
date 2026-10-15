@@ -12,6 +12,7 @@ import { Reservation } from '../reservations/domain/reservation.entity';
 import { Client } from '../clients/client.entity';
 import { UDBudget } from '../design-budget/ud-budget.entity';
 import { UDMovement } from '../design-budget/ud-movement.entity';
+import { AdministradoresDeEmpresaService } from '../users/administradores-de-empresa.service';
 import { normalizeClientCapabilities } from '../clients/client-capabilities';
 import { UserRole } from '../organizations/user-role.enum';
 
@@ -51,6 +52,8 @@ export class PortalHomeController {
     @InjectRepository(Client) private readonly clientes: Repository<Client>,
     @InjectRepository(UDBudget) private readonly presupuestos: Repository<UDBudget>,
     @InjectRepository(UDMovement) private readonly movimientos: Repository<UDMovement>,
+    // Al final, como el resto: las pruebas construyen este controlador por posición.
+    private readonly administradores: AdministradoresDeEmpresaService,
   ) {}
 
   /**
@@ -118,10 +121,27 @@ export class PortalHomeController {
     const [crm, reservas, presupuesto] = await Promise.all([
       tieneCrm ? this.bloqueCrm(req.organizationId, clientId) : Promise.resolve(undefined),
       tieneReservas ? this.bloqueReservas(req.organizationId, clientId) : Promise.resolve(undefined),
-      tienePresupuesto ? this.bloquePresupuesto(clientId) : Promise.resolve(undefined),
+      tienePresupuesto && await this.administraEstaEmpresa(req, clientId)
+        ? this.bloquePresupuesto(clientId)
+        : Promise.resolve(undefined),
     ]);
 
     return { crm, reservas, presupuesto };
+  }
+
+  /**
+   * Si esta persona administra la empresa que se está mirando.
+   *
+   * El saldo lleva una reja más que CRM y Reservas, y es a propósito: aquéllos son el trabajo
+   * del día, que hace todo el equipo del local, mientras que cuánto se contrató y cuánto queda
+   * es la relación comercial entre la empresa y la agencia. Un garzón con cuenta de portal no
+   * tiene por qué ver el presupuesto de su jefe.
+   *
+   * La capacidad contratada sigue mandando: ésta se suma, no la reemplaza.
+   */
+  private async administraEstaEmpresa(req: AuthenticatedRequest, clientId: string): Promise<boolean> {
+    const suyas = await this.administradores.empresasQueAdministra(req.organizationId, req.user.id);
+    return suyas.includes(clientId);
   }
 
   /**
