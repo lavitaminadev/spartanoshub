@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { DataTable } from '../../shared/DataTable';
@@ -11,23 +11,65 @@ interface AuditRow {
   after?: unknown; reason?: string; ipAddress?: string; occurredAt: string;
 }
 
+/** Tope de filas por consulta. Se nombra en pantalla cuando se alcanza. */
+const TOPE = 300;
+
 const ACTION_LABELS: Record<string, string> = { create: 'Creación', update: 'Actualización', delete: 'Eliminación', publish: 'Publicación', unpublish: 'Volver a borrador', reset_password: 'Reset de clave', accept: 'Aceptación', send: 'Envío' };
 const ENTITY_LABELS: Record<string, string> = { users: 'Usuarios', clients: 'Clientes', production: 'Producción', content: 'Contenido', meetings: 'Reuniones', catalog: 'Catálogo', contracts: 'Contratos', reporting: 'Reportes', workflows: 'Flujos', pods: 'Pods', settings: 'Configuración', auth: 'Acceso' };
 
 export function AuditPanel() {
   const [search, setSearch] = useState('');
   const [entity, setEntity] = useState('');
+  const [accion, setAccion] = useState('');
+  const [registro, setRegistro] = useState('');
   const [selected, setSelected] = useState<AuditRow | null>(null);
-  const query = useQuery<AuditRow[]>({ queryKey: ['audit-log'], queryFn: () => api.get('/audit?limit=300') });
+  /*
+   * El recorte lo hace el servidor, que es donde está la bitácora entera.
+   *
+   * `GET /audit` acepta módulo, acción, registro y responsable desde siempre, y esta pantalla no
+   * mandaba ninguno: pedía trescientas filas planas y filtraba encima. En una bitácora eso es lo
+   * contrario de lo que sirve, porque se entra buscando **un** evento concreto y el que se busca
+   * suele ser justo el que no vino.
+   */
+  const registroBuscado = useDeferredValue(registro.trim());
+  const query = useQuery<AuditRow[]>({
+    queryKey: ['audit-log', entity, accion, registroBuscado],
+    queryFn: () => api.get(`/audit?${new URLSearchParams({
+      limit: String(TOPE),
+      ...(entity ? { entityType: entity } : {}),
+      ...(accion ? { action: accion } : {}),
+      ...(registroBuscado ? { entityId: registroBuscado } : {}),
+    })}`),
+    placeholderData: (previa) => previa,
+  });
   const all = query.data ?? [];
-  const entities = [...new Set(all.map((row) => row.entityType))].sort();
-  const rows = all.filter((row) => (!entity || row.entityType === entity) && matchesSearch(search, [row.actorName, row.actorEmail, row.entityType, row.action, row.entityId]));
+  /*
+   * Los módulos salen del catálogo y no de lo traído.
+   *
+   * Sacarlos de las filas en pantalla dejaba fuera justamente el módulo que no aparecía, que es
+   * por el que alguien querría filtrar.
+   */
+  const entities = [...new Set([...Object.keys(ENTITY_LABELS), ...all.map((row) => row.entityType)])].sort();
+  /* El texto libre sí filtra acá: cruza campos que el servidor no indexa y la página ya está. */
+  const rows = all.filter((row) => matchesSearch(search, [row.actorName, row.actorEmail, row.entityType, row.action, row.entityId]));
   const payload = selected?.after == null ? null : typeof selected.after === 'string' ? (() => { try { return JSON.parse(selected.after); } catch { return selected.after; } })() : selected.after;
 
   return <section className="audit-workspace">
     <div className="section-toolbar"><div><span className="page-eyebrow">TRAZABILIDAD</span><h2>Bitácora de cambios</h2><p>Cada operación relevante queda asociada a persona, fecha, origen y datos no sensibles.</p></div><button className="btn btn-outline" onClick={() => query.refetch()} disabled={query.isFetching}>{query.isFetching ? 'Actualizando...' : 'Actualizar'}</button></div>
     <div className="audit-integrity-note"><span>✓</span><div><strong>Registro automático activo</strong><p>Contraseñas, tokens, secretos y credenciales se eliminan antes de guardar la evidencia.</p></div></div>
-    <div className="filters"><input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar actor, módulo, acción o identificador..." /><select className="input" value={entity} onChange={(event) => setEntity(event.target.value)}><option value="">Todos los módulos</option>{entities.map((value) => <option key={value} value={value}>{ENTITY_LABELS[value] ?? value}</option>)}</select></div>
+    <div className="filters">
+      <input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar actor, módulo, acción o identificador..." />
+      <select className="input" aria-label="Filtrar por módulo" value={entity} onChange={(event) => setEntity(event.target.value)}><option value="">Todos los módulos</option>{entities.map((value) => <option key={value} value={value}>{ENTITY_LABELS[value] ?? value}</option>)}</select>
+      <select className="input" aria-label="Filtrar por acción" value={accion} onChange={(event) => setAccion(event.target.value)}><option value="">Todas las acciones</option>{Object.entries(ACTION_LABELS).map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}</select>
+      {/* Por identificador exacto: es como se entra cuando se investiga un registro concreto. */}
+      <input className="input" aria-label="Buscar por identificador de registro" value={registro} onChange={(event) => setRegistro(event.target.value)} placeholder="Id del registro" />
+      {entity || accion || registro ? <button type="button" className="btn btn-link" onClick={() => { setEntity(''); setAccion(''); setRegistro(''); }}>Limpiar</button> : null}
+    </div>
+    {/*
+      El tope se dice. Una bitácora recortada en silencio hace creer que un evento no ocurrió
+      cuando lo que pasa es que quedó fuera de las últimas filas.
+    */}
+    {all.length >= TOPE ? <p className="page-subtitle">Se muestran los {TOPE} movimientos más recientes de este filtro. Acota por módulo, acción o identificador para encontrar uno anterior.</p> : null}
     {query.error ? <div className="alert alert-error">No se pudo cargar la bitácora: {query.error.message}</div> : <DataTable<AuditRow> loading={query.isLoading} data={rows} keyExtractor={(row) => row.id} emptyMessage="Aún no existen cambios registrados para este filtro." columns={[
       { key: 'occurredAt', label: 'Fecha', sortable: true, render: (row) => new Date(row.occurredAt).toLocaleString('es-CL') },
       { key: 'actorName', label: 'Responsable', render: (row) => <span className="audit-actor"><strong>{row.actorName ?? 'Sistema'}</strong><small>{row.actorEmail}</small></span> },

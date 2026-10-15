@@ -385,6 +385,20 @@ export class ReservationsController {
     return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
   }
 
+  /**
+   * Qué le pasó a una reserva, en orden.
+   *
+   * Los eventos se guardaban con su actor desde hace tiempo y no los leía nadie: «quién canceló
+   * esto y cuándo» sólo se podía contestar entrando a la base.
+   */
+  @Get(':id/historial')
+  @RequiresPermission('reservations', 'view')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async historialDeReserva(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const scope = await this.scope(req);
+    return this.service.historialDeReserva(req.organizationId, id, scope.clientIds);
+  }
+
   @Get('coupons')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async listCoupons(@Req() req: AuthenticatedRequest, @Query() query: ListCouponsDto) {

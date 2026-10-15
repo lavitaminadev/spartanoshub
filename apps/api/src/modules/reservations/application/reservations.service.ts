@@ -4019,6 +4019,54 @@ export class ReservationsService {
   }
 
   /**
+   * Todo lo que le pasó a una reserva, en orden.
+   *
+   * Cada cambio de estado, cada confirmación del comensal y cada consentimiento se guardaban con
+   * su actor y sus estados anterior y posterior desde hace tiempo, y **ninguna consulta los
+   * leía**: la bitácora que responde «quién canceló esto y cuándo» sólo se podía mirar entrando
+   * a la base. El índice `(reservation_id, created_at)` existía precisamente para recorrerla.
+   *
+   * Quién lo hizo se devuelve como nombre y no como identificador: un uuid en pantalla obliga a
+   * ir a buscar a quién pertenece, que es justo lo que esta vista debería ahorrar.
+   */
+  async historialDeReserva(organizationId: string, reservationId: string, clientIds?: string[]) {
+    const reserva = await this.reservations.findOne({ where: { id: reservationId, organizationId } });
+    if (!reserva) throw new NotFoundException('La reserva no existe');
+    if (clientIds !== undefined && (!reserva.clientId || !clientIds.includes(reserva.clientId))) {
+      throw new ForbiddenException('No tienes acceso a esta reserva');
+    }
+
+    const eventos = await this.events.find({
+      where: { organizationId, reservationId },
+      order: { createdAt: 'ASC' },
+    });
+
+    const ids = [...new Set(eventos.map((evento) => evento.actorId).filter((id): id is string => Boolean(id)))];
+    const nombres = new Map<string, string>();
+    if (ids.length) {
+      const filas = await this.dataSource
+        .query(`SELECT id, name FROM users WHERE id IN (${ids.map(() => '?').join(',')})`, ids)
+        .catch(() => []) as Array<{ id: string; name: string }>;
+      for (const fila of filas) nombres.set(fila.id, fila.name);
+    }
+
+    return {
+      referencia: reserva.referenceCode,
+      eventos: eventos.map((evento) => ({
+        fecha: evento.createdAt,
+        tipo: evento.type,
+        desde: evento.fromStatus ?? null,
+        hasta: evento.toStatus ?? null,
+        /* `guest` es el propio comensal desde su enlace; `system`, un trabajo automático. */
+        quien: evento.actorType === 'guest' ? 'El comensal'
+          : evento.actorType === 'system' ? 'El sistema'
+            : evento.actorId ? nombres.get(evento.actorId) ?? 'Alguien del equipo'
+              : 'Alguien del equipo',
+      })),
+    };
+  }
+
+  /**
    * Los canjes de un cupón, para abrir en una planilla.
    *
    * Lo que se mira en pantalla es el resumen; lo que se cuadra con la caja a fin de mes es la
