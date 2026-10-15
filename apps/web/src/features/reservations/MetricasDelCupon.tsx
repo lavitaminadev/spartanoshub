@@ -10,7 +10,7 @@
  * Cuando los dos números no coinciden se dice por qué, en vez de enseñar el más conveniente.
  */
 
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -49,6 +49,24 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
   });
 
   /*
+   * La tabla se pide aparte y acotada; los totales de arriba son del cupón entero.
+   *
+   * Las métricas devuelven los veinte últimos canjes, que responde «cómo va» pero no «qué pasó
+   * el sábado» ni «cuáles se anotaron en la caja». El recorte lo hace el motor, que es el único
+   * que los tiene todos: filtrar acá sobre esos veinte dejaría fuera lo que no vino.
+   */
+  const [acotado, setAcotado] = useState<{ desde: string; hasta: string; canal: '' | 'reserva' | 'local' }>({ desde: '', hasta: '', canal: '' });
+  const acotando = Boolean(acotado.desde || acotado.hasta || acotado.canal);
+  const { data: listado } = useQuery<{ canjes: Canje[]; total: number }>({
+    queryKey: ['coupon-canjes', couponId, acotado.desde, acotado.hasta, acotado.canal],
+    queryFn: () => api.get(`/reservations/coupons/${couponId}/canjes?${new URLSearchParams({
+      ...(acotado.desde ? { desde: acotado.desde } : {}),
+      ...(acotado.hasta ? { hasta: acotado.hasta } : {}),
+      ...(acotado.canal ? { canal: acotado.canal } : {}),
+    })}`),
+  });
+
+  /*
    * Se leen con valores por omisión en vez de confiar en la forma que llegue.
    *
    * Una respuesta a la que le falte una lista —un servidor más viejo, una versión de prueba, un
@@ -56,7 +74,8 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
    * encima. Un cupón sin métricas se puede dibujar; una pantalla caída no.
    */
   const porDia = data?.porDia ?? [];
-  const ultimos = data?.ultimos ?? [];
+  // Lo acotado manda cuando llegó; si todavía no, los últimos de las métricas evitan la tabla vacía.
+  const ultimos = listado?.canjes ?? data?.ultimos ?? [];
   const sinRegistro = Math.max((data?.usosTotales ?? 0) - (data?.canjesRegistrados ?? 0), 0);
   // El día con más canjes manda la altura del resto: sin un tope común, dos barras de 1 y 7 se
   // dibujarían iguales y el gráfico diría lo contrario de lo que pasó.
@@ -109,8 +128,19 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
             </div>
           ) : null}
 
+          <div className="reservation-filters cupon-canjes-filtros">
+            <label className="filter-date">Desde<input className="input" type="date" aria-label="Canjes desde" value={acotado.desde} max={acotado.hasta || undefined} onChange={(evento) => setAcotado((actual) => ({ ...actual, desde: evento.target.value }))} /></label>
+            <label className="filter-date">Hasta<input className="input" type="date" aria-label="Canjes hasta" value={acotado.hasta} min={acotado.desde || undefined} onChange={(evento) => setAcotado((actual) => ({ ...actual, hasta: evento.target.value }))} /></label>
+            <select className="input" aria-label="Filtrar canjes por canal" value={acotado.canal} onChange={(evento) => setAcotado((actual) => ({ ...actual, canal: evento.target.value as '' | 'reserva' | 'local' }))}>
+              <option value="">Por reserva y en el local</option>
+              <option value="reserva">Sólo los de una reserva</option>
+              <option value="local">Sólo los del local</option>
+            </select>
+            {acotando ? <button type="button" className="btn btn-link" onClick={() => setAcotado({ desde: '', hasta: '', canal: '' })}>Quitar el recorte</button> : null}
+          </div>
+
           {ultimos.length === 0 ? (
-            <p className="crm-dash-vacio">Todavía no hay canjes registrados de este cupón.</p>
+            <p className="crm-dash-vacio">{acotando ? 'Ningún canje cae en ese recorte. Prueba a correr las fechas o a quitarlo.' : 'Todavía no hay canjes registrados de este cupón.'}</p>
           ) : (
             <div className="crm-table-container">
               <table className="data-table">

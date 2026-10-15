@@ -412,6 +412,19 @@ const visualManagedReservation = {
  * Google y los tres canales, así cada botón de la lista y cada paso de la página pública se pueden
  * probar.
  */
+/**
+ * Canjes de ejemplo de un cupón.
+ *
+ * Los dos canales, uno sin importes anotados y uno sin persona: es lo que hay que poder mirar
+ * para saber si la tabla dice «—» donde no hay dato en vez de dejar la celda en blanco.
+ */
+const CANJES_VISUALES = [
+  { fecha: '2026-10-12T21:30:00Z', canal: 'local' as const, persona: 'Camila Rojas', monto: '42000', descuento: '8400', nota: 'Mesa 12, pagó con tarjeta' },
+  { fecha: '2026-10-11T20:05:00Z', canal: 'reserva' as const, persona: 'Sebastián Vera', monto: '31500', descuento: '6300', nota: null },
+  { fecha: '2026-10-10T22:15:00Z', canal: 'local' as const, persona: null, monto: null, descuento: null, nota: 'Lo trajo en el teléfono' },
+  { fecha: '2026-10-09T19:40:00Z', canal: 'reserva' as const, persona: 'Antonia Díaz', monto: '58000', descuento: '11600', nota: null },
+];
+
 const VISUAL_SURVEY = {
   id: 'visual-survey', clientId: 'visual-client', title: 'Tu visita a Casa Costanera', type: 'customer', status: 'active',
   createdAt: new Date(Date.now() - 20 * 86400000).toISOString(), createdBy: 'visual-user', responses: 3,
@@ -1226,6 +1239,27 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * si la columna distingue «el cupón funciona» de «el correo funciona», que es lo único que
    * esta pantalla vino a responder.
    */
+  /*
+   * Las dos rutas de un cupón concreto van antes que la lista.
+   *
+   * El patrón de la lista no está anclado, así que cualquier `/reservations/coupons/...` calza
+   * con él y devolvería un arreglo donde la pantalla espera un objeto.
+   */
+  [/\/reservations\/coupons\/[^/]+\/metricas/, () => ({
+    codigo: 'VUELVE20', usosTotales: 38, canjesRegistrados: 34, porReserva: 25, enElLocal: 9,
+    montoTotal: 1284000, descuentoTotal: 256800,
+    porDia: [
+      { dia: '2026-10-09', total: 3 }, { dia: '2026-10-10', total: 7 },
+      { dia: '2026-10-11', total: 2 }, { dia: '2026-10-12', total: 5 },
+    ],
+    ultimos: CANJES_VISUALES,
+  })],
+  [/\/reservations\/coupons\/[^/]+\/canjes/, (config) => {
+    // Se recorta de verdad, para poder revisar el caso de «ningún canje cae en ese recorte».
+    const canal = new URL(config?.url ?? '', 'http://x').searchParams.get('canal');
+    const canjes = canal ? CANJES_VISUALES.filter((canje) => canje.canal === canal) : CANJES_VISUALES;
+    return { codigo: 'VUELVE20', total: canjes.length, canjes };
+  }],
   [/\/reservations\/coupons/, () => ([
     { id: 'cup-1', code: 'VUELVE20', discountType: 'percentage', value: 20, maxUses: 0, usageCount: 38, active: true, createdAt: '2026-08-01T12:00:00Z', uso: { enviados: 214, usados: 38, volvieronDelCorreo: 31 } },
     { id: 'cup-2', code: 'VERANO20', discountType: 'percentage', value: 20, maxUses: 100, usageCount: 12, validUntil: '2026-12-31T00:00:00Z', active: true, createdAt: '2026-06-15T12:00:00Z', uso: { enviados: 0, usados: 12, volvieronDelCorreo: 0 } },

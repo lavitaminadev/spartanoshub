@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { DataTable } from '../../shared/DataTable';
@@ -54,9 +54,22 @@ export function CampanasPage() {
   const nombreDe = (id: string | null | undefined) =>
     id ? empresasResp?.data?.find((c) => c.id === id)?.name ?? 'Empresa no disponible' : 'Espartanos (agencia)';
 
+  /*
+   * El recorte lo hace el servidor, que es quien las tiene todas.
+   *
+   * La lista viene topada en cien: filtrar acá sobre esas cien dejaría fuera lo que no vino, y
+   * el cupón que reparte cada campaña se guarda desde la 0164 sin que se pudiera preguntar por
+   * él. Buscar un cupón exigía abrirlas una por una.
+   */
+  const [recorte, setRecorte] = useState<{ estado: string; cupon: string; conCupon: string }>({ estado: '', cupon: '', conCupon: '' });
+  const cuponBuscado = useDeferredValue(recorte.cupon.trim());
   const { data, isLoading, error, refetch } = useQuery<Campana[]>({
-    queryKey: ['campanas'],
-    queryFn: () => api.get('/marketing/campanas'),
+    queryKey: ['campanas', recorte.estado, cuponBuscado, recorte.conCupon],
+    queryFn: () => api.get(`/marketing/campanas?${new URLSearchParams({
+      ...(recorte.estado ? { estado: recorte.estado } : {}),
+      ...(cuponBuscado ? { cupon: cuponBuscado } : {}),
+      ...(recorte.conCupon ? { conCupon: recorte.conCupon } : {}),
+    })}`),
   });
 
   const refrescar = () => void clienteDeConsultas.invalidateQueries({ queryKey: ['campanas'] });
@@ -93,6 +106,24 @@ export function CampanasPage() {
         alguien le dio a un local no vale para otro. Para escribirle a direcciones que no están,
         impórtalas antes en <strong>Suscriptores</strong> declarando de dónde salieron.
       </p>
+
+      <div className="reservation-filters">
+        <select className="input" aria-label="Filtrar campañas por estado" value={recorte.estado} onChange={(evento) => setRecorte((actual) => ({ ...actual, estado: evento.target.value }))}>
+          <option value="">Todos los estados</option>
+          <option value="draft">Borradores</option>
+          <option value="sending">Enviándose</option>
+          <option value="sent">Enviadas</option>
+        </select>
+        <select className="input" aria-label="Filtrar campañas por cupón" value={recorte.conCupon} onChange={(evento) => setRecorte((actual) => ({ ...actual, conCupon: evento.target.value }))}>
+          <option value="">Con y sin cupón</option>
+          <option value="true">Sólo las que reparten uno</option>
+          <option value="false">Sólo las que no</option>
+        </select>
+        <input className="input" type="search" aria-label="Buscar por código de cupón" placeholder="Código del cupón" value={recorte.cupon} onChange={(evento) => setRecorte((actual) => ({ ...actual, cupon: evento.target.value }))} />
+        {recorte.estado || recorte.cupon || recorte.conCupon ? (
+          <button type="button" className="btn btn-link" onClick={() => setRecorte({ estado: '', cupon: '', conCupon: '' })}>Limpiar</button>
+        ) : null}
+      </div>
 
       {error ? <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} /> : (
         <DataTable<Campana>
