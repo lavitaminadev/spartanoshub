@@ -129,8 +129,18 @@ function TendenciaSemanal({ respuestas }: { respuestas: SurveyIndividualResponse
  * llegar, así que se podía repartir un QR por campaña y después no había forma de saber cuál había
  * traído gente.
  */
-function PorCampana({ campanas }: { campanas: CampanaDeEncuesta[] }): JSX.Element | null {
+function PorCampana({ campanas, truncadas }: { campanas: CampanaDeEncuesta[]; truncadas?: boolean }): JSX.Element | null {
+  /*
+   * El buscador filtra acá y no en el servidor, al revés que en el resto.
+   *
+   * Es la excepción que confirma la regla: la lista llega completa salvo el tope de 50, está
+   * entera en memoria y no hay una consulta que acotar. Donde sí hay recorte —esas 50— se dice,
+   * en vez de dejar creer que son todas.
+   */
+  const [buscado, setBuscado] = useState('');
   if (!campanas.length) return null;
+  const aguja = buscado.trim().toLocaleLowerCase('es');
+  const visibles = aguja ? campanas.filter((fila) => fila.campana.toLocaleLowerCase('es').includes(aguja)) : campanas;
   const maximo = Math.max(1, ...campanas.map((fila) => fila.visitas));
   const fecha = (valor: string) => new Date(valor).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 
@@ -138,13 +148,16 @@ function PorCampana({ campanas }: { campanas: CampanaDeEncuesta[] }): JSX.Elemen
     <section className="results-origen" aria-label="Visitas por campaña">
       <header>
         <h3>Campañas</h3>
-        <small>Sólo los enlaces y QR que llevaban una campaña escrita</small>
+        <small>Sólo los enlaces y QR que llevaban una campaña escrita{truncadas ? ' · se muestran las 50 de más visitas' : ''}</small>
+        {campanas.length > 8 ? (
+          <input className="input" type="search" aria-label="Buscar campaña" placeholder="Buscar campaña" value={buscado} onChange={(evento) => setBuscado(evento.target.value)} />
+        ) : null}
       </header>
       <div className="table-wrapper">
         <table className="data-table results-origen-tabla">
           <thead><tr><th>Campaña</th><th>Visitas</th><th>Personas</th><th>Cuándo</th></tr></thead>
           <tbody>
-            {campanas.map((fila) => (
+            {visibles.map((fila) => (
               <tr key={fila.campana}>
                 <td data-label="Campaña">
                   <span>{fila.campana}</span>
@@ -466,7 +479,7 @@ export function SurveyResultsPage(): JSX.Element {
       {summary.totalResponses > 0 && hayDetalle && <div className="results-medicion">
         <TendenciaSemanal respuestas={summary.respuestas ?? []} />
         <PorOrigen respuestas={filtradas} visitas={summary.visitasPorDia ?? []} desde={desdeMs} />
-        <PorCampana campanas={summary.campanas ?? []} />
+        <PorCampana campanas={summary.campanas ?? []} truncadas={summary.campanasTruncadas} />
       </div>}
 
       {summary.totalResponses === 0 ? (

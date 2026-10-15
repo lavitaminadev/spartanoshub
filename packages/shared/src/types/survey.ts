@@ -220,6 +220,8 @@ export interface SurveyResultsSummary {
    * carta y el cartel del mesón llevan la misma— y cruzarlas daría una fila por cada par.
    */
   campanas?: CampanaDeEncuesta[];
+  /** Hay más campañas de las que vienen: `campanas` trae las 50 de más visitas. */
+  campanasTruncadas?: boolean;
   /**
    * Respuestas de toda la encuesta, sin el recorte del período.
    *
