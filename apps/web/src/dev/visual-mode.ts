@@ -1321,14 +1321,36 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     }
     if (metodo === 'post') return { id: 'camp-nueva', ...visualRequestBody(config), estado: 'draft', destinatarios: 0, enviados: 0, createdAt: new Date().toISOString() };
     if (metodo === 'patch' || metodo === 'delete') return { borrada: true };
-    return [
+    // La lista va paginada desde que dejó de estar topada en cien: forma `{ data, total }`.
+    const data = [
       { id: 'camp-1', clientId: 'visual-client', asunto: 'Vuelve este fin de semana, {{nombre}}', cuerpo: 'Tenemos algo para ti.', cupon: 'VUELVE20', cuponVence: '2026-12-31T00:00:00Z', destino: 'lista', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-28T12:00:00Z' },
       { id: 'camp-4', clientId: null, asunto: 'Cambios en tu plan', cuerpo: 'Les contamos lo que viene.', destino: 'administradores', estado: 'draft', destinatarios: 0, enviados: 0, createdAt: '2026-09-29T12:00:00Z' },
+      // Enviada y con cupón: es la única que puede mostrar qué trajo y a quiénes no les llegó.
+      { id: 'camp-5', clientId: 'visual-client', asunto: 'Día de la madre en Casa Costanera', cuerpo: 'Reserva tu mesa.', cupon: 'VUELVE20', destino: 'lista', estado: 'sent', destinatarios: 184, enviados: 181, sentAt: '2026-10-10T12:00:00Z', createdAt: '2026-10-09T12:00:00Z' },
       { id: 'camp-2', clientId: null, asunto: 'Novedades de Espartanos', cuerpo: 'Lo que hicimos este mes.', estado: 'sent', destinatarios: 200, enviados: 197, sentAt: '2026-09-10T12:00:00Z', createdAt: '2026-09-09T12:00:00Z' },
       // Una saliendo, para poder mirar el avance sin esperar a que el cron haga nada.
       { id: 'camp-3', clientId: 'visual-client', asunto: 'Menu de primavera', cuerpo: 'Ya esta disponible.', estado: 'sending', destinatarios: 184, enviados: 0, createdAt: '2026-09-30T12:00:00Z' },
     ];
+    return { data, total: data.length, page: 1, pageSize: 50 };
   }],
+  /*
+   * Lo que trajo el cupón de una campaña, y a quiénes no les llegó.
+   *
+   * Van antes del patrón de la lista, que no distingue sufijos. Los fallidos traen un motivo
+   * escrito y uno vacío: la tabla tiene que decir algo en los dos casos.
+   */
+  [/\/marketing\/campanas\/[^/]+\/retorno$/, () => ({
+    cupon: 'VUELVE20', desde: '2026-10-10T12:00:00Z', enviados: 181,
+    canjes: 23, porReserva: 17, enElLocal: 6, consumo: 892000, descuento: 178400,
+  })],
+  [/\/marketing\/campanas\/[^/]+\/fallidos$/, () => ({
+    asunto: 'Día de la madre en Casa Costanera',
+    fallidos: [
+      { email: 'camila@correo-malescrito.cl', estado: 'failed', intentos: 3, motivo: 'El dominio no existe', cuando: '2026-10-10T12:04:00Z' },
+      { email: 'sebastian@correo.cl', estado: 'failed', intentos: 3, motivo: 'La casilla está llena', cuando: '2026-10-10T12:05:00Z' },
+      { email: 'antonia@correo.cl', estado: 'expired', intentos: 1, motivo: null, cuando: '2026-10-10T12:06:00Z' },
+    ],
+  })],
   /*
    * El estado del correo, con la firma del dominio tal como está hoy de verdad.
    *
