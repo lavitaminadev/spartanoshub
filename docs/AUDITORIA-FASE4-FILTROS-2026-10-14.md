@@ -94,12 +94,12 @@ Aparte existe una consulta de visitas agrupadas por campaña (`surveys.controlle
 | F-01 | Reservas | Origen y campaña | **C — ausente, construible** | `reservation.entity.ts`: `utm_*`, `gclid`, `fbclid` son columnas | Operativo: no se filtra por origen | **P1** | **Nada** |
 | F-06 | Reservas | Origen × asistencia | **C — ausente, construible** | `status` + `utm_*` en la misma fila | Analítica: la pregunta central | **P1** | F-01 |
 | F-04 | Transversal | Identificador de campaña | **B — asimétrico** | CRM tiene `external_campaign_id`; Reservas sólo `utm_campaign` (texto) | Impide cruzar CRM con Reservas | P2 | Captura |
-| F-02 | CRM | Anuncio y plataforma | **Riesgo no demostrado** | `list-leads.use-case.ts:148-153` sin índice; **sin medición** | Posible recorrido completo | P2 | Medir |
+| F-02 | CRM | Anuncio y plataforma | **A — medido, sin riesgo** | `EXPLAIN` a 250.000 filas: la página usa `idx_org_domain_created` (§13) | 4–55 ms; un índice no aporta nada | — | Cerrado |
 | F-07 | CRM | Estado en la cola CAPI | **C — ausente, construible** | `origen-del-evento.ts:20` + `:281` | Pérdida silenciosa invisible | P2 | Nada |
 | F-03 | Encuestas | Fecha en resultados | **B — defectuoso** | `surveys.controller.ts:289` | Crece sin techo | P2 | Nada |
 | F-08 | Encuestas | Tasa de finalización | **C — construible** | `survey_visits.session_id` | Abandono invisible | P2 | Nada |
 | F-09 | Reservas | Sincronización Calendar | **D — requiere capturar** | No se guarda el id del evento | No se lista lo desincronizado | P2 | Migración |
-| F-05 | CRM | Búsqueda libre | **Riesgo no demostrado** | `:237` `Like('%t%')` | Ningún índice aplicable | P3 | Medir |
+| F-05 | CRM | Búsqueda libre | **A — medido, sin riesgo** | `EXPLAIN` a 250.000 filas: 5,5 ms cuando acierta (§13) | Ningún índice aplicable, y no hace falta | — | Cerrado |
 | F-10 | Reservas | Permanencia | **C — construible** | `left_at`, `starts_at` | Rotación sin medir | P3 | Nada |
 
 ---
@@ -237,9 +237,9 @@ implementado.
 
 ### Investigar antes de decidir
 
-- **F-02** — medir con `EXPLAIN` sobre volumen real antes de pagar una migración con relleno de
-  histórico. Hoy es una hipótesis.
-- **F-05** — lo mismo para la búsqueda con comodín inicial.
+- **F-02 y F-05 — medidos el 14 de octubre (§13).** Ninguno justifica un índice. La medición
+  sacó a la luz un hallazgo distinto —el abanico de `OR` del conteo— que tampoco urge al volumen
+  actual.
 - **Aislamiento en Facturación y módulos no verificados** (§9).
 
 ### Descartar
@@ -270,10 +270,129 @@ implementado.
 
 ---
 
+## 13. Medición de F-02 y F-05 con `EXPLAIN`
+
+Ejecutada el 14 de octubre de 2026 sobre una **réplica local**: MariaDB 12.3.2 en instancia
+aislada, tabla `leads` con las columnas de `lead.entity.ts` y los nueve índices que crean las
+migraciones 0050, 0080 y 0100. Sembradas **250.000 filas** con una sola organización, `metadata`
+con `adName`, `platform` y seis respuestas de formulario (655 bytes por fila). Volúmenes
+comparados: 2.000, 25.000 y 250.000; producción está en los **cientos**, así que 2.000 ya es
+unas diez veces lo de hoy. El SQL no se escribió a mano: se instanció el `ListLeadsUseCase` real
+y se capturó lo que emite TypeORM. Cada cifra es la mediana de cinco ejecuciones en caliente, y
+las filas recorridas salen de los contadores `Handler_read_*`.
+
+### `findAndCount` son dos consultas y se comportan al revés
+
+**La página (20 filas) va bien en todo volumen.** Camina `idx_org_domain_created` en orden
+`created_at DESC` y se detiene al juntar 20 filas. Acceso `range`, nunca `ALL`.
+
+| Caso de la página | 2.000 | 25.000 | 250.000 |
+|---|---|---|---|
+| Sin filtros | 19 filas / 3,7 ms | 19 / 3,2 ms | 19 / **4,4 ms** |
+| F-02 anuncio | 826 / 26,1 ms | 898 / 28,6 ms | 898 / **18,8 ms** |
+| F-02 plataforma | 32 / 5,4 ms | 32 / 12,1 ms | 32 / **4,1 ms** |
+| F-02 anuncio + plataforma | 826 / 26,2 ms | 961 / 32,2 ms | 961 / **54,6 ms** |
+| F-05 búsqueda que acierta | 131 / 13,3 ms | 131 / 12,3 ms | 131 / **5,5 ms** |
+| F-05 búsqueda que no acierta | 826 / 31,7 ms | 11.124 / 339,9 ms | 112.495 / **1.216,6 ms** |
+| F-05 + F-02 | 826 / 123,8 ms | 2.535 / 337 ms | 2.535 / **122,5 ms** |
+
+El «posible recorrido completo» que este documento atribuía a F-02 **no ocurre en la página**.
+
+**El conteo recorre la tabla entera, y no por F-02 ni por F-05.** Todos los casos dan
+`type=ALL`, `key=(ninguno)` — incluido el que **no lleva filtro alguno**:
+
+| Caso del conteo | 2.000 | 25.000 | 250.000 |
+|---|---|---|---|
+| **Sin ningún filtro** | 2.001 / 4,6 ms | 25.001 / 55,8 ms | 250.001 / **496,6 ms** |
+| F-02 anuncio | 2.001 / 20,8 ms | 25.001 / 261,6 ms | 250.001 / **1.062,6 ms** |
+| F-02 plataforma | 2.001 / 25,6 ms | 25.001 / 242,8 ms | 250.001 / **967,6 ms** |
+| F-05 búsqueda | 2.001 / 29,8 ms | 25.001 / 292,4 ms | 250.001 / **1.039,4 ms** |
+| F-05 + acotado a una persona | 2.001 / 41 ms | 25.001 / 461,1 ms | 250.001 / **2.763,5 ms** |
+| F-05 + F-02 | 2.001 / 112,4 ms | 25.001 / 1.462,2 ms | 250.001 / **17.627,1 ms** |
+
+### La causa es el abanico de `OR`, no la falta de índice
+
+Dos construcciones del use-case se multiplican al armar el `WHERE`: la disyunción de cerrados
+(`:225-232`) repite el `WHERE` entero dos veces, y la búsqueda libre (`:237`) lo repite una vez
+por cada uno de los siete campos. Una búsqueda normal son **14 bloques `OR`** (77 parámetros);
+acotada a una persona, **28 bloques** (168 parámetros). Con esa forma el optimizador no usa
+ningún índice y reevalúa `JSON_EXTRACT` una vez por bloque y por fila.
+
+Aislando cada ingrediente del conteo a 250.000 filas:
+
+| Variante | Acceso | Índice | Filas | ms |
+|---|---|---|---|---|
+| Como está hoy, sin filtros | `ALL` | — | 250.001 | 559,5 |
+| Sin la disyunción (al pedir los descartados) | `ref` | `idx_org_domain_status` | 112.495 | **196,3** |
+| Disyunción reescrita como un solo bloque | `ALL` | — | 250.001 | 415,2 |
+| Reescrita + búsqueda sin abanico | `ALL` | — | 250.001 | 819,1 |
+| Reescrita + búsqueda + anuncio (**el peor caso de hoy**) | `ALL` | — | 250.001 | **1.191,3** |
+
+La última fila compara con los 17.627,1 ms del caso equivalente de hoy: **15 veces más rápido
+sin crear un solo índice**, sólo cambiando la forma del `WHERE`.
+
+### F-02: no se justifica un índice
+
+Un índice normal no alcanza a `JSON_EXTRACT`; la única vía en MariaDB es columna generada
+virtual más índice sobre ella. Medido a 250.000 filas:
+
+| Qué se midió | Acceso | Filas | ms |
+|---|---|---|---|
+| Antes, como está hoy | `ALL` | 250.001 | 1.574,2 |
+| Con el índice, mismo SQL (sin tocar el código) | `ALL` | 250.001 | 1.525,0 |
+| Con el índice, preguntando por la columna generada | `ALL` | 250.001 | 1.721,9 |
+
+Cero beneficio, por dos razones: MariaDB **no** sustituye la expresión por la columna indexada
+—a diferencia de MySQL 8—, así que sin cambiar el código el índice es invisible; y aun
+cambiándolo, mientras esté la disyunción de cerrados el plan sigue siendo `ALL`.
+
+Lo que costaría crearlo, medido sobre las 250.000 filas: `ADD COLUMN` virtual 117 ms (no
+reescribe filas), `ADD INDEX` 3.664 ms, espacio de índices 286,9 → **314,6 MB** (+27,7 MB), e
+insertar 2.000 leads pasa de 101 a **132 ms (+31 %)**. A escala de producción el `ALTER` es
+instantáneo y el espacio despreciable, pero el recargo en escritura no lo es: la captura de
+leads escribe en caliente.
+
+Sólo paga encadenado detrás de la reescritura y de un cambio en el use-case:
+
+| Con índice, a 250.000 filas | Acceso | Índice | Filas | ms |
+|---|---|---|---|---|
+| Con disyunción, columna generada | `ALL` | — | 250.001 | 1.610,2 |
+| **Sin disyunción, columna generada** | `ref` | `idx_org_plataforma` | **55.009** | **67,7** |
+
+**Conclusión: no se crea migración por F-02.** Hoy el filtro cuesta 4–55 ms en la página y
+21–26 ms en el conteo a un volumen diez veces mayor que el real.
+
+### F-05: ni índice ni `FULLTEXT`
+
+El comodín inicial es real pero no es lo que cuesta: a 250.000 filas una búsqueda que acierta
+son **5,5 ms** en la página, porque el índice de orden entrega las filas y los `LIKE` sólo
+descartan las 131 que llega a mirar. Lo caro es la búsqueda que **no** acierta (1.216,6 ms,
+porque camina el índice completo buscando veinte filas que no existen) y el conteo con su
+abanico de catorce bloques.
+
+`FULLTEXT` no resuelve ninguno de los dos. Busca por palabra o prefijo de palabra, y esta
+búsqueda es por infijo: `%gomez%` tiene que encontrar «Gomez» dentro del campo, y también medio
+número de teléfono. Cambiarlo alteraría **qué encuentra el filtro**, que es una decisión de
+producto y no de rendimiento; y el conteo, que es el caso caro, seguiría siendo `ALL` por la
+forma del `WHERE`.
+
+**Conclusión: F-05 se cierra sin cambios.** A 2.000 filas el peor caso son 123,8 ms de página y
+112,4 ms de conteo.
+
+### Hallazgo nuevo que deja esta medición
+
+El abanico de `OR` del conteo no estaba en la matriz. No urge al volumen actual —4,6 ms sin
+filtros y 112,4 ms en el peor caso a 2.000 filas—, pero es lo único de los tres con retorno
+medido: reescribir el `WHERE` da 15× en el peor caso, sin migración y sin espacio en disco.
+
+---
+
 ## Límites
 
-- Sin acceso a producción: **no se analizaron planes de ejecución SQL**. Toda afirmación de
-  rendimiento es inferencia a partir de índices declarados y forma de las consultas.
+- Sin acceso a producción. Los planes de ejecución de §13 se tomaron sobre una **réplica local
+  sembrada**: el esquema y los nueve índices son los reales, el volumen y la distribución son una
+  aproximación. Toda otra afirmación de rendimiento de este documento sigue siendo inferencia a
+  partir de índices declarados y forma de las consultas.
 - No se ejecutó la suite en esta sesión; las 288 suites se verificaron en verde el 7 de octubre.
 - Las ausencias confirman que no hay código, no que la funcionalidad no exista por otra vía.
 - La verificación de aislamiento multiempresa **no cubre todos los módulos** (§9).
