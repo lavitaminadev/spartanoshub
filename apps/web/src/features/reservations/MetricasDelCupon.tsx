@@ -14,6 +14,7 @@ import { useState, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { triggerToast } from '../../shared/toast-events';
 
 interface Canje {
   fecha: string;
@@ -57,6 +58,28 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
    */
   const [acotado, setAcotado] = useState<{ desde: string; hasta: string; canal: '' | 'reserva' | 'local' }>({ desde: '', hasta: '', canal: '' });
   const acotando = Boolean(acotado.desde || acotado.hasta || acotado.canal);
+  const [descargando, setDescargando] = useState(false);
+  const recorteEnLaUrl = () => new URLSearchParams({
+    ...(acotado.desde ? { desde: acotado.desde } : {}),
+    ...(acotado.hasta ? { hasta: acotado.hasta } : {}),
+    ...(acotado.canal ? { canal: acotado.canal } : {}),
+  }).toString();
+  const descargar = async () => {
+    setDescargando(true);
+    try {
+      const blob = await api.get<Blob>(`/reservations/coupons/${couponId}/canjes.csv?${recorteEnLaUrl()}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = `canjes-${codigo}-${new Date().toISOString().slice(0, 10)}.csv`;
+      enlace.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : 'No se pudo descargar el archivo', 'error');
+    } finally {
+      setDescargando(false);
+    }
+  };
   const { data: listado } = useQuery<{ canjes: Canje[]; total: number }>({
     queryKey: ['coupon-canjes', couponId, acotado.desde, acotado.hasta, acotado.canal],
     queryFn: () => api.get(`/reservations/coupons/${couponId}/canjes?${new URLSearchParams({
@@ -137,6 +160,14 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
               <option value="local">Sólo los del local</option>
             </select>
             {acotando ? <button type="button" className="btn btn-link" onClick={() => setAcotado({ desde: '', hasta: '', canal: '' })}>Quitar el recorte</button> : null}
+            {/*
+              Se descarga lo que está a la vista, con el mismo recorte.
+              Un CSV que trajera todo mientras la pantalla muestra un tramo haría dudar de cuál
+              de los dos números es el bueno.
+            */}
+            <button type="button" className="btn btn-outline btn-sm" disabled={descargando} onClick={() => void descargar()}>
+              {descargando ? 'Preparando…' : 'Canjes (CSV)'}
+            </button>
           </div>
 
           {ultimos.length === 0 ? (

@@ -475,6 +475,14 @@ export class ListCouponsDto {
   @IsOptional() @IsIn(['vigente', 'vencido', 'inactivo']) estado?: 'vigente' | 'vencido' | 'inactivo';
   /** Coincide por fragmento: se busca un cupón recordando la mitad del código. */
   @IsOptional() @IsString() @MaxLength(80) codigo?: string;
+  /**
+   * Acotan el uso que se cuenta al lado de cada cupón, por cuándo se hizo la reserva.
+   *
+   * Sin ellas ese recuento recorría la tabla de reservas entera dos veces en cada carga de la
+   * pestaña, y crecía con el total de reservas del local y no con el número de cupones.
+   */
+  @IsOptional() @IsDateString() desde?: string;
+  @IsOptional() @IsDateString() hasta?: string;
 }
 
 /** Filtros de la lista de canjes de un cupón. */
