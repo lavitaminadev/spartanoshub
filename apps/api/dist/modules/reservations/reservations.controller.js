@@ -255,7 +255,7 @@ let ReservationsController = class ReservationsController {
         const scope = await this.requestedScope(req, query.clientId);
         const [cupones, uso] = await Promise.all([
             this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds, { estado: query.estado, codigo: query.codigo }),
-            this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds),
+            this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds, { desde: query.desde, hasta: query.hasta }),
         ]);
         const porCodigo = new Map(uso.map((fila) => [fila.code, fila]));
         return cupones.map((cupon) => ({
@@ -289,6 +289,18 @@ let ReservationsController = class ReservationsController {
     async canjesDeCupon(req, id, query) {
         const scope = await this.scope(req);
         return this.service.canjesDeCupon(req.organizationId, id, scope.clientIds, query);
+    }
+    async canjesCsv(req, id, query, res) {
+        const scope = await this.scope(req);
+        const csv = await this.service.csvDeCanjes(req.organizationId, id, scope.clientIds, query);
+        void this.audit.log({
+            organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservation_coupons',
+            action: 'export_canjes_csv', reason: `coupon=${id} desde=${query.desde ?? ''} hasta=${query.hasta ?? ''}`,
+            ipAddress: req.ip,
+        }).catch(() => { });
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="canjes-${new Date().toISOString().slice(0, 10)}.csv"`);
+        res.send(csv);
     }
     async canjearCuponEnLocal(req, id, dto) {
         const scope = await this.scope(req);
@@ -686,6 +698,18 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, reservation_dto_1.ListCanjesDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "canjesDeCupon", null);
+__decorate([
+    (0, common_1.Get)('coupons/:id/canjes.csv'),
+    (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Query)()),
+    __param(3, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.ListCanjesDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "canjesCsv", null);
 __decorate([
     (0, common_1.Post)('coupons/:id/canjes'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),

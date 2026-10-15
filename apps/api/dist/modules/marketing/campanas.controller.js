@@ -16,6 +16,7 @@ exports.CampanasController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
@@ -39,6 +40,47 @@ __decorate([
     (0, class_validator_1.IsIn)(['true', 'false']),
     __metadata("design:type", String)
 ], ListarCampanasDto.prototype, "conCupon", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], ListarCampanasDto.prototype, "clientId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], ListarCampanasDto.prototype, "asunto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['lista', 'administradores']),
+    __metadata("design:type", String)
+], ListarCampanasDto.prototype, "destino", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListarCampanasDto.prototype, "desde", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListarCampanasDto.prototype, "hasta", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], ListarCampanasDto.prototype, "page", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(100),
+    __metadata("design:type", Number)
+], ListarCampanasDto.prototype, "pageSize", void 0);
 class CrearCampanaDto {
 }
 __decorate([
@@ -131,6 +173,12 @@ let CampanasController = class CampanasController {
     avance(req, id) {
         return this.campanas.avance(id, req.organizationId || req.user.organizationId);
     }
+    fallidos(req, id) {
+        return this.campanas.fallidos(id, req.organizationId || req.user.organizationId);
+    }
+    retorno(req, id) {
+        return this.campanas.retorno(id, req.organizationId || req.user.organizationId);
+    }
 };
 exports.CampanasController = CampanasController;
 __decorate([
@@ -207,6 +255,24 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], CampanasController.prototype, "avance", null);
+__decorate([
+    (0, common_1.Get)(':id/fallidos'),
+    (0, swagger_1.ApiOperation)({ summary: 'Destinatarios a los que no les llegó, con el motivo' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], CampanasController.prototype, "fallidos", null);
+__decorate([
+    (0, common_1.Get)(':id/retorno'),
+    (0, swagger_1.ApiOperation)({ summary: 'Canjes del cupón de la campaña desde su envío' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], CampanasController.prototype, "retorno", null);
 exports.CampanasController = CampanasController = __decorate([
     (0, swagger_1.ApiTags)('marketing'),
     (0, common_1.Controller)('marketing/campanas'),

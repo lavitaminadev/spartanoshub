@@ -20,19 +20,24 @@ const typeorm_2 = require("typeorm");
 const campana_entity_1 = require("./campana.entity");
 const suscriptores_service_1 = require("./suscriptores.service");
 const reservation_coupon_entity_1 = require("../reservations/domain/reservation-coupon.entity");
+const reservation_coupon_redemption_entity_1 = require("../reservations/domain/reservation-coupon-redemption.entity");
+const reservation_entity_1 = require("../reservations/domain/reservation.entity");
 const user_entity_1 = require("../users/user.entity");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const envios_de_campana_service_1 = require("./envios-de-campana.service");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
+const marcar_enlaces_1 = require("./marcar-enlaces");
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
 let CampanasService = CampanasService_1 = class CampanasService {
-    constructor(repo, suscriptores, envios, parametros, cupones, usuarios) {
+    constructor(repo, suscriptores, envios, parametros, cupones, usuarios, canjes, reservas) {
         this.repo = repo;
         this.suscriptores = suscriptores;
         this.envios = envios;
         this.parametros = parametros;
         this.cupones = cupones;
         this.usuarios = usuarios;
+        this.canjes = canjes;
+        this.reservas = reservas;
         this.logger = new common_1.Logger(CampanasService_1.name);
     }
     empresaDe(empresa) {
@@ -43,15 +48,36 @@ let CampanasService = CampanasService_1 = class CampanasService {
             .where('campana.organization_id = :organizationId', { organizationId });
         if (encerradoEn)
             qb.andWhere('campana.client_id = :encerradoEn', { encerradoEn });
+        else if (filtros?.clientId)
+            qb.andWhere('campana.client_id = :clientId', { clientId: filtros.clientId });
         if (filtros?.estado)
             qb.andWhere('campana.estado = :estado', { estado: filtros.estado });
+        if (filtros?.destino)
+            qb.andWhere('campana.destino = :destino', { destino: filtros.destino });
+        if (filtros?.asunto)
+            qb.andWhere('campana.asunto LIKE :asunto', { asunto: `%${filtros.asunto}%` });
         if (filtros?.cupon)
             qb.andWhere('campana.cupon LIKE :cupon', { cupon: `%${filtros.cupon}%` });
         if (filtros?.conCupon === 'true')
             qb.andWhere("campana.cupon IS NOT NULL AND campana.cupon <> ''");
         if (filtros?.conCupon === 'false')
             qb.andWhere("campana.cupon IS NULL OR campana.cupon = ''");
-        return qb.orderBy('campana.created_at', 'DESC').take(100).getMany();
+        if (filtros?.desde)
+            qb.andWhere('campana.sent_at >= :desde', { desde: new Date(filtros.desde) });
+        if (filtros?.hasta) {
+            const hasta = new Date(filtros.hasta);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(filtros.hasta.trim()))
+                hasta.setHours(23, 59, 59, 999);
+            qb.andWhere('campana.sent_at <= :hasta', { hasta });
+        }
+        const page = Math.max(filtros?.page ?? 1, 1);
+        const pageSize = Math.min(Math.max(filtros?.pageSize ?? 50, 1), 100);
+        const [data, total] = await qb
+            .orderBy('campana.created_at', 'DESC')
+            .skip((page - 1) * pageSize)
+            .take(pageSize)
+            .getManyAndCount();
+        return { data, total, page, pageSize };
     }
     async crear(datos) {
         const asunto = datos.asunto?.trim();
@@ -140,7 +166,8 @@ let CampanasService = CampanasService_1 = class CampanasService {
             : (cupon.clientId ?? null) !== clientId ? 'es de otra empresa'
                 : !cupon.active ? 'está desactivado'
                     : cupon.validUntil && cupon.validUntil <= ahora ? 'ya venció'
-                        : null;
+                        : cupon.maxUses > 0 && cupon.usageCount >= cupon.maxUses ? 'ya agotó sus usos'
+                            : null;
         if (problema) {
             throw new common_1.BadRequestException(`El cupón ${codigo} ${problema}. Revísalo en Cupones antes de mandar la campaña: un código que la caja rechaza delante del cliente es peor que no ofrecer ninguno.`);
         }
@@ -151,11 +178,19 @@ let CampanasService = CampanasService_1 = class CampanasService {
         if (campana.estado !== campana_entity_1.EstadoDeCampana.BORRADOR) {
             throw new common_1.ConflictException('Esta campaña ya se envió');
         }
+        if (campana.cupon) {
+            campana.cuponVence = await this.comprobarCupon(organizationId, campana.clientId ?? null, campana.cupon);
+            await this.repo.update(campana.id, { cuponVence: campana.cuponVence });
+        }
         const destinatarios = await this.aQuienes(organizationId, campana.clientId ?? null, campana.destino ?? 'lista');
         if (!destinatarios.length) {
             throw new common_1.ConflictException(campana.destino === 'administradores'
                 ? 'No hay cuentas activas que administren esta empresa'
                 : 'No hay nadie suscrito en esta lista ahora mismo');
+        }
+        if (!campana.utmCampaign) {
+            campana.utmCampaign = (0, marcar_enlaces_1.nombreDeCampana)(campana.asunto);
+            await this.repo.update(campana.id, { utmCampaign: campana.utmCampaign });
         }
         const tomada = await this.repo.update({ id: campana.id, estado: campana_entity_1.EstadoDeCampana.BORRADOR }, { estado: campana_entity_1.EstadoDeCampana.ENVIANDO });
         if (!tomada.affected)
@@ -168,6 +203,46 @@ let CampanasService = CampanasService_1 = class CampanasService {
     async avance(id, organizationId) {
         const campana = await this.buscar(id, organizationId);
         return { estado: campana.estado, ...await this.envios.avanceDe(campana.id) };
+    }
+    async fallidos(id, organizationId) {
+        const campana = await this.buscar(id, organizationId);
+        return { asunto: campana.asunto, fallidos: await this.envios.fallidosDe(campana.id) };
+    }
+    async retorno(id, organizationId) {
+        const campana = await this.buscar(id, organizationId);
+        if (!campana.cupon || !campana.sentAt)
+            return undefined;
+        const cupon = await this.cupones.findOne({ where: { organizationId, code: campana.cupon } });
+        if (!cupon)
+            return undefined;
+        const canjes = await this.canjes.find({
+            where: { organizationId, couponId: cupon.id, createdAt: (0, typeorm_2.MoreThanOrEqual)(campana.sentAt) },
+            order: { createdAt: 'DESC' },
+        });
+        const suma = (campo) => canjes
+            .reduce((total, canje) => total + Number(canje[campo] ?? 0), 0);
+        return {
+            cupon: campana.cupon,
+            desde: campana.sentAt,
+            enviados: campana.enviados,
+            canjes: canjes.length,
+            porReserva: canjes.filter((canje) => canje.canal === 'reserva').length,
+            enElLocal: canjes.filter((canje) => canje.canal === 'local').length,
+            consumo: canjes.some((canje) => canje.monto !== null) ? suma('monto') : null,
+            descuento: canjes.some((canje) => canje.descuento !== null) ? suma('descuento') : null,
+            reservas: await this.reservasAtribuidas(campana),
+        };
+    }
+    async reservasAtribuidas(campana) {
+        if (!campana.utmCampaign || !campana.sentAt)
+            return null;
+        return this.reservas.count({
+            where: {
+                organizationId: campana.organizationId,
+                utmCampaign: campana.utmCampaign,
+                createdAt: (0, typeorm_2.MoreThanOrEqual)(campana.sentAt),
+            },
+        });
     }
     async buscar(id, organizationId) {
         const campana = await this.repo.findOne({ where: { id, organizationId } });
@@ -182,10 +257,14 @@ exports.CampanasService = CampanasService = CampanasService_1 = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(campana_entity_1.Campana)),
     __param(4, (0, typeorm_1.InjectRepository)(reservation_coupon_entity_1.ReservationCoupon)),
     __param(5, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(6, (0, typeorm_1.InjectRepository)(reservation_coupon_redemption_entity_1.ReservationCouponRedemption)),
+    __param(7, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         suscriptores_service_1.SuscriptoresService,
         envios_de_campana_service_1.EnviosDeCampanaService,
         parameter_resolver_service_1.ParameterResolver,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], CampanasService);

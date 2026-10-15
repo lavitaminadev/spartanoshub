@@ -100,23 +100,55 @@ let SurveysController = class SurveysController {
         }
         return survey;
     }
-    async list(req, clientId) {
+    async list(req, filtros) {
+        const clientId = filtros.clientId;
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
             if (!req.user.clientId)
                 return [];
             await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, req.user.clientId);
-            const propias = await this.surveys.find({ where: { organizationId: req.organizationId, clientId: req.user.clientId }, order: { createdAt: 'DESC' } });
-            return propias.map((row) => this.toContract(row));
+            return this.listarAcotado({ organizationId: req.organizationId, clientId: req.user.clientId }, filtros);
         }
-        const where = clientId
-            ? { organizationId: req.organizationId, clientId }
-            : permitidas === undefined
-                ? { organizationId: req.organizationId }
-                : [{ organizationId: req.organizationId, clientId: (0, typeorm_3.IsNull)() }, ...(permitidas.length ? [{ organizationId: req.organizationId, clientId: (0, typeorm_3.In)(permitidas) }] : [])];
-        const rows = await this.surveys.find({ where, order: { createdAt: 'DESC' } });
-        return rows.map((row) => this.toContract(row));
+        return this.listarAcotado({ organizationId: req.organizationId, clientId, permitidas }, filtros);
+    }
+    async listarAcotado(alcance, filtros) {
+        const qb = this.surveys.createQueryBuilder('encuesta')
+            .where('encuesta.organization_id = :organizationId', { organizationId: alcance.organizationId });
+        if (alcance.clientId) {
+            qb.andWhere('encuesta.client_id = :clientId', { clientId: alcance.clientId });
+        }
+        else if (alcance.permitidas !== undefined) {
+            const permitidas = alcance.permitidas;
+            qb.andWhere(new typeorm_2.Brackets((grupo) => {
+                if (alcance.conInternas !== false)
+                    grupo.where('encuesta.client_id IS NULL');
+                if (permitidas.length) {
+                    const porEmpresa = 'encuesta.client_id IN (:...permitidas)';
+                    if (alcance.conInternas !== false)
+                        grupo.orWhere(porEmpresa, { permitidas });
+                    else
+                        grupo.where(porEmpresa, { permitidas });
+                }
+                else if (alcance.conInternas === false) {
+                    grupo.where('1 = 0');
+                }
+            }));
+        }
+        if (filtros.buscar)
+            qb.andWhere('encuesta.title LIKE :buscar', { buscar: `%${filtros.buscar}%` });
+        if (filtros.estado)
+            qb.andWhere('encuesta.status = :estado', { estado: filtros.estado });
+        if (filtros.tipo)
+            qb.andWhere('encuesta.type = :tipo', { tipo: filtros.tipo });
+        const page = Math.max(filtros.page ?? 1, 1);
+        const pageSize = Math.min(Math.max(filtros.pageSize ?? 50, 1), 100);
+        const [rows, total] = await qb
+            .orderBy('encuesta.created_at', 'DESC')
+            .skip((page - 1) * pageSize)
+            .take(pageSize)
+            .getManyAndCount();
+        return { data: rows.map((row) => this.toContract(row)), total, page, pageSize };
     }
     async companyLegal(req, query) {
         return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
@@ -278,8 +310,9 @@ let SurveysController = class SurveysController {
         const porCampana = await this.dataSource.query(`SELECT campana, COUNT(*) visitas, COUNT(DISTINCT session_id) sesiones, MIN(created_at) desde, MAX(created_at) hasta
          FROM survey_visits
         WHERE survey_id = ? AND campana IS NOT NULL AND campana <> ''
-        GROUP BY campana ORDER BY visitas DESC LIMIT 50`, [survey.id]).catch(() => []);
-        const campanas = porCampana.map((fila) => ({
+        GROUP BY campana ORDER BY visitas DESC LIMIT 51`, [survey.id]).catch(() => []);
+        const campanasTruncadas = porCampana.length > 50;
+        const campanas = porCampana.slice(0, 50).map((fila) => ({
             campana: fila.campana,
             visitas: Number(fila.visitas),
             sesiones: Number(fila.sesiones),
@@ -309,6 +342,7 @@ let SurveysController = class SurveysController {
             respuestas: detalle,
             visitasPorDia,
             campanas,
+            campanasTruncadas,
             totalDeLaEncuesta: survey.responseCount,
             detalleTruncado: rows.length > detalle.length,
             delPeriodo: {
@@ -434,9 +468,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar encuestas' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('clientId')),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, survey_dto_1.ListSurveysDto]),
     __metadata("design:returntype", Promise)
 ], SurveysController.prototype, "list", null);
 __decorate([

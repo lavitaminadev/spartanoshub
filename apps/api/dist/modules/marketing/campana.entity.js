@@ -53,6 +53,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Campana.prototype, "cuponVence", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'utm_campaign', type: 'varchar', length: 180, nullable: true }),
+    __metadata("design:type", Object)
+], Campana.prototype, "utmCampaign", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 20, default: EstadoDeCampana.BORRADOR }),
     __metadata("design:type", String)
 ], Campana.prototype, "estado", void 0);

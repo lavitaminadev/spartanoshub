@@ -25,6 +25,7 @@ const suscriptores_service_1 = require("./suscriptores.service");
 const email_service_1 = require("../../core/notifications/email.service");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
 const enlace_de_baja_1 = require("../../core/notifications/enlace-de-baja");
+const marcar_enlaces_1 = require("./marcar-enlaces");
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
 let EnviosDeCampanaService = EnviosDeCampanaService_1 = class EnviosDeCampanaService extends outbox_processor_base_1.OutboxProcessor {
     constructor(repository, campanas, suscriptores, listaDeCorreo, correo, parametros) {
@@ -82,6 +83,23 @@ let EnviosDeCampanaService = EnviosDeCampanaService_1 = class EnviosDeCampanaSer
             fallidos: por('failed', 'expired'),
         };
     }
+    async fallidosDe(campanaId, limite = 200) {
+        const filas = await this.repository.find({
+            where: [
+                { campanaId, status: 'failed' },
+                { campanaId, status: 'expired' },
+            ],
+            order: { processedAt: 'DESC' },
+            take: limite,
+        });
+        return filas.map((fila) => ({
+            email: fila.email,
+            estado: fila.status,
+            intentos: fila.attempts,
+            motivo: fila.lastError ?? null,
+            cuando: fila.processedAt ?? null,
+        }));
+    }
     async expirationReason(item) {
         const suscriptor = await this.suscriptores.findOne({ where: { id: item.suscriptorId } });
         if (!suscriptor)
@@ -114,7 +132,8 @@ let EnviosDeCampanaService = EnviosDeCampanaService_1 = class EnviosDeCampanaSer
             ]
             : undefined;
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(campana.asunto, campana.cuerpo, { nombre: suscriptor.name ?? '', cupon: campana.cupon ?? '' }, undefined, undefined, detalle, baja);
-        const salio = await this.correo.send(suscriptor.email, subject, html, baja ? { bajaUrl: baja } : undefined);
+        const marcado = (0, marcar_enlaces_1.marcarEnlacesPropios)(html, process.env.APP_PUBLIC_URL, campana.utmCampaign ?? '');
+        const salio = await this.correo.send(suscriptor.email, subject, marcado, baja ? { bajaUrl: baja } : undefined);
         if (!salio)
             throw new Error('El servidor de correo no aceptó el mensaje');
     }
