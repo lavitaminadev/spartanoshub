@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { ReservationsService } from '../../../src/modules/reservations/application/reservations.service';
+import { createDataSourceDouble } from '../../helpers/data-source.double';
+import { createDestinatariosDeAvisosDouble } from '../../helpers/destinatarios-de-avisos.double';
 
 /**
  * De solicitud de grupo a reserva real.
@@ -14,9 +16,12 @@ const audit = { log: vi.fn() };
 
 function servicio(): ReservationsService {
   const vacio = {} as never;
+  // Por posición: 7 es `dataSource` y 21 `destinatariosDeAvisos`, los dos que el aviso al
+  // equipo necesita. Sin ellos la rama se saltaba entera y el log no distinguía eso de un fallo.
   return new ReservationsService(
-    vacio, reservations as never, vacio, vacio, vacio, vacio, vacio, vacio, vacio, vacio,
+    vacio, reservations as never, vacio, vacio, vacio, vacio, createDataSourceDouble(), vacio, vacio, vacio,
     vacio, vacio, audit as never, vacio, vacio, groupRequests as never, vacio, vacio, vacio,
+    vacio, createDestinatariosDeAvisosDouble(),
   );
 }
 
