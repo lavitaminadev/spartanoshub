@@ -191,8 +191,8 @@ comprobó, y lo que no.
 | Encuestas | **Verificado** | `surveys.controller.ts:97` acota por `organizationId`, y para rol cliente exige además coincidencia de `clientId` y capacidad contratada |
 | Marketing | **Verificado por muestreo** | 15 consultas acotadas por `organizationId` en 3 servicios |
 | Documentos, Reportes | **Verificado por muestreo** | Acotación presente |
-| Facturación | **No verificado** | El servicio recibe `organizationId` por parámetro; no se auditó cada consulta |
-| Resto de módulos | **No verificado** | Fuera del alcance de esta fase |
+| Facturación | **Verificado (14-oct)** | Cerrada al cargo cliente en el propio `@Controller`; sus cuatro casos de uso acotan por `organizationId` y `create-invoice` exige además `assertClient` |
+| Resto de módulos | **Verificado por superficie alcanzable** (14-oct) | Ver §14: las 15 superficies que admiten el cargo cliente acotan por cuenta |
 
 **Pruebas que respaldan el aislamiento, y son más fuertes que mi lectura:**
 `aislamiento-cuentas.e2e.spec.ts` cubre que pedir una cuenta ajena por parámetro no devuelve sus
@@ -396,3 +396,55 @@ medido: reescribir el `WHERE` da 15× en el peor caso, sin migración y sin espa
 - No se ejecutó la suite en esta sesión; las 288 suites se verificaron en verde el 7 de octubre.
 - Las ausencias confirman que no hay código, no que la funcionalidad no exista por otra vía.
 - La verificación de aislamiento multiempresa **no cubre todos los módulos** (§9).
+
+---
+
+## 14. Aislamiento por cuenta: Facturación y la superficie alcanzable
+
+Hecho el 14 de octubre de 2026, cerrando el pendiente que la §9 dejaba abierto. El criterio no es
+«revisar módulos» —fue el error de la revisión anterior, que concluyó sobre el sistema habiendo
+mirado uno— sino **revisar lo que una cuenta de empresa puede alcanzar**. Un módulo que el cargo
+cliente no toca no puede filtrar datos entre empresas por mucho que su SQL sea descuidado; lo que
+importa es la puerta, no la habitación.
+
+### Facturación
+
+Cerrada al cargo cliente en el propio `@Controller`: `@Roles(ADMIN, COMMERCIAL_DIRECTOR,
+OPERATIONS_DIRECTOR)` a nivel de clase y repetido en cada endpoint. Ninguna cuenta de portal la
+alcanza.
+
+Sus cuatro casos de uso acotan por organización, sin excepción:
+
+| Caso de uso | Acotación |
+|---|---|
+| `list-charge-notes` | `where: { organizationId }` |
+| `list-invoices` | `where: { organizationId }` |
+| `price-charge-note` | `where: { id, organizationId }` — el id solo no alcanza |
+| `create-invoice` | `organizationId` al guardar, y antes `accountAccess.assertClient` sobre el `clientId` del cuerpo |
+
+Los dos listados devuelven todas las empresas de la organización. **Es lo correcto acá**: son la
+vista interna de la agencia y sólo la alcanzan cargos de la agencia.
+
+### Las 15 superficies que sí admiten el cargo cliente
+
+Todas acotan. Lo hacen con tres modismos distintos, que es la razón por la que un conteo
+mecánico de `assertClient` daba falsos huecos:
+
+1. **`accountAccess.assertClient` / `allowedClientIds`** — once controladores, entre ellos
+   Reservas, Encuestas, CRM, Reportes, Documentos, Contenido, Reuniones, Aprobaciones y
+   Producción. En Producción el `reject` de una pieza lo comprueba contra el `clientId` de la
+   pieza, no contra el de la URL.
+2. **Encierro por sesión** — `suscriptores.controller.ts` toma el `clientId` de la sesión y nunca
+   de la petición (`encierroDe`), y además exige la capacidad `marketing` contratada.
+3. **Alcance de administración** — `users.controller.ts` pasa la empresa pedida por
+   `administracion.alcance` y `asegurarDentro`, que es lo que impide que quien administra un
+   local se nombre administrador de otro cambiando el id de la dirección.
+
+**Resultado: no se encontró ninguna superficie alcanzable por una cuenta de empresa sin acotar.**
+
+### Lo que esto todavía no afirma
+
+Es una revisión de las puertas, no de cada consulta de cada módulo interno. Un error de
+acotación en un módulo que sólo tocan cargos de la agencia seguiría sin detectarse, y no lo
+cubren las pruebas automáticas que vigilan CRM y Reservas. El riesgo es distinto —datos entre
+empresas que un empleado ya puede ver— pero no es cero.
