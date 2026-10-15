@@ -468,6 +468,25 @@ export class ExportFormReservationsDto {
   @IsArray() @IsString({ each: true }) @MaxLength(120, { each: true }) fields: string[];
 }
 
+/** Filtros de la lista de cupones. Aparte del alcance porque sólo los usa esa pantalla. */
+export class ListCouponsDto {
+  @IsOptional() @IsUUID() clientId?: string;
+  /** `vigente` es lo canjeable hoy: encendido, dentro de fechas y con usos libres. */
+  @IsOptional() @IsIn(['vigente', 'vencido', 'inactivo']) estado?: 'vigente' | 'vencido' | 'inactivo';
+  /** Coincide por fragmento: se busca un cupón recordando la mitad del código. */
+  @IsOptional() @IsString() @MaxLength(80) codigo?: string;
+}
+
+/** Filtros de la lista de canjes de un cupón. */
+export class ListCanjesDto {
+  @IsOptional() @IsDateString() desde?: string;
+  /** Se corre al final del día: «al 31» incluye el 31. */
+  @IsOptional() @IsDateString() hasta?: string;
+  /** `reserva` es el que se aplicó al reservar; `local`, el que anotó alguien en la caja. */
+  @IsOptional() @IsIn(['reserva', 'local']) canal?: 'reserva' | 'local';
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(2000) limite?: number;
+}
+
 export class ReservationScopeDto {
   @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsDateString() from?: string;

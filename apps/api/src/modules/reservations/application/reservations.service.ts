@@ -3967,6 +3967,58 @@ export class ReservationsService {
   }
 
   /**
+   * Los canjes de un cupón, uno por uno y acotables.
+   *
+   * Las métricas resumen y devuelven los veinte últimos, que responde «cómo va» pero no «qué
+   * pasó el sábado» ni «cuáles se anotaron en la caja». Los canjes se guardaban desde la 0174 y
+   * su índice `(coupon_id, created_at)` se creó justo para recorrerlos por fecha; hasta ahora
+   * nada lo usaba, porque sólo existía la forma de crear uno.
+   *
+   * El recorte lo hace el motor y no la pantalla: filtrar en el navegador sobre lo ya traído
+   * deja fuera lo que no vino, que es el mismo defecto que los resultados de encuesta tenían.
+   */
+  async canjesDeCupon(
+    organizationId: string,
+    couponId: string,
+    clientIds: string[] | undefined,
+    filtros: { desde?: string; hasta?: string; canal?: 'reserva' | 'local'; limite?: number },
+  ) {
+    const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
+    if (!coupon) throw new NotFoundException('Cupón no encontrado');
+    if (clientIds !== undefined && (!coupon.clientId || !clientIds.includes(coupon.clientId))) {
+      throw new ForbiddenException('No tienes acceso a este cupón');
+    }
+
+    const qb = this.canjes.createQueryBuilder('canje')
+      .where('canje.organization_id = :organizationId', { organizationId })
+      .andWhere('canje.coupon_id = :couponId', { couponId });
+    if (filtros.desde) qb.andWhere('canje.created_at >= :desde', { desde: new Date(filtros.desde) });
+    // `hasta` se corre al final del día: la fecha se escribe sin hora y «al 31» incluye el 31.
+    if (filtros.hasta) {
+      const hasta = new Date(filtros.hasta);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(filtros.hasta.trim())) hasta.setHours(23, 59, 59, 999);
+      qb.andWhere('canje.created_at <= :hasta', { hasta });
+    }
+    if (filtros.canal) qb.andWhere('canje.canal = :canal', { canal: filtros.canal });
+
+    const filas = await qb.orderBy('canje.created_at', 'DESC').take(filtros.limite ?? 500).getMany();
+    return {
+      codigo: coupon.code,
+      total: filas.length,
+      canjes: filas.map((canje) => ({
+        id: canje.id,
+        fecha: canje.createdAt,
+        canal: canje.canal,
+        persona: canje.persona,
+        monto: canje.monto,
+        descuento: canje.descuento,
+        nota: canje.nota,
+        reservationId: canje.reservationId,
+      })),
+    };
+  }
+
+  /**
    * Busca un cupón por su código y dice si se puede canjear ahora.
    *
    * Quien está en la caja tiene el código, no el identificador: escribe lo que trae la persona en
@@ -4156,7 +4208,14 @@ export class ReservationsService {
     }));
   }
 
-  listCoupons(organizationId: string, clientId?: string, clientIds?: string[]) {
+  /**
+   * @param filtros - `estado` acota a los que se pueden usar ahora mismo (`vigente`), a los que
+   *   ya no (`vencido`: apagados, pasados de fecha o sin usos libres) o a los apagados a mano
+   *   (`inactivo`). `codigo` coincide por fragmento, que es como se busca un cupón cuando se
+   *   recuerda la mitad. El filtro vive acá y no en la pantalla porque filtrar en el navegador
+   *   sobre lo ya traído deja fuera lo que no vino.
+   */
+  listCoupons(organizationId: string, clientId?: string, clientIds?: string[], filtros?: { estado?: 'vigente' | 'vencido' | 'inactivo'; codigo?: string }) {
     const qb = this.coupons.createQueryBuilder('coupon').where('coupon.organization_id = :organizationId', { organizationId });
     /*
      * Cada empresa ve sólo sus cupones.
@@ -4169,6 +4228,20 @@ export class ReservationsService {
     if (clientId) qb.andWhere('coupon.client_id = :clientId', { clientId });
     else if (clientIds?.length) qb.andWhere('coupon.client_id IN (:...clientIds)', { clientIds });
     else if (clientIds !== undefined) qb.andWhere('1 = 0');
+
+    if (filtros?.codigo) qb.andWhere('coupon.code LIKE :codigo', { codigo: `%${filtros.codigo}%` });
+    /*
+     * «Vigente» es lo que se puede canjear hoy, no lo que está encendido.
+     *
+     * Son tres condiciones y hacen falta las tres: el interruptor, la ventana de fechas y que
+     * queden usos. Un cupón encendido que agotó sus usos no sirve en la caja, y mostrarlo como
+     * vigente hace que alguien se lo prometa a un cliente.
+     */
+    const VIGENTE = 'coupon.active = 1 AND (coupon.valid_from IS NULL OR coupon.valid_from <= NOW()) AND (coupon.valid_until IS NULL OR coupon.valid_until >= NOW()) AND (coupon.max_uses = 0 OR coupon.usage_count < coupon.max_uses)';
+    if (filtros?.estado === 'vigente') qb.andWhere(VIGENTE);
+    if (filtros?.estado === 'vencido') qb.andWhere(`NOT (${VIGENTE})`);
+    if (filtros?.estado === 'inactivo') qb.andWhere('coupon.active = 0');
+
     return qb.orderBy('coupon.created_at', 'DESC').getMany();
   }
 

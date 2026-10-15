@@ -210,7 +210,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * versión de la pantalla—, así que se combina sobre estos valores en vez de confiar en que
    * venga completa.
    */
-  const FILTROS_VACIOS = { search: '', status: '', formId: '', from: '', to: '', resourceId: '', utmCampaign: '', utmSource: '' };
+  const FILTROS_VACIOS = { search: '', status: '', formId: '', from: '', to: '', resourceId: '', utmCampaign: '', utmSource: '', utmMedium: '', origen: '', couponCode: '' };
   const [filters, setFilters] = useState({ ...FILTROS_VACIOS, search: searchParams.get('search') ?? '', formId: searchParams.get('formId') ?? '' });
   const search = useDeferredValue(filters.search.trim());
 
@@ -311,8 +311,8 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     ...(filters.from ? { from: selectedDayBounds(filters.from).from } : {}),
     ...(filters.to ? { to: selectedDayBounds(filters.to).to } : {}),
   };
-  const query = new URLSearchParams({ page: String(page), pageSize: '20', ...(clientFilter ? { clientId: clientFilter } : {}), ...(search ? { search } : {}), ...(filters.status ? { status: filters.status } : {}), ...(filters.formId ? { formId: filters.formId } : {}), ...(filters.resourceId ? { resourceId: filters.resourceId } : {}), ...(filters.utmCampaign ? { utmCampaign: filters.utmCampaign } : {}), ...(filters.utmSource ? { utmSource: filters.utmSource } : {}), ...dateRange });
-  const { data: bookingPage, isFetching: loadingBookings, error: bookingsError, refetch: refetchBookings } = useQuery<ReservationPage>({ queryKey: ['reservations', page, clientFilter, search, filters.status, filters.formId, filters.resourceId, filters.utmCampaign, filters.utmSource, selectedFilterForm?.timezone, filters.from, filters.to], queryFn: () => api.get(`/reservations?${query}`), enabled: tab === 'bookings', placeholderData: (previous) => previous });
+  const query = new URLSearchParams({ page: String(page), pageSize: '20', ...(clientFilter ? { clientId: clientFilter } : {}), ...(search ? { search } : {}), ...(filters.status ? { status: filters.status } : {}), ...(filters.formId ? { formId: filters.formId } : {}), ...(filters.resourceId ? { resourceId: filters.resourceId } : {}), ...(filters.utmCampaign ? { utmCampaign: filters.utmCampaign } : {}), ...(filters.utmSource ? { utmSource: filters.utmSource } : {}), ...(filters.utmMedium ? { utmMedium: filters.utmMedium } : {}), ...(filters.origen ? { origen: filters.origen } : {}), ...(filters.couponCode ? { couponCode: filters.couponCode } : {}), ...dateRange });
+  const { data: bookingPage, isFetching: loadingBookings, error: bookingsError, refetch: refetchBookings } = useQuery<ReservationPage>({ queryKey: ['reservations', page, clientFilter, search, filters.status, filters.formId, filters.resourceId, filters.utmCampaign, filters.utmSource, filters.utmMedium, filters.origen, filters.couponCode, selectedFilterForm?.timezone, filters.from, filters.to], queryFn: () => api.get(`/reservations?${query}`), enabled: tab === 'bookings', placeholderData: (previous) => previous });
   /*
    * Campañas que aparecen en las reservas a la vista.
    *
@@ -321,10 +321,18 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * ofrecen las de la página actual; la campaña que se busca y no aparece se puede seguir
    * encontrando por el buscador general.
    */
-  const campanasALaVista = useMemo(
-    () => [...new Set((bookingPage?.data ?? []).map((reserva: Reservation) => (reserva.utmCampaign ?? '').trim()).filter(Boolean))].sort(),
-    [bookingPage],
-  );
+  const valoresALaVista = useMemo(() => {
+    const distintos = (leer: (reserva: Reservation) => string | null | undefined) => (
+      [...new Set((bookingPage?.data ?? []).map((reserva: Reservation) => (leer(reserva) ?? '').trim()).filter(Boolean))].sort()
+    );
+    return {
+      campanas: distintos((reserva) => reserva.utmCampaign),
+      origenes: distintos((reserva) => reserva.utmSource),
+      medios: distintos((reserva) => reserva.utmMedium),
+      cupones: distintos((reserva) => reserva.couponCode),
+    };
+  }, [bookingPage]);
+  const campanasALaVista = valoresALaVista.campanas;
   const bookingsData = bookingPage?.data ?? [];
   const bookings = Array.isArray(bookingsData) ? bookingsData : [];
   // Los contadores ignoran el filtro de estado a proposito: son el resumen del dia sobre
@@ -692,7 +700,19 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         {(selectedFilterForm?.resourcesConfig || []).length > 0 && <select className="input" aria-label="Filtrar por zona" value={filters.resourceId} onChange={(event) => { setPage(1); setFilters((actuales) => ({ ...actuales, resourceId: event.target.value })); }}>
           <option value="">Todas las zonas</option>
           {(selectedFilterForm?.resourcesConfig || []).map((zona) => <option key={zona.id} value={zona.id}>{zona.name}{zona.smokingAllowed ? ' · fumadores' : ''}</option>)}
-        </select>}{campanasALaVista.length > 0 && <select className="input" aria-label="Filtrar por campaña" value={filters.utmCampaign} onChange={(event) => { setPage(1); setFilters((actuales) => ({ ...actuales, utmCampaign: event.target.value })); }}><option value="">Todas las campañas</option>{campanasALaVista.map((campana) => <option key={campana} value={campana}>{campana}</option>)}</select>}<label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={!filters.search && !filters.formId && !filters.status && !filters.from && !filters.to} onClick={() => resetFilters({ search: '', formId: '', status: '', from: '', to: '' })}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
+        </select>}{campanasALaVista.length > 0 && <select className="input" aria-label="Filtrar por campaña" value={filters.utmCampaign} onChange={(event) => { setPage(1); setFilters((actuales) => ({ ...actuales, utmCampaign: event.target.value })); }}><option value="">Todas las campañas</option>{campanasALaVista.map((campana) => <option key={campana} value={campana}>{campana}</option>)}</select>}{valoresALaVista.origenes.length > 0 && <select className="input" aria-label="Filtrar por origen" value={filters.utmSource} onChange={(event) => { setPage(1); setFilters((actuales) => ({ ...actuales, utmSource: event.target.value })); }}><option value="">Todos los orígenes</option>{valoresALaVista.origenes.map((origen) => <option key={origen} value={origen}>{origen}</option>)}</select>}{valoresALaVista.medios.length > 0 && <select className="input" aria-label="Filtrar por medio" value={filters.utmMedium} onChange={(event) => { setPage(1); setFilters((actuales) => ({ ...actuales, utmMedium: event.target.value })); }}><option value="">Todos los medios</option>{valoresALaVista.medios.map((medio) => <option key={medio} value={medio}>{medio}</option>)}</select>}{valoresALaVista.cupones.length > 0 && <select className="input" aria-label="Filtrar por cupón" value={filters.couponCode} onChange={(event) => { setPage(1); setFilters((actuales) => ({ ...actuales, couponCode: event.target.value })); }}><option value="">Con y sin cupón</option>{valoresALaVista.cupones.map((codigo) => <option key={codigo} value={codigo}>Cupón {codigo}</option>)}</select>}
+        {/*
+          Declarado o detectado: lo que venía en el enlace frente a lo que el sistema dedujo.
+
+          Son dos cosas distintas y mezclarlas presenta una suposición como dato, que es para lo
+          que existe la columna `origin_detected`. A diferencia de los de arriba, las opciones son
+          fijas: no salen de lo que haya en pantalla.
+        */}
+        <select className="input" aria-label="Filtrar por cómo se supo el origen" value={filters.origen} onChange={(event) => { setPage(1); setFilters((actuales) => ({ ...actuales, origen: event.target.value })); }}>
+          <option value="">Declarado y detectado</option>
+          <option value="declarado">Sólo lo declarado en el enlace</option>
+          <option value="detectado">Sólo lo que dedujo el sistema</option>
+        </select><label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={Object.values(filters).every((valor) => !valor)} onClick={() => resetFilters(FILTROS_VACIOS)}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
       {bookingsError ? (isForbiddenError(bookingsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas" message={bookingsError.message} onRetry={() => void refetchBookings()} retrying={loadingBookings} />)
         : loadingBookings && !bookingPage ? <LoadingSpinner text="Buscando reservas..." />
         : bookings.length === 0 ? <EmptyState icon="calendar" title="Sin reservas para estos filtros" description="Las nuevas solicitudes aparecerán aquí en tiempo real." /> : <div className="booking-list" aria-busy={loadingBookings}>

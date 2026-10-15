@@ -45,12 +45,25 @@ export class CampanasService {
     return !empresa || empresa === 'agencia' ? null : empresa;
   }
 
-  async listar(organizationId: string, encerradoEn?: string): Promise<Campana[]> {
-    return this.repo.find({
-      where: { organizationId, ...(encerradoEn ? { clientId: encerradoEn } : {}) },
-      order: { createdAt: 'DESC' },
-      take: 100,
-    });
+  /**
+   * @param filtros - `cupon` coincide por fragmento y `conCupon` separa las que reparten alguno
+   *   de las que no. El código y su vencimiento viven en la campaña desde la 0164 y hasta ahora
+   *   no se podían consultar: saber qué campañas llevaban un cupón exigía abrirlas una por una.
+   */
+  async listar(
+    organizationId: string,
+    encerradoEn?: string,
+    filtros?: { estado?: string; cupon?: string; conCupon?: 'true' | 'false' },
+  ): Promise<Campana[]> {
+    const qb = this.repo.createQueryBuilder('campana')
+      .where('campana.organization_id = :organizationId', { organizationId });
+    if (encerradoEn) qb.andWhere('campana.client_id = :encerradoEn', { encerradoEn });
+    if (filtros?.estado) qb.andWhere('campana.estado = :estado', { estado: filtros.estado });
+    if (filtros?.cupon) qb.andWhere('campana.cupon LIKE :cupon', { cupon: `%${filtros.cupon}%` });
+    // Una cadena vacía cuenta como «sin cupón»: es lo que deja un campo que se borró a medias.
+    if (filtros?.conCupon === 'true') qb.andWhere("campana.cupon IS NOT NULL AND campana.cupon <> ''");
+    if (filtros?.conCupon === 'false') qb.andWhere("campana.cupon IS NULL OR campana.cupon = ''");
+    return qb.orderBy('campana.created_at', 'DESC').take(100).getMany();
   }
 
   async crear(datos: {
