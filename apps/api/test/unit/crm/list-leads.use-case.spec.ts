@@ -1,27 +1,67 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ListLeadsUseCase } from '../../../src/modules/crm/leads/use-cases/list-leads.use-case';
 
+/** Columnas de `Lead` que las condiciones agrupadas mencionan por su nombre en la base. */
+const COLUMNAS: Record<string, string> = {
+  updatedAt: 'updated_at',
+  sourceDetail: 'source_detail',
+  campaignName: 'campaign_name',
+};
+
 function caso() {
-  const repo = { findAndCount: vi.fn().mockResolvedValue([[], 0]) };
+  const repo = {
+    findAndCount: vi.fn().mockResolvedValue([[], 0]),
+    // El use-case traduce propiedades a columnas por los metadatos en vez de escribirlas a mano.
+    metadata: {
+      name: 'Lead',
+      findColumnWithPropertyName: (propiedad: string) => ({ databaseName: COLUMNAS[propiedad] ?? propiedad }),
+    },
+    manager: { connection: { driver: { escape: (nombre: string) => `\`${nombre}\`` } } },
+  };
   return { uso: new ListLeadsUseCase(repo as never), repo };
 }
 
-/** El criterio con que se consultó, sea objeto o disyunción. */
+/** El criterio con que se consultó. */
 function criterio(repo: { findAndCount: { mock: { calls: unknown[][] } } }) {
   return (repo.findAndCount.mock.calls[0][0] as { where: unknown }).where;
 }
 
+/** El SQL que una condición agrupada produce para su columna. */
+function sqlDe(condicion: any, columna: string): string {
+  return condicion.getSql(columna);
+}
+
+describe('ListLeadsUseCase · forma de la consulta', () => {
+  /*
+   * El `where` es una sola conjunción, nunca criterios alternativos.
+   *
+   * Es la garantía que sostiene todo lo demás de este archivo. Expresar un «o» como criterios
+   * alternativos al `where` completo obliga a repetir las otras condiciones en cada rama, y con
+   * esa forma el motor no usa ningún índice: recorre la tabla entera y reevalúa cada condición
+   * una vez por rama. Medido sobre 250.000 filas, el peor caso —búsqueda libre más filtro de
+   * anuncio, con las tres disyunciones a la vez— pasó de 17.627 ms a 637 ms, y de 168 parámetros
+   * a 13. La §13 de docs/AUDITORIA-FASE4-FILTROS-2026-10-14.md tiene la medición.
+   */
+  it('nunca arma criterios alternativos, ni con las tres disyunciones juntas', async () => {
+    const { uso, repo } = caso();
+    await uso.execute('org-1', 20, 0, {
+      search: 'gomez', onlyAssignedTo: 'user-7', anuncio: 'Inversion A', clientId: 'cliente-9',
+    });
+    expect(Array.isArray(criterio(repo))).toBe(false);
+  });
+});
+
 describe('ListLeadsUseCase · alcance por persona', () => {
-  it('sin acotar consulta las dos ramas del corte de descartados', async () => {
-    // Ya no es un criterio único: ocultar los descartados viejos es una disyunción —«no está
-    // descartado, o se descartó hace poco»—, y en TypeORM eso son dos condiciones completas.
+  it('el corte de cerrados es una sola condición agrupada', async () => {
+    // «No está cerrado, o se cerró hace poco» va entre paréntesis dentro del mismo `where`.
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, {});
-    const donde = criterio(repo) as Array<Record<string, any>>;
-    expect(donde).toHaveLength(2);
-    expect(donde[0].status?._type).toBe('not');
-    expect(donde[1].status?._value).toEqual(['lost', 'won']);
-    expect(donde[1].updatedAt?._type).toBe('moreThanOrEqual');
+    const donde = criterio(repo) as Record<string, any>;
+
+    expect(Array.isArray(donde)).toBe(false);
+    expect(donde.status?._type).toBe('raw');
+    expect(sqlDe(donde.status, '`Lead`.`status`'))
+      .toBe('(`Lead`.`status` NOT IN (:...cerradas) OR `Lead`.`updated_at` >= :limite)');
   });
 
   /*
@@ -34,8 +74,8 @@ describe('ListLeadsUseCase · alcance por persona', () => {
   it('mira los últimos treinta días y no el inicio del mes', async () => {
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, {});
-    const donde = criterio(repo) as Array<Record<string, any>>;
-    const limite = new Date(donde[1].updatedAt?._value as string | Date);
+    const donde = criterio(repo) as Record<string, any>;
+    const limite = new Date(donde.status?._objectLiteralParameters?.limite as Date);
     const dias = (Date.now() - limite.getTime()) / 86_400_000;
 
     expect(dias).toBeGreaterThan(29.5);
@@ -45,19 +85,22 @@ describe('ListLeadsUseCase · alcance por persona', () => {
   });
 
   /*
-   * El corte sólo alcanza a los descartados.
+   * El corte sólo alcanza a los cerrados.
    *
    * Un prospecto en cualquier otro estado se ve siempre, sin límite de fecha: si el corte lo
    * alcanzara, una ficha viva desaparecería del tablero por antigüedad y se leería como perdida.
+   * Por eso la fecha está del lado derecho del «o» y no fuera del paréntesis: un lead abierto
+   * entra por el lado izquierdo sin que su fecha importe.
    */
-  it('no acota por fecha a los que no están descartados', async () => {
+  it('no acota por fecha a los que no están cerrados', async () => {
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, {});
-    const donde = criterio(repo) as Array<Record<string, any>>;
+    const donde = criterio(repo) as Record<string, any>;
+    const sql = sqlDe(donde.status, '`Lead`.`status`');
 
-    expect(donde[0].status?._type).toBe('not');
-    expect(donde[0].updatedAt).toBeUndefined();
-    expect(donde[0].createdAt).toBeUndefined();
+    expect(sql).toMatch(/NOT IN \(:\.\.\.cerradas\) OR/);
+    expect(donde.updatedAt).toBeUndefined();
+    expect(donde.createdAt).toBeUndefined();
   });
 
   /*
@@ -69,12 +112,9 @@ describe('ListLeadsUseCase · alcance por persona', () => {
   it('saca de la vista los vendidos antiguos, igual que los descartados', async () => {
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, {});
-    const donde = criterio(repo) as Array<Record<string, any>>;
+    const donde = criterio(repo) as Record<string, any>;
 
-    expect(donde[1].status?._type).toBe('in');
-    expect(donde[1].status?._value).toEqual(['lost', 'won']);
-    expect(donde[0].status?._type).toBe('not');
-    expect(donde[0].status?._value?._value).toEqual(['lost', 'won']);
+    expect(donde.status?._objectLiteralParameters?.cerradas).toEqual(['lost', 'won']);
   });
 
   /*
@@ -90,6 +130,7 @@ describe('ListLeadsUseCase · alcance por persona', () => {
 
     expect(Array.isArray(donde)).toBe(false);
     expect(donde.createdAt?._type).toBe('between');
+    expect(donde.status).toBeUndefined();
   });
 
   it('el día de «hasta» entra entero', async () => {
@@ -110,10 +151,13 @@ describe('ListLeadsUseCase · alcance por persona', () => {
     expect(donde.createdAt?._type).toBe('moreThanOrEqual');
   });
 
-  it('pedirlos explícitamente vuelve al criterio único', async () => {
+  it('pedirlos explícitamente quita el corte', async () => {
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, { incluirDescartados: true });
-    expect(Array.isArray(criterio(repo))).toBe(false);
+    const donde = criterio(repo) as Record<string, any>;
+
+    expect(Array.isArray(donde)).toBe(false);
+    expect(donde.status).toBeUndefined();
   });
 
   it('filtrar por una etapa manda sobre el corte', async () => {
@@ -147,25 +191,34 @@ describe('ListLeadsUseCase · alcance por persona', () => {
   it('acotado devuelve lo suyo o lo que no tiene dueño', async () => {
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, { onlyAssignedTo: 'user-7', incluirDescartados: true });
-    const donde = criterio(repo) as Array<Record<string, unknown>>;
-    expect(donde).toHaveLength(2);
-    expect(donde[0].assignedTo).toBe('user-7');
-    // La segunda rama es «sin dueño»: se comprueba que no sea el mismo usuario ni quede libre.
-    expect(donde[1].assignedTo).not.toBe('user-7');
-    expect(donde[1].assignedTo).toBeDefined();
+    const donde = criterio(repo) as Record<string, any>;
+
+    expect(sqlDe(donde.assignedTo, '`Lead`.`assigned_to`'))
+      .toBe('(`Lead`.`assigned_to` = :suyo OR `Lead`.`assigned_to` IS NULL)');
+    expect(donde.assignedTo?._objectLiteralParameters?.suyo).toBe('user-7');
   });
 
-  it('las dos ramas llevan el filtro de empresa completo, o una abriría lo que la otra cierra', async () => {
+  /*
+   * El filtro de empresa ya no puede quedar abierto por un lado.
+   *
+   * Antes el «o» del alcance por persona eran dos criterios alternativos con el `where` repetido
+   * en cada uno, y había que vigilar que ninguna rama olvidara una condición que la otra sí
+   * aplicaba. Ahora la disyunción vive dentro de la condición de su propia columna, así que las
+   * rejas son condiciones únicas de la conjunción y no hay dos sitios que mantener de acuerdo.
+   */
+  it('el alcance por persona no abre ninguna reja de empresa', async () => {
     const { uso, repo } = caso();
     await uso.execute('org-1', 20, 0, {
       onlyAssignedTo: 'user-7', clientId: 'cliente-9', domain: 'audience', incluirDescartados: true,
     });
-    const donde = criterio(repo) as Array<Record<string, unknown>>;
-    for (const rama of donde) {
-      expect(rama.organizationId).toBe('org-1');
-      expect(rama.clientId).toBe('cliente-9');
-      expect(rama.domain).toBe('audience');
-    }
+    const donde = criterio(repo) as Record<string, any>;
+
+    expect(Array.isArray(donde)).toBe(false);
+    expect(donde.organizationId).toBe('org-1');
+    expect(donde.clientId).toBe('cliente-9');
+    expect(donde.domain).toBe('audience');
+    // La disyunción queda confinada a su columna: no alcanza a las de arriba.
+    expect(donde.assignedTo?._type).toBe('raw');
   });
 
   it('sin cuentas permitidas no consulta y devuelve vacío, aunque esté acotado por persona', async () => {
@@ -175,20 +228,23 @@ describe('ListLeadsUseCase · alcance por persona', () => {
     expect(repo.findAndCount).not.toHaveBeenCalled();
   });
 
-  it('busca en base sobre todos los campos sin perder el alcance de empresa', async () => {
+  it('busca en los siete campos sin perder el alcance de empresa', async () => {
     const { uso, repo } = caso();
     await uso.execute('org-1', 100, 0, {
       clientId: 'cliente-9', domain: 'audience', search: 'ana', incluirDescartados: true,
     });
-    const donde = criterio(repo) as Array<Record<string, unknown>>;
-    expect(donde).toHaveLength(7);
-    for (const rama of donde) {
-      expect(rama.organizationId).toBe('org-1');
-      expect(rama.clientId).toBe('cliente-9');
-      expect(rama.domain).toBe('audience');
+    const donde = criterio(repo) as Record<string, any>;
+    const sql = sqlDe(donde.name, '`Lead`.`name`');
+
+    expect(Array.isArray(donde)).toBe(false);
+    expect(donde.organizationId).toBe('org-1');
+    expect(donde.clientId).toBe('cliente-9');
+    expect(donde.domain).toBe('audience');
+    // Los siete campos, en un solo paréntesis y con un único parámetro para el término.
+    for (const columna of ['name', 'email', 'phone', 'company', 'source', 'source_detail', 'campaign_name']) {
+      expect(sql).toContain(`\`Lead\`.\`${columna}\` LIKE :termino`);
     }
-    expect(donde.some((rama) => rama.name)).toBe(true);
-    expect(donde.some((rama) => rama.email)).toBe(true);
-    expect(donde.some((rama) => rama.phone)).toBe(true);
+    expect(sql.match(/ OR /g)).toHaveLength(6);
+    expect(donde.name?._objectLiteralParameters?.termino).toBe('%ana%');
   });
 });
