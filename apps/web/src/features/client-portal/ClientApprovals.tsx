@@ -6,6 +6,8 @@ import { StatusBadge } from '../../shared/StatusBadge';
 import { EmptyState } from '../../shared/EmptyState';
 import { Modal } from '../../shared/Modal';
 import { safeUrl } from '../../core/safe-url';
+import { useEmpresaDeDatos } from './empresa-de-datos';
+import { SoloEmpresaPropia } from './SoloEmpresaPropia';
 
 interface ClientApprovalItem {
   id: string;
@@ -19,12 +21,14 @@ interface ClientApprovalItem {
 
 export function ClientApprovals() {
   const queryClient = useQueryClient();
+  const empresa = useEmpresaDeDatos();
   const [rejection, setRejection] = useState<{ id: string; title: string } | null>(null);
   const [rejectionNotes, setRejectionNotes] = useState('');
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const { data, isLoading, error } = useQuery<ClientApprovalItem[]>({
-    queryKey: ['client-approvals'],
-    queryFn: () => api.get('/approvals'),
+    queryKey: ['client-approvals', empresa.userId, empresa.clientId],
+    enabled: empresa.disponible,
+    queryFn: () => api.get(`/approvals?clientId=${encodeURIComponent(empresa.clientId)}`),
   });
 
   const approveMutation = useMutation({
@@ -33,7 +37,7 @@ export function ClientApprovals() {
       setRejection(null);
       setRejectionNotes('');
       setFeedback({ tone: 'success', text: 'Pieza aprobada. Tu decisión quedó registrada.' });
-      return queryClient.invalidateQueries({ queryKey: ['client-approvals'] });
+      return queryClient.invalidateQueries({ queryKey: ['client-approvals', empresa.userId, empresa.clientId] });
     },
     onError: (mutationError: Error) => setFeedback({ tone: 'error', text: mutationError.message }),
   });
@@ -45,11 +49,12 @@ export function ClientApprovals() {
       setRejection(null);
       setRejectionNotes('');
       setFeedback({ tone: 'success', text: 'Solicitud de corrección enviada al equipo.' });
-      return queryClient.invalidateQueries({ queryKey: ['client-approvals'] });
+      return queryClient.invalidateQueries({ queryKey: ['client-approvals', empresa.userId, empresa.clientId] });
     },
     onError: (mutationError: Error) => setFeedback({ tone: 'error', text: mutationError.message }),
   });
 
+  if (!empresa.disponible) return <SoloEmpresaPropia nombre={empresa.nombre} seccion="Las aprobaciones" />;
   if (isLoading) return <LoadingSpinner text="Cargando aprobaciones..." />;
   if (error) return <div className="alert alert-error">Error al cargar aprobaciones</div>;
 

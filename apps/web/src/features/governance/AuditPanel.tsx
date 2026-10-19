@@ -8,13 +8,20 @@ import { matchesSearch } from '../../shared/search';
 interface AuditRow {
   [key: string]: unknown;
   id: string; entityType: string; entityId?: string; action: string; actorId?: string; actorName?: string; actorEmail?: string;
-  after?: unknown; reason?: string; ipAddress?: string; occurredAt: string;
+  before?: unknown; after?: unknown; reason?: string; ipAddress?: string; occurredAt: string;
 }
 
 /** Tope de filas por consulta. Se nombra en pantalla cuando se alcanza. */
 const TOPE = 300;
 
-const ACTION_LABELS: Record<string, string> = { create: 'Creación', update: 'Actualización', delete: 'Eliminación', publish: 'Publicación', unpublish: 'Volver a borrador', reset_password: 'Reset de clave', accept: 'Aceptación', send: 'Envío' };
+const ACTION_LABELS: Record<string, string> = { create: 'Creación', update: 'Actualización', delete: 'Eliminación', publish: 'Publicación', unpublish: 'Volver a borrador', reset_password: 'Reset de clave', accept: 'Aceptación', send: 'Envío', created: 'Creado', updated: 'Actualizado', deleted: 'Eliminado', converted: 'Convertido', status_change: 'Cambio de estado', status_changed: 'Cambio de estado', anonymize: 'Anonimización', anonymized: 'Anonimización', extend: 'Extensión' };
+
+/** Los datos de una fila vienen como objeto o como texto JSON; se muestran siempre como objeto cuando se puede. */
+function comoDatos(valor: unknown): unknown {
+  if (valor == null) return null;
+  if (typeof valor !== 'string') return valor;
+  try { return JSON.parse(valor); } catch { return valor; }
+}
 const ENTITY_LABELS: Record<string, string> = { users: 'Usuarios', clients: 'Clientes', production: 'Producción', content: 'Contenido', meetings: 'Reuniones', catalog: 'Catálogo', contracts: 'Contratos', reporting: 'Reportes', workflows: 'Flujos', pods: 'Pods', settings: 'Configuración', auth: 'Acceso' };
 
 export function AuditPanel() {
@@ -51,8 +58,14 @@ export function AuditPanel() {
    */
   const entities = [...new Set([...Object.keys(ENTITY_LABELS), ...all.map((row) => row.entityType)])].sort();
   /* El texto libre sí filtra acá: cruza campos que el servidor no indexa y la página ya está. */
+  /*
+   * Las acciones salen del catálogo y de lo traído: el servidor las deriva del último tramo de la
+   * ruta, así que el conjunto es abierto y una fija dejaría sin filtro a las que no conoce.
+   */
+  const acciones = [...new Set([...Object.keys(ACTION_LABELS), ...all.map((row) => row.action)])].sort();
   const rows = all.filter((row) => matchesSearch(search, [row.actorName, row.actorEmail, row.entityType, row.action, row.entityId]));
-  const payload = selected?.after == null ? null : typeof selected.after === 'string' ? (() => { try { return JSON.parse(selected.after); } catch { return selected.after; } })() : selected.after;
+  const payload = comoDatos(selected?.after);
+  const anterior = comoDatos(selected?.before);
 
   return <section className="audit-workspace">
     <div className="section-toolbar"><div><span className="page-eyebrow">TRAZABILIDAD</span><h2>Bitácora de cambios</h2><p>Cada operación relevante queda asociada a persona, fecha, origen y datos no sensibles.</p></div><button className="btn btn-outline" onClick={() => query.refetch()} disabled={query.isFetching}>{query.isFetching ? 'Actualizando...' : 'Actualizar'}</button></div>
@@ -60,7 +73,7 @@ export function AuditPanel() {
     <div className="filters">
       <input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar actor, módulo, acción o identificador..." />
       <select className="input" aria-label="Filtrar por módulo" value={entity} onChange={(event) => setEntity(event.target.value)}><option value="">Todos los módulos</option>{entities.map((value) => <option key={value} value={value}>{ENTITY_LABELS[value] ?? value}</option>)}</select>
-      <select className="input" aria-label="Filtrar por acción" value={accion} onChange={(event) => setAccion(event.target.value)}><option value="">Todas las acciones</option>{Object.entries(ACTION_LABELS).map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}</select>
+      <select className="input" aria-label="Filtrar por acción" value={accion} onChange={(event) => setAccion(event.target.value)}><option value="">Todas las acciones</option>{acciones.map((valor) => <option key={valor} value={valor}>{ACTION_LABELS[valor] ?? valor.replaceAll('_', ' ')}</option>)}</select>
       {/* Por identificador exacto: es como se entra cuando se investiga un registro concreto. */}
       <input className="input" aria-label="Buscar por identificador de registro" value={registro} onChange={(event) => setRegistro(event.target.value)} placeholder="Id del registro" />
       {entity || accion || registro ? <button type="button" className="btn btn-link" onClick={() => { setEntity(''); setAccion(''); setRegistro(''); }}>Limpiar</button> : null}
@@ -69,7 +82,7 @@ export function AuditPanel() {
       El tope se dice. Una bitácora recortada en silencio hace creer que un evento no ocurrió
       cuando lo que pasa es que quedó fuera de las últimas filas.
     */}
-    {all.length >= TOPE ? <p className="page-subtitle">Se muestran los {TOPE} movimientos más recientes de este filtro. Acota por módulo, acción o identificador para encontrar uno anterior.</p> : null}
+    {all.length >= TOPE ? <p className="page-subtitle">Se muestran los {TOPE} movimientos más recientes de este filtro. Acota por módulo, acción o identificador para encontrar uno anterior: la bitácora todavía no se puede filtrar por fecha.</p> : null}
     {query.error ? <div className="alert alert-error">No se pudo cargar la bitácora: {query.error.message}</div> : <DataTable<AuditRow> loading={query.isLoading} data={rows} keyExtractor={(row) => row.id} emptyMessage="Aún no existen cambios registrados para este filtro." columns={[
       { key: 'occurredAt', label: 'Fecha', sortable: true, render: (row) => new Date(row.occurredAt).toLocaleString('es-CL') },
       { key: 'actorName', label: 'Responsable', render: (row) => <span className="audit-actor"><strong>{row.actorName ?? 'Sistema'}</strong><small>{row.actorEmail}</small></span> },
@@ -78,6 +91,6 @@ export function AuditPanel() {
       { key: 'ipAddress', label: 'Origen', render: (row) => row.ipAddress ?? 'Interno' },
       { key: 'id', label: 'Evidencia', render: (row) => <button className="btn btn-sm btn-outline" onClick={() => setSelected(row)}>Ver detalle</button> },
     ]} />}
-    <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title="Detalle de auditoría"><div className="audit-detail"><dl><div><dt>Responsable</dt><dd>{selected?.actorName ?? 'Sistema'}</dd></div><div><dt>Fecha</dt><dd>{selected ? new Date(selected.occurredAt).toLocaleString('es-CL') : ''}</dd></div><div><dt>Módulo</dt><dd>{selected ? ENTITY_LABELS[selected.entityType] ?? selected.entityType : ''}</dd></div><div><dt>Acción</dt><dd>{selected ? ACTION_LABELS[selected.action] ?? selected.action : ''}</dd></div><div><dt>Registro</dt><dd>{selected?.entityId ?? 'Operación global'}</dd></div><div><dt>IP</dt><dd>{selected?.ipAddress ?? 'No informada'}</dd></div></dl><h3>Datos asociados</h3><pre>{payload == null ? 'Sin datos adicionales' : JSON.stringify(payload, null, 2)}</pre></div></Modal>
+    <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title="Detalle de auditoría"><div className="audit-detail"><dl><div><dt>Responsable</dt><dd>{selected?.actorName ?? 'Sistema'}</dd></div><div><dt>Fecha</dt><dd>{selected ? new Date(selected.occurredAt).toLocaleString('es-CL') : ''}</dd></div><div><dt>Módulo</dt><dd>{selected ? ENTITY_LABELS[selected.entityType] ?? selected.entityType : ''}</dd></div><div><dt>Acción</dt><dd>{selected ? ACTION_LABELS[selected.action] ?? selected.action : ''}</dd></div><div><dt>Registro</dt><dd>{selected?.entityId ?? 'Operación global'}</dd></div><div><dt>IP</dt><dd>{selected?.ipAddress ?? 'No informada'}</dd></div></dl>{anterior != null && <><h3>Antes</h3><pre>{JSON.stringify(anterior, null, 2)}</pre></>}<h3>{anterior != null ? 'Después' : 'Datos asociados'}</h3><pre>{payload == null ? 'Sin datos adicionales' : JSON.stringify(payload, null, 2)}</pre></div></Modal>
   </section>;
 }

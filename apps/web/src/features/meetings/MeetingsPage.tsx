@@ -75,11 +75,13 @@ export function MeetingsPage() {
     queryFn: () => api.get('/meetings'),
   });
 
-  const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({
-    queryKey: ['clients'],
-    queryFn: () => api.get('/clients'),
+  // El servidor entrega como máximo 100 por página; `total` dice si la lista quedó corta.
+  const { data: clientsResp } = useQuery<{ data: ClientOption[]; total?: number }>({
+    queryKey: ['clients', 'selector', 100],
+    queryFn: () => api.get('/clients?limit=100'),
   });
-  const clients = useMemo<ClientOption[]>(() => (clientsResp as { data: ClientOption[] } | undefined)?.data ?? [], [clientsResp]);
+  const clientesOmitidos = Math.max(0, (clientsResp?.total ?? 0) - (clientsResp?.data?.length ?? 0));
+  const clients = useMemo<ClientOption[]>(() => clientsResp?.data ?? [], [clientsResp]);
 
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.post('/meetings', body),
@@ -151,6 +153,7 @@ export function MeetingsPage() {
         </button>
       </div>
       <div className="filters"><select className="input" aria-label="Filtrar reuniones por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todos los clientes</option>{(clients ?? []).map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select><span className="filter-result-count">{sorted.length} reuniones</span></div>
+      {clientesOmitidos > 0 && <p className="page-subtitle" role="status">La lista de clientes muestra los primeros {clients.length} de {clientsResp?.total}: faltan {clientesOmitidos}, que no se pueden elegir aquí.</p>}
       {sorted.length === 0 ? (
         <EmptyState icon="calendar" title="Sin reuniones" description="Agenda tu primera reunión." action={<button className="btn btn-primary" onClick={() => { setForm((current) => ({ ...current, clientId: clientFilter })); setModalOpen(true); }}>+ Nueva Reunión</button>} />
       ) : (

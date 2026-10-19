@@ -3,6 +3,8 @@ import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { EmptyState } from '../../shared/EmptyState';
 import { statusLabel } from '../../shared/status-labels';
+import { useEmpresaDeDatos } from './empresa-de-datos';
+import { SoloEmpresaPropia } from './SoloEmpresaPropia';
 
 const CONTENT_TYPE_LABELS: Record<string, string> = {
   post: 'Publicación', story: 'Historia', reel: 'Reel', carousel: 'Carrusel', video: 'Video', other: 'Otro',
@@ -18,11 +20,14 @@ interface ClientGridItem {
 }
 
 export function ClientGrid() {
+  const empresa = useEmpresaDeDatos();
   const { data, isLoading, error } = useQuery<ClientGridItem[]>({
-    queryKey: ['client-grid'],
-    queryFn: () => api.get('/content/grids'),
+    queryKey: ['client-grid', empresa.userId, empresa.clientId],
+    enabled: empresa.disponible,
+    queryFn: () => api.get(`/content/grids?clientId=${encodeURIComponent(empresa.clientId)}`),
   });
 
+  if (!empresa.disponible) return <SoloEmpresaPropia nombre={empresa.nombre} seccion="La parrilla" />;
   if (isLoading) return <LoadingSpinner text="Cargando parrilla..." />;
   if (error) return <div className="alert alert-error">Error al cargar parrilla de contenido</div>;
 

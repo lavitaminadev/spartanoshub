@@ -33,6 +33,11 @@ function destinoDeReservas(notification: NotificationRecord, base: string): stri
   return base;
 }
 
+function textoDe(notification: NotificationRecord, clave: string): string {
+  const valor = notification.data?.[clave];
+  return typeof valor === 'string' ? valor : '';
+}
+
 function notificationRoute(notification: NotificationRecord, clientView: boolean): string | null {
   if (clientView) {
     if (notification.type.startsWith('reservation_')) return destinoDeReservas(notification, '/portal/reservations');
@@ -52,6 +57,17 @@ function notificationRoute(notification: NotificationRecord, clientView: boolean
   }
   if (notification.type.startsWith('reservation_')) return destinoDeReservas(notification, '/reservations');
   if (notification.type.startsWith('approval.')) return '/approvals';
+  if (notification.type.startsWith('deadline.')) {
+    const pieza = textoDe(notification, 'pieceId');
+    return pieza ? `/production/${encodeURIComponent(pieza)}` : '/production';
+  }
+  if (notification.type.startsWith('derechos.')) return '/solicitudes';
+  if (notification.type.startsWith('meeting.')) return '/meetings';
+  if (notification.type.startsWith('ud.') || notification.type.startsWith('cycle.')) {
+    const empresa = textoDe(notification, 'clientId');
+    return empresa ? `/clients/${encodeURIComponent(empresa)}` : '/clients';
+  }
+  if (notification.type.startsWith('automation')) return '/automations';
   if (notification.type.startsWith('survey_')) return '/surveys';
   return null;
 }

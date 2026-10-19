@@ -63,6 +63,9 @@ const UsersPage = lazy(() => import('../features/users/UsersPage').then(m => ({ 
 const CatalogPage = lazy(() => import('../features/catalog/CatalogPage').then(m => ({ default: m.CatalogPage })));
 const KnowledgePage = lazy(() => import('../features/knowledge/KnowledgePage').then(m => ({ default: m.KnowledgePage })));
 const ClientDashboard = lazy(() => import('../features/client-portal/ClientDashboard').then(m => ({ default: m.ClientDashboard })));
+const ClientApprovals = lazy(() => import('../features/client-portal/ClientApprovals').then(m => ({ default: m.ClientApprovals })));
+const ClientGrid = lazy(() => import('../features/client-portal/ClientGrid').then(m => ({ default: m.ClientGrid })));
+const ClientReports = lazy(() => import('../features/client-portal/ClientReports').then(m => ({ default: m.ClientReports })));
 const ClientLayout = lazy(() => import('../features/client-portal/ClientLayout').then(m => ({ default: m.ClientLayout })));
 const ReservationsPage = lazy(() => import('../features/reservations/ReservationsPage').then(m => ({ default: m.ReservationsPage })));
 const ReservationLocalHubPage = lazy(() => import('../features/reservations/ReservationLocalHubPage').then(m => ({ default: m.ReservationLocalHubPage })));
@@ -215,6 +218,10 @@ export function AppRouter() {
         <Route path="/portal" element={<ClientRoute><SafeSuspense><ClientLayout /></SafeSuspense></ClientRoute>}>
           <Route index element={<SafeSuspense><ClientDashboard /></SafeSuspense>} />
           <Route path="reservations" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationsPage clientView /></SafeSuspense></ClientRoute>} />
+          {/* Reuniones no se monta: el servidor entrega las actas y reuniones internas completas a la cuenta cliente. */}
+          <Route path="approvals" element={<ClientRoute><SafeSuspense><ClientApprovals /></SafeSuspense></ClientRoute>} />
+          <Route path="grid" element={<ClientRoute><SafeSuspense><ClientGrid /></SafeSuspense></ClientRoute>} />
+          <Route path="reports" element={<ClientRoute><SafeSuspense><ClientReports /></SafeSuspense></ClientRoute>} />
           <Route path="legal" element={<ClientRoute anyCapability={['reservations', 'surveys']}><SafeSuspense><ClientLegalData /></SafeSuspense></ClientRoute>} />
           {/* La empresa configura su propio local primero; el editor visual queda como una
               segunda pantalla, no como la única forma de operar reservas. */}
