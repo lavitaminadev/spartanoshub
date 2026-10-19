@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
+import { GoogleCalendarService } from '../../modules/integrations/google/google-calendar.service';
 import { User } from '../../modules/users/user.entity';
 import { AuditLog } from '../audit/audit.entity';
 import { DataConsent } from './consent.entity';
@@ -40,6 +41,8 @@ function avisoDeEspartanos() {
 
 @Injectable()
 export class DataProtectionService {
+  private readonly logger = new Logger(DataProtectionService.name);
+
   constructor(
     @InjectRepository(User) private userRepo: Repository<User>,
     @InjectRepository(Lead) private leadRepo: Repository<Lead>,
@@ -49,6 +52,14 @@ export class DataProtectionService {
     @InjectRepository(Reservation) private reservationRepo: Repository<Reservation>,
     @InjectRepository(ServiceRequest) private serviceRequestRepo: Repository<ServiceRequest>,
     @InjectRepository(ConsentVersion) private consentVersionRepo: Repository<ConsentVersion>,
+    /*
+     * El calendario del local, para quitar de su evento el nombre del comensal.
+     *
+     * Opcional y en el ultimo lugar a proposito: sin calendario conectado no hay nada que
+     * renombrar, y las pruebas construyen este servicio por posicion, de modo que un parametro
+     * nuevo en el medio desplazaria los repositorios que ya pasan.
+     */
+    @Optional() private readonly calendario?: GoogleCalendarService,
   ) {}
 
   /**
@@ -238,8 +249,41 @@ export class DataProtectionService {
     reservation.clientUserAgent = null;
 
     const saved = await this.reservationRepo.save(reservation);
+    await this.olvidarEnElCalendarioDelLocal(saved);
     await this.recordAnonymization(organizationId, 'Reservation', reservationId, reason);
     return saved;
+  }
+
+  /**
+   * Quita el nombre del comensal del evento que vive en el Google Calendar del local.
+   *
+   * El evento se titula «<local>: <nombre del comensal>», asi que borrar la fila y dejar el
+   * evento como estaba conservaba el nombre fuera de la base, donde el plazo de conservacion no
+   * alcanza. Queda con el codigo de referencia, que no identifica a nadie.
+   *
+   * **Se renombra y no se borra**, por dos motivos: el evento es parte del registro del local, y
+   * el trabajo que recupera integraciones pendientes busca las reservas sin `calendar_event_id`,
+   * de modo que borrarlo y olvidar el id haria que lo volviera a crear.
+   *
+   * Sin esperar y sin fallar: la fila ya quedo anonimizada, que es lo que la ley exige, y que
+   * Google no responda no puede deshacerlo ni devolver un error a quien pidio el borrado. Un
+   * evento que ya no existe tampoco es un fallo. Queda en el registro para reintentarlo a mano.
+   */
+  private async olvidarEnElCalendarioDelLocal(reservation: Reservation): Promise<void> {
+    if (!this.calendario || !reservation.calendarEventId) return;
+    try {
+      await this.calendario.updateEvent(reservation.organizationId, reservation.calendarEventId, {
+        summary: `Reserva ${reservation.referenceCode}`,
+        description: `Reserva ${reservation.referenceCode}`,
+        start: reservation.startsAt,
+        durationMinutes: Math.max(1, Math.round((reservation.endsAt.getTime() - reservation.startsAt.getTime()) / 60_000)),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo quitar el nombre del evento de calendario de la reserva ${reservation.id}: `
+        + `${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 
   /**

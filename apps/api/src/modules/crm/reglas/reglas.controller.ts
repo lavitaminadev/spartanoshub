@@ -12,6 +12,9 @@ import { AccountAccessService } from '../../../core/client-scope/account-access.
 import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
 import type { AuthenticatedRequest } from '../../../shared/types/request';
 
+/** Forma de un identificador de empresa, para rechazar lo que no puede serlo antes de consultar. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 class CondicionDto {
   @IsIn(['respuestas', 'pregunta', 'campo', 'fuente', 'responsable', 'monto', 'campana']) donde: string;
   @IsOptional() @IsString() @MaxLength(200) clave?: string;
@@ -225,6 +228,12 @@ export class ReglasController {
   private async empresa(req: AuthenticatedRequest, pedido?: string): Promise<string> {
     const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, pedido);
     if (!clientId) throw new BadRequestException('Falta la empresa sobre la que trabajar');
+    /*
+     * La forma se comprueba sobre la empresa ya resuelta y no sobre lo pedido: una cuenta de
+     * portal se repliega a la suya ante un valor que no alcanza, y validar antes convertiría ese
+     * repliegue en un error.
+     */
+    if (!UUID.test(clientId)) throw new BadRequestException('La empresa no tiene una forma válida');
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     await this.capacidades.assert(req.organizationId, clientId, 'crm');
     return clientId;
