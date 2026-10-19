@@ -35,7 +35,7 @@ export function EnviarEncuestaPorCorreo({ survey, onCerrar }: {
   const malas = destinatarios.filter(invalido);
 
   const agregar = useMutation({
-    mutationFn: (correo: string) => api.patch(`/surveys/${encodeURIComponent(survey!.id)}`, {
+    mutationFn: (correo: string) => api.put(`/surveys/${encodeURIComponent(survey!.id)}`, {
       recipients: [...destinatarios, correo],
     }),
     onSuccess: async () => {
@@ -46,7 +46,7 @@ export function EnviarEncuestaPorCorreo({ survey, onCerrar }: {
   });
 
   const quitar = useMutation({
-    mutationFn: (correo: string) => api.patch(`/surveys/${encodeURIComponent(survey!.id)}`, {
+    mutationFn: (correo: string) => api.put(`/surveys/${encodeURIComponent(survey!.id)}`, {
       recipients: destinatarios.filter((uno) => uno !== correo),
     }),
     onSuccess: async () => { await clienteDeConsultas.invalidateQueries({ queryKey: ['surveys'] }); },

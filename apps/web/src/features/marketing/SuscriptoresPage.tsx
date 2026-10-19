@@ -21,7 +21,6 @@ interface Suscriptor {
   consentIp?: string | null;
   adultDeclaredAt?: string | null;
   birthDate?: string | null;
-  lastSentAt?: string | null;
   unsubscribedFrom?: string | null;
   unsubscribedAt?: string | null;
   unsubscribedScope?: 'local' | 'todas' | null;
@@ -321,13 +320,12 @@ function FichaDelSuscriptor({ suscriptor, empresa, onCerrar }: {
         <div><dt>Desde qué dirección</dt><dd>{suscriptor.consentIp || 'No consta (no vino por web)'}</dd></div>
         <div><dt>Declaró ser mayor de edad</dt><dd>{fecha(suscriptor.adultDeclaredAt)}</dd></div>
         <div><dt>Fecha de nacimiento declarada</dt><dd>{suscriptor.birthDate ? new Date(suscriptor.birthDate).toLocaleDateString('es-CL') : '—'}</dd></div>
-        <div><dt>Último correo enviado</dt><dd>{fecha(suscriptor.lastSentAt)}</dd></div>
         {suscriptor.unsubscribedAt && <div>
           <dt>Se dio de baja</dt>
           <dd>
             {fecha(suscriptor.unsubscribedAt)}
             {suscriptor.unsubscribedScope === 'todas' ? ' · de todos los locales' : ' · sólo de esta empresa'}
-            {suscriptor.unsubscribedFrom ? ` · desde el correo «${suscriptor.unsubscribedFrom}»` : ''}
+            {suscriptor.unsubscribedFrom ? ` · origen «${suscriptor.unsubscribedFrom}»` : ''}
           </dd>
         </div>}
       </dl>
@@ -415,7 +413,7 @@ function ConsultarExclusion() {
                 <li key={`${fila.clientId ?? 'todas'}-${fila.cuando}`}>
                   {fila.clientId ? 'Una empresa en concreto' : 'Todos los locales'}
                   {' · '}{new Date(fila.cuando).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
-                  {fila.origen ? ` · desde el correo «${fila.origen}»` : ''}
+                  {fila.origen ? ` · origen «${fila.origen}»` : ''}
                 </li>
               ))}
             </ul>

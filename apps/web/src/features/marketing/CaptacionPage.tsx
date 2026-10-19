@@ -81,6 +81,15 @@ export function CaptacionPage() {
             Puedes salirte cuando quieras desde el enlace que lleva cada correo abajo del todo. No
             hace falta escribirle a nadie.
           </p>
+        </> : estado === 'omitida' ? <>
+          {/* `omitida`: el servidor no completó la operación (correo sin forma válida o fallo al
+              guardar). No es una exclusión: no se le dice que pidió no recibir nada. */}
+          <h1>No pudimos registrar tu correo</h1>
+          <p>
+            Tu suscripción no quedó guardada. Revisa que el correo esté bien escrito e inténtalo de
+            nuevo en unos minutos.
+          </p>
+          <button type="button" className="btn btn-primary" onClick={() => suscribir.reset()}>Volver a intentar</button>
         </> : <>
           {/* Pidió no recibir antes. No se le vuelve a suscribir en silencio: el artículo 28 B
               dice que tras la petición los envíos quedan prohibidos, y una casilla marcada en

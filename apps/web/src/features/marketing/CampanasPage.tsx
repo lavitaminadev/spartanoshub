@@ -102,8 +102,9 @@ export function CampanasPage() {
           <span className="page-eyebrow">MARKETING</span>
           <h1>Campañas</h1>
           <p className="page-subtitle">
-            Un correo escrito a mano para quienes aceptaron recibirlo. Cada envío lleva su enlace de
-            baja, y quien se dio de baja no aparece en ninguna lista.
+            Un correo escrito a mano para quienes aceptaron recibirlo. Los envíos a la lista de
+            marketing llevan el enlace de baja de cada persona y no incluyen a quien ya se dio de
+            baja. Los avisos a quienes administran la empresa no llevan enlace de baja.
           </p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setEditando('nueva')}>Escribir una campaña</button>
@@ -425,7 +426,7 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
     onSuccess: (resultado) => {
       // Encolada, no enviada: decir «enviada» aquí sería mentir durante los minutos que tarda.
       triggerToast(
-        `En cola para ${resultado.destinatarios} personas. Los correos salen en los próximos minutos; verás el avance en la lista.`,
+        `${destino === 'administradores' ? 'Aviso de servicio en cola para' : 'En cola para'} ${resultado.destinatarios} ${destino === 'administradores' ? (resultado.destinatarios === 1 ? 'cuenta que administra' : 'cuentas que administran') : (resultado.destinatarios === 1 ? 'persona' : 'personas')}. Los correos salen en los próximos minutos; verás el avance en la lista.`,
         'success',
       );
       onEnviada();
@@ -449,7 +450,7 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
 
         {isLoading ? <p>Contando destinatarios…</p> : (
           <p className="envio-cifra">
-            Le llegará a <strong>{total}</strong> {total === 1 ? 'persona' : 'personas'}.
+            Le llegará a <strong>{total}</strong> {destino === 'administradores' ? (total === 1 ? 'cuenta que administra la empresa' : 'cuentas que administran la empresa') : (total === 1 ? 'persona' : 'personas')}.
           </p>
         )}
 
