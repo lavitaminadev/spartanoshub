@@ -20,40 +20,70 @@ Sirve como red de seguridad —que algo salga una vez al día aunque el cron fal
 mecanismo principal. `data-retention`, `resumen-diario` y `cumpleanos`, que dependen de la hora,
 necesitan el cron sí o sí.
 
+## Cómo se instalan
+
+`scripts/deploy/setup-crontab.sh` instala todas las tareas del controlador (25 de sus 26 rutas; `google-ads/diagnostics` es sólo de consulta), y `.cpanel.yml` lo llama en cada
+despliegue. Reinstalar reemplaza únicamente las líneas de las tareas que el script gestiona (las
+que apuntan exactamente a `/api/cron/<nombre>`); una línea manual hacia otra ruta se conserva. Si
+se agrega una ruta al controlador, hay que sumarla al heredoc del script **y** a su lista
+`TAREAS_GESTIONADAS`, o no correrá en producción.
+
 ## Cómo se llaman
 
-Todas se piden igual, con `GET` y la clave en una cabecera:
+Todas aceptan `POST`, y las que escriben deberían llamarse así. Varias aceptan además `GET`, para
+los programadores que sólo saben hacer eso (columna «Verbos»). Siempre con la clave en una cabecera:
 
 ```bash
-curl -s -H "x-cron-secret: $CRON_SECRET" https://refugio.espartanos.cl/api/cron/<tarea>
+curl -s -X POST -H "x-cron-secret: $CRON_SECRET" https://refugio.espartanos.cl/api/cron/<tarea>
 ```
 
 `CRON_SECRET` se define en cPanel → Setup Node.js App → Environment variables. Sin ella, todas
 responden 403. Para rotarla sin corte existe `CRON_SECRET_PREVIOUS`: se mueve la vigente ahí, se
 pone la nueva en `CRON_SECRET`, se actualizan los cron y después se borra la anterior.
 
-En cPanel → Cron Jobs, cada línea se escribe así (ejemplo, cada hora en el minuto 5):
+## Las rutas
 
-```
-5 * * * * curl -s -H "x-cron-secret: LA_CLAVE" https://refugio.espartanos.cl/api/cron/recordatorio-reservas >/dev/null 2>&1
-```
+La frecuencia es la del planificador interno (`job-scheduler.service.ts`) cuando la tarea está
+allí; las que no tiene, ver la nota. Los minutos están repartidos para no arrancar todas juntas.
 
-Conviene separar los minutos entre tareas que coinciden en frecuencia, para no arrancarlas todas
-en el mismo segundo.
+| Tarea | Verbos | Frecuencia instalada | Qué hace |
+|---|---|---|---|
+| `meta-capi` | POST (`limit`), GET | cada 5 min | Vacía la cola de conversiones hacia Meta. |
+| `meta-capi/diagnostics` | GET | cada hora, minuto 0 | Estado de la cola de Meta, sin efectos. |
+| `meta-capi/cleanup` | POST (`olderThanDays`) | domingo 03:45 | Descarta eventos enviados y antiguos. |
+| `google-ads` | POST (`limit`), GET | cada 5 min | Vacía la cola de conversiones de Google. |
+| `google-ads/diagnostics` | GET | no se instala | Estado de la cola de Google, sin efectos. |
+| `campanas` | POST (`limit`) | cada 5 min | Despacha las campañas encoladas. |
+| `recordatorio-reservas` | POST, GET | cada 30 min | Recordatorio de la víspera. |
+| `encuesta-post-visita` | POST, GET | cada 30 min | Encuesta tras la visita. |
+| `cupon-post-visita` | POST, GET | cada hora | Cupón automático tras la visita. |
+| `cierre-asistencia` | POST, GET | cada 15 min | Cierra reservas pasadas e informa la asistencia. |
+| `reservation-integrations` | POST, GET | cada hora | Reintenta calendario y CRM de reservas. |
+| `cumpleanos` | POST, GET | diaria 08:15 | Saludo de cumpleaños. |
+| `meta-lead-recovery` | POST, GET | cada 15 min | Recupera leads de Meta que no llegaron por webhook. |
+| `recordatorio-tareas` | POST, GET | cada 30 min | CRM: avisos antes del vencimiento. |
+| `resumen-diario` | POST, GET | diaria 08:05 | CRM: un correo por responsable. |
+| `leads-parados` | POST, GET | cada hora | CRM: leads sin movimiento. |
+| `operational-alerts` | POST, GET | cada hora | Alertas de operación. |
+| `stale-pieces` | POST, GET | cada hora | Piezas de audiovisual detenidas. |
+| `xp-periods` | POST, GET | cada 6 horas | Cierre de períodos de experiencia. |
+| `monthly-cycles` | POST, GET | diaria 03:10 | Cierre de ciclos mensuales. |
+| `collection-emails` | POST, GET | diaria 03:20 | Avisos de pago vencido. |
+| `data-retention` | POST, GET | diaria 03:30 | Anonimiza lo vencido (ley 21.719). |
+| `automation-runs` | POST | cada minuto | Reanuda ejecuciones de Automatizaciones con espera. |
+| `automation-schedule` | POST | cada hora | Disparadores de tiempo de Automatizaciones. |
+| `automation-webhooks` | POST | cada minuto | Entrega los webhooks en cola. |
+| `automation-cleanup` | POST | diaria 03:40 | Limpia ejecuciones y entregas resueltas. |
 
-## Imprescindibles
+Notas: `meta-capi/cleanup` no existe en el planificador interno (semanal por decisión del script).
+`resumen-diario` y `cumpleanos` van en horas de la mañana porque dependen del reloj de pared. La
+hora es la del servidor. Las tareas por intervalo de Automatizaciones son las más frecuentes; ver
+`docs/AUTOMATIZACIONES.md`.
 
-Sin estas seis, Reservas queda a medias.
-
-| Tarea | Frecuencia | Qué pasa si falta |
-|---|---|---|
-| `meta-capi` | cada 10 min | Las conversiones se acumulan en la cola y **nunca llegan a Meta**. Las campañas optimizan a ciegas. |
-| `recordatorio-reservas` | cada hora | No se envía el recordatorio de la víspera, que es la medida que más reduce las ausencias. |
-| `encuesta-post-visita` | cada hora | No se envía la encuesta tras la visita: no entra ninguna opinión. |
-| `cupon-post-visita` | cada hora | No sale el cupón automático, aunque esté encendido y con cupón elegido en Reservas → Cupones. |
-| `cierre-asistencia` | cada hora | Las reservas pasadas quedan abiertas para siempre y la asistencia nunca se informa. |
-| `data-retention` | diaria, de madrugada | No se anonimiza lo vencido. Es una obligación de la ley 21.719, no una comodidad. |
-| `campanas` | cada 5 min | **Las campañas no salen.** Quedan encoladas y en pantalla como «Enviando» para siempre. Ver abajo. |
+Qué pasa si una falta: no hay error visible, simplemente lo que hace no ocurre. Las que más duelen:
+`meta-capi` (las conversiones nunca llegan a Meta), `recordatorio-reservas` y `encuesta-post-visita`
+(no salen avisos), `cierre-asistencia` (las reservas pasadas quedan abiertas), `data-retention`
+(obligación legal) y `campanas` (ver abajo).
 
 ## Campañas: por qué necesita su propio cron
 
@@ -77,30 +107,6 @@ Dos detalles que conviene saber:
   salga su correo no lo recibe: la comprobación va pegada al envío, no al botón.
 - **La constancia no se borra.** A diferencia de las otras colas, ésta no tiene tarea de limpieza a
   propósito: es la respuesta a «¿a mí me escribieron, y cuándo?».
-
-## Recomendadas
-
-| Tarea | Frecuencia | Para qué |
-|---|---|---|
-| `reservation-integrations` | cada hora | Reintenta las reservas cuyo envío a Meta, Google o el calendario falló. |
-| `cumpleanos` | diaria, mañana | Saludo a quien dio su fecha y está suscrito. |
-| `meta-capi/cleanup` | semanal | Descarta de la cola los eventos ya enviados y antiguos. |
-| `meta-lead-recovery` | diaria | Recupera leads de Meta que no llegaron por webhook. |
-
-## Sólo si se usa el módulo
-
-| Tarea | Frecuencia | Módulo |
-|---|---|---|
-| `resumen-diario` | diaria, mañana | CRM: un correo por responsable, si tiene algo que leer. |
-| `recordatorio-tareas` | cada hora | CRM: avisos doce y tres horas antes. |
-| `leads-parados` | diaria | CRM: leads sin movimiento. |
-| `google-ads` | cada 10 min | Cola de conversiones de Google Ads. |
-| `collection-emails` | diaria | Avisos de pago vencido. |
-| `monthly-cycles` | diaria | Cierre de ciclos mensuales. |
-| `operational-alerts` | cada hora | Alertas de operación. |
-| `stale-pieces` | diaria | Piezas de audiovisual detenidas. |
-| `xp-periods` | diaria | Cierre de períodos de experiencia. |
-| `automation-runs`, `automation-schedule`, `automation-webhooks`, `automation-cleanup` | según Automatizaciones | Ver `docs/AUTOMATIZACIONES.md`. |
 
 ## Comprobar que funcionan
 
