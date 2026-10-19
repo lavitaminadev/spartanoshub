@@ -38,6 +38,19 @@ export class BriefsController {
     return this.service.findOne(id, req.organizationId);
   }
 
+  /**
+   * Qué se produjo a partir de este brief.
+   *
+   * La pregunta que cerraba el círculo y no se podía responder: los dos módulos existían sin
+   * tocarse, así que un brief se escribía y lo que salía de él quedaba sin rastro. Desde que la
+   * pieza recuerda su brief (migración 0180), se puede.
+   */
+  @Get(':id/piezas')
+  @ApiOperation({ summary: 'Piezas producidas a partir de este brief' })
+  piezas(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.service.piezasDelBrief(id, req.organizationId);
+  }
+
   @Put(':id')
   @Roles(UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Actualizar un brief' })

@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
@@ -21,6 +22,16 @@ class ListarCampanasDto {
   @IsOptional() @IsString() @MaxLength(40) cupon?: string;
   /** `true` deja sólo las que reparten algún cupón; `false`, sólo las que no. */
   @IsOptional() @IsIn(['true', 'false']) conCupon?: 'true' | 'false';
+  @IsOptional() @IsUUID() clientId?: string;
+  /** Por fragmento: es como se busca una campaña de la que se recuerda media frase. */
+  @IsOptional() @IsString() @MaxLength(200) asunto?: string;
+  /** La lista de marketing y quienes administran son dos correos muy distintos. */
+  @IsOptional() @IsIn(['lista', 'administradores']) destino?: 'lista' | 'administradores';
+  /** Acotan por cuándo salió, así que dejan fuera los borradores. */
+  @IsOptional() @IsDateString() desde?: string;
+  @IsOptional() @IsDateString() hasta?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number;
 }
 
 class CrearCampanaDto {
@@ -133,5 +144,25 @@ export class CampanasController {
   @ApiOperation({ summary: 'Avance del envío de una campaña' })
   avance(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.campanas.avance(id, req.organizationId || req.user.organizationId);
+  }
+
+  /**
+   * A quiénes no les llegó el correo, y por qué.
+   *
+   * El avance da tres números; esto da los nombres. `last_error` se escribía en cada intento
+   * fallido y no lo leía nadie, así que un dominio mal escrito y una casilla llena eran el
+   * mismo silencio.
+   */
+  @Get(':id/fallidos')
+  @ApiOperation({ summary: 'Destinatarios a los que no les llegó, con el motivo' })
+  fallidos(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.campanas.fallidos(id, req.organizationId || req.user.organizationId);
+  }
+
+  /** Qué trajo la campaña: los canjes de su cupón desde que salió. */
+  @Get(':id/retorno')
+  @ApiOperation({ summary: 'Canjes del cupón de la campaña desde su envío' })
+  retorno(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.campanas.retorno(id, req.organizationId || req.user.organizationId);
   }
 }

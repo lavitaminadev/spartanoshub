@@ -4019,6 +4019,90 @@ export class ReservationsService {
   }
 
   /**
+   * Todo lo que le pasó a una reserva, en orden.
+   *
+   * Cada cambio de estado, cada confirmación del comensal y cada consentimiento se guardaban con
+   * su actor y sus estados anterior y posterior desde hace tiempo, y **ninguna consulta los
+   * leía**: la bitácora que responde «quién canceló esto y cuándo» sólo se podía mirar entrando
+   * a la base. El índice `(reservation_id, created_at)` existía precisamente para recorrerla.
+   *
+   * Quién lo hizo se devuelve como nombre y no como identificador: un uuid en pantalla obliga a
+   * ir a buscar a quién pertenece, que es justo lo que esta vista debería ahorrar.
+   */
+  async historialDeReserva(organizationId: string, reservationId: string, clientIds?: string[]) {
+    const reserva = await this.reservations.findOne({ where: { id: reservationId, organizationId } });
+    if (!reserva) throw new NotFoundException('La reserva no existe');
+    if (clientIds !== undefined && (!reserva.clientId || !clientIds.includes(reserva.clientId))) {
+      throw new ForbiddenException('No tienes acceso a esta reserva');
+    }
+
+    const eventos = await this.events.find({
+      where: { organizationId, reservationId },
+      order: { createdAt: 'ASC' },
+    });
+
+    const ids = [...new Set(eventos.map((evento) => evento.actorId).filter((id): id is string => Boolean(id)))];
+    const nombres = new Map<string, string>();
+    if (ids.length) {
+      const filas = await this.dataSource
+        .query(`SELECT id, name FROM users WHERE id IN (${ids.map(() => '?').join(',')})`, ids)
+        .catch(() => []) as Array<{ id: string; name: string }>;
+      for (const fila of filas) nombres.set(fila.id, fila.name);
+    }
+
+    return {
+      referencia: reserva.referenceCode,
+      eventos: eventos.map((evento) => ({
+        fecha: evento.createdAt,
+        tipo: evento.type,
+        desde: evento.fromStatus ?? null,
+        hasta: evento.toStatus ?? null,
+        /* `guest` es el propio comensal desde su enlace; `system`, un trabajo automático. */
+        quien: evento.actorType === 'guest' ? 'El comensal'
+          : evento.actorType === 'system' ? 'El sistema'
+            : evento.actorId ? nombres.get(evento.actorId) ?? 'Alguien del equipo'
+              : 'Alguien del equipo',
+      })),
+    };
+  }
+
+  /**
+   * Los canjes de un cupón, para abrir en una planilla.
+   *
+   * Lo que se mira en pantalla es el resumen; lo que se cuadra con la caja a fin de mes es la
+   * lista. Era lo único del cupón que no salía por ninguna parte: las reservas se exportan desde
+   * siempre y los canjes del local no tenían salida.
+   *
+   * El escapado es el mismo que el de reservas, incluida la comilla delante de lo que empieza
+   * por `=` o `+`: una nota escrita por alguien en la caja llega tal cual a la planilla, y sin
+   * eso Excel la trataría como fórmula.
+   */
+  async csvDeCanjes(
+    organizationId: string,
+    couponId: string,
+    clientIds: string[] | undefined,
+    filtros: { desde?: string; hasta?: string; canal?: 'reserva' | 'local' },
+  ): Promise<string> {
+    const { codigo, canjes } = await this.canjesDeCupon(organizationId, couponId, clientIds, { ...filtros, limite: 2000 });
+    const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+    const toLine = (row: unknown[]) => row.map(escape).join(',');
+    const lineas = [toLine(['cupon', 'fecha', 'canal', 'persona', 'consumo', 'descuento', 'nota', 'reserva'])];
+    for (const canje of canjes) {
+      lineas.push(toLine([
+        codigo,
+        canje.fecha.toISOString(),
+        canje.canal === 'local' ? 'En el local' : 'Con reserva',
+        canje.persona,
+        canje.monto,
+        canje.descuento,
+        canje.nota,
+        canje.reservationId,
+      ]));
+    }
+    return `﻿${lineas.join('\r\n')}`;
+  }
+
+  /**
    * Busca un cupón por su código y dice si se puede canjear ahora.
    *
    * Quien está en la caja tiene el código, no el identificador: escribe lo que trae la persona en
@@ -4162,16 +4246,35 @@ export class ReservationsService {
    * son dos reservas distintas —la visita que generó el cupón y la que lo usó— y no hay otra cosa
    * en común. Sin dirección no se puede atribuir, y esa reserva cuenta como uso sin origen.
    */
-  async usoDeCupones(organizationId: string, clientId?: string, clientIds?: string[]): Promise<Array<{
+  async usoDeCupones(organizationId: string, clientId?: string, clientIds?: string[], periodo?: { desde?: string; hasta?: string }): Promise<Array<{
     code: string; enviados: number; usados: number; volvieronDelCorreo: number;
   }>> {
     const filtro = clientId
-      ? { sql: 'AND client_id = ?', args: [clientId] }
+      ? { sql: 'AND client_id = ?', args: [clientId] as unknown[] }
       : clientIds?.length
-        ? { sql: `AND client_id IN (${clientIds.map(() => '?').join(',')})`, args: clientIds }
+        ? { sql: `AND client_id IN (${clientIds.map(() => '?').join(',')})`, args: clientIds as unknown[] }
         : clientIds !== undefined
-          ? { sql: 'AND 1 = 0', args: [] as string[] }
-          : { sql: '', args: [] as string[] };
+          ? { sql: 'AND 1 = 0', args: [] as unknown[] }
+          : { sql: '', args: [] as unknown[] };
+
+    /*
+     * El período acota las dos mitades de la unión, no sólo una.
+     *
+     * Sin él, abrir la pestaña Cupones recorría la tabla de reservas entera dos veces, y el
+     * costo crecía con el total de reservas del local en vez de con el número de cupones. Se
+     * acota por `created_at` —cuándo se hizo la reserva— y no por `starts_at`, porque lo que se
+     * mide es cuándo se usó el cupón, no para qué día se reservó.
+     */
+    if (periodo?.desde) {
+      filtro.sql += ' AND created_at >= ?';
+      filtro.args.push(new Date(periodo.desde));
+    }
+    if (periodo?.hasta) {
+      const hasta = new Date(periodo.hasta);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(periodo.hasta.trim())) hasta.setHours(23, 59, 59, 999);
+      filtro.sql += ' AND created_at <= ?';
+      filtro.args.push(hasta);
+    }
 
     const filas = await this.dataSource.query(
       `SELECT codigo,
@@ -4194,7 +4297,7 @@ export class ReservationsService {
                        AND e.cupon_enviado_en < r.created_at
                   ) THEN 1 ELSE 0 END
              FROM reservations r
-            WHERE r.organization_id = ? ${filtro.sql.replace(/client_id/g, 'r.client_id')} AND r.coupon_code IS NOT NULL AND r.coupon_code <> ''
+            WHERE r.organization_id = ? ${filtro.sql.replace(/\b(client_id|created_at)\b/g, 'r.$1')} AND r.coupon_code IS NOT NULL AND r.coupon_code <> ''
          ) t
         GROUP BY codigo`,
       [organizationId, ...filtro.args, organizationId, ...filtro.args],

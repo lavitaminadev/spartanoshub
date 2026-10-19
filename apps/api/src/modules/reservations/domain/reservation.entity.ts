@@ -149,7 +149,7 @@ export class Reservation {
   /** El canal se reconoció solo (app, anuncio o sitio de origen), sin enlace marcado. */
   @Column({ name: 'origin_detected', type: 'tinyint', width: 1, default: 0, transformer: { to: (valor?: boolean) => (valor ? 1 : 0), from: (valor: number) => Boolean(valor) } }) originDetected?: boolean;
   /** @deprecated Se conserva por el histórico y por los formularios aún en caché. Usar `gclid`. */
-  @Column({ name: 'click_id', type: 'varchar', length: 255, nullable: true }) clickId?: string;
+  @Column({ name: 'click_id', type: 'varchar', length: 255, nullable: true }) clickId?: string | null;
   @Column({ name: 'gclid', type: 'varchar', length: 255, nullable: true }) gclid?: string | null;
   /** Identificador de Google para campañas iOS y de aplicación, donde no hay cookies. */
   @Column({ name: 'gbraid', type: 'varchar', length: 255, nullable: true }) gbraid?: string | null;

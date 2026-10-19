@@ -1,4 +1,4 @@
-import { useDeferredValue } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { triggerToast } from '../../shared/toast-events';
 import { Link } from 'react-router-dom';
@@ -57,6 +57,15 @@ export function WaitlistPage() {
   const searchInput = filtros.search;
   const setSearchInput = filtros.setSearch;
   const search = useDeferredValue(searchInput.trim());
+  const [pagina, setPagina] = useState(1);
+  // Cambiar un filtro vuelve a la primera: quedarse en la tres de una lista que ahora tiene una
+  // muestra un vacío que se lee como «no hay nadie esperando».
+  const firmaDelFiltro = `${clientFilter}|${formFilter}|${dateFilter}|${search}`;
+  const [firmaPrevia, setFirmaPrevia] = useState(firmaDelFiltro);
+  if (firmaPrevia !== firmaDelFiltro) {
+    setFirmaPrevia(firmaDelFiltro);
+    if (pagina !== 1) setPagina(1);
+  }
 
   const queryClient = useQueryClient();
   /*
@@ -95,7 +104,7 @@ export function WaitlistPage() {
   const dateRange: Record<string, string> = dateFilter ? { from: browserDateBoundaryUtc(dateFilter), to: browserDateBoundaryUtc(dateFilter, true) } : {};
   const query = new URLSearchParams({
     status: 'waitlist',
-    page: '1',
+    page: String(pagina),
     pageSize: '50',
     ...(clientFilter ? { clientId: clientFilter } : {}),
     ...(formFilter ? { formId: formFilter } : {}),
@@ -103,11 +112,18 @@ export function WaitlistPage() {
     ...dateRange,
   });
   const { data: waitlistPage, isFetching, error, refetch } = useQuery<ReservationPage>({
-    queryKey: ['reservations-waitlist', clientFilter, formFilter, dateFilter, search],
+    queryKey: ['reservations-waitlist', clientFilter, formFilter, dateFilter, search, pagina],
     queryFn: () => api.get(`/reservations?${query}`),
     placeholderData: (previous) => previous,
   });
   const items = Array.isArray(waitlistPage?.data) ? waitlistPage.data : [];
+  /*
+   * La lista venía topada en cincuenta y sin decirlo.
+   *
+   * Una lista de espera larga es justo la que hay que trabajar entera: la persona cincuenta y
+   * uno era invisible, y la pantalla se veía igual que si no existiera.
+   */
+  const paginas = Math.max(Math.ceil((waitlistPage?.total ?? 0) / 50), 1);
 
   const detailLink = (item: Reservation) => `/reservations/manage?${new URLSearchParams({ tab: 'bookings', search: item.referenceCode || item.guestName, ...(clientFilter ? { clientId: clientFilter } : {}), ...(formFilter ? { formId: formFilter } : {}) })}`;
 
@@ -178,6 +194,13 @@ export function WaitlistPage() {
             </tr>)}
           </tbody>
         </table>
+        {paginas > 1 ? (
+          <div className="tabla-paginacion">
+            <button type="button" className="btn btn-outline btn-sm" disabled={pagina <= 1} onClick={() => setPagina((actual) => actual - 1)}>Anterior</button>
+            <span>Página {pagina} de {paginas} · {waitlistPage?.total ?? 0} esperando</span>
+            <button type="button" className="btn btn-outline btn-sm" disabled={pagina >= paginas} onClick={() => setPagina((actual) => actual + 1)}>Siguiente</button>
+          </div>
+        ) : null}
       </div>}
   </div>;
 }

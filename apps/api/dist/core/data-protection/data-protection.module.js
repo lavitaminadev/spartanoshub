@@ -21,6 +21,7 @@ const data_protection_controller_1 = require("./data-protection.controller");
 const consent_controller_1 = require("./consent.controller");
 const audit_module_1 = require("../audit/audit.module");
 const parameters_module_1 = require("../parameters/parameters.module");
+const google_module_1 = require("../../modules/integrations/google/google.module");
 const service_request_entity_1 = require("../../modules/service-requests/service-request.entity");
 let DataProtectionModule = class DataProtectionModule {
 };
@@ -31,6 +32,7 @@ exports.DataProtectionModule = DataProtectionModule = __decorate([
             typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, lead_entity_1.Lead, audit_entity_1.AuditLog, consent_entity_1.DataConsent, consent_version_entity_1.ConsentVersion, contact_entity_1.Contact, reservation_entity_1.Reservation, service_request_entity_1.ServiceRequest]),
             audit_module_1.AuditModule,
             parameters_module_1.ParametersModule,
+            google_module_1.GoogleModule,
         ],
         controllers: [data_protection_controller_1.DataProtectionController, consent_controller_1.ConsentController],
         providers: [data_protection_service_1.DataProtectionService],

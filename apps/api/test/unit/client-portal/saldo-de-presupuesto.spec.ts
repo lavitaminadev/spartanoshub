@@ -13,7 +13,12 @@ import { PortalHomeController } from '../../../src/modules/client-portal/portal-
 
 const PORTAL = { organizationId: 'org-1', user: { role: 'client', clientId: 'empresa-1', id: 'u1' } } as never;
 
-function montar(capacidades: Record<string, boolean>, presupuesto: Record<string, unknown> | null) {
+/**
+ * @param administra - Si la persona administra la empresa que se mira. El saldo lleva esa reja
+ *   además de la capacidad contratada: un garzón con cuenta de portal no ve el presupuesto de su
+ *   jefe. Por defecto sí, para que cada prueba hable de lo suyo.
+ */
+function montar(capacidades: Record<string, boolean>, presupuesto: Record<string, unknown> | null, administra = true) {
   const crmHome = { home: vi.fn().mockResolvedValue({ month: { leads: 0 }, alerts: [] }) };
   const capacidadesSvc = { tiene: vi.fn(async (_o: string, _c: string, cual: string) => Boolean(capacidades[cual])) };
   const reservas = { count: vi.fn().mockResolvedValue(0) };
@@ -21,10 +26,14 @@ function montar(capacidades: Record<string, boolean>, presupuesto: Record<string
   const clientes = { find: vi.fn() };
   const presupuestos = { findOne: vi.fn().mockResolvedValue(presupuesto) };
   const movimientos = { find: vi.fn().mockResolvedValue([]) };
+  const administradores = {
+    empresasQueAdministra: vi.fn().mockResolvedValue(administra ? ['empresa-1'] : []),
+  };
   const controller = new PortalHomeController(
     crmHome as never, capacidadesSvc as never, reservas as never, accesos as never, clientes as never, presupuestos as never, movimientos as never,
+    administradores as never,
   );
-  return { controller, presupuestos, movimientos };
+  return { controller, presupuestos, movimientos, administradores };
 }
 
 describe('saldo de presupuesto en el portal', () => {
@@ -35,6 +44,26 @@ describe('saldo de presupuesto en el portal', () => {
 
     expect(inicio.presupuesto).toBeUndefined();
     expect(presupuestos.findOne).not.toHaveBeenCalled();
+  });
+
+  /*
+   * La segunda reja: quien pertenece a la empresa no es quien la administra.
+   *
+   * CRM y Reservas son el trabajo del día y los ve todo el equipo del local; cuánto se contrató
+   * y cuánto queda es la relación comercial con la agencia. La capacidad contratada no basta.
+   */
+  it('con la capacidad pero sin administrar la empresa, el bloque no se entrega', async () => {
+    const { controller, presupuestos, administradores } = montar(
+      { budgetVisibility: true },
+      { contracted: 40, reserved: 0, consumed: 0, status: 'open' },
+      false,
+    );
+
+    const inicio = await controller.inicio(PORTAL);
+
+    expect(inicio.presupuesto).toBeUndefined();
+    expect(presupuestos.findOne).not.toHaveBeenCalled();
+    expect(administradores.empresasQueAdministra).toHaveBeenCalledWith('org-1', 'u1');
   });
 
   it('con la capacidad, lo disponible es contratado menos reservado menos consumido', async () => {

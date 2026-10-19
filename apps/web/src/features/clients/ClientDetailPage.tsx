@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { industryLabel } from '@espartanos/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
@@ -114,6 +115,28 @@ export function ClientDetailPage() {
   const showMeetings = isModuleInPhaseScope('meetings', user?.moduleLifecycle);
   const showDocuments = isModuleInPhaseScope('documents', user?.moduleLifecycle);
   const showUdBudget = isModuleInPhaseScope('udBudget', user?.moduleLifecycle);
+  /*
+   * Ajustar lo contratado pide dirección de operaciones, no cualquiera que vea el panel.
+   *
+   * Cambia cuánto se le debe a la agencia ese mes, que es una decisión comercial y no un
+   * movimiento de producción: quien asigna piezas reserva UD, pero no fija cuántas hay.
+   */
+  const puedeAjustarUd = user?.role === 'admin' || user?.role === 'operations_director';
+  const [ajustando, setAjustando] = useState(false);
+  const [nuevasUd, setNuevasUd] = useState('');
+  const [motivoDelAjuste, setMotivoDelAjuste] = useState('');
+  const ajusteMutation = useMutation({
+    mutationFn: (cuerpo: { contratadas: number; motivo: string }) => {
+      const ahora = new Date();
+      return api.patch('/design-budget/budget', {
+        clientId: id, year: ahora.getFullYear(), month: ahora.getMonth() + 1, ...cuerpo,
+      });
+    },
+    onSuccess: async () => {
+      setAjustando(false);
+      await queryClient.invalidateQueries({ queryKey: ['client-overview', id] });
+    },
+  });
   const driveUrl = safeUrl(driveMutation.data?.rootUrl || (client.driveFolderId ? `https://drive.google.com/drive/folders/${client.driveFolderId}` : ''));
   const readiness = [
     { label: 'Responsable operativo', ready: Boolean(client.communityManagerId), value: manager || (client.communityManagerId ? 'Asignado' : 'Pendiente') },
@@ -167,6 +190,38 @@ export function ClientDetailPage() {
           <div className="client-ud-ring" style={{ '--ud-progress': `${udPercent * 3.6}deg` } as React.CSSProperties}><div><strong>{availableUd}</strong><small>UD disponibles</small></div></div>
           <div className="client-ud-legend"><span><i className="contracted" />Contratadas <b>{ud.contracted || client.defaultUdBudget || 0}</b></span><span><i className="reserved" />Reservadas <b>{ud.reserved}</b></span><span><i className="consumed" />Consumidas <b>{ud.consumed}</b></span></div>
           {!ud.contracted && <p className="client-panel-note">Aún no existe un presupuesto mensual abierto. El contrato base indica {client.defaultUdBudget || 0} UD.</p>}
+          {/*
+            El ajuste del mes, que no existía por ninguna parte.
+            El trabajo mensual abre el presupuesto con el contrato base y nadie podía moverlo
+            después: un mes con UD vendidas de más había que tocarlo en la base a mano.
+          */}
+          {puedeAjustarUd && ud.contracted > 0 ? (
+            ajustando ? (
+              <form
+                className="client-ud-ajuste"
+                onSubmit={(evento) => {
+                  evento.preventDefault();
+                  ajusteMutation.mutate({ contratadas: Number(nuevasUd), motivo: motivoDelAjuste.trim() });
+                }}
+              >
+                <label>UD contratadas este mes
+                  <input className="input" type="number" min={0} max={9999} step="0.5" value={nuevasUd} onChange={(evento) => setNuevasUd(evento.target.value)} />
+                </label>
+                <label>Por qué cambia
+                  <input className="input" required minLength={5} maxLength={255} value={motivoDelAjuste} placeholder="Ej. Se vendieron 10 UD extra para el lanzamiento" onChange={(evento) => setMotivoDelAjuste(evento.target.value)} />
+                </label>
+                {/* No se puede bajar de lo comprometido: el trabajo ya está hecho o encargado. */}
+                <small className="client-panel-note">Entre reservadas y consumidas hay {ud.reserved + ud.consumed} UD. No se puede dejar el contrato por debajo de eso.</small>
+                {ajusteMutation.error && <div className="alert alert-error">{ajusteMutation.error.message}</div>}
+                <div className="tabla-acciones">
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={ajusteMutation.isPending || motivoDelAjuste.trim().length < 5}>{ajusteMutation.isPending ? 'Guardando…' : 'Guardar'}</button>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => setAjustando(false)}>Cancelar</button>
+                </div>
+              </form>
+            ) : (
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => { setNuevasUd(String(ud.contracted)); setMotivoDelAjuste(''); setAjustando(true); }}>Ajustar las UD del mes</button>
+            )
+          ) : null}
         </section>}
       </div>
 

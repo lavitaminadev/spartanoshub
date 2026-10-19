@@ -39,8 +39,9 @@ const automation_schedule_job_1 = require("../../modules/automations/automation-
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 const envios_de_campana_service_1 = require("../../modules/marketing/envios-de-campana.service");
 const auto_close_reservations_job_1 = require("./cron/auto-close-reservations.job");
+const recover_reservation_integrations_job_1 = require("./cron/recover-reservation-integrations.job");
 let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
-    constructor(xp, cycles, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, cuponPostVisita, autoCloseReservations, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks, campanas, corridas) {
+    constructor(xp, cycles, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, cuponPostVisita, autoCloseReservations, reservationIntegrations, collections, purge, metaRecovery, capiOutbox, googleOutbox, operationalAlerts, automations, automationSchedule, webhooks, campanas, corridas) {
         this.xp = xp;
         this.cycles = cycles;
         this.stale = stale;
@@ -52,6 +53,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.encuestaPostVisita = encuestaPostVisita;
         this.cuponPostVisita = cuponPostVisita;
         this.autoCloseReservations = autoCloseReservations;
+        this.reservationIntegrations = reservationIntegrations;
         this.collections = collections;
         this.purge = purge;
         this.metaRecovery = metaRecovery;
@@ -89,7 +91,8 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
         this.schedule('recordatorio-reservas', 30 * 60_000, () => this.recordatorioReservas.handle());
         this.schedule('encuesta-post-visita', 30 * 60_000, () => this.encuestaPostVisita.handle());
         this.schedule('cupon-post-visita', 60 * 60_000, () => this.cuponPostVisita.handle());
-        this.schedule('auto-close-reservations', 15 * 60_000, () => this.autoCloseReservations.handle());
+        this.schedule('cierre-asistencia', 15 * 60_000, () => this.autoCloseReservations.handle());
+        this.schedule('reservation-integrations', 60 * 60_000, () => this.reservationIntegrations.handle());
         this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
         this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
         this.schedule('collection-emails', 24 * 60 * 60_000, () => this.collections.handle());
@@ -133,7 +136,7 @@ let JobSchedulerService = JobSchedulerService_1 = class JobSchedulerService {
 exports.JobSchedulerService = JobSchedulerService;
 exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __param(21, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
+    __param(22, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
     __metadata("design:paramtypes", [close_xp_periods_job_1.CloseXpPeriodsJob,
         create_monthly_cycles_job_1.CreateMonthlyCyclesJob,
         detect_stale_pieces_job_1.DetectStalePiecesJob,
@@ -145,6 +148,7 @@ exports.JobSchedulerService = JobSchedulerService = JobSchedulerService_1 = __de
         encuesta_post_visita_job_1.EncuestaPostVisitaJob,
         cupon_post_visita_job_1.CuponPostVisitaJob,
         auto_close_reservations_job_1.AutoCloseReservationsJob,
+        recover_reservation_integrations_job_1.RecoverReservationIntegrationsJob,
         collection_emails_job_1.CollectionEmailsJob,
         purge_expired_leads_job_1.PurgeExpiredLeadsJob,
         meta_lead_recovery_job_1.MetaLeadRecoveryJob,

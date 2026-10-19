@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Patch, Body, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { GetOrCreateBudgetUseCase } from './get-or-create-budget.use-case';
@@ -7,6 +7,8 @@ import { ConfirmUdConsumptionUseCase } from './confirm-ud-consumption.use-case';
 import { GetOrCreateBudgetDto } from './dto/get-or-create-budget.dto';
 import { ReserveUdDto } from './dto/reserve-ud.dto';
 import { ConfirmUdDto } from './dto/confirm-ud.dto';
+import { AjustarPresupuestoDto } from './dto/ajustar-presupuesto.dto';
+import { AjustarPresupuestoUseCase } from './ajustar-presupuesto.use-case';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
@@ -23,6 +25,7 @@ export class DesignBudgetController {
     private getOrCreate: GetOrCreateBudgetUseCase,
     private reserve: ReserveUdUseCase,
     private confirm: ConfirmUdConsumptionUseCase,
+    private ajustar: AjustarPresupuestoUseCase,
     private readonly accountAccess: AccountAccessService,
   ) {}
 
@@ -32,6 +35,24 @@ export class DesignBudgetController {
   async getOrCreateBudget(@Body() dto: GetOrCreateBudgetDto, @Req() req: AuthenticatedRequest) {
     await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
     return this.getOrCreate.execute(req.organizationId, dto.clientId, dto.year, dto.month, dto.defaultBudget);
+  }
+
+  /**
+   * Cambiar lo contratado de un mes, con su motivo.
+   *
+   * Era el hueco del módulo: el trabajo mensual abre el presupuesto con el contrato base y nadie
+   * podía moverlo después, de modo que un mes con diez UD vendidas de más había que tocarlo en la
+   * base a mano. Pide `manage` y no `edit`: cambia cuánto se le debe a la agencia, no cómo va una
+   * pieza.
+   */
+  @Patch('budget')
+  @Roles(UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Ajustar las UD contratadas de un mes' })
+  async ajustarPresupuesto(@Body() dto: AjustarPresupuestoDto, @Req() req: AuthenticatedRequest) {
+    await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+    return this.ajustar.execute(
+      req.organizationId, dto.clientId, dto.year, dto.month, dto.contratadas, dto.motivo.trim(), req.user.id,
+    );
   }
 
   @Post('reserve')

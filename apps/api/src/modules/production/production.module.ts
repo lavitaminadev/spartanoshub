@@ -22,10 +22,11 @@ import { ApprovalRequest } from '../approvals/approval-request.entity';
 import { BillingModule } from '../billing/billing.module';
 import { User } from '../users/user.entity';
 import { Client } from '../clients/client.entity';
+import { Brief } from '../briefs/brief.entity';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Piece, PieceVersion, Correction, ApprovalRequest, User, Client, PieceTypeDefinition]), DesignBudgetModule, GamificationModule, BillingModule, ParametersModule, AuditModule],
+  imports: [TypeOrmModule.forFeature([Piece, PieceVersion, Correction, ApprovalRequest, User, Client, PieceTypeDefinition, Brief]), DesignBudgetModule, GamificationModule, BillingModule, ParametersModule, AuditModule],
   controllers: [ProductionController, PieceTypesController],
   providers: [PieceTypesService, AssignPieceUseCase, CancelPieceUseCase, SubmitVersionUseCase, RejectPieceUseCase, DeliverPieceUseCase, ListPiecesUseCase, ProductionWorkflowService, PieceRulesService],
   // `ProductionWorkflowService` sale del módulo porque el cobro de correcciones se liquida al

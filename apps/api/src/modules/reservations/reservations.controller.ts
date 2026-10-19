@@ -385,6 +385,20 @@ export class ReservationsController {
     return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
   }
 
+  /**
+   * Qué le pasó a una reserva, en orden.
+   *
+   * Los eventos se guardaban con su actor desde hace tiempo y no los leía nadie: «quién canceló
+   * esto y cuándo» sólo se podía contestar entrando a la base.
+   */
+  @Get(':id/historial')
+  @RequiresPermission('reservations', 'view')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async historialDeReserva(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const scope = await this.scope(req);
+    return this.service.historialDeReserva(req.organizationId, id, scope.clientIds);
+  }
+
   @Get('coupons')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async listCoupons(@Req() req: AuthenticatedRequest, @Query() query: ListCouponsDto) {
@@ -408,7 +422,7 @@ export class ReservationsController {
      */
     const [cupones, uso] = await Promise.all([
       this.service.listCoupons(req.organizationId, scope.clientId, scope.clientIds, { estado: query.estado, codigo: query.codigo }),
-      this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds),
+      this.service.usoDeCupones(req.organizationId, scope.clientId, scope.clientIds, { desde: query.desde, hasta: query.hasta }),
     ]);
     const porCodigo = new Map(uso.map((fila) => [fila.code, fila]));
     return cupones.map((cupon) => ({
@@ -496,6 +510,25 @@ export class ReservationsController {
   async canjesDeCupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: ListCanjesDto) {
     const scope = await this.scope(req);
     return this.service.canjesDeCupon(req.organizationId, id, scope.clientIds, query);
+  }
+
+  /** Los mismos canjes, para abrir en una planilla y cuadrar con la caja. */
+  @Get('coupons/:id/canjes.csv')
+  @RequiereAccion('reservations.exportar')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async canjesCsv(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: ListCanjesDto, @Res() res: Response) {
+    const scope = await this.scope(req);
+    const csv = await this.service.csvDeCanjes(req.organizationId, id, scope.clientIds, query);
+    // Igual que la exportación de reservas: un GET no pasa por el interceptor de auditoría y
+    // esto saca datos de personas del sistema, así que se deja rastro a mano.
+    void this.audit.log({
+      organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservation_coupons',
+      action: 'export_canjes_csv', reason: `coupon=${id} desde=${query.desde ?? ''} hasta=${query.hasta ?? ''}`,
+      ipAddress: req.ip,
+    }).catch(() => {});
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="canjes-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
   }
 
   @Post('coupons/:id/canjes')

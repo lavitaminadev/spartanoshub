@@ -65,17 +65,47 @@ function normalizeListResponse(payload: unknown): Survey[] {
   return [];
 }
 
-/** Lista todas las encuestas visibles para el usuario actual. */
-export function useSurveys() {
-  return useQuery<Survey[]>({
-    queryKey: ['surveys'],
+/**
+ * Las encuestas que esta persona alcanza, recortadas por el servidor.
+ *
+ * El recorte no se hace acá: la lista venía entera y sin tope, y buscar sobre lo ya traído deja
+ * fuera lo que no vino. Sin red se cae al respaldo local, que es todo lo que hay, y ahí sí se
+ * filtra en memoria porque no existe a quién preguntarle.
+ *
+ * @param recorte - Lo que se está mirando. Cambiarlo pide de nuevo; React Query guarda cada
+ *   combinación, así que volver a una ya vista responde al instante.
+ */
+export function useSurveys(recorte?: { buscar?: string; estado?: string; tipo?: string; page?: number }) {
+  const buscar = recorte?.buscar?.trim() || '';
+  const { estado = '', tipo = '', page = 1 } = recorte ?? {};
+  return useQuery<{ encuestas: Survey[]; total: number; pageSize: number }>({
+    queryKey: ['surveys', buscar, estado, tipo, page],
+    placeholderData: (previa) => previa,
     queryFn: async () => {
+      const consulta = new URLSearchParams({
+        page: String(page),
+        ...(buscar ? { buscar } : {}),
+        ...(estado ? { estado } : {}),
+        ...(tipo ? { tipo } : {}),
+      });
       try {
-        const payload = await api.get<unknown>('/surveys');
-        return mergeWithLocal(normalizeListResponse(payload));
+        const payload = await api.get<unknown>(`/surveys?${consulta}`);
+        const encuestas = mergeWithLocal(normalizeListResponse(payload));
+        const total = payload && typeof payload === 'object' && typeof (payload as { total?: unknown }).total === 'number'
+          ? (payload as { total: number }).total
+          : encuestas.length;
+        const pageSize = payload && typeof payload === 'object' && typeof (payload as { pageSize?: unknown }).pageSize === 'number'
+          ? (payload as { pageSize: number }).pageSize
+          : encuestas.length || 1;
+        return { encuestas, total, pageSize };
       } catch (error) {
-        if (isConnectionError(error)) return readLocalSurveys();
-        throw error;
+        if (!isConnectionError(error)) throw error;
+        const locales = readLocalSurveys().filter((encuesta) => (
+          (!buscar || encuesta.title.toLocaleLowerCase('es').includes(buscar.toLocaleLowerCase('es')))
+          && (!estado || encuesta.status === estado)
+          && (!tipo || encuesta.type === tipo)
+        ));
+        return { encuestas: locales, total: locales.length, pageSize: locales.length || 1 };
       }
     },
   });

@@ -18,6 +18,6 @@ import { EmailModule } from '../../core/notifications/email.module';
   imports: [TypeOrmModule.forFeature([User, Client, UserPermissionOverride]), EmailModule, AuthorizationModule, AccountAccessModule],
   controllers: [UsersController],
   providers: [CreateUserUseCase, ListUsersUseCase, UpdateUserUseCase, ResetUserPasswordUseCase, AdministracionDelEquipoService, AdministradoresDeEmpresaService],
-  exports: [TypeOrmModule],
+  exports: [TypeOrmModule, AdministradoresDeEmpresaService],
 })
 export class UsersModule {}

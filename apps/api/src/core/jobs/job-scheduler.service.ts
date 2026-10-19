@@ -23,6 +23,7 @@ import { AutomationScheduleJob } from '../../modules/automations/automation-sche
 import { WebhookDeliveryService } from '../../modules/automations/webhook-delivery.service';
 import { EnviosDeCampanaService } from '../../modules/marketing/envios-de-campana.service';
 import { AutoCloseReservationsJob } from './cron/auto-close-reservations.job';
+import { RecoverReservationIntegrationsJob } from './cron/recover-reservation-integrations.job';
 
 @Injectable()
 export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown {
@@ -42,6 +43,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     private readonly encuestaPostVisita: EncuestaPostVisitaJob,
     private readonly cuponPostVisita: CuponPostVisitaJob,
     private readonly autoCloseReservations: AutoCloseReservationsJob,
+    private readonly reservationIntegrations: RecoverReservationIntegrationsJob,
     private readonly collections: CollectionEmailsJob,
     private readonly purge: PurgeExpiredLeadsJob,
     private readonly metaRecovery: MetaLeadRecoveryJob,
@@ -123,7 +125,10 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationShutdown 
     this.schedule('encuesta-post-visita', 30 * 60_000, () => this.encuestaPostVisita.handle());
     // Cada hora basta: el cupón sale un día después de la visita, no hay prisa por minutos.
     this.schedule('cupon-post-visita', 60 * 60_000, () => this.cuponPostVisita.handle());
-    this.schedule('auto-close-reservations', 15 * 60_000, () => this.autoCloseReservations.handle());
+    // Con el nombre que lee la pantalla de Correos y que anota el cron del hosting.
+    this.schedule('cierre-asistencia', 15 * 60_000, () => this.autoCloseReservations.handle());
+    // Cada hora: el calendario y el CRM de una reserva se reintentan hasta siete días, sin urgencia de minutos.
+    this.schedule('reservation-integrations', 60 * 60_000, () => this.reservationIntegrations.handle());
     this.schedule('operational-alerts', 60 * 60_000, () => this.operationalAlerts.handle(), true);
     this.schedule('monthly-cycles', 24 * 60 * 60_000, () => this.cycles.handle(), true);
     this.schedule('collection-emails', 24 * 60 * 60_000, () => this.collections.handle());

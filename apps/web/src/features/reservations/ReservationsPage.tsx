@@ -175,6 +175,14 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const [couponSearch, setCouponSearch] = useState('');
   const couponBuscado = useDeferredValue(couponSearch.trim());
   const [couponEstado, setCouponEstado] = useState<'' | 'vigente' | 'vencido' | 'inactivo'>('');
+  /*
+   * El período acota el uso que se cuenta al lado de cada cupón, no la lista de cupones.
+   *
+   * Ese recuento cruza dos veces la tabla de reservas entera, así que sin fechas su costo crecía
+   * con el total de reservas del local y no con el número de cupones. Un cupón sigue apareciendo
+   * aunque no se haya usado en el tramo: lo que cambia es cuántos usos se le cuentan.
+   */
+  const [couponPeriodo, setCouponPeriodo] = useState({ desde: '', hasta: '' });
   const [cuponMirado, setCuponMirado] = useState<{ id: string; code: string } | null>(null);
   const [confirmCoupon, setConfirmCoupon] = useState<{ id: string; active: boolean } | null>(null);
   const [confirmFormAction, setConfirmFormAction] = useState<{ id: string; action: 'pause' | 'resume' } | null>(null);
@@ -519,7 +527,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     onError: (error: Error) => triggerToast(error.message || 'No se pudo actualizar la solicitud', 'error'),
   });
 
-  const { data: couponsData = [] } = useQuery<Array<{ id: string; code: string; discountType: string; value: number; maxUses: number; usageCount: number; validFrom?: string; validUntil?: string; formIds?: string[]; active: boolean; createdAt: string; uso?: { enviados: number; usados: number; volvieronDelCorreo: number } }>>({ queryKey: ['coupons', clientFilter, couponBuscado, couponEstado], queryFn: () => api.get(`/reservations/coupons?${new URLSearchParams({ ...(clientFilter ? { clientId: clientFilter } : {}), ...(couponBuscado ? { codigo: couponBuscado } : {}), ...(couponEstado ? { estado: couponEstado } : {}) })}`), enabled: tab === 'coupons' });
+  const { data: couponsData = [] } = useQuery<Array<{ id: string; code: string; discountType: string; value: number; maxUses: number; usageCount: number; validFrom?: string; validUntil?: string; formIds?: string[]; active: boolean; createdAt: string; uso?: { enviados: number; usados: number; volvieronDelCorreo: number } }>>({ queryKey: ['coupons', clientFilter, couponBuscado, couponEstado, couponPeriodo.desde, couponPeriodo.hasta], queryFn: () => api.get(`/reservations/coupons?${new URLSearchParams({ ...(clientFilter ? { clientId: clientFilter } : {}), ...(couponBuscado ? { codigo: couponBuscado } : {}), ...(couponEstado ? { estado: couponEstado } : {}), ...(couponPeriodo.desde ? { desde: couponPeriodo.desde } : {}), ...(couponPeriodo.hasta ? { hasta: couponPeriodo.hasta } : {}) })}`), enabled: tab === 'coupons' });
   const coupons = Array.isArray(couponsData) ? couponsData : [];
   const couponCreate = useMutation({
     mutationFn: () => {
@@ -608,6 +616,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <span>Empresa</span>
           <select
             className="input"
+            id="selector-de-empresa"
             aria-label="Empresa cuyas reservas se están mirando"
             value={clientFilter}
             onChange={(evento) => { setClientFilter(evento.target.value); resetFilters({ formId: '' }); setPage(1); }}
@@ -864,8 +873,22 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           * Se esconde en vez de deshabilitarse: un botón apagado sin explicación invita a
           * preguntar qué falta, y acá la respuesta no es algo que esa persona pueda cambiar.
           */}
+        {/*
+          Sin empresa elegida el botón lleva al selector, en vez de no hacer nada.
+          Apagado era un callejón: hay que subir a otro control que está fuera de la vista, y un
+          botón que no responde se lee como que la pantalla está rota. Así el clic sigue siendo
+          un paso hacia donde hay que ir.
+        */}
         {puedeCrearCupones ? (
-          <button className="btn btn-outline btn-sm" disabled={!clientFilter && user?.role !== 'client'} title={!clientFilter && user?.role !== 'client' ? 'Elige arriba la empresa del cupón' : undefined} onClick={() => setCouponCreateOpen(true)}>+ Nuevo cupón</button>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => {
+              if (clientFilter || user?.role === 'client') { setCouponCreateOpen(true); return; }
+              const selector = document.getElementById('selector-de-empresa');
+              selector?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              (selector as HTMLSelectElement | null)?.focus();
+            }}
+          >+ Nuevo cupón</button>
         ) : null}
       </div></div>
       {!clientFilter && user?.role !== 'client' && <p className="page-subtitle">Para crear un cupón, elige primero la empresa arriba: cada cupón vale sólo en los locales de su empresa.</p>}
@@ -890,6 +913,12 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <option value="vencido">Sólo los que ya no sirven</option>
           <option value="inactivo">Sólo los apagados</option>
         </select>
+        {/* Acotan el uso contado al lado de cada cupón, por cuándo se hizo la reserva. */}
+        <label className="filter-date">Usos desde<input className="input" type="date" aria-label="Usos del cupón desde" value={couponPeriodo.desde} max={couponPeriodo.hasta || undefined} onChange={(event) => setCouponPeriodo((actual) => ({ ...actual, desde: event.target.value }))} /></label>
+        <label className="filter-date">Hasta<input className="input" type="date" aria-label="Usos del cupón hasta" value={couponPeriodo.hasta} min={couponPeriodo.desde || undefined} onChange={(event) => setCouponPeriodo((actual) => ({ ...actual, hasta: event.target.value }))} /></label>
+        {couponPeriodo.desde || couponPeriodo.hasta ? (
+          <button type="button" className="btn btn-link" onClick={() => setCouponPeriodo({ desde: '', hasta: '' })}>Quitar fechas</button>
+        ) : null}
       </div>
       {filteredCoupons.length === 0 ? <div className="reservation-empty"><strong>Sin cupones todavía</strong><p>Crea tu primer cupón promocional.</p></div> : <Fragment><div className="coupon-stats"><div className="reservation-metric-grid reservation-metric-grid-four"><div><span>Total cupones</span><strong>{coupons.length}</strong></div><div><span>Activos</span><strong>{coupons.filter((c) => c.active).length}</strong></div><div><span>Usos totales</span><strong>{coupons.reduce((sum, c) => sum + c.usageCount, 0)}</strong></div><div><span>Volvieron del correo</span><strong>{(() => { const env = coupons.reduce((s2, c) => s2 + (c.uso?.enviados ?? 0), 0); const vol = coupons.reduce((s2, c) => s2 + (c.uso?.volvieronDelCorreo ?? 0), 0); return env === 0 ? 'Ninguno enviado' : `${vol} de ${env}`; })()}</strong></div><div><span>Tasa de uso</span><strong>{(() => { const activeCoupons = coupons.filter((c) => c.active).length; if (activeCoupons === 0) return 'Sin cupones activos'; const usedActiveCoupons = coupons.filter((c) => c.active && c.usageCount > 0).length; return `${Math.round((usedActiveCoupons / activeCoupons) * 100)}% activos usados`; })()}</strong></div></div></div><div className="crm-table-container"><table className="data-table"><thead><tr><th>Código</th><th>Descuento</th><th>Usos</th><th>Por correo</th><th>Vigencia</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{filteredCoupons.map((coupon) => <tr key={coupon.id}><td><strong>{coupon.code}</strong><small>Creado {new Date(coupon.createdAt).toLocaleDateString('es-CL')}</small></td><td>{coupon.discountType === 'percentage' ? `${coupon.value}%` : `$${coupon.value.toLocaleString('es-CL')}`}</td><td>{coupon.usageCount}/{coupon.maxUses || '∞'}</td><td>{coupon.uso?.enviados ? <span className="cupon-correo"><strong>{coupon.uso.volvieronDelCorreo}</strong> de {coupon.uso.enviados}<small>{coupon.uso.enviados > 0 ? `${Math.round((coupon.uso.volvieronDelCorreo / coupon.uso.enviados) * 100)}% volvió` : ''}</small></span> : <small className="tabla-nota">No se ha enviado</small>}</td><td>{coupon.validFrom ? `${new Date(coupon.validFrom).toLocaleDateString('es-CL')} - ${coupon.validUntil ? new Date(coupon.validUntil).toLocaleDateString('es-CL') : '∞'}` : 'Sin fecha'}</td><td><span className={`crm-stage is-${coupon.active ? 'attended' : 'cancelled_business'}`}>{coupon.active ? 'Activo' : 'Inactivo'}</span></td><td><div className="actions-cell">               <button className="btn btn-outline btn-sm" onClick={() => coupon.active ? setConfirmCoupon({ id: coupon.id, active: false }) : couponToggle.mutate({ id: coupon.id, active: true })} disabled={couponToggle.isPending}>{coupon.active ? 'Desactivar' : 'Activar'}</button><button className="btn btn-outline btn-sm" onClick={() => setCuponMirado({ id: coupon.id, code: coupon.code })}>Ver usos</button></div></td></tr>)}</tbody></table></div></Fragment>}
       {cuponMirado && <MetricasDelCupon couponId={cuponMirado.id} codigo={cuponMirado.code} alCerrar={() => setCuponMirado(null)} />}

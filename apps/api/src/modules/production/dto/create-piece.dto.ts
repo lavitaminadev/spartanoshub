@@ -11,4 +11,12 @@ export class CreatePieceDto {
   @IsOptional() @IsDateString() deadlineAt?: string;
   @IsOptional() @IsArray() @IsUUID('4', { each: true }) dependencyIds?: string[];
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
+  /**
+   * El brief que origina esta pieza.
+   *
+   * Opcional porque una pieza puede nacer sin él. Cuando viene, el servidor comprueba que sea de
+   * la misma empresa y copia título y descripción si no se escribieron: hasta ahora alguien
+   * escribía el brief y otra persona lo volvía a teclear al crear la pieza.
+   */
+  @IsOptional() @IsUUID() briefId?: string;
 }

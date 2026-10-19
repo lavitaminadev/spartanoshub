@@ -18,10 +18,30 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const brief_entity_1 = require("./brief.entity");
 const client_entity_1 = require("../clients/client.entity");
+const piece_entity_1 = require("../production/piece.entity");
 let BriefsService = class BriefsService {
-    constructor(repo, clients) {
+    constructor(repo, clients, pieces) {
         this.repo = repo;
         this.clients = clients;
+        this.pieces = pieces;
+    }
+    async piezasDelBrief(id, organizationId) {
+        await this.findOne(id, organizationId);
+        const piezas = await this.pieces.find({
+            where: { briefId: id, organizationId },
+            order: { createdAt: 'DESC' },
+        });
+        return {
+            total: piezas.length,
+            piezas: piezas.map((pieza) => ({
+                id: pieza.id,
+                titulo: pieza.title,
+                tipo: pieza.type,
+                estado: pieza.status,
+                unidades: Number(pieza.udAmount ?? 0),
+                creada: pieza.createdAt,
+            })),
+        };
     }
     async create(dto, organizationId) {
         const client = await this.clients.findOne({ where: { id: dto.clientId, organizationId } });
@@ -73,6 +93,8 @@ exports.BriefsService = BriefsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(brief_entity_1.Brief)),
     __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
+    __param(2, (0, typeorm_1.InjectRepository)(piece_entity_1.Piece)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository])
 ], BriefsService);

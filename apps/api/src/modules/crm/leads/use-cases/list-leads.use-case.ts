@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, In, IsNull, LessThanOrEqual, Like, MoreThanOrEqual, Not, Raw, Repository } from 'typeorm';
+import { Between, FindOptionsWhere, In, IsNull, LessThanOrEqual, MoreThanOrEqual, Raw, Repository } from 'typeorm';
 import { Lead } from '../lead.entity';
 import { RESERVATION_LEAD_SOURCES, isReservationLeadSource } from '@espartanos/shared';
 
@@ -169,16 +169,19 @@ export class ListLeadsUseCase {
     if (scope !== undefined) where.clientId = scope;
 
     /*
-     * Acotar por persona obliga a dos criterios unidos por «o» —lo suyo, o lo que está libre—, y
-     * en TypeORM eso es un arreglo de condiciones completas. Se repite `where` entero en ambas:
-     * dejar fuera una condición en una de las dos ramas abriría por ahí lo que la otra cierra.
+     * Acotar por persona es un «o» —lo suyo, o lo que está libre— que vive **dentro** de un solo
+     * paréntesis, sobre la única columna que la disyunción toca.
+     *
+     * Garantiza por construcción lo que antes había que vigilar: al no haber más de una rama del
+     * `where`, no existe una donde olvidar una condición que la otra sí aplica, así que ninguna
+     * reja —`organizationId`, `clientId`, `domain`— puede quedar abierta por un lado.
      */
-    const alcancePersona: FindOptionsWhere<Lead>[] = filters.onlyAssignedTo
-      ? [
-        { ...where, assignedTo: filters.onlyAssignedTo },
-        { ...where, assignedTo: IsNull() },
-      ]
-      : [where];
+    if (filters.onlyAssignedTo) {
+      (where as Record<string, unknown>).assignedTo = Raw(
+        (columna) => `(${columna} = :suyo OR ${columna} IS NULL)`,
+        { suyo: filters.onlyAssignedTo },
+      );
+    }
 
     /*
      * El período de ingreso, cuando se pide.
@@ -195,9 +198,7 @@ export class ListLeadsUseCase {
     } else if (filters.hasta) {
       periodo.createdAt = LessThanOrEqual(new Date(`${filters.hasta}T23:59:59.999`));
     }
-    const conPeriodo = Object.keys(periodo).length
-      ? alcancePersona.map((base) => ({ ...base, ...periodo }))
-      : alcancePersona;
+    Object.assign(where, periodo);
 
     /*
      * Los cerrados viejos salen de la vista, salvo que se pidan.
@@ -207,43 +208,68 @@ export class ListLeadsUseCase {
      * Si alcanzara a los abiertos, una ficha viva desaparecería por antigüedad y se leería como
      * perdida.
      *
-     * Se mira `updatedAt` y no `createdAt`: interesa cuándo se cerró, no cuándo entró. Además hay
-     * índice por (organización, estado, updatedAt), así que la condición no cuesta una lectura
-     * completa.
+     * Se mira `updatedAt` y no `createdAt`: interesa cuándo se cerró, no cuándo entró.
      *
      * **Tres cosas lo desactivan**, y las tres son la persona diciendo qué quiere ver: pedir los
      * cerrados con la casilla, filtrar por una etapa, o acotar un período. Recortar además por
      * antigüedad dentro de un período elegido a mano devolvería menos de lo pedido sin explicar
      * por qué.
      *
-     * Es una disyunción —«no está cerrado, o se cerró hace poco»—, y en TypeORM eso son dos
-     * condiciones completas. Se duplica el criterio entero en ambas: dejar fuera una condición en
-     * una rama abriría por ahí lo que la otra cierra.
+     * La disyunción —«no está cerrado, o se cerró hace poco»— va agrupada en un paréntesis dentro
+     * del mismo `where`, no como criterios alternativos al `where` completo. Lo segundo obligaría
+     * a repetir todas las demás condiciones en cada rama, y el motor no puede usar índice contra
+     * esa forma: pasa a recorrer la tabla entera y a reevaluar cada condición una vez por rama.
      */
-    const limite = new Date(Date.now() - ListLeadsUseCase.DIAS_DE_CERRADOS_A_LA_VISTA * 86_400_000);
-    const cerradas = [...ListLeadsUseCase.CERRADAS];
-    const conDescartados = filters.incluirDescartados || filters.status || Object.keys(periodo).length
-      ? conPeriodo
-      : conPeriodo.flatMap((base) => [
-        { ...base, status: Not(In(cerradas)) as unknown as Lead['status'] },
-        { ...base, status: In(cerradas) as unknown as Lead['status'], updatedAt: MoreThanOrEqual(limite) },
-      ]);
+    if (!filters.incluirDescartados && !filters.status && !Object.keys(periodo).length) {
+      const limite = new Date(Date.now() - ListLeadsUseCase.DIAS_DE_CERRADOS_A_LA_VISTA * 86_400_000);
+      const cerradas = [...ListLeadsUseCase.CERRADAS];
+      const columnaCierre = this.columna('updatedAt');
+      (where as Record<string, unknown>).status = Raw(
+        (columna) => `(${columna} NOT IN (:...cerradas) OR ${columnaCierre} >= :limite)`,
+        { cerradas, limite },
+      );
+    }
 
+    /*
+     * La búsqueda libre, en un solo paréntesis sobre los siete campos.
+     *
+     * Los nombres de columna se resuelven desde los metadatos de la entidad y no se escriben a
+     * mano: renombrar una propiedad de `Lead` rompe la compilación, y renombrar su columna en la
+     * base queda cubierto sin tocar esta consulta.
+     */
     const termino = filters.search?.trim();
     const campos: Array<keyof Pick<Lead, 'name' | 'email' | 'phone' | 'company' | 'source' | 'sourceDetail' | 'campaignName'>> = [
       'name', 'email', 'phone', 'company', 'source', 'sourceDetail', 'campaignName',
     ];
-    const criterio: FindOptionsWhere<Lead> | FindOptionsWhere<Lead>[] = termino
-      ? conDescartados.flatMap((base) => campos.map((campo) => ({ ...base, [campo]: Like(`%${termino}%`) })))
-      : conDescartados.length === 1 ? conDescartados[0] : conDescartados;
+    if (termino) {
+      const condiciones = campos.map((campo) => `${this.columna(campo)} LIKE :termino`).join(' OR ');
+      (where as Record<string, unknown>).name = Raw(() => `(${condiciones})`, { termino: `%${termino}%` });
+    }
 
     const [data, total] = await this.repo.findAndCount({
-      where: criterio,
+      where,
       order: { createdAt: 'DESC' },
       skip: offset,
       take: limit,
     });
     return { data: data.map((lead) => this.aligerar(lead)), total, limit, offset };
+  }
+
+  /**
+   * Nombre con que una propiedad de `Lead` se escribe dentro de una condición `Raw`.
+   *
+   * Devuelve la columna calificada con el alias de la consulta —`` `Lead`.`updated_at` ``—, no el
+   * nombre suelto: una condición `Raw` que menciona otra columna que la suya quedaría ambigua el
+   * día que esta consulta lleve un `join`, y el fallo sería en ejecución y no en compilación.
+   *
+   * La traducción sale de los metadatos de la entidad, de modo que el SQL en texto no fija ningún
+   * nombre de columna por su cuenta.
+   */
+  private columna(propiedad: keyof Lead): string {
+    const { driver } = this.repo.manager.connection;
+    const columna = this.repo.metadata.findColumnWithPropertyName(propiedad as string);
+    if (!columna) throw new Error(`La entidad Lead no declara la propiedad «${String(propiedad)}»`);
+    return `${driver.escape(this.repo.metadata.name)}.${driver.escape(columna.databaseName)}`;
   }
 
   /**

@@ -23,6 +23,9 @@ const class_transformer_1 = require("class-transformer");
 const reglas_service_1 = require("./reglas.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
+const account_access_service_1 = require("../../../core/client-scope/account-access.service");
+const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 class CondicionDto {
 }
 __decorate([
@@ -143,50 +146,70 @@ __decorate([
     __metadata("design:type", Array)
 ], AplicarDto.prototype, "leadIds", void 0);
 let ReglasController = class ReglasController {
-    constructor(reglas) {
+    constructor(reglas, accountAccess, capacidades) {
         this.reglas = reglas;
+        this.accountAccess = accountAccess;
+        this.capacidades = capacidades;
     }
-    listar(req, clientId, archivadas) {
-        return this.reglas.listar(req.organizationId, this.empresa(req, clientId), archivadas === 'true');
+    async listar(req, clientId, archivadas) {
+        return this.reglas.listar(req.organizationId, await this.empresa(req, clientId), archivadas === 'true');
     }
-    preguntas(req, clientId) {
-        return this.reglas.preguntasQueLlegan(req.organizationId, this.empresa(req, clientId));
+    async preguntas(req, clientId) {
+        return this.reglas.preguntasQueLlegan(req.organizationId, await this.empresa(req, clientId));
     }
-    probar(req, clientId, dto) {
-        return this.reglas.cuantosCalzan(req.organizationId, this.empresa(req, clientId), dto);
+    async probar(req, clientId, dto) {
+        return this.reglas.cuantosCalzan(req.organizationId, await this.empresa(req, clientId), dto);
     }
-    aplicar(req, clientId, dto) {
-        return this.reglas.aplicarYGuardar(req.organizationId, this.empresa(req, clientId), dto.leadIds);
+    async aplicar(req, clientId, dto) {
+        return this.reglas.aplicarYGuardar(req.organizationId, await this.empresa(req, clientId), dto.leadIds);
     }
-    crear(req, clientId, dto) {
-        return this.reglas.crear(req.organizationId, this.empresa(req, clientId), dto, req.user.id);
+    async crear(req, clientId, dto) {
+        return this.reglas.crear(req.organizationId, await this.empresa(req, clientId), dto, req.user.id);
     }
-    reordenar(req, clientId, dto) {
-        return this.reglas.reordenar(req.organizationId, this.empresa(req, clientId), dto.ids);
+    async reordenar(req, clientId, dto) {
+        return this.reglas.reordenar(req.organizationId, await this.empresa(req, clientId), dto.ids);
     }
     async copiar(req, clientId, dto) {
-        const copiadas = await this.reglas.copiarDesde(req.organizationId, dto.desdeClientId, this.empresa(req, clientId), req.user.id);
+        const destino = await this.empresa(req, clientId);
+        const origen = await this.empresa(req, dto.desdeClientId);
+        const copiadas = await this.reglas.copiarDesde(req.organizationId, origen, destino, req.user.id);
         return { copiadas };
     }
-    editar(req, id, dto) {
+    async editar(req, id, dto) {
+        await this.empresaDeLaRegla(req, id);
         return this.reglas.editar(req.organizationId, id, dto);
     }
-    activar(req, id, dto) {
+    async activar(req, id, dto) {
+        await this.empresaDeLaRegla(req, id);
         return this.reglas.activar(req.organizationId, id, dto?.activa === true);
     }
-    automatizar(req, id, dto) {
+    async automatizar(req, id, dto) {
+        await this.empresaDeLaRegla(req, id);
         return this.reglas.automatizar(req.organizationId, id, dto?.automatica === true);
     }
-    archivar(req, id) {
+    async archivar(req, id) {
+        await this.empresaDeLaRegla(req, id);
         return this.reglas.archivar(req.organizationId, id, true);
     }
-    restaurar(req, id) {
+    async restaurar(req, id) {
+        await this.empresaDeLaRegla(req, id);
         return this.reglas.archivar(req.organizationId, id, false);
     }
-    empresa(req, pedido) {
-        if (req.user.role === 'client')
-            return req.user.clientId ?? '';
-        return pedido ?? '';
+    async empresa(req, pedido) {
+        const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, pedido);
+        if (!clientId)
+            throw new common_1.BadRequestException('Falta la empresa sobre la que trabajar');
+        if (!UUID.test(clientId))
+            throw new common_1.BadRequestException('La empresa no tiene una forma válida');
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capacidades.assert(req.organizationId, clientId, 'crm');
+        return clientId;
+    }
+    async empresaDeLaRegla(req, id) {
+        const clientId = await this.reglas.empresaDeLaRegla(req.organizationId, id);
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capacidades.assert(req.organizationId, clientId, 'crm');
+        return clientId;
     }
 };
 exports.ReglasController = ReglasController;
@@ -199,7 +222,7 @@ __decorate([
     __param(2, (0, common_1.Query)('archivadas')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "listar", null);
 __decorate([
     (0, common_1.Get)('preguntas'),
@@ -209,7 +232,7 @@ __decorate([
     __param(1, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "preguntas", null);
 __decorate([
     (0, common_1.Post)('probar'),
@@ -220,7 +243,7 @@ __decorate([
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, GuardarReglaDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "probar", null);
 __decorate([
     (0, common_1.Post)('aplicar'),
@@ -231,7 +254,7 @@ __decorate([
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, AplicarDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "aplicar", null);
 __decorate([
     (0, common_1.Post)(),
@@ -242,7 +265,7 @@ __decorate([
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, GuardarReglaDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "crear", null);
 __decorate([
     (0, common_1.Put)('orden'),
@@ -253,7 +276,7 @@ __decorate([
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, OrdenDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "reordenar", null);
 __decorate([
     (0, common_1.Post)('copiar'),
@@ -275,7 +298,7 @@ __decorate([
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, GuardarReglaDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "editar", null);
 __decorate([
     (0, common_1.Put)(':id/activa'),
@@ -286,7 +309,7 @@ __decorate([
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "activar", null);
 __decorate([
     (0, common_1.Put)(':id/automatica'),
@@ -297,7 +320,7 @@ __decorate([
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "automatizar", null);
 __decorate([
     (0, common_1.Delete)(':id'),
@@ -307,7 +330,7 @@ __decorate([
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "archivar", null);
 __decorate([
     (0, common_1.Put)(':id/restaurar'),
@@ -317,7 +340,7 @@ __decorate([
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ReglasController.prototype, "restaurar", null);
 exports.ReglasController = ReglasController = __decorate([
     (0, swagger_1.ApiTags)('CRM · Reglas de calificación'),
@@ -325,5 +348,7 @@ exports.ReglasController = ReglasController = __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
-    __metadata("design:paramtypes", [reglas_service_1.ReglasService])
+    __metadata("design:paramtypes", [reglas_service_1.ReglasService,
+        account_access_service_1.AccountAccessService,
+        client_capability_service_1.ClientCapabilityService])
 ], ReglasController);

@@ -66,6 +66,22 @@ export class SurveyQuestionDto {
   vigenteHasta?: string;
 }
 
+/**
+ * Filtros de la lista de encuestas.
+ *
+ * `clientId` es alcance y no comodidad: lo comprueba `assertClient` antes de usarlo. Los demás
+ * sólo recortan lo que ya se puede ver.
+ */
+export class ListSurveysDto {
+  @IsOptional() @IsUUID() clientId?: string;
+  /** Por fragmento del nombre: se busca una encuesta recordando media frase. */
+  @IsOptional() @IsString() @MaxLength(200) buscar?: string;
+  @IsOptional() @IsIn(SURVEY_STATUSES) estado?: SurveyStatus;
+  @IsOptional() @IsIn(SURVEY_TYPES) tipo?: SurveyType;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number;
+}
+
 export class CreateSurveyDto {
   @IsString() @MinLength(1) @MaxLength(200)
   title: string;

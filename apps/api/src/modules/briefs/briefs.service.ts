@@ -5,6 +5,7 @@ import { Brief } from './brief.entity';
 import { CreateBriefDto } from './dto/create-brief.dto';
 import { UpdateBriefDto } from './dto/update-brief.dto';
 import { Client } from '../clients/client.entity';
+import { Piece } from '../production/piece.entity';
 
 /**
  * Lógica de negocio para briefs (documentos de requerimientos del cliente).
@@ -14,6 +15,8 @@ export class BriefsService {
   constructor(
     @InjectRepository(Brief) private readonly repo: Repository<Brief>,
     @InjectRepository(Client) private readonly clients: Repository<Client>,
+    // Sólo de lectura: la pieza la crea y la mueve Producción.
+    @InjectRepository(Piece) private readonly pieces: Repository<Piece>,
   ) {}
 
   /**
@@ -23,6 +26,33 @@ export class BriefsService {
    * @param organizationId - Id del tenant.
    * @returns Entidad del brief guardada.
    */
+  /**
+   * Las piezas que salieron de un brief, con en qué va cada una.
+   *
+   * Cierra el círculo que los dos módulos dejaban abierto: el brief se escribía y lo producido a
+   * partir de él no quedaba registrado en ninguna parte. Un brief sin piezas es un caso normal
+   * —está recién escrito, o se decidió no hacerlo— y devuelve una lista vacía, no un error.
+   */
+  async piezasDelBrief(id: string, organizationId: string) {
+    // Pasa por `findOne` para que un brief de otra organización dé 404 y no una lista vacía.
+    await this.findOne(id, organizationId);
+    const piezas = await this.pieces.find({
+      where: { briefId: id, organizationId },
+      order: { createdAt: 'DESC' },
+    });
+    return {
+      total: piezas.length,
+      piezas: piezas.map((pieza) => ({
+        id: pieza.id,
+        titulo: pieza.title,
+        tipo: pieza.type,
+        estado: pieza.status,
+        unidades: Number(pieza.udAmount ?? 0),
+        creada: pieza.createdAt,
+      })),
+    };
+  }
+
   async create(dto: CreateBriefDto, organizationId: string): Promise<Brief> {
     const client = await this.clients.findOne({ where: { id: dto.clientId, organizationId } });
     if (!client) throw new BadRequestException('El cliente no pertenece a esta organización');

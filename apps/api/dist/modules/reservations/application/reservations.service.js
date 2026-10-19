@@ -3095,6 +3095,59 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             })),
         };
     }
+    async historialDeReserva(organizationId, reservationId, clientIds) {
+        const reserva = await this.reservations.findOne({ where: { id: reservationId, organizationId } });
+        if (!reserva)
+            throw new common_1.NotFoundException('La reserva no existe');
+        if (clientIds !== undefined && (!reserva.clientId || !clientIds.includes(reserva.clientId))) {
+            throw new common_1.ForbiddenException('No tienes acceso a esta reserva');
+        }
+        const eventos = await this.events.find({
+            where: { organizationId, reservationId },
+            order: { createdAt: 'ASC' },
+        });
+        const ids = [...new Set(eventos.map((evento) => evento.actorId).filter((id) => Boolean(id)))];
+        const nombres = new Map();
+        if (ids.length) {
+            const filas = await this.dataSource
+                .query(`SELECT id, name FROM users WHERE id IN (${ids.map(() => '?').join(',')})`, ids)
+                .catch(() => []);
+            for (const fila of filas)
+                nombres.set(fila.id, fila.name);
+        }
+        return {
+            referencia: reserva.referenceCode,
+            eventos: eventos.map((evento) => ({
+                fecha: evento.createdAt,
+                tipo: evento.type,
+                desde: evento.fromStatus ?? null,
+                hasta: evento.toStatus ?? null,
+                quien: evento.actorType === 'guest' ? 'El comensal'
+                    : evento.actorType === 'system' ? 'El sistema'
+                        : evento.actorId ? nombres.get(evento.actorId) ?? 'Alguien del equipo'
+                            : 'Alguien del equipo',
+            })),
+        };
+    }
+    async csvDeCanjes(organizationId, couponId, clientIds, filtros) {
+        const { codigo, canjes } = await this.canjesDeCupon(organizationId, couponId, clientIds, { ...filtros, limite: 2000 });
+        const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+        const toLine = (row) => row.map(escape).join(',');
+        const lineas = [toLine(['cupon', 'fecha', 'canal', 'persona', 'consumo', 'descuento', 'nota', 'reserva'])];
+        for (const canje of canjes) {
+            lineas.push(toLine([
+                codigo,
+                canje.fecha.toISOString(),
+                canje.canal === 'local' ? 'En el local' : 'Con reserva',
+                canje.persona,
+                canje.monto,
+                canje.descuento,
+                canje.nota,
+                canje.reservationId,
+            ]));
+        }
+        return `﻿${lineas.join('\r\n')}`;
+    }
     async buscarCuponPorCodigo(organizationId, codigo, clientIds) {
         const coupon = await this.coupons.findOne({
             where: { organizationId, code: codigo.trim().toUpperCase() },
@@ -3184,7 +3237,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             }));
         });
     }
-    async usoDeCupones(organizationId, clientId, clientIds) {
+    async usoDeCupones(organizationId, clientId, clientIds, periodo) {
         const filtro = clientId
             ? { sql: 'AND client_id = ?', args: [clientId] }
             : clientIds?.length
@@ -3192,6 +3245,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 : clientIds !== undefined
                     ? { sql: 'AND 1 = 0', args: [] }
                     : { sql: '', args: [] };
+        if (periodo?.desde) {
+            filtro.sql += ' AND created_at >= ?';
+            filtro.args.push(new Date(periodo.desde));
+        }
+        if (periodo?.hasta) {
+            const hasta = new Date(periodo.hasta);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(periodo.hasta.trim()))
+                hasta.setHours(23, 59, 59, 999);
+            filtro.sql += ' AND created_at <= ?';
+            filtro.args.push(hasta);
+        }
         const filas = await this.dataSource.query(`SELECT codigo,
               SUM(enviado) enviados,
               SUM(usado) usados,
@@ -3212,7 +3276,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                        AND e.cupon_enviado_en < r.created_at
                   ) THEN 1 ELSE 0 END
              FROM reservations r
-            WHERE r.organization_id = ? ${filtro.sql.replace(/client_id/g, 'r.client_id')} AND r.coupon_code IS NOT NULL AND r.coupon_code <> ''
+            WHERE r.organization_id = ? ${filtro.sql.replace(/\b(client_id|created_at)\b/g, 'r.$1')} AND r.coupon_code IS NOT NULL AND r.coupon_code <> ''
          ) t
         GROUP BY codigo`, [organizationId, ...filtro.args, organizationId, ...filtro.args]).catch(() => []);
         return filas.map((fila) => ({

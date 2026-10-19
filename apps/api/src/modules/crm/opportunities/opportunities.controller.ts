@@ -12,6 +12,7 @@ import type { AuthenticatedRequest } from '@shared/types/request';
 import { RequiresFeature } from '../../../core/authorization/requires-feature.decorator';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ProcessTemplatesService } from '../../process-templates/process-templates.service';
+import { OpportunityStageHistoryService } from './opportunity-stage-history.service';
 import { COMMERCIAL_PIPELINE_TEMPLATE } from '../../process-templates/process-template-defaults';
 import { RequiereAccion } from '../../../core/authorization/requiere-accion';
 
@@ -28,6 +29,7 @@ export class OpportunitiesController {
     private removeOpportunity: RemoveOpportunityUseCase,
     private readonly accountAccess: AccountAccessService,
     private readonly processTemplates: ProcessTemplatesService,
+    private readonly stageHistory: OpportunityStageHistoryService,
   ) {}
 
   /**
@@ -61,6 +63,20 @@ export class OpportunitiesController {
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.getOpportunity.execute(id, req.organizationId, allowed);
+  }
+
+  /**
+   * Por qué etapas pasó este trato y cuándo.
+   *
+   * El registro existía y sólo se leía para calcular cuánto duró la última transición: el
+   * recorrido completo, que es el motivo de guardarlo, no se podía ver. Pasa primero por
+   * `findOne` para que un trato de otra empresa dé el mismo 404 que en el resto del CRM.
+   */
+  @Get(':id/recorrido')
+  async recorrido(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    await this.getOpportunity.execute(id, req.organizationId, allowed);
+    return { recorrido: await this.stageHistory.recorridoDe(req.organizationId, id) };
   }
 
   @Put(':id')

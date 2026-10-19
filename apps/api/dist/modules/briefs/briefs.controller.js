@@ -36,6 +36,9 @@ let BriefsController = class BriefsController {
     findOne(id, req) {
         return this.service.findOne(id, req.organizationId);
     }
+    piezas(id, req) {
+        return this.service.piezasDelBrief(id, req.organizationId);
+    }
     update(id, dto, req) {
         return this.service.update(id, dto, req.organizationId);
     }
@@ -72,6 +75,15 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], BriefsController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Get)(':id/piezas'),
+    (0, swagger_1.ApiOperation)({ summary: 'Piezas producidas a partir de este brief' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], BriefsController.prototype, "piezas", null);
 __decorate([
     (0, common_1.Put)(':id'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.ADMIN),

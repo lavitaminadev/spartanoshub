@@ -15,13 +15,14 @@ const reservation_entity_1 = require("../reservations/domain/reservation.entity"
 const client_entity_1 = require("../clients/client.entity");
 const ud_budget_entity_1 = require("../design-budget/ud-budget.entity");
 const ud_movement_entity_1 = require("../design-budget/ud-movement.entity");
+const users_module_1 = require("../users/users.module");
 const portal_home_controller_1 = require("./portal-home.controller");
 let PortalModule = class PortalModule {
 };
 exports.PortalModule = PortalModule;
 exports.PortalModule = PortalModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([reservation_entity_1.Reservation, client_entity_1.Client, ud_budget_entity_1.UDBudget, ud_movement_entity_1.UDMovement]), crm_module_1.CrmModule, account_access_module_1.AccountAccessModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([reservation_entity_1.Reservation, client_entity_1.Client, ud_budget_entity_1.UDBudget, ud_movement_entity_1.UDMovement]), crm_module_1.CrmModule, account_access_module_1.AccountAccessModule, users_module_1.UsersModule],
         controllers: [portal_home_controller_1.PortalHomeController],
     })
 ], PortalModule);

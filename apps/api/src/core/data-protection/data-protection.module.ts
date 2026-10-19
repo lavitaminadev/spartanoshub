@@ -12,6 +12,7 @@ import { DataProtectionController } from './data-protection.controller';
 import { ConsentController } from './consent.controller';
 import { AuditModule } from '../audit/audit.module';
 import { ParametersModule } from '../parameters/parameters.module';
+import { GoogleModule } from '../../modules/integrations/google/google.module';
 import { ServiceRequest } from '../../modules/service-requests/service-request.entity';
 
 @Module({
@@ -21,6 +22,9 @@ import { ServiceRequest } from '../../modules/service-requests/service-request.e
     // `ConsentController` publica el texto vigente moviendo `compliance.terms_version`, que es
     // lo que decide a quién se le vuelve a pedir la aceptación al entrar.
     ParametersModule,
+    // Para quitar el nombre del comensal del evento que queda en el calendario del local: la
+    // anonimización que no sale de la base deja el dato fuera del plazo de conservación.
+    GoogleModule,
   ],
   controllers: [DataProtectionController, ConsentController],
   providers: [DataProtectionService],

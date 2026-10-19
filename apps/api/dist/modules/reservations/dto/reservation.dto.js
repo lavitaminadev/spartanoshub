@@ -1560,6 +1560,16 @@ __decorate([
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], ListCouponsDto.prototype, "codigo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListCouponsDto.prototype, "desde", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListCouponsDto.prototype, "hasta", void 0);
 class ListCanjesDto {
 }
 exports.ListCanjesDto = ListCanjesDto;

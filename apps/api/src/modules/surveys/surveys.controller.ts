@@ -8,7 +8,7 @@ import { AuditService } from '../../core/audit/audit.service';
 import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { computeSurveyResults, type Survey as SurveyContract, type SurveyResponse as SurveyResponseContract } from '@espartanos/shared';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../../core/authorization/roles.decorator';
@@ -18,7 +18,7 @@ import { UserRole } from '../organizations/user-role.enum';
 import { aplicarEdicionDePreguntas, MAXIMO_HISTORIAL, problemasDeRespuesta, type SurveyQuestion } from '@espartanos/shared';
 import { Survey } from './survey.entity';
 import { SurveyResponse } from './survey-response.entity';
-import { CreateSurveyDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurveyResponseDto, SurveyResultsQueryDto } from './dto/survey.dto';
+import { CreateSurveyDto, ListSurveysDto, SubmitSurveyResponseDto, UpdateSurveyDto, AttendSurveyResponseDto, SurveyResultsQueryDto } from './dto/survey.dto';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { EmailService } from '../../core/notifications/email.service';
@@ -122,7 +122,8 @@ export class SurveysController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar encuestas' })
-  async list(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+  async list(@Req() req: AuthenticatedRequest, @Query() filtros: ListSurveysDto) {
+    const clientId = filtros.clientId;
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     // Sin empresa elegida, cada persona ve las de sus empresas y las internas del equipo; no las
     // de toda la organización.
@@ -131,16 +132,67 @@ export class SurveysController {
     if (req.user.role === UserRole.CLIENT) {
       if (!req.user.clientId) return [];
       await exigirEncuestasHabilitadas(this.dataSource, req.user.clientId);
-      const propias = await this.surveys.find({ where: { organizationId: req.organizationId, clientId: req.user.clientId }, order: { createdAt: 'DESC' } });
-      return propias.map((row) => this.toContract(row));
+      return this.listarAcotado({ organizationId: req.organizationId, clientId: req.user.clientId }, filtros);
     }
-    const where = clientId
-      ? { organizationId: req.organizationId, clientId }
-      : permitidas === undefined
-        ? { organizationId: req.organizationId }
-        : [{ organizationId: req.organizationId, clientId: IsNull() }, ...(permitidas.length ? [{ organizationId: req.organizationId, clientId: In(permitidas) }] : [])];
-    const rows = await this.surveys.find({ where, order: { createdAt: 'DESC' } });
-    return rows.map((row) => this.toContract(row));
+    return this.listarAcotado(
+      { organizationId: req.organizationId, clientId, permitidas },
+      filtros,
+    );
+  }
+
+  /**
+   * Aplica búsqueda, estado y página sobre el alcance que ya resolvió quien llama.
+   *
+   * El alcance —de qué empresas— y el recorte —cuáles de ésas— se resuelven aparte a propósito:
+   * el primero es una reja de seguridad y el segundo una comodidad, y mezclarlos invita a que un
+   * filtro de pantalla termine ensanchando lo que alguien puede ver.
+   *
+   * La lista no tenía tope ni paginación: una encuesta por cada mes de cada local crece sin
+   * techo, y el buscador vivía en el navegador sobre lo ya traído, de modo que lo que no venía
+   * no se podía encontrar.
+   */
+  private async listarAcotado(
+    alcance: { organizationId: string; clientId?: string; permitidas?: string[]; conInternas?: boolean },
+    filtros: ListSurveysDto,
+  ) {
+    const qb = this.surveys.createQueryBuilder('encuesta')
+      .where('encuesta.organization_id = :organizationId', { organizationId: alcance.organizationId });
+
+    if (alcance.clientId) {
+      qb.andWhere('encuesta.client_id = :clientId', { clientId: alcance.clientId });
+    } else if (alcance.permitidas !== undefined) {
+      /*
+       * Las internas del equipo no tienen empresa, y entran junto a las alcanzables.
+       *
+       * Va en un grupo propio para que los filtros de abajo se sumen al conjunto entero y no se
+       * cuelen dentro de la disyunción: sin los paréntesis, un `estado` quedaría atado sólo a la
+       * última rama y ensancharía lo que se ve.
+       */
+      const permitidas = alcance.permitidas;
+      qb.andWhere(new Brackets((grupo) => {
+        if (alcance.conInternas !== false) grupo.where('encuesta.client_id IS NULL');
+        if (permitidas.length) {
+          const porEmpresa = 'encuesta.client_id IN (:...permitidas)';
+          if (alcance.conInternas !== false) grupo.orWhere(porEmpresa, { permitidas });
+          else grupo.where(porEmpresa, { permitidas });
+        } else if (alcance.conInternas === false) {
+          grupo.where('1 = 0');
+        }
+      }));
+    }
+
+    if (filtros.buscar) qb.andWhere('encuesta.title LIKE :buscar', { buscar: `%${filtros.buscar}%` });
+    if (filtros.estado) qb.andWhere('encuesta.status = :estado', { estado: filtros.estado });
+    if (filtros.tipo) qb.andWhere('encuesta.type = :tipo', { tipo: filtros.tipo });
+
+    const page = Math.max(filtros.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(filtros.pageSize ?? 50, 1), 100);
+    const [rows, total] = await qb
+      .orderBy('encuesta.created_at', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+    return { data: rows.map((row) => this.toContract(row)), total, page, pageSize };
   }
 
   /**
@@ -359,10 +411,18 @@ export class SurveysController {
       `SELECT campana, COUNT(*) visitas, COUNT(DISTINCT session_id) sesiones, MIN(created_at) desde, MAX(created_at) hasta
          FROM survey_visits
         WHERE survey_id = ? AND campana IS NOT NULL AND campana <> ''
-        GROUP BY campana ORDER BY visitas DESC LIMIT 50`,
+        GROUP BY campana ORDER BY visitas DESC LIMIT 51`,
       [survey.id],
     ).catch(() => []) as Array<{ campana: string; visitas: number; sesiones: number; desde: Date; hasta: Date }>;
-    const campanas = porCampana.map((fila) => ({
+    /*
+     * Se piden 51 para devolver 50 y saber si había más.
+     *
+     * El tope estaba y no se decía: una encuesta con sesenta campañas mostraba las cincuenta de
+     * más visitas como si fueran todas. Pedir una de sobra cuesta una fila y convierte un recorte
+     * callado en uno que la pantalla puede nombrar.
+     */
+    const campanasTruncadas = porCampana.length > 50;
+    const campanas = porCampana.slice(0, 50).map((fila) => ({
       campana: fila.campana,
       visitas: Number(fila.visitas),
       sesiones: Number(fila.sesiones),
@@ -423,6 +483,7 @@ export class SurveysController {
       respuestas: detalle,
       visitasPorDia,
       campanas,
+      campanasTruncadas,
       totalDeLaEncuesta: survey.responseCount,
       detalleTruncado: rows.length > detalle.length,
       delPeriodo: {

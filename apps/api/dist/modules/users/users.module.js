@@ -30,6 +30,6 @@ exports.UsersModule = UsersModule = __decorate([
         imports: [typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride]), email_module_1.EmailModule, authorization_module_1.AuthorizationModule, account_access_module_1.AccountAccessModule],
         controllers: [users_controller_1.UsersController],
         providers: [create_user_use_case_1.CreateUserUseCase, list_users_use_case_1.ListUsersUseCase, update_user_use_case_1.UpdateUserUseCase, reset_user_password_use_case_1.ResetUserPasswordUseCase, administracion_del_equipo_service_1.AdministracionDelEquipoService, administradores_de_empresa_service_1.AdministradoresDeEmpresaService],
-        exports: [typeorm_1.TypeOrmModule],
+        exports: [typeorm_1.TypeOrmModule, administradores_de_empresa_service_1.AdministradoresDeEmpresaService],
     })
 ], UsersModule);

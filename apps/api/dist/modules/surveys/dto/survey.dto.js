@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SurveyResultsQueryDto = exports.SubmitSurveyResponseDto = exports.SurveyVisitDto = exports.AttendSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.SurveyQuestionDto = exports.SurveyShowRuleDto = void 0;
+exports.SurveyResultsQueryDto = exports.SubmitSurveyResponseDto = exports.SurveyVisitDto = exports.AttendSurveyResponseDto = exports.CompleteSurveyResponseDto = exports.StartSurveyResponseDto = exports.UpdateSurveyDto = exports.CreateSurveyDto = exports.ListSurveysDto = exports.SurveyQuestionDto = exports.SurveyShowRuleDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const QUESTION_TYPES = ['nps', 'rating', 'text', 'multiple-choice'];
@@ -112,6 +112,45 @@ __decorate([
     (0, class_validator_1.MaxLength)(40),
     __metadata("design:type", String)
 ], SurveyQuestionDto.prototype, "vigenteHasta", void 0);
+class ListSurveysDto {
+}
+exports.ListSurveysDto = ListSurveysDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], ListSurveysDto.prototype, "clientId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], ListSurveysDto.prototype, "buscar", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(SURVEY_STATUSES),
+    __metadata("design:type", String)
+], ListSurveysDto.prototype, "estado", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(SURVEY_TYPES),
+    __metadata("design:type", String)
+], ListSurveysDto.prototype, "tipo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], ListSurveysDto.prototype, "page", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(100),
+    __metadata("design:type", Number)
+], ListSurveysDto.prototype, "pageSize", void 0);
 class CreateSurveyDto {
 }
 exports.CreateSurveyDto = CreateSurveyDto;

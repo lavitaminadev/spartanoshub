@@ -26,10 +26,11 @@ const reservation_entity_1 = require("../reservations/domain/reservation.entity"
 const client_entity_1 = require("../clients/client.entity");
 const ud_budget_entity_1 = require("../design-budget/ud-budget.entity");
 const ud_movement_entity_1 = require("../design-budget/ud-movement.entity");
+const administradores_de_empresa_service_1 = require("../users/administradores-de-empresa.service");
 const client_capabilities_1 = require("../clients/client-capabilities");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 let PortalHomeController = class PortalHomeController {
-    constructor(crmHome, capacidades, reservas, accesos, clientes, presupuestos, movimientos) {
+    constructor(crmHome, capacidades, reservas, accesos, clientes, presupuestos, movimientos, administradores) {
         this.crmHome = crmHome;
         this.capacidades = capacidades;
         this.reservas = reservas;
@@ -37,6 +38,7 @@ let PortalHomeController = class PortalHomeController {
         this.clientes = clientes;
         this.presupuestos = presupuestos;
         this.movimientos = movimientos;
+        this.administradores = administradores;
     }
     async empresas(req) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT) {
@@ -75,9 +77,15 @@ let PortalHomeController = class PortalHomeController {
         const [crm, reservas, presupuesto] = await Promise.all([
             tieneCrm ? this.bloqueCrm(req.organizationId, clientId) : Promise.resolve(undefined),
             tieneReservas ? this.bloqueReservas(req.organizationId, clientId) : Promise.resolve(undefined),
-            tienePresupuesto ? this.bloquePresupuesto(clientId) : Promise.resolve(undefined),
+            tienePresupuesto && await this.administraEstaEmpresa(req, clientId)
+                ? this.bloquePresupuesto(clientId)
+                : Promise.resolve(undefined),
         ]);
         return { crm, reservas, presupuesto };
+    }
+    async administraEstaEmpresa(req, clientId) {
+        const suyas = await this.administradores.empresasQueAdministra(req.organizationId, req.user.id);
+        return suyas.includes(clientId);
     }
     async bloquePresupuesto(clientId) {
         const ahora = new Date();
@@ -177,5 +185,6 @@ exports.PortalHomeController = PortalHomeController = __decorate([
         account_access_service_1.AccountAccessService,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        administradores_de_empresa_service_1.AdministradoresDeEmpresaService])
 ], PortalHomeController);

@@ -88,6 +88,27 @@ export class OpportunityStageHistoryService {
    * Devuelve `null` cuando no hay transición previa —tratos abiertos antes de que existiera
    * este registro—, para no inventar una duración que nadie midió.
    */
+  /**
+   * Por qué etapas pasó un trato, en orden, y cuánto duró cada una.
+   *
+   * Este registro se escribía desde hace tiempo y sólo se leía para calcular las horas de la
+   * transición anterior: el recorrido completo —que es el valor de guardarlo— no se podía ver
+   * desde ninguna parte. El motivo de pérdida también estaba y tampoco salía.
+   */
+  async recorridoDe(organizationId: string, opportunityId: string) {
+    const cambios = await this.changes.find({
+      where: { organizationId, opportunityId },
+      order: { createdAt: 'ASC' },
+    });
+    return cambios.map((cambio) => ({
+      fecha: cambio.createdAt,
+      desde: cambio.fromStage ?? null,
+      hasta: cambio.toStage,
+      motivoDePerdida: cambio.lossReason ?? null,
+      actorId: cambio.changedBy ?? null,
+    }));
+  }
+
   private async hoursSinceLastChange(opportunityId: string): Promise<number | null> {
     const last = await this.changes.findOne({
       where: { opportunityId },

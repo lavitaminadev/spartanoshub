@@ -58,7 +58,7 @@ function nextSurveyStatus(status: Survey['status']): { status: Survey['status'];
  *   enviar ni eliminar. El servidor igualmente rechaza esas acciones para el cargo cliente.
  */
 export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } = {}): JSX.Element {
-  const { data: surveys = [], isLoading, error, refetch, isFetching } = useSurveys();
+  const [pagina, setPagina] = useState(1);
   const deleteMutation = useDeleteSurvey();
   const statusMutation = useUpdateSurvey();
   const [confirmDelete, setConfirmDelete] = useState<Survey | null>(null);
@@ -69,6 +69,35 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
   // no borra el trabajo y la vista se puede mandar por mensaje.
   const filtros = useUrlFilters(FILTER_KEYS);
   const typeFilter = (filtros.values.tipo || 'all') as 'all' | SurveyType;
+  /*
+   * El recorte lo hace el servidor; acá sólo queda el de empresa.
+   *
+   * La lista venía entera y sin tope —una encuesta por mes y por local crece sin techo— y los
+   * cuatro filtros se aplicaban sobre lo ya traído, de modo que lo que no venía no se podía
+   * encontrar. El de empresa se queda en el navegador porque tiene un caso que el servidor no
+   * expresa: «equipo» son las que no tienen empresa ninguna.
+   */
+  const { data: pagina_, isLoading, error, refetch, isFetching } = useSurveys({
+    buscar: filtros.search,
+    estado: filtros.values.estado,
+    tipo: typeFilter === 'all' ? '' : typeFilter,
+    page: pagina,
+  });
+  const surveys = pagina_?.encuestas ?? [];
+  const totalEncuestas = pagina_?.total ?? 0;
+  const paginas = Math.max(Math.ceil(totalEncuestas / (pagina_?.pageSize || 50)), 1);
+  /*
+   * Cambiar un filtro vuelve a la primera página.
+   *
+   * Quedarse en la cuatro de una lista que ahora tiene dos muestra un vacío que se lee como «no
+   * hay ninguna», cuando lo que pasa es que esa página ya no existe.
+   */
+  const firmaDelFiltro = `${filtros.search}|${filtros.values.estado ?? ''}|${typeFilter}`;
+  const [firmaPrevia, setFirmaPrevia] = useState(firmaDelFiltro);
+  if (firmaPrevia !== firmaDelFiltro) {
+    setFirmaPrevia(firmaDelFiltro);
+    if (pagina !== 1) setPagina(1);
+  }
   const { user } = useAuth();
   // Empresas visibles para esta persona: el servidor ya recorta la lista a las suyas.
   const empresaActiva = useEmpresaActiva();
@@ -194,7 +223,13 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
             aria-pressed={typeFilter === filter.value}
             onClick={() => filtros.setValue('tipo', filter.value === 'all' ? '' : filter.value)}
           >
-            <strong>{filter.value === 'all' ? surveys.length : surveys.filter((survey) => survey.type === filter.value).length}</strong>
+            {/*
+              La cifra va sólo en el filtro activo.
+              Desde que la lista viene por páginas, contar sobre lo traído daría el tamaño de la
+              página y no cuántas hay; un número de página bajo cada tipo mentiría en tres sitios
+              a la vez. El del activo es el total que devuelve el servidor.
+            */}
+            {typeFilter === filter.value ? <strong>{totalEncuestas}</strong> : null}
             <span>{filter.label}</span>
           </button>
         ))}
@@ -240,6 +275,17 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
             storageKey="surveys"
             exportFileName="encuestas"
           />
+          {/*
+            La lista no tenía tope ni páginas: una encuesta por mes y por local crece sin techo,
+            y se traían todas en cada carga.
+          */}
+          {paginas > 1 ? (
+            <div className="tabla-paginacion">
+              <button type="button" className="btn btn-outline btn-sm" disabled={pagina <= 1} onClick={() => setPagina((actual) => actual - 1)}>Anterior</button>
+              <span>Página {pagina} de {paginas} · {totalEncuestas} encuestas</span>
+              <button type="button" className="btn btn-outline btn-sm" disabled={pagina >= paginas} onClick={() => setPagina((actual) => actual + 1)}>Siguiente</button>
+            </div>
+          ) : null}
         </div>
       )}
 

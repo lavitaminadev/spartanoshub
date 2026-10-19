@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
+import { GoogleCalendarService } from '../../modules/integrations/google/google-calendar.service';
 import { User } from '../../modules/users/user.entity';
 import { AuditLog } from '../audit/audit.entity';
 import { DataConsent } from './consent.entity';
@@ -40,6 +41,8 @@ function avisoDeEspartanos() {
 
 @Injectable()
 export class DataProtectionService {
+  private readonly logger = new Logger(DataProtectionService.name);
+
   constructor(
     @InjectRepository(User) private userRepo: Repository<User>,
     @InjectRepository(Lead) private leadRepo: Repository<Lead>,
@@ -49,6 +52,14 @@ export class DataProtectionService {
     @InjectRepository(Reservation) private reservationRepo: Repository<Reservation>,
     @InjectRepository(ServiceRequest) private serviceRequestRepo: Repository<ServiceRequest>,
     @InjectRepository(ConsentVersion) private consentVersionRepo: Repository<ConsentVersion>,
+    /*
+     * El calendario del local, para quitar de su evento el nombre del comensal.
+     *
+     * Opcional y en el ultimo lugar a proposito: sin calendario conectado no hay nada que
+     * renombrar, y las pruebas construyen este servicio por posicion, de modo que un parametro
+     * nuevo en el medio desplazaria los repositorios que ya pasan.
+     */
+    @Optional() private readonly calendario?: GoogleCalendarService,
   ) {}
 
   /**
@@ -198,10 +209,21 @@ export class DataProtectionService {
   /**
    * Anonimiza una reserva: los datos del comensal que capturo la pagina publica.
    *
-   * Ademas del nombre y el contacto, se borran los identificadores de match de Meta
-   * (`fbc`, `fbp`, IP y user agent) y las respuestas del formulario, que pueden contener
-   * cualquier dato que el cliente haya decidido pedir. Fecha, estado y formulario quedan
-   * intactos para que la analitica de asistencia siga siendo correcta.
+   * Queda una fila que ya no identifica a nadie: ni por contacto, ni por documento, ni por
+   * los identificadores que entrega la publicidad. Fecha, estado, tamano del grupo y
+   * formulario quedan intactos para que la analitica de asistencia siga siendo correcta.
+   *
+   * **El documento y la fecha de nacimiento tambien se van.** Un RUT identifica a una persona
+   * por si solo, asi que conservarlo haria reidentificable la fila entera y el plazo de
+   * conservacion que publica la politica de privacidad no se estaria cumpliendo.
+   *
+   * Los identificadores de clic (`gclid`, `fbclid`, `gbraid`, `wbraid` y `clickId`) se borran
+   * junto a `fbc` y `fbp`: cada uno reconstruye el recorrido publicitario de la persona y, una
+   * vez vencido el plazo, ya no sirven para atribuir ninguna conversion.
+   *
+   * Los textos de consentimiento aceptados **se conservan**: son la constancia de que se
+   * autorizo el tratamiento, guardan la clausula y su version, y no contienen datos de la
+   * persona. Los datos sensibles que se hubieran declarado viven en `answers`, que si se borra.
    */
   async anonymizeReservation(reservationId: string, organizationId: string, reason = 'Retención expirada'): Promise<Reservation> {
     const reservation = await this.reservationRepo.findOneBy({ id: reservationId, organizationId });
@@ -212,14 +234,56 @@ export class DataProtectionService {
     reservation.guestPhone = null;
     reservation.answers = {};
     reservation.internalNotes = null;
+    reservation.birthDate = null;
+    reservation.guestDocument = null;
+    reservation.guestDocumentType = null;
+    reservation.guestDocumentCountry = null;
     reservation.fbc = null;
     reservation.fbp = null;
+    reservation.fbclid = null;
+    reservation.gclid = null;
+    reservation.gbraid = null;
+    reservation.wbraid = null;
+    reservation.clickId = null;
     reservation.clientIpAddress = null;
     reservation.clientUserAgent = null;
 
     const saved = await this.reservationRepo.save(reservation);
+    await this.olvidarEnElCalendarioDelLocal(saved);
     await this.recordAnonymization(organizationId, 'Reservation', reservationId, reason);
     return saved;
+  }
+
+  /**
+   * Quita el nombre del comensal del evento que vive en el Google Calendar del local.
+   *
+   * El evento se titula «<local>: <nombre del comensal>», asi que borrar la fila y dejar el
+   * evento como estaba conservaba el nombre fuera de la base, donde el plazo de conservacion no
+   * alcanza. Queda con el codigo de referencia, que no identifica a nadie.
+   *
+   * **Se renombra y no se borra**, por dos motivos: el evento es parte del registro del local, y
+   * el trabajo que recupera integraciones pendientes busca las reservas sin `calendar_event_id`,
+   * de modo que borrarlo y olvidar el id haria que lo volviera a crear.
+   *
+   * Sin esperar y sin fallar: la fila ya quedo anonimizada, que es lo que la ley exige, y que
+   * Google no responda no puede deshacerlo ni devolver un error a quien pidio el borrado. Un
+   * evento que ya no existe tampoco es un fallo. Queda en el registro para reintentarlo a mano.
+   */
+  private async olvidarEnElCalendarioDelLocal(reservation: Reservation): Promise<void> {
+    if (!this.calendario || !reservation.calendarEventId) return;
+    try {
+      await this.calendario.updateEvent(reservation.organizationId, reservation.calendarEventId, {
+        summary: `Reserva ${reservation.referenceCode}`,
+        description: `Reserva ${reservation.referenceCode}`,
+        start: reservation.startsAt,
+        durationMinutes: Math.max(1, Math.round((reservation.endsAt.getTime() - reservation.startsAt.getTime()) / 60_000)),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo quitar el nombre del evento de calendario de la reserva ${reservation.id}: `
+        + `${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 
   /**
@@ -252,14 +316,21 @@ export class DataProtectionService {
   }
 
   /**
-   * Borra los identificadores de medición (cookies de Meta, IP y navegador) de las reservas creadas
-   * hace más de `meses`, sin tocar el resto de la reserva.
+   * Borra los identificadores de medición de las reservas creadas hace más de `meses`, sin tocar
+   * el resto de la reserva.
+   *
+   * Cubre los nueve: las cookies de Meta (`fbc`, `fbp`), los identificadores de clic que entregan
+   * Meta y Google (`fbclid`, `gclid`, `gbraid`, `wbraid` y el `click_id` histórico), la IP y el
+   * navegador. Cada uno reconstruye por su cuenta el recorrido publicitario de la persona, de modo
+   * que dejar alguno conserva justo lo que el plazo venía a extinguir.
    *
    * @returns Cuántas reservas se limpiaron.
    */
   async borrarIdentificadoresDeMedicionVencidos(meses: number): Promise<number> {
     const resultado = await this.reservationRepo.manager.query(
-      'UPDATE reservations SET fbc = NULL, fbp = NULL, client_ip_address = NULL, client_user_agent = NULL WHERE created_at < ? AND (fbc IS NOT NULL OR fbp IS NOT NULL OR client_ip_address IS NOT NULL OR client_user_agent IS NOT NULL) LIMIT 2000',
+      'UPDATE reservations SET fbc = NULL, fbp = NULL, fbclid = NULL, gclid = NULL, gbraid = NULL, wbraid = NULL, click_id = NULL, client_ip_address = NULL, client_user_agent = NULL'
+      + ' WHERE created_at < ? AND (fbc IS NOT NULL OR fbp IS NOT NULL OR fbclid IS NOT NULL OR gclid IS NOT NULL OR gbraid IS NOT NULL OR wbraid IS NOT NULL OR click_id IS NOT NULL OR client_ip_address IS NOT NULL OR client_user_agent IS NOT NULL)'
+      + ' LIMIT 2000',
       [haceMeses(meses)],
     ) as { affectedRows?: number };
     return resultado?.affectedRows ?? 0;

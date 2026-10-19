@@ -47,3 +47,4 @@ diagnostico-permisos.txt
 # No se versiona para que no exista la posibilidad de que llegue a un entorno real,
 # ni siquiera por descuido. Se corre con `node scripts/local/demo.cjs`.
 scripts/local/demo.cjs
+auditoria-main/

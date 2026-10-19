@@ -29,6 +29,54 @@ interface Props {
   onVerCupon?: (codigo: string) => void;
 }
 
+/** Cómo se lee cada tipo de evento, para quien no conoce los nombres internos. */
+const EVENTOS: Record<string, string> = {
+  created: 'Se creó la reserva',
+  status_change: 'Cambió de estado',
+  guest_confirmed: 'El comensal la confirmó desde su enlace',
+  marketing_consent: 'Aceptó recibir novedades',
+  rescheduled: 'Se movió de hora',
+  cancelled: 'Se canceló',
+  attended: 'Se marcó la asistencia',
+  no_show: 'Se marcó como no presentada',
+};
+
+/**
+ * Qué le pasó a esta reserva, en orden.
+ *
+ * Los eventos se guardaban con su actor y sus dos estados desde hace tiempo, y no los leía
+ * nadie: «quién canceló esto y cuándo» se contestaba entrando a la base. Va plegado porque lo
+ * que se mira a diario es el estado actual, no cómo se llegó a él.
+ */
+function HistorialDeLaReserva({ reservaId }: { reservaId: string }) {
+  const [abierto, setAbierto] = useState(false);
+  const { data } = useQuery<{ eventos: Array<{ fecha: string; tipo: string; desde: string | null; hasta: string | null; quien: string }> }>({
+    queryKey: ['reserva-historial', reservaId],
+    queryFn: () => api.get(`/reservations/${reservaId}/historial`),
+    enabled: abierto,
+  });
+
+  return (
+    <details className="reserva-historial" onToggle={(evento) => setAbierto((evento.target as HTMLDetailsElement).open)}>
+      <summary>Qué le pasó a esta reserva</summary>
+      {!data ? <small className="tabla-nota">Buscando…</small>
+        : data.eventos.length === 0 ? <small className="tabla-nota">Sin movimientos registrados.</small>
+        : <ol>
+          {data.eventos.map((evento, indice) => (
+            <li key={`${evento.fecha}-${indice}`}>
+              <strong>{EVENTOS[evento.tipo] ?? evento.tipo}</strong>
+              <small>
+                {new Date(evento.fecha).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
+                {' · '}{evento.quien}
+                {evento.desde && evento.hasta && evento.desde !== evento.hasta ? ` · ${evento.desde} → ${evento.hasta}` : ''}
+              </small>
+            </li>
+          ))}
+        </ol>}
+    </details>
+  );
+}
+
 export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupon }: Props) {
   const queryClient = useQueryClient();
   /* Marcar la salida devuelve la reserva al día; la pantalla que abrió la ficha puede tardar en refrescarla. */
@@ -162,6 +210,7 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
         ? <button type="button" className="link-button" onClick={() => onVerCupon(reserva.couponCode!)}>{reserva.couponCode}</button>
         : reserva.couponCode}</strong></div>}
     </div>
+    <HistorialDeLaReserva reservaId={reserva.id} />
     {guardar.error && <p className="error-text">{guardar.error.message}</p>}
     <EstadiaEnLaMesa reserva={reserva} zonaHoraria={local?.timezone} onCambio={(nueva) => { setAlDia(nueva); onGuardada?.(); }} />
 

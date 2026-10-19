@@ -22,20 +22,27 @@ const confirm_ud_consumption_use_case_1 = require("./confirm-ud-consumption.use-
 const get_or_create_budget_dto_1 = require("./dto/get-or-create-budget.dto");
 const reserve_ud_dto_1 = require("./dto/reserve-ud.dto");
 const confirm_ud_dto_1 = require("./dto/confirm-ud.dto");
+const ajustar_presupuesto_dto_1 = require("./dto/ajustar-presupuesto.dto");
+const ajustar_presupuesto_use_case_1 = require("./ajustar-presupuesto.use-case");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 let DesignBudgetController = class DesignBudgetController {
-    constructor(getOrCreate, reserve, confirm, accountAccess) {
+    constructor(getOrCreate, reserve, confirm, ajustar, accountAccess) {
         this.getOrCreate = getOrCreate;
         this.reserve = reserve;
         this.confirm = confirm;
+        this.ajustar = ajustar;
         this.accountAccess = accountAccess;
     }
     async getOrCreateBudget(dto, req) {
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
         return this.getOrCreate.execute(req.organizationId, dto.clientId, dto.year, dto.month, dto.defaultBudget);
+    }
+    async ajustarPresupuesto(dto, req) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
+        return this.ajustar.execute(req.organizationId, dto.clientId, dto.year, dto.month, dto.contratadas, dto.motivo.trim(), req.user.id);
     }
     async reserveUd(dto, req) {
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
@@ -57,6 +64,16 @@ __decorate([
     __metadata("design:paramtypes", [get_or_create_budget_dto_1.GetOrCreateBudgetDto, Object]),
     __metadata("design:returntype", Promise)
 ], DesignBudgetController.prototype, "getOrCreateBudget", null);
+__decorate([
+    (0, common_1.Patch)('budget'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
+    (0, swagger_1.ApiOperation)({ summary: 'Ajustar las UD contratadas de un mes' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ajustar_presupuesto_dto_1.AjustarPresupuestoDto, Object]),
+    __metadata("design:returntype", Promise)
+], DesignBudgetController.prototype, "ajustarPresupuesto", null);
 __decorate([
     (0, common_1.Post)('reserve'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
@@ -86,5 +103,6 @@ exports.DesignBudgetController = DesignBudgetController = __decorate([
     __metadata("design:paramtypes", [get_or_create_budget_use_case_1.GetOrCreateBudgetUseCase,
         reserve_ud_use_case_1.ReserveUdUseCase,
         confirm_ud_consumption_use_case_1.ConfirmUdConsumptionUseCase,
+        ajustar_presupuesto_use_case_1.AjustarPresupuestoUseCase,
         account_access_service_1.AccountAccessService])
 ], DesignBudgetController);

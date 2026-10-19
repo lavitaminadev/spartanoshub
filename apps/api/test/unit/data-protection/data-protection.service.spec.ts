@@ -64,6 +64,96 @@ describe('DataProtectionService', () => {
     expect(result.startsAt).toBe(startsAt);
   });
 
+  /*
+   * Un RUT identifica a una persona por si solo, y los identificadores de clic reconstruyen su
+   * recorrido publicitario: una fila que los conserve no esta anonimizada, aunque el nombre y el
+   * correo se hayan ido. Esta prueba fija la lista completa para que ninguno vuelva a quedarse.
+   */
+  it('borra el documento, la fecha de nacimiento y los identificadores de clic', async () => {
+    reservationRepo.findOneBy.mockResolvedValue({
+      id: 'abcdef12-0000-0000-0000-000000000000',
+      organizationId: 'org-1',
+      guestName: 'Ana Perez',
+      answers: {},
+      startsAt: new Date('2026-01-15T20:00:00.000Z'),
+      birthDate: '1990-04-21',
+      guestDocument: '11.111.111-1',
+      guestDocumentType: 'rut',
+      guestDocumentCountry: 'CL',
+      fbclid: 'IwAR123', gclid: 'Cj0KCQ', gbraid: 'gb-1', wbraid: 'wb-1', clickId: 'legacy-1',
+      reservationConsentText: '[v1] Acepto que se guarden mis datos para esta reserva',
+    });
+
+    const result = await service.anonymizeReservation('abcdef12-0000-0000-0000-000000000000', 'org-1');
+
+    expect(result.birthDate).toBeNull();
+    expect(result.guestDocument).toBeNull();
+    expect(result.guestDocumentType).toBeNull();
+    expect(result.guestDocumentCountry).toBeNull();
+    expect(result.fbclid).toBeNull();
+    expect(result.gclid).toBeNull();
+    expect(result.gbraid).toBeNull();
+    expect(result.wbraid).toBeNull();
+    expect(result.clickId).toBeNull();
+    // La constancia de que se autorizo el tratamiento se conserva: es la clausula, no la persona.
+    expect(result.reservationConsentText).toBe('[v1] Acepto que se guarden mis datos para esta reserva');
+  });
+
+  /*
+   * El evento del calendario del local se titula «<local>: <nombre>», de modo que anonimizar solo
+   * la fila dejaria el nombre fuera de la base. Se renombra, no se borra: el trabajo que recupera
+   * integraciones busca las reservas sin `calendar_event_id` y volveria a crearlo.
+   */
+  it('quita el nombre del evento del calendario sin borrar el evento', async () => {
+    const calendario = { updateEvent: vi.fn().mockResolvedValue({ existe: true }) };
+    const conCalendario = new DataProtectionService(
+      {} as never, {} as never, auditRepo as never, {} as never, contactRepo as never,
+      reservationRepo as never, {} as never, {} as never, calendario as never,
+    );
+    reservationRepo.findOneBy.mockResolvedValue({
+      id: 'abcdef12-0000-0000-0000-000000000000',
+      organizationId: 'org-1',
+      guestName: 'Ana Perez',
+      answers: {},
+      referenceCode: 'ABC123',
+      calendarEventId: 'evento-google-1',
+      startsAt: new Date('2026-01-15T20:00:00.000Z'),
+      endsAt: new Date('2026-01-15T21:30:00.000Z'),
+    });
+
+    await conCalendario.anonymizeReservation('abcdef12-0000-0000-0000-000000000000', 'org-1');
+
+    expect(calendario.updateEvent).toHaveBeenCalledWith('org-1', 'evento-google-1', expect.objectContaining({
+      summary: 'Reserva ABC123',
+      durationMinutes: 90,
+    }));
+  });
+
+  /* Que Google no responda no puede deshacer una anonimizacion que la ley ya exige cumplida. */
+  it('la anonimizacion no falla si el calendario no responde', async () => {
+    const calendario = { updateEvent: vi.fn().mockRejectedValue(new Error('Google no responde')) };
+    const conCalendario = new DataProtectionService(
+      {} as never, {} as never, auditRepo as never, {} as never, contactRepo as never,
+      reservationRepo as never, {} as never, {} as never, calendario as never,
+    );
+    reservationRepo.findOneBy.mockResolvedValue({
+      id: 'abcdef12-0000-0000-0000-000000000000',
+      organizationId: 'org-1',
+      guestName: 'Ana Perez',
+      answers: {},
+      referenceCode: 'ABC123',
+      calendarEventId: 'evento-google-1',
+      startsAt: new Date('2026-01-15T20:00:00.000Z'),
+      endsAt: new Date('2026-01-15T21:30:00.000Z'),
+    });
+
+    const result = await service.anonymizeReservation('abcdef12-0000-0000-0000-000000000000', 'org-1');
+    expect(result.guestEmail).toBeNull();
+
+    await expect(conCalendario.anonymizeReservation('abcdef12-0000-0000-0000-000000000000', 'org-1')).resolves.toBeDefined();
+    expect(auditRepo.save).toHaveBeenCalled();
+  });
+
   it('deja rastro en la bitacora al anonimizar', async () => {
     reservationRepo.findOneBy.mockResolvedValue({
       id: 'abcdef12-0000-0000-0000-000000000000', organizationId: 'org-1',

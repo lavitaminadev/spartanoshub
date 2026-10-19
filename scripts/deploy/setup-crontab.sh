@@ -36,10 +36,27 @@ CRON_URL="$API_ORIGIN/api/cron"
 mkdir -p "$APP_DIR/logs"
 chmod 750 "$APP_DIR/logs"
 
+# Tareas que este script instala. Es la unica lista que decide que lineas del crontab se reemplazan:
+# al reinstalar se quitan las lineas cuya URL es exactamente $CRON_URL/<nombre>, con la comilla de
+# cierre incluida, de modo que `meta-capi` no alcanza a `meta-capi/cleanup` ni a `meta-capi/diagnostics`,
+# ni `google-ads` a `google-ads/diagnostics`. Una linea manual hacia una ruta que no figura aqui se conserva.
+# Toda tarea nueva que se agregue al heredoc de abajo debe sumarse tambien a esta lista.
+TAREAS_GESTIONADAS=(
+  meta-capi meta-capi/diagnostics meta-capi/cleanup campanas google-ads
+  stale-pieces leads-parados operational-alerts xp-periods monthly-cycles collection-emails data-retention
+  recordatorio-reservas recordatorio-tareas encuesta-post-visita cupon-post-visita cierre-asistencia
+  cumpleanos resumen-diario reservation-integrations meta-lead-recovery
+  automation-runs automation-schedule automation-webhooks automation-cleanup
+)
+FILTRO_TAREAS=()
+for tarea in "${TAREAS_GESTIONADAS[@]}"; do
+  FILTRO_TAREAS+=(-e "$CRON_URL/$tarea\"")
+done
+
 # Ejecutar el instalador varias veces reemplaza las tareas anteriores en vez de duplicarlas.
 # Los rotulos y rutas en desuso siguen en la lista a proposito: son los que dejaron las
 # instalaciones previas, y quitarlos de aqui haria que esas lineas se acumularan en el crontab.
-EXISTING="$(crontab -l 2>/dev/null | grep -v '# Spartanoshub' | grep -v '# Espartanos' | grep -v '# VitaHub' | grep -v "$CRON_URL" | grep -v 'infrastructure/scripts/backup.sh' | grep -v 'scripts/deploy/check-inodes.sh' | grep -v 'vitahub/logs/cron-' || true)"
+EXISTING="$(crontab -l 2>/dev/null | grep -v '# Spartanoshub' | grep -v '# Espartanos' | grep -v '# VitaHub' | grep -v -F "${FILTRO_TAREAS[@]}" | grep -v 'infrastructure/scripts/backup.sh' | grep -v 'scripts/deploy/check-inodes.sh' | grep -v 'vitahub/logs/cron-' || true)"
 
 echo "Instalando tareas para $CRON_URL..."
 {
@@ -82,6 +99,54 @@ echo "Instalando tareas para $CRON_URL..."
 
 # Spartanoshub - Retencion de datos (diario, 03:30)
 30 3 * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/data-retention" -m 120 >> $APP_DIR/logs/cron-data-retention.log 2>&1
+
+# Spartanoshub - Las tareas siguientes son las que el planificador interno corre por intervalo,
+# con la misma cadencia que alli. Los minutos van repartidos para que no arranquen a la vez.
+
+# Spartanoshub - Recordatorio de reservas (cada 30 minutos)
+7,37 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/recordatorio-reservas" -m 60 >> $APP_DIR/logs/cron-recordatorio-reservas.log 2>&1
+
+# Spartanoshub - Encuesta post-visita (cada 30 minutos)
+12,42 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/encuesta-post-visita" -m 60 >> $APP_DIR/logs/cron-encuesta-post-visita.log 2>&1
+
+# Spartanoshub - Cupon post-visita (cada hora)
+25 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/cupon-post-visita" -m 60 >> $APP_DIR/logs/cron-cupon-post-visita.log 2>&1
+
+# Spartanoshub - Cierre de asistencia (cada 15 minutos)
+2,17,32,47 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/cierre-asistencia" -m 60 >> $APP_DIR/logs/cron-cierre-asistencia.log 2>&1
+
+# Spartanoshub - Recordatorio de tareas del CRM (cada 30 minutos)
+4,34 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/recordatorio-tareas" -m 60 >> $APP_DIR/logs/cron-recordatorio-tareas.log 2>&1
+
+# Spartanoshub - Reintento de calendario y CRM de reservas (cada hora)
+35 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/reservation-integrations" -m 60 >> $APP_DIR/logs/cron-reservation-integrations.log 2>&1
+
+# Spartanoshub - Recuperacion de leads de Meta (cada 15 minutos)
+6,21,36,51 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/meta-lead-recovery" -m 60 >> $APP_DIR/logs/cron-meta-lead-recovery.log 2>&1
+
+# Spartanoshub - Conversiones de Google Ads (cada 5 minutos)
+2-59/5 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/google-ads" -H "Content-Type: application/json" -d '{"limit":100}' -m 60 >> $APP_DIR/logs/cron-google-ads.log 2>&1
+
+# Spartanoshub - Limpieza de la bandeja de Meta CAPI (domingo, 03:45)
+45 3 * * 0 set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/meta-capi/cleanup" -m 120 >> $APP_DIR/logs/cron-meta-capi-cleanup.log 2>&1
+
+# Spartanoshub - Automatizaciones: ejecuciones pendientes (cada minuto)
+* * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/automation-runs" -m 50 >> $APP_DIR/logs/cron-automation-runs.log 2>&1
+
+# Spartanoshub - Automatizaciones: disparadores de tiempo (cada hora)
+40 * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/automation-schedule" -m 60 >> $APP_DIR/logs/cron-automation-schedule.log 2>&1
+
+# Spartanoshub - Automatizaciones: entrega de webhooks (cada minuto)
+* * * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/automation-webhooks" -m 50 >> $APP_DIR/logs/cron-automation-webhooks.log 2>&1
+
+# Spartanoshub - Automatizaciones: limpieza (diario, 03:40)
+40 3 * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/automation-cleanup" -m 120 >> $APP_DIR/logs/cron-automation-cleanup.log 2>&1
+
+# Spartanoshub - Resumen diario del CRM (diario, 08:05)
+5 8 * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/resumen-diario" -m 120 >> $APP_DIR/logs/cron-resumen-diario.log 2>&1
+
+# Spartanoshub - Saludo de cumpleanos (diario, 08:15)
+15 8 * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/cumpleanos" -m 120 >> $APP_DIR/logs/cron-cumpleanos.log 2>&1
 
 # Spartanoshub - Backup MySQL local (diario, 03:00; retencion de 30 dias)
 0 3 * * * set -a && . $APP_DIR/.env && set +a && RETENTION_DAYS=30 bash $APP_DIR/infrastructure/scripts/backup.sh \$HOME/espartanos_backups >> $APP_DIR/logs/cron-backup.log 2>&1
