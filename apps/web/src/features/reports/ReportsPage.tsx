@@ -48,7 +48,7 @@ export function ReportsPage() {
 
       <section className="report-kpis" aria-label="Indicadores principales">
         <article className="report-kpi-primary"><span>Ingresos pagados</span><strong>{money(data.totalRevenue)}</strong><small>{revenueChange == null ? 'Sin base mensual para comparar' : `${revenueChange >= 0 ? '+' : ''}${revenueChange}% respecto al mes anterior`}</small></article>
-        <article><span>Piezas activas</span><strong>{data.activeProjects}</strong><small>En producción o revisión</small></article>
+        <article><span>Piezas activas</span><strong>{data.activeProjects}</strong><small>Sin entregar ni cancelar</small></article>
         {udBudgetVisible && <article><span>Capacidad promedio</span><strong>{data.avgUdPerClient} <i>UD</i></strong><small>Presupuesto base por cliente</small></article>}
       </section>
 

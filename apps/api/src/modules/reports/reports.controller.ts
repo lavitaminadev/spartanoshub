@@ -7,6 +7,7 @@ import type { AuthenticatedRequest } from '@shared/types/request';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import { VitaminaPulseService } from './vitamina-pulse.service';
+import { ACTIVE_PIECE_STATUS_SQL, isActivePieceStatus } from './active-pieces';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { MonthlyReportsService } from './monthly-reports.service';
 import { GenerateMonthlyReportDto, UpdateMonthlyReportDto } from './dto/monthly-report.dto';
@@ -112,17 +113,18 @@ export class ReportingController {
       `SELECT status, COUNT(*) as count FROM pieces WHERE organization_id = ?${personal ? ' AND assigned_to = ?' : clientScope.sql} GROUP BY status`,
       personal ? [orgId, req.user.id] : [orgId, ...clientScope.params],
     );
+    const xpPersonal = personal || req.user.role === UserRole.COMMUNITY_MANAGER;
     const [xpRow] = await this.dataSource.query(
-      `SELECT COALESCE(SUM(points),0) as total FROM xp_events WHERE ${personal || req.user.role === UserRole.COMMUNITY_MANAGER ? 'user_id = ?' : 'user_id IN (SELECT id FROM users WHERE organization_id = ?)'} AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)`,
-      [personal || req.user.role === UserRole.COMMUNITY_MANAGER ? req.user.id : orgId],
+      `SELECT COALESCE(SUM(points),0) as total FROM xp_events WHERE ${xpPersonal ? 'user_id = ?' : 'user_id IN (SELECT id FROM users WHERE organization_id = ?)'} AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)`,
+      [xpPersonal ? req.user.id : orgId],
     );
     const [udRow] = personal ? [{ contracted: 0, consumed: 0, reserved: 0 }] : await this.dataSource.query(
-      `SELECT COALESCE(SUM(contracted),0) as contracted, COALESCE(SUM(consumed),0) as consumed, COALESCE(SUM(reserved),0) as reserved FROM ud_budgets WHERE client_id IN (SELECT id FROM clients WHERE organization_id = ?${clientRowScope.sql})`,
+      `SELECT COALESCE(SUM(contracted),0) as contracted, COALESCE(SUM(consumed),0) as consumed, COALESCE(SUM(reserved),0) as reserved FROM ud_budgets WHERE year = YEAR(CURDATE()) AND month = MONTH(CURDATE()) AND client_id IN (SELECT id FROM clients WHERE organization_id = ?${clientRowScope.sql})`,
       [orgId, ...clientRowScope.params],
     );
 
     const pendingPieces = pieceRows.reduce(
-      (sum, piece) => (piece.status !== 'delivered' && piece.status !== 'cancelled' ? sum + Number(piece.count) : sum),
+      (sum, piece) => (isActivePieceStatus(piece.status) ? sum + Number(piece.count) : sum),
       0,
     );
     const pieces = pieceRows.map((piece) => ({
@@ -134,6 +136,7 @@ export class ReportingController {
       activeClients: Number(clientRow?.total || 0),
       pendingPieces,
       teamXp: Number(xpRow?.total || 0),
+      xpScope: xpPersonal ? 'personal' : 'team',
       monthUd: Number(udRow?.consumed || 0),
       ud: {
         contracted: Number(udRow?.contracted || 0),
@@ -202,7 +205,7 @@ export class ReportingController {
         invoiceParams,
       ),
       this.dataSource.query(
-        `SELECT COUNT(*) as total FROM pieces WHERE ${pieceConditions.join(' AND ')} AND status NOT IN ('delivered','cancelled')`,
+        `SELECT COUNT(*) as total FROM pieces WHERE ${pieceConditions.join(' AND ')} AND ${ACTIVE_PIECE_STATUS_SQL}`,
         pieceParams,
       ),
       this.dataSource.query(
@@ -289,7 +292,7 @@ export class ReportingController {
       [orgId, ...scoped],
     );
     const [udRow] = await this.dataSource.query(
-      `SELECT COALESCE(SUM(contracted),0) as total FROM ud_budgets WHERE client_id IN (SELECT id FROM clients WHERE organization_id = ? ${clientFilter})`,
+      `SELECT COALESCE(SUM(contracted),0) as total FROM ud_budgets WHERE year = YEAR(CURDATE()) AND month = MONTH(CURDATE()) AND client_id IN (SELECT id FROM clients WHERE organization_id = ? ${clientFilter})`,
       [orgId, ...scoped],
     );
     const [retRow] = await this.dataSource.query(

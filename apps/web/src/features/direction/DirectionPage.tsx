@@ -48,7 +48,7 @@ export function DirectionPage() {
   const metrics = [
     { title: 'Ingresos del año', value: money(data.revenueYtd), detail: 'Facturas registradas como pagadas', target: data.revenueTarget, targetText: data.revenueTarget == null ? null : money(data.revenueTarget), current: data.revenueYtd, source: 'Facturación', tone: 'green' },
     { title: 'Clientes activos', value: String(data.activeClients), detail: 'Cuentas activas en la organización', target: data.clientTarget, targetText: data.clientTarget == null ? null : String(data.clientTarget), current: data.activeClients, source: 'Clientes', tone: 'lime' },
-    { title: 'UD contratadas', value: `${data.udSold} UD`, detail: 'Capacidad total abierta en presupuestos', target: data.udTarget, targetText: data.udTarget == null ? null : `${data.udTarget} UD`, current: data.udSold, source: 'Presupuesto UD', tone: 'sand' },
+    { title: 'UD contratadas este mes', value: `${data.udSold} UD`, detail: 'Presupuestos UD del mes en curso', target: data.udTarget, targetText: data.udTarget == null ? null : `${data.udTarget} UD`, current: data.udSold, source: 'Presupuesto UD', tone: 'sand' },
     { title: 'Cobertura de entregas', value: `${data.clientRetention}%`, detail: 'Clientes con al menos una pieza entregada', target: null, targetText: null, current: data.clientRetention, source: 'Producción', tone: 'terracotta' },
   ];
   const pending = [
@@ -63,10 +63,9 @@ export function DirectionPage() {
       eyebrow="DIRECCIÓN GENERAL"
       title="Radar estratégico"
       subtitle="Lectura estratégica del negocio."
-      aside={<div className="direction-confidence"><strong>4</strong><span>indicadores<br />verificados</span><small>Datos trazables en Espartanos</small></div>}
     />
     <div className="direction-source-note"><span>i</span><p><strong>La métrica fue corregida.</strong> Mide cobertura de entregas, no permanencia.</p></div>
-    <section className="strategic-grid">{metrics.map((metric) => { const progress = metric.target ? Math.min(100, Math.round(metric.current * 100 / metric.target)) : null; return <article className={`strategic-card ${metric.tone}`} key={metric.title}><header><span>{metric.source}</span><i>Dato real</i></header><h2>{metric.title}</h2><strong>{metric.value}</strong><p>{metric.detail}</p>{progress == null ? <div className="metric-verified"><b>✓</b> Fuente operativa conectada</div> : <div className="target-progress"><span><i style={{ width: `${progress}%` }} /></span><small>{progress}% de meta {metric.targetText}</small></div>}</article>; })}</section>
+    <section className="strategic-grid">{metrics.map((metric) => { const progress = metric.target ? Math.min(100, Math.round(metric.current * 100 / metric.target)) : null; return <article className={`strategic-card ${metric.tone}`} key={metric.title}><header><span>{metric.source}</span></header><h2>{metric.title}</h2><strong>{metric.value}</strong><p>{metric.detail}</p>{progress == null ? null : <div className="target-progress"><span><i style={{ width: `${progress}%` }} /></span><small>{progress}% de meta {metric.targetText}</small></div>}</article>; })}</section>
     <section className="measurement-backlog"><header><div><span className="page-eyebrow">INSTRUMENTACIÓN PENDIENTE</span><h2>No inventamos lo que aún no se mide</h2></div><Link className="btn btn-outline" to="/settings">Revisar configuración</Link></header><div>{pending.map((item) => <article key={item.title}><span>Fuente pendiente</span><h3>{item.title}</h3><strong>{item.value}</strong><p>{item.detail}</p></article>)}</div></section>
   </div>;
 }

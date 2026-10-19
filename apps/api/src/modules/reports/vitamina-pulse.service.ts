@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { ACTIVE_PIECE_STATUS_SQL } from './active-pieces';
 
 type Dimension = {
   key: string;
@@ -59,8 +60,8 @@ export class VitaminaPulseService {
       this.dataSource.query(
         `SELECT COUNT(*) total,
                 SUM(status = 'delivered') delivered,
-                SUM(status NOT IN ('delivered','cancelled')) pending,
-                SUM(deadline_at < NOW() AND status NOT IN ('delivered','cancelled')) overdue,
+                SUM(${ACTIVE_PIECE_STATUS_SQL}) pending,
+                SUM(deadline_at < NOW() AND ${ACTIVE_PIECE_STATUS_SQL}) overdue,
                 SUM(delivered_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) delivered_recent
          FROM pieces WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)`, params),
       this.dataSource.query(
