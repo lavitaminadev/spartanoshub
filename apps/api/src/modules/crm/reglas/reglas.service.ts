@@ -92,6 +92,19 @@ export class ReglasService {
   }
 
   /**
+   * De qué empresa es una regla, para que quien la toque se compruebe contra su alcance.
+   *
+   * Las rutas que trabajan por identificador —editar, encender, archivar— no reciben la empresa:
+   * la lleva la regla. Sin este dato, el controlador sólo podría acotar las rutas que la traen
+   * en la dirección, y por las otras se alcanzaría cualquier regla de la organización.
+   *
+   * Lanza 404 si la regla no existe, el mismo que ve quien pide una de otra organización.
+   */
+  async empresaDeLaRegla(organizationId: string, id: string): Promise<string> {
+    return (await this.unaOFalla(organizationId, id)).clientId;
+  }
+
+  /**
    * Comprueba lo que la pantalla no puede garantizar sola.
    *
    * Una condición a medio escribir es el fallo caro: «contiene» sin valor calzaría con cualquier
