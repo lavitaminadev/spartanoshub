@@ -17,12 +17,14 @@ const UNA_HORA = 3_600_000;
 const HORAS_POR_DEFECTO = 24;
 
 /**
- * Estados que ya no esperan a nadie.
+ * Estados de una reserva que sigue en pie y espera a la persona.
  *
+ * Se enumeran los que sí, no los que no: `pending` aún no la aprobó el local, `waitlist` no tiene
+ * mesa, y `cancelled_client`, `cancelled_business`, `no_show` y `attended` ya no esperan a nadie.
  * Recordarle su reserva a quien la canceló es el correo que hace que se dejen de leer todos los
  * demás.
  */
-const CERRADAS = ['cancelled', 'no_show', 'attended', 'completed'];
+const VIGENTES = ['confirmed', 'rescheduled'];
 
 /**
  * Le recuerda su reserva a quien la hizo, el día antes.
@@ -65,7 +67,7 @@ export class RecordatorioDeReservasJob {
     const candidatas = await this.reservas.find({
       where: {
         startsAt: Between(ahora, new Date(ahora.getTime() + 168 * UNA_HORA)),
-        status: Not(In(CERRADAS)),
+        status: In(VIGENTES),
         reminderSentAt: IsNull(),
       },
       take: 500,
@@ -73,7 +75,7 @@ export class RecordatorioDeReservasJob {
     const seguimientos = await this.reservas.find({
       where: {
         startsAt: Between(ahora, new Date(ahora.getTime() + 168 * UNA_HORA)),
-        status: Not(In(CERRADAS)),
+        status: In(VIGENTES),
         reminderFollowupSentAt: IsNull(),
         reminderSentAt: Between(new Date(ahora.getTime() - 48 * UNA_HORA), new Date(ahora.getTime() - 3 * UNA_HORA)),
       },
@@ -101,10 +103,10 @@ export class RecordatorioDeReservasJob {
         const faltan = (reserva.startsAt.getTime() - ahora.getTime()) / UNA_HORA;
         if (faltan > ajustes.horas) continue;
 
-        await this.enviar(form, reserva);
-
-        // Después de enviar: si el guardado fallara, el recordatorio se repetiría en la siguiente
-        // pasada, que es preferible a marcarlo como enviado sin haberlo mandado.
+        // Sólo se marca lo que salió: si el correo está apagado o falla, se reintenta. Y después de
+        // enviar, no antes: repetir un recordatorio es preferible a darlo por enviado sin haberlo
+        // mandado.
+        if (!(await this.enviar(form, reserva))) continue;
         await this.reservas.update(reserva.id, { reminderSentAt: new Date() });
         enviados += 1;
       } catch (error) {
@@ -123,7 +125,7 @@ export class RecordatorioDeReservasJob {
         if (respondio) { await this.reservas.update(reserva.id, { reminderFollowupSentAt: new Date() }); continue; }
         const form = await this.formularios.findOne({ where: { id: reserva.formId } });
         if (!form || !(await this.ajustesDe(form)).encendido) continue;
-        await this.enviar(form, reserva);
+        if (!(await this.enviar(form, reserva))) continue;
         await this.reservas.update(reserva.id, { reminderFollowupSentAt: new Date() });
         enviados += 1;
       } catch (error) {
@@ -148,7 +150,8 @@ export class RecordatorioDeReservasJob {
     };
   }
 
-  private async enviar(form: ReservationForm, reserva: Reservation): Promise<void> {
+  /** Devuelve si el correo salió de verdad. */
+  private async enviar(form: ReservationForm, reserva: Reservation): Promise<boolean> {
     const [asunto, cuerpo] = await Promise.all([
       // Por reserva primero, con la empresa de respaldo: el recordatorio de un evento no dice
       // lo mismo que el de una cena corriente.
@@ -182,7 +185,7 @@ export class RecordatorioDeReservasJob {
       // misma reserva que se vean distintos parecen venir de sitios distintos.
       await this.marcas?.de(form.clientId),
     );
-    await this.correo.send(reserva.guestEmail as string, subject, html);
+    return Boolean(await this.correo.send(reserva.guestEmail as string, subject, html));
   }
 
   /** Cada correo lleva su propio enlace opaco: los anteriores siguen vigentes hasta vencer. */

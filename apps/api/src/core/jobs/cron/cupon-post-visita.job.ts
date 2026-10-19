@@ -9,7 +9,8 @@ import { encuestasHabilitadas } from '../../../modules/surveys/encuestas-de-la-e
 import { EmailService } from '../../notifications/email.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
 import { enlaceDeBaja } from '../../notifications/enlace-de-baja';
-import { Suscriptor } from '../../../modules/marketing/suscriptor.entity';
+import { EstadoDeSuscripcion, Suscriptor } from '../../../modules/marketing/suscriptor.entity';
+import { SuscriptoresService } from '../../../modules/marketing/suscriptores.service';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
 
 const UNA_HORA = 60 * 60 * 1000;
@@ -71,6 +72,8 @@ export class CuponPostVisitaJob {
     private readonly correo: EmailService,
     private readonly parametros: ParameterResolver,
     @InjectRepository(Suscriptor) private readonly suscriptores: Repository<Suscriptor>,
+    // Consulta las exclusiones: quien pidió no recibir más no figura sólo en la ficha de un local.
+    private readonly listas: SuscriptoresService,
     @Optional() private readonly servicios?: ClientCapabilityService,
   ) {}
 
@@ -151,16 +154,24 @@ export class CuponPostVisitaJob {
         const porDias = new Date(ahora + ajustes.diasValidez * 24 * UNA_HORA);
         const vence = ajustes.vigenteHasta && ajustes.vigenteHasta < porDias ? ajustes.vigenteHasta : porDias;
         /*
-         * El enlace de baja sale de la ficha de esa persona en la lista de este local.
+         * Sólo se envía a quien hoy puede recibir publicidad de este local.
          *
-         * Existe porque el cupón sólo va a quien pidió beneficios, y pedirlos la puso en la
-         * lista: son la misma decisión. Si no apareciera —una ficha borrada, por ejemplo— el
-         * correo sale igual sin el enlace, porque un cupón que no llega es peor que uno sin pie.
+         * El cupón es correo comercial y la baja es inmediata y definitiva. Se exige la ficha de
+         * esa persona en la lista del local con la suscripción vigente, y que no figure en las
+         * exclusiones —las que pidió no recibir de este local o de ninguno—. Haber consentido en
+         * la reserva no basta si después se dio de baja.
+         *
+         * Sin ficha **no se envía nada**: sin ella no hay enlace de baja posible ni constancia de
+         * que acepte, y un cupón que no se puede rechazar es lo que la ley no permite. La reserva
+         * queda sin marcar, así que se reintenta mientras siga dentro de la ventana.
          */
+        const correoDeLaPersona = (reserva.guestEmail as string).trim().toLowerCase();
+        if (await this.listas.exclusionDe(form.organizationId, correoDeLaPersona, form.clientId ?? null)) continue;
         const suscriptor = await this.suscriptores.findOne({
-          where: { organizationId: form.organizationId, clientId: form.clientId ?? IsNull(), email: (reserva.guestEmail as string).trim().toLowerCase() },
-          select: { id: true, unsubscribeToken: true },
-        }).catch(() => null);
+          where: { organizationId: form.organizationId, clientId: form.clientId ?? IsNull(), email: correoDeLaPersona },
+          select: { id: true, status: true, unsubscribeToken: true },
+        });
+        if (!suscriptor || suscriptor.status !== EstadoDeSuscripcion.SUSCRITO) continue;
         const baja = await enlaceDeBaja(this.parametros, 'email.coupon', suscriptor?.unsubscribeToken, form);
 
         const { subject, html } = componerCorreo(ajustes.asunto, ajustes.cuerpo, {
