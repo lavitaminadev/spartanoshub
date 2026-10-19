@@ -91,10 +91,17 @@ fi
 titulo "5. Migraciones pendientes"
 # Es el síntoma de que las tareas se cortaron antes de llegar al paso de migraciones: el código
 # nuevo queda corriendo contra una base que no tiene sus columnas.
+#
+# Se consulta con `migration:show`, que lista cada migración y si corrió. Antes se llamaba a
+# `migration:run:prod`, que **aplica** las pendientes: un diagnóstico que dice no cambiar nada
+# escribía en la base de producción, y con una migración irreversible entre las pendientes eso se
+# ejecutaba sin que nadie lo hubiera pedido.
 if [ -x "$NODE_BIN/node" ]; then
-  PATH="$NODE_BIN:$PATH" npm run migration:run:prod --silent 2>&1 \
-    | grep -E 'migrations are new|No migrations are pending|is the last executed' \
+  PATH="$NODE_BIN:$PATH" npm run migration:show:prod --silent 2>&1 \
+    | grep -E '^\[ \]|^\[X\]|No migrations|error' \
+    | tail -20 \
     || echo "No se pudo consultar el estado de las migraciones."
+  echo "  ([X] corrió, [ ] pendiente. Aplicarlas es 'npm run migration:run:prod', aparte.)"
 else
   echo "Sin el entorno Node no se puede consultar."
 fi
