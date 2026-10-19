@@ -10,7 +10,7 @@
  */
 
 interface LectorDeParametros {
-  get(clave: string, clientId?: string | null, planId?: string | null, organizationId?: string | null): Promise<unknown>;
+  get(clave: string, clientId?: string | null, planId?: string | null, organizationId?: string | null, formId?: string | null): Promise<unknown>;
 }
 
 export interface PlantillaResuelta {
@@ -22,7 +22,8 @@ export interface PlantillaResuelta {
 export async function leerPlantilla(
   parametros: LectorDeParametros,
   prefijo: string,
-  alcance: { clientId?: string | null; organizationId?: string | null },
+  /** `formId` baja el alcance hasta una reserva concreta; sin él se lee el nivel de la empresa. */
+  alcance: { clientId?: string | null; organizationId?: string | null; formId?: string | null },
   respaldo: { asunto: string; cuerpo: string },
   opciones: {
     /** Variables sin las cuales el correo no sirve, como `enlace` o `clave`. */
@@ -31,12 +32,12 @@ export async function leerPlantilla(
     encendidoPorDefecto?: boolean | null;
   } = {},
 ): Promise<PlantillaResuelta> {
-  const { clientId = null, organizationId = null } = alcance;
+  const { clientId = null, organizationId = null, formId = null } = alcance;
   const conInterruptor = opciones.encendidoPorDefecto !== null;
   const [asunto, cuerpo, interruptor] = await Promise.all([
-    parametros.get(`${prefijo}_subject`, clientId, null, organizationId),
-    parametros.get(`${prefijo}_body`, clientId, null, organizationId),
-    conInterruptor ? parametros.get(`${prefijo}_enabled`, clientId, null, organizationId) : Promise.resolve(true),
+    parametros.get(`${prefijo}_subject`, clientId, null, organizationId, formId),
+    parametros.get(`${prefijo}_body`, clientId, null, organizationId, formId),
+    conInterruptor ? parametros.get(`${prefijo}_enabled`, clientId, null, organizationId, formId) : Promise.resolve(true),
   ]);
 
   const texto = { asunto: String(asunto ?? '') || respaldo.asunto, cuerpo: String(cuerpo ?? '') || respaldo.cuerpo };

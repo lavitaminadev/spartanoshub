@@ -17,6 +17,8 @@ interface ExportModalProps {
   onClose: () => void;
   /** Formulario a exportar. Sin él no hay nada que descargar y el botón queda inhabilitado. */
   formId?: string;
+  /** Locales entre los que elegir cuando no llega un `formId`: la exportación es de un local a la vez. */
+  locales?: Array<{ id: string; name: string }>;
   /** Oculta los campos de uso interno cuando la vista corresponde al cliente. */
   clientView?: boolean;
 }
@@ -97,7 +99,9 @@ function abrirHojaImprimible(titulo: string, registros: Array<Record<string, unk
   return true;
 }
 
-export function ExportModal({ open, onClose, formId, clientView = false }: ExportModalProps) {
+export function ExportModal({ open, onClose, formId: formIdRecibido, locales = [], clientView = false }: ExportModalProps) {
+  const [formIdElegido, setFormIdElegido] = useState('');
+  const formId = formIdRecibido || formIdElegido || (locales.length === 1 ? locales[0].id : undefined);
   const [options, setOptions] = useState<ExportOptions>({
     format: 'xlsx',
     dateFrom: '',
@@ -189,6 +193,14 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
         </div>
 
         <div className="modal-content">
+          {!formIdRecibido && locales.length > 1 && <label>
+            <span>Local a exportar</span>
+            <select value={formIdElegido} onChange={(e) => setFormIdElegido(e.target.value)}>
+              <option value="">Elige un local</option>
+              {locales.map((local) => <option key={local.id} value={local.id}>{local.name}</option>)}
+            </select>
+            <small>Se exporta un local a la vez.</small>
+          </label>}
           <label>
             <span>Rango de fechas</span>
             <div className="date-range">

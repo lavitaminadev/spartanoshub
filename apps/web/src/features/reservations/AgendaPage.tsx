@@ -104,7 +104,8 @@ export function AgendaPage() {
     enabled: Boolean(clientId),
   });
   const forms = Array.isArray(formsArray) ? formsArray : [];
-  const activeForm = forms.find((form) => form.id === formId) ?? forms[0];
+  // Con varios locales no se fija el primero en silencio: se elige uno. Con uno solo no hay nada que elegir.
+  const activeForm = forms.find((form) => form.id === formId) ?? (forms.length === 1 ? forms[0] : undefined);
   const effectiveFormId = formId || activeForm?.id || '';
 
   const dayRange = useMemo(
@@ -125,6 +126,13 @@ export function AgendaPage() {
     enabled: Boolean(clientId && effectiveFormId && activeForm),
   });
   const reservations = Array.isArray(reservationPage?.data) ? reservationPage.data : EMPTY_RESERVATIONS;
+  /** El total del día lo cuenta el servidor: la página trae a lo más 100 filas. */
+  const totalDelDia = reservationPage?.total ?? reservations.length;
+  const { data: noShowPage } = useQuery<ReservationPage>({
+    queryKey: ['agenda-no-shows', clientId, effectiveFormId, dateFilter],
+    queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, ...dayRange, status: 'no_show', pageSize: '1' })}`),
+    enabled: Boolean(clientId && effectiveFormId && activeForm),
+  });
   const { data: groupRequests = [], refetch: refetchGroupRequests } = useQuery<GroupRequest[]>({
     queryKey: ['reservation-group-requests', effectiveFormId], queryFn: () => api.get(`/reservations/forms/${effectiveFormId}/group-requests`), enabled: Boolean(effectiveFormId),
   });
@@ -194,13 +202,13 @@ export function AgendaPage() {
   }, [reservations, zones]);
 
   const summary = useMemo(() => {
-    const total = reservations.length;
-    const noShows = reservations.filter((reservation) => NO_SHOW_STATUSES.has(reservation.status)).length;
+    const total = totalDelDia;
+    const noShows = noShowPage?.total ?? reservations.filter((reservation) => NO_SHOW_STATUSES.has(reservation.status)).length;
     const occupied = reservations.filter((reservation) => !['cancelled_client', 'cancelled_business'].includes(reservation.status)).length;
     const capacity = activeForm?.dailyCapacity || 0;
     const occupancyPct = capacity > 0 ? Math.round((occupied / capacity) * 100) : null;
     return { total, noShows, occupancyPct };
-  }, [reservations, activeForm]);
+  }, [reservations, activeForm, totalDelDia, noShowPage]);
 
   const isLoading = (!clientMode && loadingClients) || (Boolean(clientId) && loadingForms);
   if (isLoading) return <LoadingSpinner text="Preparando la agenda del servicio..." />;
@@ -228,7 +236,7 @@ export function AgendaPage() {
       <select className="input" aria-label="Página de reserva" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
         {forms.length === 0
           ? <option value="">Sin páginas de reserva configuradas</option>
-          : forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}
+          : <>{!activeForm && <option value="">Elige una página de reserva</option>}{forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}</>}
       </select>
       <div className="agenda-date-nav">
         <button type="button" className="btn btn-outline btn-sm" aria-label="Día anterior" onClick={() => setDateFilter((current) => shiftDate(current, -1))}>‹</button>
@@ -256,7 +264,8 @@ export function AgendaPage() {
                 {({ pending: 'Sin responder', contacted: 'Contactada', quoted: 'Cotizada', converted: 'Convertida', closed: 'Cerrada' } as Record<string, string>)[request.status] ?? request.status}
                 {request.status === 'pending' && esperandoDesde(request.createdAt) ? ` · ${esperandoDesde(request.createdAt)}` : ''}
               </span>{(() => { const wsp = whatsappDeSolicitud(request.guestPhone, request.guestName, request.partySize, { monto: request.quoteAmount, detalle: request.quoteMessage }); return wsp ? <a className="btn btn-primary btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Responder por WhatsApp</a> : null; })()}{request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={updateGroupRequest.isPending} onClick={() => updateGroupRequest.mutate({ id: request.id, body: { status: 'contacted' } })}>Marcar contactada</button>}{['pending', 'contacted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setQuoteRequest(request); setQuote({ amount: '', message: '', expiresAt: '' }); }}>{request.quoteAmount ? 'Editar precio' : 'Anotar precio'}</button>}{!['converted', 'closed'].includes(request.status) && <><Link className="btn btn-outline btn-sm" to={`${clientMode ? '/portal/reservations' : '/reservations'}?tab=groups&convertir=${encodeURIComponent(request.id)}`}>Crear reserva</Link><Link className="btn btn-outline btn-sm" to={`${clientMode ? '/portal/reservations' : '/reservations'}?tab=groups&cerrar=${encodeURIComponent(request.id)}`}>Cerrar sin reserva</Link></>}</div></article>; })}</div>}</section>
-          {closeDay.error && <p className="error-text">No se pudo cerrar el turno. Verifica que la fecha ya haya terminado.</p>}
+          {closeDay.error && <p className="error-text">{closeDay.error instanceof Error && closeDay.error.message ? closeDay.error.message : 'No se pudo cerrar el turno.'}</p>}
+          {totalDelDia > reservations.length && <p className="ajustes-alerta">El tablero muestra {reservations.length} de {totalDelDia} reservas del día; el resumen cuenta todas.</p>}
 
           {reservationsError
             ? (isForbiddenError(reservationsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas del día" message={reservationsError.message} onRetry={() => void refetchReservations()} retrying={fetchingReservations} />)

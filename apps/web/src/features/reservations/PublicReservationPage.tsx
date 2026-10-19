@@ -905,7 +905,7 @@ export function PublicReservationPage() {
   const networkConsentText = String(design.networkConsentText || textosBase.red);
 
   // Página de éxito
-  if (waitlist.data) return <main className="public-booking" style={style}><section className="booking-success"><span className="success-icon">✓</span><span className="success-state is-pending">LISTA DE ESPERA</span><h1>Te avisaremos si se libera un cupo</h1><p>No se confirmó una reserva ni se tomó un cupo. El local revisará tu solicitud en orden de llegada.</p><p className="success-datetime">{selected && new Date(selected).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {waitlist.data.referenceCode}</strong></div><Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link></section></main>;
+  if (waitlist.data) return <main className="public-booking" style={style}><section className="booking-success"><span className="success-icon">✓</span><span className="success-state is-pending">LISTA DE ESPERA</span><h1>Te avisaremos por correo si se libera un cupo a esa hora</h1><p>No se confirmó una reserva ni se tomó un cupo. El local revisará tu solicitud en orden de llegada.</p><p className="success-datetime">{selected && new Date(selected).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {waitlist.data.referenceCode}</strong></div><Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link></section></main>;
 
   if (submit.data) {
     const googleReviewUrl = safeUrl(design.googleReviewUrl || '');
@@ -1062,7 +1062,7 @@ export function PublicReservationPage() {
             {!requestMode && visible(design.showFacts) && <li><span>{confirmationLabel}</span><strong>{form.confirmationMode === 'automatic' ? (design.automaticLabel || 'Directa') : (design.manualLabel || 'Manual')}</strong></li>}
             {horarioDeAtencion && <li><span>Horario</span><strong>{horarioDeAtencion}</strong></li>}
             {form.minimumNoticeHours > 0 && <li><span>Anticipación</span><strong>Se reserva con {form.minimumNoticeHours} {form.minimumNoticeHours === 1 ? 'hora' : 'horas'} de anticipación</strong></li>}
-            {toleranciaEnMinutos > 0 && <li><span>Tolerancia</span><strong>Te esperamos {toleranciaEnMinutos} minutos; después la mesa queda disponible</strong></li>}
+            {toleranciaEnMinutos > 0 && <li><span>Tolerancia</span><strong>Te esperamos hasta {toleranciaEnMinutos} minutos de retraso</strong></li>}
             {consultasPorWhatsapp && <li><span>Dudas</span><strong><a href={consultasPorWhatsapp} target="_blank" rel="noopener noreferrer">Escríbenos por WhatsApp</a></strong></li>}
           </ul>}
         </div>}

@@ -3051,7 +3051,7 @@ export class ReservationsService {
       const plantilla = await leerPlantilla(
         this.parametros,
         pendiente ? 'email.reservation_pending' : 'email.reservation_confirmation',
-        { clientId: form.clientId, organizationId: form.organizationId },
+        { clientId: form.clientId, organizationId: form.organizationId, formId: form.id },
         pendiente
           ? {
             asunto: 'Recibimos tu solicitud en {{local}}',
@@ -3061,7 +3061,7 @@ export class ReservationsService {
       );
       // Apagar la confirmación siempre apagó también el aviso de pendiente. Se conserva: una
       // empresa que lo tenía apagado no empieza a recibir correos que nunca pidió.
-      const confirmacion = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
+      const confirmacion = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId, form.id);
       if (!confirmacion || !plantilla.encendido) return;
 
       const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);

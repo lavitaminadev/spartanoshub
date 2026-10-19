@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import type { GuestHistory, Reservation, ReservationForm } from './types';
 import { respuestasLegibles } from './answer-labels';
+import { describirEvento, type EventoDeReserva } from './describir-evento';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { EstadiaEnLaMesa } from './EstadiaEnLaMesa';
 
@@ -29,49 +30,39 @@ interface Props {
   onVerCupon?: (codigo: string) => void;
 }
 
-/** Cómo se lee cada tipo de evento, para quien no conoce los nombres internos. */
-const EVENTOS: Record<string, string> = {
-  created: 'Se creó la reserva',
-  status_change: 'Cambió de estado',
-  guest_confirmed: 'El comensal la confirmó desde su enlace',
-  marketing_consent: 'Aceptó recibir novedades',
-  rescheduled: 'Se movió de hora',
-  cancelled: 'Se canceló',
-  attended: 'Se marcó la asistencia',
-  no_show: 'Se marcó como no presentada',
-};
-
 /**
  * Qué le pasó a esta reserva, en orden.
  *
- * Los eventos se guardaban con su actor y sus dos estados desde hace tiempo, y no los leía
- * nadie: «quién canceló esto y cuándo» se contestaba entrando a la base. Va plegado porque lo
- * que se mira a diario es el estado actual, no cómo se llegó a él.
+ * Lee `/reservations/:id/history`, la única ruta del historial, y lo redacta con
+ * `describirEvento`, que dice por qué hizo algo el sistema y qué no garantiza. Va plegado porque
+ * lo que se mira a diario es el estado actual, no cómo se llegó a él.
  */
-function HistorialDeLaReserva({ reservaId }: { reservaId: string }) {
+function HistorialDeLaReserva({ reservaId, zonaHoraria }: { reservaId: string; zonaHoraria?: string }) {
   const [abierto, setAbierto] = useState(false);
-  const { data } = useQuery<{ eventos: Array<{ fecha: string; tipo: string; desde: string | null; hasta: string | null; quien: string }> }>({
-    queryKey: ['reserva-historial', reservaId],
-    queryFn: () => api.get(`/reservations/${reservaId}/historial`),
+  const { data, isLoading, error } = useQuery<EventoDeReserva[]>({
+    queryKey: ['reservation-history', reservaId],
+    queryFn: () => api.get(`/reservations/${reservaId}/history`),
     enabled: abierto,
   });
+  const eventos = Array.isArray(data) ? data : [];
 
   return (
     <details className="reserva-historial" onToggle={(evento) => setAbierto((evento.target as HTMLDetailsElement).open)}>
       <summary>Qué le pasó a esta reserva</summary>
-      {!data ? <small className="tabla-nota">Buscando…</small>
-        : data.eventos.length === 0 ? <small className="tabla-nota">Sin movimientos registrados.</small>
+      {error ? <small className="error-text">No se pudo cargar el historial: {error.message}</small>
+        : isLoading ? <small className="tabla-nota">Buscando…</small>
+        : eventos.length === 0 ? <small className="tabla-nota">Sin movimientos registrados.</small>
         : <ol>
-          {data.eventos.map((evento, indice) => (
-            <li key={`${evento.fecha}-${indice}`}>
-              <strong>{EVENTOS[evento.tipo] ?? evento.tipo}</strong>
-              <small>
-                {new Date(evento.fecha).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
-                {' · '}{evento.quien}
-                {evento.desde && evento.hasta && evento.desde !== evento.hasta ? ` · ${evento.desde} → ${evento.hasta}` : ''}
-              </small>
-            </li>
-          ))}
+          {eventos.map((evento) => {
+            const descrito = describirEvento(evento, zonaHoraria);
+            return (
+              <li key={evento.id} className={descrito.supuesto ? 'es-supuesto' : undefined}>
+                <strong>{descrito.titulo}</strong>
+                <small>{new Date(evento.createdAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: zonaHoraria })} · {descrito.autor}</small>
+                {descrito.detalle && <em>{descrito.detalle}</em>}
+              </li>
+            );
+          })}
         </ol>}
     </details>
   );
@@ -210,7 +201,7 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
         ? <button type="button" className="link-button" onClick={() => onVerCupon(reserva.couponCode!)}>{reserva.couponCode}</button>
         : reserva.couponCode}</strong></div>}
     </div>
-    <HistorialDeLaReserva reservaId={reserva.id} />
+    <HistorialDeLaReserva reservaId={reserva.id} zonaHoraria={local?.timezone} />
     {guardar.error && <p className="error-text">{guardar.error.message}</p>}
     <EstadiaEnLaMesa reserva={reserva} zonaHoraria={local?.timezone} onCambio={(nueva) => { setAlDia(nueva); onGuardada?.(); }} />
 
