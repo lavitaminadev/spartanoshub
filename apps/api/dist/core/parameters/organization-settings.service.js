@@ -76,7 +76,7 @@ let OrganizationSettingsService = class OrganizationSettingsService {
                 level: (0, organization_settings_catalog_1.settingLevel)(setting.key),
                 value: override?.valueJson?.value ?? setting.defaultValue,
                 source: override
-                    ? (propios.has(definition.id) ? 'client' : 'organization')
+                    ? (deLaPropiaReserva.has(definition.id) ? 'form' : propios.has(definition.id) ? 'client' : 'organization')
                     : 'master_default',
                 version: override?.version ?? 0,
             };

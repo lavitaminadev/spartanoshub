@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { UserPermissionOverride } from '../../core/authorization/user-permission-override.entity';
 import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
 

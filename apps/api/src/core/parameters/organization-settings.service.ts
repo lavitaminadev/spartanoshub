@@ -98,8 +98,13 @@ export class OrganizationSettingsService {
          * eso, cambiar el valor general y no ver el cambio en una empresa parece un fallo en vez
          * de una decisión que alguien tomó antes.
          */
+        /*
+         * La reserva se nombra antes que la empresa: es el escalón más alto de la herencia, así
+         * que cuando ambas tienen valor el que manda —y el que hay que poder devolver— es el de
+         * la reserva. Decir «lo cambió la empresa» ahí mandaría a soltar el valor equivocado.
+         */
         source: override
-          ? (propios.has(definition.id) ? 'client' : 'organization')
+          ? (deLaPropiaReserva.has(definition.id) ? 'form' : propios.has(definition.id) ? 'client' : 'organization')
           : 'master_default',
         version: override?.version ?? 0,
       };

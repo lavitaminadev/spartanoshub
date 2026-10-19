@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ClientCapabilityService } from '../../client-scope/client-capability.service';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, IsNull, Not, Repository } from 'typeorm';
+import { Between, In, Not, Repository } from 'typeorm';
 import { Lead } from '../../../modules/crm/leads/lead.entity';
 import { ApprovalRequest } from '../../../modules/approvals/approval-request.entity';
 import { ApprovalRequestStatus, PendingKind } from '../../../modules/approvals/approval-request-status.enum';
