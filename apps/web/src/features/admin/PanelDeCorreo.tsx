@@ -43,7 +43,7 @@ interface Ajuste {
   valueType: 'boolean' | 'number' | 'select' | 'text';
   value: string | number | boolean | null;
   /** De dónde salió el valor: propio de la empresa, de la organización, o de fábrica. */
-  source: 'client' | 'organization' | 'master_default';
+  source: 'client' | 'organization' | 'master_default' | 'form';
   unit?: string;
   min?: number;
   max?: number;
@@ -1057,6 +1057,20 @@ export function PanelDeCorreo(): JSX.Element {
                           </small>
                         ) : null;
                       })()}
+                      {/*
+                        Un texto propio de la reserva se devuelve a su empresa, no al general:
+                        el servidor lo distingue y decirlo mal mandaría a soltar el valor
+                        equivocado.
+                      */}
+                      {ajuste.source === 'form' ? (
+                        <button
+                          type="button"
+                          className="panel-correo-heredar"
+                          onClick={() => editar(ajuste.key, null)}
+                        >
+                          Propio de esta reserva · volver al de la empresa
+                        </button>
+                      ) : null}
                       {empresa && ajuste.source === 'client' ? (
                         <button
                           type="button"

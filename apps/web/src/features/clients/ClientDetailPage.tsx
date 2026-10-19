@@ -89,6 +89,29 @@ export function ClientDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['clients'] });
     },
   });
+  /*
+   * El ajuste de lo contratado, declarado junto al resto de los hooks.
+   *
+   * Va aquí y no junto al panel que lo usa porque debajo hay dos salidas tempranas —cargando y
+   * error—: declararlo después hace que React cuente cuatro hooks mientras carga y ocho cuando
+   * llegan los datos, y la ficha revienta con «rendered more hooks than during the previous
+   * render» justo al terminar de cargar. Sólo necesita `id`, que existe desde el primer dibujo.
+   */
+  const [ajustando, setAjustando] = useState(false);
+  const [nuevasUd, setNuevasUd] = useState('');
+  const [motivoDelAjuste, setMotivoDelAjuste] = useState('');
+  const ajusteMutation = useMutation({
+    mutationFn: (cuerpo: { contratadas: number; motivo: string }) => {
+      const ahora = new Date();
+      return api.patch('/design-budget/budget', {
+        clientId: id, year: ahora.getFullYear(), month: ahora.getMonth() + 1, ...cuerpo,
+      });
+    },
+    onSuccess: async () => {
+      setAjustando(false);
+      await queryClient.invalidateQueries({ queryKey: ['client-overview', id] });
+    },
+  });
 
   if (overviewQuery.isLoading) return <LoadingSpinner text="Preparando la ficha operativa..." />;
   if (overviewQuery.error || !overviewQuery.data) {
@@ -122,21 +145,6 @@ export function ClientDetailPage() {
    * movimiento de producción: quien asigna piezas reserva UD, pero no fija cuántas hay.
    */
   const puedeAjustarUd = user?.role === 'admin' || user?.role === 'operations_director';
-  const [ajustando, setAjustando] = useState(false);
-  const [nuevasUd, setNuevasUd] = useState('');
-  const [motivoDelAjuste, setMotivoDelAjuste] = useState('');
-  const ajusteMutation = useMutation({
-    mutationFn: (cuerpo: { contratadas: number; motivo: string }) => {
-      const ahora = new Date();
-      return api.patch('/design-budget/budget', {
-        clientId: id, year: ahora.getFullYear(), month: ahora.getMonth() + 1, ...cuerpo,
-      });
-    },
-    onSuccess: async () => {
-      setAjustando(false);
-      await queryClient.invalidateQueries({ queryKey: ['client-overview', id] });
-    },
-  });
   const driveUrl = safeUrl(driveMutation.data?.rootUrl || (client.driveFolderId ? `https://drive.google.com/drive/folders/${client.driveFolderId}` : ''));
   const readiness = [
     { label: 'Responsable operativo', ready: Boolean(client.communityManagerId), value: manager || (client.communityManagerId ? 'Asignado' : 'Pendiente') },

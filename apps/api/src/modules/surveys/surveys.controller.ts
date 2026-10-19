@@ -26,7 +26,7 @@ import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 import { leerPlantilla } from '../../core/parameters/plantilla-resuelta';
 import { exigirEncuestasHabilitadas } from './encuestas-de-la-empresa';
-import { Between, In, IsNull, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
 
 /**

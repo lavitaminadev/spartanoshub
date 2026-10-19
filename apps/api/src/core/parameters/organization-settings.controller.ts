@@ -17,7 +17,6 @@ import { OrganizationSettingsService } from './organization-settings.service';
 import { ModuleExempt, ModuleScope } from '../authorization/module-scope.decorator';
 import { PermissionResolverService } from '../authorization/permission-resolver.service';
 import { ClientCapabilityService } from '../client-scope/client-capability.service';
-import { RequiresPermission } from '../authorization/requires-permission.decorator';
 import { CronRun } from '../cron/cron-run.entity';
 import { HORAS_SIN_CORRER_PARA_ALARMA, REQUISITOS_POR_AVISO } from './requisitos-de-correo';
 

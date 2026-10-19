@@ -4,7 +4,7 @@ import { EmailService } from '../../notifications/email.service';
 import { componerCorreo } from '../../notifications/plantilla-de-correo';
 import { leerPlantilla } from '../../parameters/plantilla-resuelta';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { User } from '../../../modules/users/user.entity';
 import { UserRole } from '../../../modules/organizations/user-role.enum';
 import { Lead } from '../../../modules/crm/leads/lead.entity';
