@@ -236,7 +236,7 @@ __decorate([
 ], Reservation.prototype, "originDetected", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'click_id', type: 'varchar', length: 255, nullable: true }),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], Reservation.prototype, "clickId", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'gclid', type: 'varchar', length: 255, nullable: true }),

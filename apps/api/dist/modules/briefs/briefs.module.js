@@ -13,12 +13,13 @@ const brief_entity_1 = require("./brief.entity");
 const briefs_controller_1 = require("./briefs.controller");
 const briefs_service_1 = require("./briefs.service");
 const client_entity_1 = require("../clients/client.entity");
+const piece_entity_1 = require("../production/piece.entity");
 let BriefsModule = class BriefsModule {
 };
 exports.BriefsModule = BriefsModule;
 exports.BriefsModule = BriefsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([brief_entity_1.Brief, client_entity_1.Client])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([brief_entity_1.Brief, client_entity_1.Client, piece_entity_1.Piece])],
         controllers: [briefs_controller_1.BriefsController],
         providers: [briefs_service_1.BriefsService],
     })

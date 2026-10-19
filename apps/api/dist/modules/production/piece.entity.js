@@ -61,6 +61,10 @@ __decorate([
     __metadata("design:type", String)
 ], Piece.prototype, "title", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'brief_id', type: 'char', length: 36, nullable: true }),
+    __metadata("design:type", Object)
+], Piece.prototype, "briefId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 50, default: piece_status_enum_1.PieceStatus.BACKLOG }),
     __metadata("design:type", String)
 ], Piece.prototype, "status", void 0);

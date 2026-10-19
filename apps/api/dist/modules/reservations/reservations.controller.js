@@ -251,6 +251,10 @@ let ReservationsController = class ReservationsController {
         const scope = await this.scope(req);
         return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
     }
+    async historialDeReserva(req, id) {
+        const scope = await this.scope(req);
+        return this.service.historialDeReserva(req.organizationId, id, scope.clientIds);
+    }
     async listCoupons(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
         const [cupones, uso] = await Promise.all([
@@ -637,6 +641,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "history", null);
+__decorate([
+    (0, common_1.Get)(':id/historial'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "historialDeReserva", null);
 __decorate([
     (0, common_1.Get)('coupons'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),

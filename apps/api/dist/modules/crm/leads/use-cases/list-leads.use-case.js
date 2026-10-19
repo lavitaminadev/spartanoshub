@@ -62,12 +62,9 @@ let ListLeadsUseCase = ListLeadsUseCase_1 = class ListLeadsUseCase {
             return { data: [], total: 0, limit, offset };
         if (scope !== undefined)
             where.clientId = scope;
-        const alcancePersona = filters.onlyAssignedTo
-            ? [
-                { ...where, assignedTo: filters.onlyAssignedTo },
-                { ...where, assignedTo: (0, typeorm_2.IsNull)() },
-            ]
-            : [where];
+        if (filters.onlyAssignedTo) {
+            where.assignedTo = (0, typeorm_2.Raw)((columna) => `(${columna} = :suyo OR ${columna} IS NULL)`, { suyo: filters.onlyAssignedTo });
+        }
         const periodo = {};
         if (filters.desde && filters.hasta) {
             periodo.createdAt = (0, typeorm_2.Between)(new Date(`${filters.desde}T00:00:00`), new Date(`${filters.hasta}T23:59:59.999`));
@@ -78,31 +75,35 @@ let ListLeadsUseCase = ListLeadsUseCase_1 = class ListLeadsUseCase {
         else if (filters.hasta) {
             periodo.createdAt = (0, typeorm_2.LessThanOrEqual)(new Date(`${filters.hasta}T23:59:59.999`));
         }
-        const conPeriodo = Object.keys(periodo).length
-            ? alcancePersona.map((base) => ({ ...base, ...periodo }))
-            : alcancePersona;
-        const limite = new Date(Date.now() - ListLeadsUseCase_1.DIAS_DE_CERRADOS_A_LA_VISTA * 86_400_000);
-        const cerradas = [...ListLeadsUseCase_1.CERRADAS];
-        const conDescartados = filters.incluirDescartados || filters.status || Object.keys(periodo).length
-            ? conPeriodo
-            : conPeriodo.flatMap((base) => [
-                { ...base, status: (0, typeorm_2.Not)((0, typeorm_2.In)(cerradas)) },
-                { ...base, status: (0, typeorm_2.In)(cerradas), updatedAt: (0, typeorm_2.MoreThanOrEqual)(limite) },
-            ]);
+        Object.assign(where, periodo);
+        if (!filters.incluirDescartados && !filters.status && !Object.keys(periodo).length) {
+            const limite = new Date(Date.now() - ListLeadsUseCase_1.DIAS_DE_CERRADOS_A_LA_VISTA * 86_400_000);
+            const cerradas = [...ListLeadsUseCase_1.CERRADAS];
+            const columnaCierre = this.columna('updatedAt');
+            where.status = (0, typeorm_2.Raw)((columna) => `(${columna} NOT IN (:...cerradas) OR ${columnaCierre} >= :limite)`, { cerradas, limite });
+        }
         const termino = filters.search?.trim();
         const campos = [
             'name', 'email', 'phone', 'company', 'source', 'sourceDetail', 'campaignName',
         ];
-        const criterio = termino
-            ? conDescartados.flatMap((base) => campos.map((campo) => ({ ...base, [campo]: (0, typeorm_2.Like)(`%${termino}%`) })))
-            : conDescartados.length === 1 ? conDescartados[0] : conDescartados;
+        if (termino) {
+            const condiciones = campos.map((campo) => `${this.columna(campo)} LIKE :termino`).join(' OR ');
+            where.name = (0, typeorm_2.Raw)(() => `(${condiciones})`, { termino: `%${termino}%` });
+        }
         const [data, total] = await this.repo.findAndCount({
-            where: criterio,
+            where,
             order: { createdAt: 'DESC' },
             skip: offset,
             take: limit,
         });
         return { data: data.map((lead) => this.aligerar(lead)), total, limit, offset };
+    }
+    columna(propiedad) {
+        const { driver } = this.repo.manager.connection;
+        const columna = this.repo.metadata.findColumnWithPropertyName(propiedad);
+        if (!columna)
+            throw new Error(`La entidad Lead no declara la propiedad «${String(propiedad)}»`);
+        return `${driver.escape(this.repo.metadata.name)}.${driver.escape(columna.databaseName)}`;
     }
     aligerar(lead) {
         const metadata = lead.metadata;

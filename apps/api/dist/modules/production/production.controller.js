@@ -41,17 +41,19 @@ const approval_request_status_enum_1 = require("../approvals/approval-request-st
 const piece_version_entity_1 = require("./piece-version.entity");
 const ud_values_service_1 = require("../design-budget/ud-values.service");
 const client_entity_1 = require("../clients/client.entity");
+const brief_entity_1 = require("../briefs/brief.entity");
 const user_entity_1 = require("../users/user.entity");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
 const requires_feature_decorator_1 = require("../../core/authorization/requires-feature.decorator");
 let ProductionController = class ProductionController {
-    constructor(pieceRepo, approvalRepo, versionRepo, clientRepo, userRepo, accountAccess, workflow, parameters, udValues, pieceTypes, assignPiece, cancelPiece, submitVer, rejectPiece, deliverPiece, listPieces) {
+    constructor(pieceRepo, approvalRepo, versionRepo, clientRepo, userRepo, briefRepo, accountAccess, workflow, parameters, udValues, pieceTypes, assignPiece, cancelPiece, submitVer, rejectPiece, deliverPiece, listPieces) {
         this.pieceRepo = pieceRepo;
         this.approvalRepo = approvalRepo;
         this.versionRepo = versionRepo;
         this.clientRepo = clientRepo;
         this.userRepo = userRepo;
+        this.briefRepo = briefRepo;
         this.accountAccess = accountAccess;
         this.workflow = workflow;
         this.parameters = parameters;
@@ -74,12 +76,21 @@ let ProductionController = class ProductionController {
             if (dependencyCount !== new Set(dto.dependencyIds).size)
                 throw new common_1.BadRequestException('Una o más dependencias no pertenecen a esta organización');
         }
+        const brief = dto.briefId
+            ? await this.briefRepo.findOne({ where: { id: dto.briefId, organizationId: req.organizationId } })
+            : null;
+        if (dto.briefId && !brief)
+            throw new common_1.BadRequestException('El brief no existe en esta organización');
+        if (brief && brief.clientId && brief.clientId !== dto.clientId) {
+            throw new common_1.BadRequestException('Ese brief es de otra empresa: una pieza no puede nacer del pedido de un cliente distinto');
+        }
         const { carouselSlides, deadlineAt, ...pieceData } = dto;
         const piece = this.pieceRepo.create({
             ...pieceData,
             organizationId: req.organizationId,
             status: piece_status_enum_1.PieceStatus.BACKLOG,
-            title: dto.title.trim(),
+            title: dto.title.trim() || brief?.title || '',
+            description: dto.description?.trim() || brief?.description || undefined,
             deadlineAt: deadlineAt ? new Date(deadlineAt) : undefined,
             udAmount: await this.udValues.udFor(dto.type, carouselSlides, req.organizationId),
         });
@@ -356,7 +367,9 @@ exports.ProductionController = ProductionController = __decorate([
     __param(2, (0, typeorm_1.InjectRepository)(piece_version_entity_1.PieceVersion)),
     __param(3, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __param(4, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(5, (0, typeorm_1.InjectRepository)(brief_entity_1.Brief)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,

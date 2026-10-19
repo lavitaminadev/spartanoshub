@@ -98,7 +98,12 @@ let CronController = class CronController {
         this.running.add(lockKey);
         try {
             const result = await this.capiOutbox.processPending(limit ?? 50);
+            await this.anotar(lockKey, true, JSON.stringify({ processed: result.processed, failed: result.failed }));
             return { ok: true, processed: result.processed, failed: result.failed, timestamp: new Date().toISOString() };
+        }
+        catch (error) {
+            await this.anotar(lockKey, false, error instanceof Error ? error.message.slice(0, 500) : 'falló');
+            throw error;
         }
         finally {
             this.running.delete(lockKey);
@@ -113,7 +118,12 @@ let CronController = class CronController {
         try {
             const resultado = await this.campanas.processPending(limit ?? 100);
             const cerradas = await this.campanas.cerrarTerminadas();
+            await this.anotar(lockKey, true, JSON.stringify({ processed: resultado.processed, failed: resultado.failed, cerradas }));
             return { ok: true, processed: resultado.processed, failed: resultado.failed, cerradas, timestamp: new Date().toISOString() };
+        }
+        catch (error) {
+            await this.anotar(lockKey, false, error instanceof Error ? error.message.slice(0, 500) : 'falló');
+            throw error;
         }
         finally {
             this.running.delete(lockKey);
@@ -139,7 +149,12 @@ let CronController = class CronController {
         this.running.add(lockKey);
         try {
             const result = await this.googleOutbox.processPending(limit ?? 50);
+            await this.anotar(lockKey, true, JSON.stringify({ processed: result.processed, failed: result.failed }));
             return { ok: true, processed: result.processed, failed: result.failed, timestamp: new Date().toISOString() };
+        }
+        catch (error) {
+            await this.anotar(lockKey, false, error instanceof Error ? error.message.slice(0, 500) : 'falló');
+            throw error;
         }
         finally {
             this.running.delete(lockKey);

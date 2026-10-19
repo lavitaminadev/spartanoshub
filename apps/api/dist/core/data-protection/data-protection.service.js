@@ -11,11 +11,13 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var DataProtectionService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DataProtectionService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const google_calendar_service_1 = require("../../modules/integrations/google/google-calendar.service");
 const user_entity_1 = require("../../modules/users/user.entity");
 const audit_entity_1 = require("../audit/audit.entity");
 const consent_entity_1 = require("./consent.entity");
@@ -34,8 +36,8 @@ function avisoDeEspartanos() {
     const politica = (0, shared_1.politicaDePrivacidadDeEspartanos)();
     return { title: politica.titulo, text: (0, shared_1.documentoATexto)(politica), documentVersion: politica.version };
 }
-let DataProtectionService = class DataProtectionService {
-    constructor(userRepo, leadRepo, auditRepo, consentRepo, contactRepo, reservationRepo, serviceRequestRepo, consentVersionRepo) {
+let DataProtectionService = DataProtectionService_1 = class DataProtectionService {
+    constructor(userRepo, leadRepo, auditRepo, consentRepo, contactRepo, reservationRepo, serviceRequestRepo, consentVersionRepo, calendario) {
         this.userRepo = userRepo;
         this.leadRepo = leadRepo;
         this.auditRepo = auditRepo;
@@ -44,6 +46,8 @@ let DataProtectionService = class DataProtectionService {
         this.reservationRepo = reservationRepo;
         this.serviceRequestRepo = serviceRequestRepo;
         this.consentVersionRepo = consentVersionRepo;
+        this.calendario = calendario;
+        this.logger = new common_1.Logger(DataProtectionService_1.name);
     }
     async avisoPrivacidadVigente(organizationId) {
         const publicada = await this.consentVersionRepo.findOne({
@@ -163,13 +167,39 @@ let DataProtectionService = class DataProtectionService {
         reservation.guestPhone = null;
         reservation.answers = {};
         reservation.internalNotes = null;
+        reservation.birthDate = null;
+        reservation.guestDocument = null;
+        reservation.guestDocumentType = null;
+        reservation.guestDocumentCountry = null;
         reservation.fbc = null;
         reservation.fbp = null;
+        reservation.fbclid = null;
+        reservation.gclid = null;
+        reservation.gbraid = null;
+        reservation.wbraid = null;
+        reservation.clickId = null;
         reservation.clientIpAddress = null;
         reservation.clientUserAgent = null;
         const saved = await this.reservationRepo.save(reservation);
+        await this.olvidarEnElCalendarioDelLocal(saved);
         await this.recordAnonymization(organizationId, 'Reservation', reservationId, reason);
         return saved;
+    }
+    async olvidarEnElCalendarioDelLocal(reservation) {
+        if (!this.calendario || !reservation.calendarEventId)
+            return;
+        try {
+            await this.calendario.updateEvent(reservation.organizationId, reservation.calendarEventId, {
+                summary: `Reserva ${reservation.referenceCode}`,
+                description: `Reserva ${reservation.referenceCode}`,
+                start: reservation.startsAt,
+                durationMinutes: Math.max(1, Math.round((reservation.endsAt.getTime() - reservation.startsAt.getTime()) / 60_000)),
+            });
+        }
+        catch (error) {
+            this.logger.warn(`No se pudo quitar el nombre del evento de calendario de la reserva ${reservation.id}: `
+                + `${error instanceof Error ? error.message : error}`);
+        }
     }
     async anonymizeExpiredReservations(retentionDays, reason = 'Retención expirada', mesesConBeneficios = 0) {
         const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
@@ -191,7 +221,9 @@ let DataProtectionService = class DataProtectionService {
         return { reviewed: expired.length, anonymized };
     }
     async borrarIdentificadoresDeMedicionVencidos(meses) {
-        const resultado = await this.reservationRepo.manager.query('UPDATE reservations SET fbc = NULL, fbp = NULL, client_ip_address = NULL, client_user_agent = NULL WHERE created_at < ? AND (fbc IS NOT NULL OR fbp IS NOT NULL OR client_ip_address IS NOT NULL OR client_user_agent IS NOT NULL) LIMIT 2000', [haceMeses(meses)]);
+        const resultado = await this.reservationRepo.manager.query('UPDATE reservations SET fbc = NULL, fbp = NULL, fbclid = NULL, gclid = NULL, gbraid = NULL, wbraid = NULL, click_id = NULL, client_ip_address = NULL, client_user_agent = NULL'
+            + ' WHERE created_at < ? AND (fbc IS NOT NULL OR fbp IS NOT NULL OR fbclid IS NOT NULL OR gclid IS NOT NULL OR gbraid IS NOT NULL OR wbraid IS NOT NULL OR click_id IS NOT NULL OR client_ip_address IS NOT NULL OR client_user_agent IS NOT NULL)'
+            + ' LIMIT 2000', [haceMeses(meses)]);
         return resultado?.affectedRows ?? 0;
     }
     async anonimizarSolicitudesDeGrupoVencidas(meses) {
@@ -238,7 +270,7 @@ let DataProtectionService = class DataProtectionService {
     }
 };
 exports.DataProtectionService = DataProtectionService;
-exports.DataProtectionService = DataProtectionService = __decorate([
+exports.DataProtectionService = DataProtectionService = DataProtectionService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(1, (0, typeorm_1.InjectRepository)(lead_entity_1.Lead)),
@@ -248,6 +280,7 @@ exports.DataProtectionService = DataProtectionService = __decorate([
     __param(5, (0, typeorm_1.InjectRepository)(reservation_entity_1.Reservation)),
     __param(6, (0, typeorm_1.InjectRepository)(service_request_entity_1.ServiceRequest)),
     __param(7, (0, typeorm_1.InjectRepository)(consent_version_entity_1.ConsentVersion)),
+    __param(8, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -255,5 +288,6 @@ exports.DataProtectionService = DataProtectionService = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        google_calendar_service_1.GoogleCalendarService])
 ], DataProtectionService);

@@ -3095,6 +3095,40 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             })),
         };
     }
+    async historialDeReserva(organizationId, reservationId, clientIds) {
+        const reserva = await this.reservations.findOne({ where: { id: reservationId, organizationId } });
+        if (!reserva)
+            throw new common_1.NotFoundException('La reserva no existe');
+        if (clientIds !== undefined && (!reserva.clientId || !clientIds.includes(reserva.clientId))) {
+            throw new common_1.ForbiddenException('No tienes acceso a esta reserva');
+        }
+        const eventos = await this.events.find({
+            where: { organizationId, reservationId },
+            order: { createdAt: 'ASC' },
+        });
+        const ids = [...new Set(eventos.map((evento) => evento.actorId).filter((id) => Boolean(id)))];
+        const nombres = new Map();
+        if (ids.length) {
+            const filas = await this.dataSource
+                .query(`SELECT id, name FROM users WHERE id IN (${ids.map(() => '?').join(',')})`, ids)
+                .catch(() => []);
+            for (const fila of filas)
+                nombres.set(fila.id, fila.name);
+        }
+        return {
+            referencia: reserva.referenceCode,
+            eventos: eventos.map((evento) => ({
+                fecha: evento.createdAt,
+                tipo: evento.type,
+                desde: evento.fromStatus ?? null,
+                hasta: evento.toStatus ?? null,
+                quien: evento.actorType === 'guest' ? 'El comensal'
+                    : evento.actorType === 'system' ? 'El sistema'
+                        : evento.actorId ? nombres.get(evento.actorId) ?? 'Alguien del equipo'
+                            : 'Alguien del equipo',
+            })),
+        };
+    }
     async csvDeCanjes(organizationId, couponId, clientIds, filtros) {
         const { codigo, canjes } = await this.canjesDeCupon(organizationId, couponId, clientIds, { ...filtros, limite: 2000 });
         const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };

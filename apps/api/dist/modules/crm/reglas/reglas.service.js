@@ -54,6 +54,9 @@ let ReglasService = ReglasService_1 = class ReglasService {
             throw new common_1.NotFoundException('Esa regla no existe');
         return regla;
     }
+    async empresaDeLaRegla(organizationId, id) {
+        return (await this.unaOFalla(organizationId, id)).clientId;
+    }
     validar(datos) {
         const nombre = datos.nombre?.trim();
         if (!nombre)

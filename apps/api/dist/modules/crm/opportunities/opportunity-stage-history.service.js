@@ -59,6 +59,19 @@ let OpportunityStageHistoryService = OpportunityStageHistoryService_1 = class Op
                 this.emit('deal.lost', opportunity, previousStage, actorId);
         }, `cambio de etapa del trato ${opportunity.id}`);
     }
+    async recorridoDe(organizationId, opportunityId) {
+        const cambios = await this.changes.find({
+            where: { organizationId, opportunityId },
+            order: { createdAt: 'ASC' },
+        });
+        return cambios.map((cambio) => ({
+            fecha: cambio.createdAt,
+            desde: cambio.fromStage ?? null,
+            hasta: cambio.toStage,
+            motivoDePerdida: cambio.lossReason ?? null,
+            actorId: cambio.changedBy ?? null,
+        }));
+    }
     async hoursSinceLastChange(opportunityId) {
         const last = await this.changes.findOne({
             where: { opportunityId },

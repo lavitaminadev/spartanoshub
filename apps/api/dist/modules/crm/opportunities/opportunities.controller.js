@@ -26,10 +26,11 @@ const list_opportunities_dto_1 = require("./dto/list-opportunities.dto");
 const requires_feature_decorator_1 = require("../../../core/authorization/requires-feature.decorator");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const process_templates_service_1 = require("../../process-templates/process-templates.service");
+const opportunity_stage_history_service_1 = require("./opportunity-stage-history.service");
 const process_template_defaults_1 = require("../../process-templates/process-template-defaults");
 const requiere_accion_1 = require("../../../core/authorization/requiere-accion");
 let OpportunitiesController = class OpportunitiesController {
-    constructor(createOpportunity, listOpportunities, getOpportunity, updateOpportunity, removeOpportunity, accountAccess, processTemplates) {
+    constructor(createOpportunity, listOpportunities, getOpportunity, updateOpportunity, removeOpportunity, accountAccess, processTemplates, stageHistory) {
         this.createOpportunity = createOpportunity;
         this.listOpportunities = listOpportunities;
         this.getOpportunity = getOpportunity;
@@ -37,6 +38,7 @@ let OpportunitiesController = class OpportunitiesController {
         this.removeOpportunity = removeOpportunity;
         this.accountAccess = accountAccess;
         this.processTemplates = processTemplates;
+        this.stageHistory = stageHistory;
     }
     async stages(req) {
         const steps = await this.processTemplates.getSteps(req.organizationId, process_template_defaults_1.COMMERCIAL_PIPELINE_TEMPLATE);
@@ -52,6 +54,11 @@ let OpportunitiesController = class OpportunitiesController {
     async findOne(id, req) {
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.getOpportunity.execute(id, req.organizationId, allowed);
+    }
+    async recorrido(id, req) {
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        await this.getOpportunity.execute(id, req.organizationId, allowed);
+        return { recorrido: await this.stageHistory.recorridoDe(req.organizationId, id) };
     }
     update(id, dto, req) {
         return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id);
@@ -93,6 +100,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OpportunitiesController.prototype, "findOne", null);
 __decorate([
+    (0, common_1.Get)(':id/recorrido'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], OpportunitiesController.prototype, "recorrido", null);
+__decorate([
     (0, common_1.Put)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -120,5 +135,6 @@ exports.OpportunitiesController = OpportunitiesController = __decorate([
         update_opportunity_use_case_1.UpdateOpportunityUseCase,
         remove_opportunity_use_case_1.RemoveOpportunityUseCase,
         account_access_service_1.AccountAccessService,
-        process_templates_service_1.ProcessTemplatesService])
+        process_templates_service_1.ProcessTemplatesService,
+        opportunity_stage_history_service_1.OpportunityStageHistoryService])
 ], OpportunitiesController);
