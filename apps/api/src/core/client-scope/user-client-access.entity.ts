@@ -31,6 +31,21 @@ export class UserClientAccess {
   @Column({ type: 'varchar', length: 255, nullable: true })
   reason?: string | null;
 
+  /**
+   * Hasta cuándo rige lo prestado. Vacío: sin fecha de término.
+   *
+   * Prestar sin fecha es válido, pero tiene que ser una decisión de quien presta y no el valor por
+   * defecto: quien cubre dos semanas de vacaciones no debe quedarse con la cuenta para siempre
+   * porque nadie se acuerde de quitársela. Vencida, la fila deja de contar para el alcance sola;
+   * se conserva como constancia de que existió.
+   */
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true })
+  expiresAt?: Date | null;
+
+  /** Cuándo se avisó a quien lo concedió que esto está por vencer. Evita repetir el aviso. */
+  @Column({ name: 'expiry_notified_at', type: 'timestamp', nullable: true })
+  expiryNotifiedAt?: Date | null;
+
   @Column({ name: 'granted_by', type: 'uuid', nullable: true })
   grantedBy?: string | null;
 

@@ -137,7 +137,6 @@ export function AdminPage() {
   const [exceptionClient, setExceptionClient] = useState('');
   const [consentDraft, setConsentDraft] = useState({ title: '', text: '' });
   const [consentPublishOpen, setConsentPublishOpen] = useState(false);
-  const [pwdPolicy, setPwdPolicy] = useState({ minLength: 8, requireUppercase: true, requireNumber: true, requireSpecial: false, expiryDays: 90, preventReuse: 5 });
 
   const permsQuery = useQuery<{ matrix?: Record<string, Record<string, string>> }>({ queryKey: ['role-permissions'], queryFn: () => api.get('/roles/permissions'), enabled: canManagePermissions });
   const exceptionsQuery = useQuery<{ items?: AccessException[] }>({ queryKey: ['access-exceptions'], queryFn: () => api.get('/permission-overrides') });
@@ -279,11 +278,6 @@ export function AdminPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['consent-users'] }); setFeedback({ tone: 'success', text: 'Acceso otorgado sin aceptación. Auditoría registrada.' }); },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
-  const pwdPolicyMutation = useMutation({
-    mutationFn: (values: Record<string, string | number | boolean>) => api.put('/settings', { values }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['organization-settings'] }); setFeedback({ tone: 'success', text: 'Política de contraseñas actualizada.' }); },
-    onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
-  });
 
   type VersionDeConsentimiento = { id: string; version: number; title: string; text: string; publishedAt: string; active: boolean };
   const consentVersions = (consentVersionsQuery.data as { data?: VersionDeConsentimiento[] } | undefined)?.data ?? [];
@@ -384,7 +378,7 @@ export function AdminPage() {
   };
 
   if (loading) return <LoadingSpinner text="Abriendo panel de administración..." />;
-  if (loadError) return <QueryErrorState title="No pudimos abrir el panel de administración" message={loadError.message} />;
+  if (loadError) return <QueryErrorState title="No pudimos abrir el panel de administración" message={loadError.message} error={loadError} />;
 
   return <div className="page governance-page">
     <PageHero
@@ -546,7 +540,7 @@ export function AdminPage() {
     </section>}
 
     {tab === 'consentimiento' && <section>
-      <div className="section-toolbar"><div><span className="page-eyebrow">CUMPLIMIENTO LEGAL</span><h2>Consentimiento y políticas</h2><p className="page-subtitle">Administra las versiones del consentimiento informado, audita las aceptaciones y configura la política de contraseñas. Cada nueva versión requiere que todos los usuarios vuelvan a aceptar.</p></div><button className="btn btn-primary btn-sm" onClick={() => { setConsentDraft({ title: `Versión ${(activeConsent?.version ?? 0) + 1}`, text: activeConsent?.text ?? '' }); setConsentPublishOpen(true); }}>Nueva versión</button></div>
+      <div className="section-toolbar"><div><span className="page-eyebrow">CUMPLIMIENTO LEGAL</span><h2>Consentimiento y políticas</h2><p className="page-subtitle">Administra las versiones del consentimiento informado y audita las aceptaciones. Cada nueva versión requiere que todos los usuarios vuelvan a aceptar.</p></div><button className="btn btn-primary btn-sm" onClick={() => { setConsentDraft({ title: `Versión ${(activeConsent?.version ?? 0) + 1}`, text: activeConsent?.text ?? '' }); setConsentPublishOpen(true); }}>Nueva versión</button></div>
       <div className="pod-governance-grid module-governance-grid" style={{marginBottom:16}}>
         <article className="module-governance-card"><header><div><span className="status-dot active" /><div><h3>Versión activa</h3><small>{activeConsent ? `v${activeConsent.version} · ${new Date(activeConsent.publishedAt).toLocaleDateString('es-CL')}` : 'Sin versión publicada'}</small></div></div><strong>{activeConsent ? `v${activeConsent.version}` : '—'}</strong></header><div className="pod-facts"><span><small>Aceptaron</small><strong>{consentUsers.filter(u => u.status === 'accepted').length}</strong></span><span><small>Pendientes</small><strong>{pendingConsent.length}</strong></span><span><small>Versiones</small><strong>{consentVersions.length}</strong></span></div></article>
       </div>
@@ -557,18 +551,6 @@ export function AdminPage() {
       </tbody></table></div>
       <h3>Historial de versiones</h3>
       {consentVersions.length === 0 ? <EmptyState icon="document" title="Sin versiones publicadas" description="Publica la primera versión del consentimiento informado para comenzar a registrar aceptaciones." action={<button className="btn btn-primary btn-sm" onClick={() => { setConsentDraft({ title: 'Versión 1 - Consentimiento inicial', text: '' }); setConsentPublishOpen(true); }}>Publicar primera versión</button>} /> : <div className="table-wrapper" style={{marginBottom:20}}><table className="data-table"><thead><tr><th>Versión</th><th>Título</th><th>Publicada</th><th>Estado</th></tr></thead><tbody>{consentVersions.map(v => <tr key={v.id}><td><strong>v{v.version}</strong></td><td>{v.title}</td><td>{new Date(v.publishedAt).toLocaleDateString('es-CL')}</td><td><span className={`form-status-pill ${v.active ? 'is-live' : 'is-draft'}`}>{v.active ? 'Activa' : 'Histórica'}</span></td></tr>)}</tbody></table></div>}
-      <h3>Política de contraseñas</h3>
-      <p className="page-subtitle" style={{marginBottom:12}}>Configuración que aplica a todos los usuarios. La rotación periódica reduce el riesgo de accesos no autorizados.</p>
-      <div className="pod-governance-grid module-governance-grid">
-        <article className="module-governance-card"><div><h3>Caducidad</h3><small>Días antes de exigir cambio</small></div><div className="pod-facts"><span><small>Días</small><strong><input className="input" type="number" min={30} max={365} value={pwdPolicy.expiryDays} onChange={e => { const v = Number(e.target.value); setPwdPolicy({...pwdPolicy, expiryDays: v}); pwdPolicyMutation.mutate({ 'security.password.expiryDays': String(v) }); }} /></strong></span></div></article>
-        <article className="module-governance-card"><div><h3>Longitud mínima</h3><small>Caracteres requeridos</small></div><div className="pod-facts"><span><small>Mínimo</small><strong><input className="input" type="number" min={6} max={64} value={pwdPolicy.minLength} onChange={e => { const v = Number(e.target.value); setPwdPolicy({...pwdPolicy, minLength: v}); pwdPolicyMutation.mutate({ 'security.password.minLength': String(v) }); }} /></strong></span></div></article>
-        <article className="module-governance-card"><div><h3>Reutilización</h3><small>Contraseñas previas bloqueadas</small></div><div className="pod-facts"><span><small>Cantidad</small><strong><input className="input" type="number" min={1} max={20} value={pwdPolicy.preventReuse} onChange={e => { const v = Number(e.target.value); setPwdPolicy({...pwdPolicy, preventReuse: v}); pwdPolicyMutation.mutate({ 'security.password.preventReuse': String(v) }); }} /></strong></span></div></article>
-        <article className="module-governance-card"><div><h3>Requisitos</h3><small>Complejidad exigida</small></div><div style={{display:'flex',flexDirection:'column',gap:6}}>
-          <label className="toggle-row"><input type="checkbox" checked={pwdPolicy.requireUppercase} onChange={e => { setPwdPolicy({...pwdPolicy, requireUppercase: e.target.checked}); pwdPolicyMutation.mutate({ 'security.password.requireUppercase': String(e.target.checked) }); }} /> Mayúscula obligatoria</label>
-          <label className="toggle-row"><input type="checkbox" checked={pwdPolicy.requireNumber} onChange={e => { setPwdPolicy({...pwdPolicy, requireNumber: e.target.checked}); pwdPolicyMutation.mutate({ 'security.password.requireNumber': String(e.target.checked) }); }} /> Número obligatorio</label>
-          <label className="toggle-row"><input type="checkbox" checked={pwdPolicy.requireSpecial} onChange={e => { setPwdPolicy({...pwdPolicy, requireSpecial: e.target.checked}); pwdPolicyMutation.mutate({ 'security.password.requireSpecial': String(e.target.checked) }); }} /> Carácter especial obligatorio</label>
-        </div></article>
-      </div>
     </section>}
 
     <Modal open={consentPublishOpen} onClose={() => setConsentPublishOpen(false)} title="Publicar nueva versión de consentimiento">

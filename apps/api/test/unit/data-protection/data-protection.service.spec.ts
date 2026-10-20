@@ -194,4 +194,28 @@ describe('DataProtectionService', () => {
     expect(result.anonymized).toBe(0);
     expect(reservationRepo.save).not.toHaveBeenCalled();
   });
+
+  describe('la bitácora de lo anonimizado', () => {
+    it('vacía el antes y el después de las filas de auditoría de la reserva, menos el rastro de anonimizar', async () => {
+      reservationRepo.findOneBy.mockResolvedValue({ id: 'r-1', organizationId: 'org-1', guestName: 'Ana', startsAt: new Date(), endsAt: new Date() });
+
+      await service.anonymizeReservation('r-1', 'org-1');
+
+      const [donde, cambios] = auditRepo.update.mock.calls[0];
+      expect(donde).toMatchObject({ organizationId: 'org-1', entityId: 'r-1' });
+      expect(donde.action).toBeDefined();
+      expect(Object.keys(cambios).sort()).toEqual(['after', 'before']);
+    });
+
+    it('al anonimizar a una persona, sus acciones pasan a un seudónimo y no a nulo', async () => {
+      const usuarios = { findOneBy: vi.fn().mockResolvedValue({ id: 'u-1', organizationId: 'org-1' }), update: vi.fn() };
+      const servicio = new DataProtectionService(usuarios as never, {} as never, auditRepo as never, {} as never, {} as never, {} as never);
+
+      await servicio.anonymizeUser('u-1');
+
+      const cambioDeActor = auditRepo.update.mock.calls.find(([donde]: [any]) => donde.actorId === 'u-1');
+      expect(cambioDeActor[1].actorId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(cambioDeActor[1].actorId).not.toBe('u-1');
+    });
+  });
 });

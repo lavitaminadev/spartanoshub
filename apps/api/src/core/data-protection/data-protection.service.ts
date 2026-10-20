@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
+import { randomUUID } from 'node:crypto';
+import { LessThan, Not, Repository } from 'typeorm';
 import { GoogleCalendarService } from '../../modules/integrations/google/google-calendar.service';
 import { User } from '../../modules/users/user.entity';
 import { AuditLog } from '../audit/audit.entity';
@@ -104,6 +105,22 @@ export class DataProtectionService {
     }));
   }
 
+  /**
+   * Vacía de la bitácora lo que copió de una entidad anonimizada.
+   *
+   * Anonimizar la fila y dejar intacto el `before`/`after` de sus registros de auditoría era borrar
+   * el dato en un sitio y conservarlo en otro. Se vacían esos dos campos; quedan el quién, el qué y el
+   * cuándo —la trazabilidad que la bitácora existe para dar— y el rastro de la propia anonimización.
+   * Se busca por el id de la entidad y no por su tipo: el interceptor registra el tipo con el nombre
+   * de la ruta (`reservations`, `crm_leads`) y los servicios con el de la clase.
+   */
+  private async limpiarBitacoraDe(organizationId: string, entityId: string): Promise<void> {
+    await this.auditRepo.update(
+      { organizationId, entityId, action: Not('anonymize') },
+      { before: () => 'NULL', after: () => 'NULL' },
+    );
+  }
+
   async anonymizeUser(userId: string): Promise<void> {
     const user = await this.userRepo.findOneBy({ id: userId });
     if (!user) throw new NotFoundException('User not found');
@@ -117,7 +134,13 @@ export class DataProtectionService {
       isActive: false,
     });
 
-    await this.auditRepo.update({ actorId: userId }, { actorId: null });
+    /*
+     * El actor pasa a un seudónimo y no a nulo: perder quién hizo qué destruye la trazabilidad.
+     * Es aleatorio y no se guarda en ningún lado, así que nadie puede volver de él a la persona;
+     * sí se conserva que las acciones de esa fila son de un mismo actor.
+     */
+    await this.auditRepo.update({ actorId: userId, organizationId: user.organizationId }, { actorId: randomUUID() });
+    await this.limpiarBitacoraDe(user.organizationId, userId);
     await this.recordAnonymization(user.organizationId, 'User', userId, 'Solicitud de anonimización');
   }
 
@@ -183,6 +206,7 @@ export class DataProtectionService {
     };
 
     const saved = await this.leadRepo.save(lead);
+    await this.limpiarBitacoraDe(organizationId, leadId);
     await this.recordAnonymization(organizationId, 'Lead', leadId, reason);
     return saved;
   }
@@ -202,6 +226,7 @@ export class DataProtectionService {
     contact.phone = null;
 
     const saved = await this.contactRepo.save(contact);
+    await this.limpiarBitacoraDe(organizationId, contactId);
     await this.recordAnonymization(organizationId, 'Contact', contactId, reason);
     return saved;
   }
@@ -250,6 +275,7 @@ export class DataProtectionService {
 
     const saved = await this.reservationRepo.save(reservation);
     await this.olvidarEnElCalendarioDelLocal(saved);
+    await this.limpiarBitacoraDe(organizationId, reservationId);
     await this.recordAnonymization(organizationId, 'Reservation', reservationId, reason);
     return saved;
   }
@@ -421,6 +447,7 @@ export class DataProtectionService {
     solicitud.resolutionNote = null;
 
     const guardada = await this.serviceRequestRepo.save(solicitud);
+    await this.limpiarBitacoraDe(organizationId, requestId);
     await this.recordAnonymization(organizationId, 'ServiceRequest', requestId, reason);
     return guardada;
   }

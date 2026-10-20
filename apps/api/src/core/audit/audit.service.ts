@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog } from './audit.entity';
 import { User } from '../../modules/users/user.entity';
+import { sanearParaBitacora, sanearTexto } from './sanear-bitacora';
 
 @Injectable()
 export class AuditService {
@@ -21,7 +22,17 @@ export class AuditService {
     reason?: string;
     ipAddress?: string;
   }) {
-    const entry = this.repo.create(params);
+    /*
+     * Todo lo que entra a la bitácora se sanea aquí y no sólo en el interceptor: los servicios
+     * registran a mano con `before`/`after` libres, y un secreto en cualquiera de ellos quedaba
+     * guardado tal cual.
+     */
+    const entry = this.repo.create({
+      ...params,
+      before: sanearParaBitacora(params.before),
+      after: sanearParaBitacora(params.after),
+      reason: params.reason === undefined ? undefined : sanearTexto(params.reason),
+    });
     return this.repo.save(entry);
   }
 

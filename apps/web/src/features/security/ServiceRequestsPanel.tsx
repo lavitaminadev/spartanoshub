@@ -135,7 +135,7 @@ export function ServiceRequestsPanel(): JSX.Element {
       </div>
 
       {isLoading ? <LoadingSpinner text="Cargando solicitudes..." /> :
-        error ? <QueryErrorState title="No pudimos cargar las solicitudes" message={error.message} onRetry={() => refetch()} retrying={isFetching} /> :
+        error ? <QueryErrorState title="No pudimos cargar las solicitudes" message={error.message} error={error} onRetry={() => refetch()} retrying={isFetching} /> :
         visible.length === 0 ? <EmptyState icon="inbox" title="Sin solicitudes" description="Las solicitudes enviadas desde la página pública aparecerán aquí." /> :
         <div className="admin-solicitudes">
           {visible.map((row) => (

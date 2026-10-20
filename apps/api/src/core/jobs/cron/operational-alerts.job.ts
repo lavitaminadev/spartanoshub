@@ -7,6 +7,9 @@ import { plazoDeSolicitud } from '@espartanos/shared';
 
 interface RecipientRow { id: string }
 
+/** Con cuántos días de anticipación se avisa de un préstamo que vence. */
+export const DIAS_DE_AVISO_ANTES_DE_VENCER = 3;
+
 @Injectable()
 export class OperationalAlertsJob {
   private readonly logger = new Logger(OperationalAlertsJob.name);
@@ -29,6 +32,7 @@ export class OperationalAlertsJob {
         created += await this.budgetAlerts(organization.id);
         created += await this.cycleAlerts(organization.id);
         created += await this.solicitudesDeDerechos(organization.id);
+        created += await this.prestamosPorVencer(organization.id);
       } catch (error) {
         this.logger.error(`Failed to scan alerts for organization ${organization.id}: ${error instanceof Error ? error.message : error}`);
       }
@@ -91,6 +95,54 @@ export class OperationalAlertsJob {
           : `Una solicitud de ${fila.type} vence en ${plazo.diasRestantes} día(s)${plazo.prorrogada ? ' (plazo ya prorrogado, no se puede prorrogar otra vez)' : ''}.`,
         { serviceRequestId: fila.id, vence: plazo.vence },
       );
+    }
+    return total;
+  }
+
+  /**
+   * Las cuentas y acciones prestadas que vencen en los próximos días.
+   *
+   * Lo prestado caduca solo; el aviso existe para que quien lo concedió decida antes: renovar si la
+   * persona todavía lo necesita, o dejarlo caer. Va a quien lo concedió y no a la dirección, porque
+   * es quien sabe para qué era; si esa persona ya no está activa, a la dirección.
+   *
+   * Cada fila se avisa una sola vez: `expiry_notified_at` se limpia cuando se renueva o se cambia la
+   * fecha, de modo que una cesión renovada vuelve a avisar antes de su nuevo término.
+   */
+  private async prestamosPorVencer(organizationId: string): Promise<number> {
+    const dias = DIAS_DE_AVISO_ANTES_DE_VENCER;
+    const cuentas = await this.dataSource.query<Array<{ id: string; grantedBy: string | null; expiresAt: Date; persona: string; empresa: string }>>(
+      'SELECT a.id, a.granted_by grantedBy, a.expires_at expiresAt, u.name persona, c.name empresa FROM user_client_access a JOIN users u ON u.id = a.user_id JOIN clients c ON c.id = a.client_id WHERE a.organization_id = ? AND a.retired_at IS NULL AND a.expiry_notified_at IS NULL AND a.expires_at > NOW() AND a.expires_at <= DATE_ADD(NOW(), INTERVAL ? DAY) LIMIT 200',
+      [organizationId, dias],
+    );
+    const acciones = await this.dataSource.query<Array<{ id: string; grantedBy: string | null; expiresAt: Date; persona: string; accion: string }>>(
+      'SELECT a.id, a.granted_by grantedBy, a.expires_at expiresAt, u.name persona, a.action accion FROM user_action_overrides a JOIN users u ON u.id = a.user_id WHERE a.organization_id = ? AND a.expiry_notified_at IS NULL AND a.expires_at > NOW() AND a.expires_at <= DATE_ADD(NOW(), INTERVAL ? DAY) LIMIT 200',
+      [organizationId, dias],
+    );
+    if (!cuentas.length && !acciones.length) return 0;
+
+    const direccion = await this.directors(organizationId);
+    const activos = new Set((await this.dataSource.query<RecipientRow[]>('SELECT id FROM users WHERE organization_id = ? AND is_active = 1', [organizationId])).map((fila) => fila.id));
+    const destinatarios = (grantedBy: string | null) => (grantedBy && activos.has(grantedBy) ? [grantedBy] : direccion);
+
+    let total = 0;
+    for (const fila of cuentas) {
+      total += await this.notifyOnce(
+        organizationId, destinatarios(fila.grantedBy), 'acceso.por_vencer', `${fila.id}:${new Date(fila.expiresAt).getTime()}`,
+        'Acceso prestado por vencer',
+        `${fila.persona} deja de ver la cuenta ${fila.empresa} el ${new Date(fila.expiresAt).toLocaleDateString('es-CL')}. Renuévalo si todavía lo necesita; si no, se cierra solo.`,
+        { userClientAccessId: fila.id },
+      );
+      await this.dataSource.query('UPDATE user_client_access SET expiry_notified_at = NOW() WHERE id = ?', [fila.id]);
+    }
+    for (const fila of acciones) {
+      total += await this.notifyOnce(
+        organizationId, destinatarios(fila.grantedBy), 'accion.por_vencer', `${fila.id}:${new Date(fila.expiresAt).getTime()}`,
+        'Ajuste de acción por vencer',
+        `El ajuste de «${fila.accion}» para ${fila.persona} vence el ${new Date(fila.expiresAt).toLocaleDateString('es-CL')}. Renuévalo si todavía lo necesita; si no, la acción vuelve al nivel de su módulo.`,
+        { userActionOverrideId: fila.id },
+      );
+      await this.dataSource.query('UPDATE user_action_overrides SET expiry_notified_at = NOW() WHERE id = ?', [fila.id]);
     }
     return total;
   }
