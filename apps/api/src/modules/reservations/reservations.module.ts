@@ -1,6 +1,6 @@
 import { AuthorizationModule } from '../../core/authorization/authorization.module';
 import { Module } from '@nestjs/common';
-import { NivelDeDatosService } from '../../core/client-scope/nivel-de-datos.service';
+import { NivelDeDatosModule } from '../../core/client-scope/nivel-de-datos.module';
 import { UsersModule } from '../users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReservationForm } from './domain/reservation-form.entity';
@@ -25,5 +25,5 @@ import { AuditModule } from '../../core/audit/audit.module';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { MarketingModule } from '../marketing/marketing.module';
 
-@Module({ imports: [TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, ReservationCouponRedemption, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule, AuthorizationModule, UsersModule], providers: [ReservationsService, ReservationsBulkImportService, NivelDeDatosService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
+@Module({ imports: [NivelDeDatosModule, TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, ReservationCouponRedemption, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule, AuthorizationModule, UsersModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
 export class ReservationsModule {}

@@ -11,13 +11,13 @@ import { EmailModule } from '../../core/notifications/email.module';
 import { NotificationsModule } from '../../core/notifications/notifications.module';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { PublicSurveyFlowService } from './public-survey-flow.service';
-import { NivelDeDatosService } from '../../core/client-scope/nivel-de-datos.service';
+import { NivelDeDatosModule } from '../../core/client-scope/nivel-de-datos.module';
 import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Survey, SurveyResponse]), AccountAccessModule, EmailModule, AuditModule, ParametersModule, AuthorizationModule, NotificationsModule, UsersModule],
+  imports: [NivelDeDatosModule, TypeOrmModule.forFeature([Survey, SurveyResponse]), AccountAccessModule, EmailModule, AuditModule, ParametersModule, AuthorizationModule, NotificationsModule, UsersModule],
   controllers: [SurveysController, PublicSurveysController],
-  providers: [PublicSurveyFlowService, NivelDeDatosService],
+  providers: [PublicSurveyFlowService],
   exports: [PublicSurveyFlowService],
 })
 export class SurveysModule {}

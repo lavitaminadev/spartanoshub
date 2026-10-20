@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { recortarProtegidos, sePuedePedir, type NivelDeDatosProtegidos, type OrganizationModuleKey } from '@espartanos/shared';
+import { InjectRepository } from '@nestjs/typeorm';
+import { In, Repository } from 'typeorm';
+import { datosEfectivos, recortarProtegidos, sePuedePedir, type NivelDeDatosProtegidos, type OrganizationModuleKey } from '@espartanos/shared';
+import { PerfilAsignacion } from '../../modules/users/perfiles/perfil-asignacion.entity';
+import { PerfilDeEmpresa } from '../../modules/users/perfiles/perfil-de-empresa.entity';
 import { AdministradoresDeEmpresaService } from '../../modules/users/administradores-de-empresa.service';
 
 /**
@@ -60,22 +64,59 @@ export function recortarFilasPorEmpresa<T extends { clientId?: string | null }>(
  *
  * Es el único sitio: las rutas y las exportaciones preguntan aquí y no deciden por su cuenta.
  *
- * Mientras no exista el perfil de cada persona, quien administra el equipo de una empresa ve sus
- * datos `directo` y todos los demás `bajo_registro`: lo ven si lo piden y queda anotado quién.
- * **Aquí se enchufa el perfil** cuando llegue: el nivel pasará a salir del perfil de la persona
- * para el módulo pedido, y `modulo` —que hoy no cambia el resultado— decidirá cuál se consulta.
+ * El nivel sale del **perfil que esa persona tiene en esa empresa**, para el módulo pedido. Va por
+ * módulo porque no es lo mismo el teléfono de un prospecto, que comercial necesita para llamarlo,
+ * que el documento de un comensal, que casi nadie necesita para atender.
+ *
+ * Sin perfil asignado manda quien administra: la empresa ve sus datos `directo` y el resto
+ * `bajo_registro` —lo ven si lo piden y queda anotado quién—. Ése era el comportamiento antes de
+ * que existieran los perfiles, y conservarlo evita que el día del despliegue un local se quede
+ * sin poder atender porque nadie había repartido perfiles todavía.
  */
 @Injectable()
 export class NivelDeDatosService {
-  constructor(private readonly administradores: AdministradoresDeEmpresaService) {}
+  constructor(
+    private readonly administradores: AdministradoresDeEmpresaService,
+    @InjectRepository(PerfilAsignacion) private readonly asignaciones: Repository<PerfilAsignacion>,
+    @InjectRepository(PerfilDeEmpresa) private readonly perfiles: Repository<PerfilDeEmpresa>,
+  ) {}
 
-  async nivelesDe(organizationId: string, userId: string, _modulo: OrganizationModuleKey): Promise<NivelesDeDatos> {
-    const administradas = new Set(await this.administradores.empresasQueAdministra(organizationId, userId));
-    const de = (clientId: string | null | undefined): NivelDeDatosProtegidos =>
-      clientId && administradas.has(clientId) ? 'directo' : 'bajo_registro';
+  async nivelesDe(organizationId: string, userId: string, modulo: OrganizationModuleKey): Promise<NivelesDeDatos> {
+    const [administradas, porEmpresa] = await Promise.all([
+      this.administradores.empresasQueAdministra(organizationId, userId).then((lista) => new Set(lista)),
+      this.perfilesPorEmpresa(organizationId, userId),
+    ]);
+
+    const de = (clientId: string | null | undefined): NivelDeDatosProtegidos => {
+      if (!clientId) return 'bajo_registro';
+      const perfil = porEmpresa.get(clientId);
+      // `datosEfectivos` trata lo ausente como `oculto`, que es lo correcto cuando hay perfil:
+      // lo que no se concedió, no se tiene.
+      if (perfil) return datosEfectivos(perfil.datosProtegidos ?? {}, {}, modulo);
+      return administradas.has(clientId) ? 'directo' : 'bajo_registro';
+    };
+
     return {
       de,
       deTodas: (clientIds) => (clientIds === undefined ? 'bajo_registro' : elMasRestrictivo(clientIds.map(de))),
     };
+  }
+
+  /** El perfil que esta persona tiene en cada una de sus empresas, en una sola consulta. */
+  private async perfilesPorEmpresa(organizationId: string, userId: string): Promise<Map<string, PerfilDeEmpresa>> {
+    const asignaciones = await this.asignaciones.find({ where: { organizationId, userId } });
+    if (!asignaciones.length) return new Map();
+
+    const perfiles = await this.perfiles.find({
+      where: { id: In(asignaciones.map((asignacion) => asignacion.perfilId)) },
+    });
+    const porId = new Map(perfiles.map((perfil) => [perfil.id, perfil]));
+
+    const porEmpresa = new Map<string, PerfilDeEmpresa>();
+    for (const asignacion of asignaciones) {
+      const perfil = porId.get(asignacion.perfilId);
+      if (perfil) porEmpresa.set(asignacion.clientId, perfil);
+    }
+    return porEmpresa;
   }
 }

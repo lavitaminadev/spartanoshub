@@ -15,7 +15,7 @@ import { EnviosDeCampanaService } from './envios-de-campana.service';
 import { CampanasController } from './campanas.controller';
 import { AltaDeSuscriptorDesdeReserva } from './alta-desde-reserva';
 import { AuditModule } from '../../core/audit/audit.module';
-import { NivelDeDatosService } from '../../core/client-scope/nivel-de-datos.service';
+import { NivelDeDatosModule } from '../../core/client-scope/nivel-de-datos.module';
 import { UsersModule } from '../users/users.module';
 import { AccountAccessModule } from '../../core/client-scope/account-access.module';
 import { EmailModule } from '../../core/notifications/email.module';
@@ -30,7 +30,7 @@ import { ParametersModule } from '../../core/parameters/parameters.module';
  * campañas, con la constancia de por qué.
  */
 @Module({
-  imports: [
+  imports: [NivelDeDatosModule, 
     TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo, Campana, EnvioDeCampana, ReservationCoupon, ReservationCouponRedemption, Reservation, User]),
     // `AccountAccessModule` trae la capacidad por empresa: el portal sólo ve su lista si la tiene.
     AccountAccessModule,
@@ -42,7 +42,7 @@ import { ParametersModule } from '../../core/parameters/parameters.module';
     ParametersModule,
   ],
   controllers: [SuscriptoresController, CampanasController],
-  providers: [SuscriptoresService, AltaDeSuscriptorDesdeReserva, CampanasService, EnviosDeCampanaService, NivelDeDatosService],
+  providers: [SuscriptoresService, AltaDeSuscriptorDesdeReserva, CampanasService, EnviosDeCampanaService],
   exports: [SuscriptoresService, AltaDeSuscriptorDesdeReserva, CampanasService, EnviosDeCampanaService],
 })
 export class MarketingModule {}

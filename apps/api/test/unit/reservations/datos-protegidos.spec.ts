@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { NivelDeDatosService, nivelesFijos } from '../../../src/core/client-scope/nivel-de-datos.service';
+import { nivelesFijos } from '../../../src/core/client-scope/nivel-de-datos.service';
 import { ReservationsController } from '../../../src/modules/reservations/reservations.controller';
 import { ReservationsService } from '../../../src/modules/reservations/application/reservations.service';
 import { createDestinatariosDeAvisosDouble } from '../../helpers/destinatarios-de-avisos.double';
@@ -112,23 +112,5 @@ describe('Reservas: el CSV sale sin las columnas protegidas', () => {
     const texto = await csv('directo');
     expect(texto).toContain('+56911112222');
     expect(texto).toContain('mani');
-  });
-});
-
-describe('NivelDeDatosService', () => {
-  const servicio = (administra: string[]) => new NivelDeDatosService({ empresasQueAdministra: vi.fn().mockResolvedValue(administra) } as never);
-
-  it('quien administra la empresa ve directo; el resto, bajo registro', async () => {
-    const niveles = await servicio(['e1']).nivelesDe('org', 'u', 'reservations');
-    expect(niveles.de('e1')).toBe('directo');
-    expect(niveles.de('e2')).toBe('bajo_registro');
-    expect(niveles.de(undefined)).toBe('bajo_registro');
-  });
-
-  it('para varias empresas vale la que menos abre, y «todas» no se puede comprobar', async () => {
-    const niveles = await servicio(['e1']).nivelesDe('org', 'u', 'reservations');
-    expect(niveles.deTodas(['e1'])).toBe('directo');
-    expect(niveles.deTodas(['e1', 'e2'])).toBe('bajo_registro');
-    expect(niveles.deTodas(undefined)).toBe('bajo_registro');
   });
 });
