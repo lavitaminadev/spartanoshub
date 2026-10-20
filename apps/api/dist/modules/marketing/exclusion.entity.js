@@ -43,6 +43,22 @@ __decorate([
     __metadata("design:type", Object)
 ], ExclusionDeCorreo.prototype, "pedidaEl", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], ExclusionDeCorreo.prototype, "activa", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'levantada_el', type: 'datetime', nullable: true }),
+    __metadata("design:type", Object)
+], ExclusionDeCorreo.prototype, "levantadaEl", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'levantada_origen', type: 'varchar', length: 80, nullable: true }),
+    __metadata("design:type", Object)
+], ExclusionDeCorreo.prototype, "levantadaOrigen", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'veces_levantada', type: 'smallint', default: 0 }),
+    __metadata("design:type", Number)
+], ExclusionDeCorreo.prototype, "vecesLevantada", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], ExclusionDeCorreo.prototype, "createdAt", void 0);

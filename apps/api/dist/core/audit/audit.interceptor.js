@@ -14,9 +14,9 @@ exports.AuditInterceptor = void 0;
 const common_1 = require("@nestjs/common");
 const rxjs_1 = require("rxjs");
 const audit_service_1 = require("./audit.service");
+const sanear_bitacora_1 = require("./sanear-bitacora");
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SENSITIVE = /password|token|secret|authorization|cookie|credential|temporary/i;
 const CONTAINER_SEGMENTS = new Set(['crm', 'billing', 'production', 'integrations', 'public']);
 let AuditInterceptor = AuditInterceptor_1 = class AuditInterceptor {
     constructor(audit) {
@@ -59,14 +59,8 @@ let AuditInterceptor = AuditInterceptor_1 = class AuditInterceptor {
             return last.replace(/-/g, '_').slice(0, 50);
         return { POST: 'create', PUT: 'update', PATCH: 'update', DELETE: 'delete' }[method] ?? 'change';
     }
-    sanitize(value, depth = 0) {
-        if (depth > 3 || value == null)
-            return value;
-        if (Array.isArray(value))
-            return value.slice(0, 50).map((item) => this.sanitize(item, depth + 1));
-        if (typeof value !== 'object')
-            return typeof value === 'string' && value.length > 2000 ? `${value.slice(0, 2000)}...` : value;
-        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, SENSITIVE.test(key) ? '[REDACTED]' : this.sanitize(item, depth + 1)]));
+    sanitize(value) {
+        return (0, sanear_bitacora_1.sanearParaBitacora)(value);
     }
 };
 exports.AuditInterceptor = AuditInterceptor;

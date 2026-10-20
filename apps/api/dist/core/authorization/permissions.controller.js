@@ -66,9 +66,10 @@ let PermissionsController = class PermissionsController {
             throw new common_2.BadRequestException(`Acción desconocida: ${accion}`);
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined);
+        const venceEl = this.fechaDeTermino(dto.expiresAt);
         const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
-        const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, grantedBy: req.user.id });
-        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed } });
+        const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, expiresAt: venceEl, expiryNotifiedAt: null, grantedBy: req.user.id });
+        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed, expiresAt: venceEl } });
         return guardado;
     }
     async quitarAjusteDeAccion(id, accion, req) {
@@ -310,6 +311,7 @@ let PermissionsController = class PermissionsController {
         const client = await this.clients.findOne({ where: { id: clientId, organizationId: req.organizationId }, select: { id: true } });
         if (!client)
             throw new common_2.NotFoundException('Cuenta no encontrada');
+        const venceEl = this.fechaDeTermino(dto.expiresAt);
         const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId: client.id } });
         if (existing?.retiredOutcome === 'vetado')
             throw new common_2.BadRequestException('Esa persona está vetada en esa empresa. Para levantar el veto hay que invitarla de nuevo, confirmándolo');
@@ -323,6 +325,8 @@ let PermissionsController = class PermissionsController {
             userId: user.id,
             clientId: client.id,
             reason: dto.reason ?? null,
+            expiresAt: venceEl,
+            expiryNotifiedAt: null,
             grantedBy: req.user.id,
         });
         this.accountAccess.invalidateUser(user.id);
@@ -332,8 +336,8 @@ let PermissionsController = class PermissionsController {
             entityType: 'UserClientAccess',
             entityId: saved.id,
             action: existing ? 'updated' : 'created',
-            before: existing ? { reason: existing.reason } : undefined,
-            after: { userId: user.id, clientId: client.id, reason: dto.reason ?? null },
+            before: existing ? { reason: existing.reason, expiresAt: existing.expiresAt ?? null } : undefined,
+            after: { userId: user.id, clientId: client.id, reason: dto.reason ?? null, expiresAt: venceEl },
         });
         return saved;
     }
@@ -372,6 +376,15 @@ let PermissionsController = class PermissionsController {
             clientId,
             stillVisible: remaining === undefined || remaining.includes(clientId),
         };
+    }
+    fechaDeTermino(valor) {
+        if (!valor)
+            return null;
+        const fecha = new Date(valor);
+        if (Number.isNaN(fecha.getTime()) || fecha.getTime() <= Date.now()) {
+            throw new common_2.BadRequestException('La fecha de término tiene que ser futura');
+        }
+        return fecha;
     }
     async findUser(id, organizationId) {
         const user = await this.users.findOne({ where: { id, organizationId } });

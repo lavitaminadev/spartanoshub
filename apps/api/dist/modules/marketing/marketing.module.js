@@ -24,7 +24,7 @@ const envios_de_campana_service_1 = require("./envios-de-campana.service");
 const campanas_controller_1 = require("./campanas.controller");
 const alta_desde_reserva_1 = require("./alta-desde-reserva");
 const audit_module_1 = require("../../core/audit/audit.module");
-const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
+const nivel_de_datos_module_1 = require("../../core/client-scope/nivel-de-datos.module");
 const users_module_1 = require("../users/users.module");
 const account_access_module_1 = require("../../core/client-scope/account-access.module");
 const email_module_1 = require("../../core/notifications/email.module");
@@ -34,7 +34,7 @@ let MarketingModule = class MarketingModule {
 exports.MarketingModule = MarketingModule;
 exports.MarketingModule = MarketingModule = __decorate([
     (0, common_1.Module)({
-        imports: [
+        imports: [nivel_de_datos_module_1.NivelDeDatosModule,
             typeorm_1.TypeOrmModule.forFeature([suscriptor_entity_1.Suscriptor, exclusion_entity_1.ExclusionDeCorreo, campana_entity_1.Campana, envio_de_campana_entity_1.EnvioDeCampana, reservation_coupon_entity_1.ReservationCoupon, reservation_coupon_redemption_entity_1.ReservationCouponRedemption, reservation_entity_1.Reservation, user_entity_1.User]),
             account_access_module_1.AccountAccessModule,
             audit_module_1.AuditModule,
@@ -43,7 +43,7 @@ exports.MarketingModule = MarketingModule = __decorate([
             parameters_module_1.ParametersModule,
         ],
         controllers: [suscriptores_controller_1.SuscriptoresController, campanas_controller_1.CampanasController],
-        providers: [suscriptores_service_1.SuscriptoresService, alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva, campanas_service_1.CampanasService, envios_de_campana_service_1.EnviosDeCampanaService, nivel_de_datos_service_1.NivelDeDatosService],
+        providers: [suscriptores_service_1.SuscriptoresService, alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva, campanas_service_1.CampanasService, envios_de_campana_service_1.EnviosDeCampanaService],
         exports: [suscriptores_service_1.SuscriptoresService, alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva, campanas_service_1.CampanasService, envios_de_campana_service_1.EnviosDeCampanaService],
     })
 ], MarketingModule);

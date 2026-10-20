@@ -20,16 +20,16 @@ const email_module_1 = require("../../core/notifications/email.module");
 const notifications_module_1 = require("../../core/notifications/notifications.module");
 const parameters_module_1 = require("../../core/parameters/parameters.module");
 const public_survey_flow_service_1 = require("./public-survey-flow.service");
-const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
+const nivel_de_datos_module_1 = require("../../core/client-scope/nivel-de-datos.module");
 const users_module_1 = require("../users/users.module");
 let SurveysModule = class SurveysModule {
 };
 exports.SurveysModule = SurveysModule;
 exports.SurveysModule = SurveysModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([survey_entity_1.Survey, survey_response_entity_1.SurveyResponse]), account_access_module_1.AccountAccessModule, email_module_1.EmailModule, audit_module_1.AuditModule, parameters_module_1.ParametersModule, authorization_module_1.AuthorizationModule, notifications_module_1.NotificationsModule, users_module_1.UsersModule],
+        imports: [nivel_de_datos_module_1.NivelDeDatosModule, typeorm_1.TypeOrmModule.forFeature([survey_entity_1.Survey, survey_response_entity_1.SurveyResponse]), account_access_module_1.AccountAccessModule, email_module_1.EmailModule, audit_module_1.AuditModule, parameters_module_1.ParametersModule, authorization_module_1.AuthorizationModule, notifications_module_1.NotificationsModule, users_module_1.UsersModule],
         controllers: [surveys_controller_1.SurveysController, public_surveys_controller_1.PublicSurveysController],
-        providers: [public_survey_flow_service_1.PublicSurveyFlowService, nivel_de_datos_service_1.NivelDeDatosService],
+        providers: [public_survey_flow_service_1.PublicSurveyFlowService],
         exports: [public_survey_flow_service_1.PublicSurveyFlowService],
     })
 ], SurveysModule);

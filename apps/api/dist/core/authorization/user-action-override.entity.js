@@ -43,6 +43,14 @@ __decorate([
     __metadata("design:type", Object)
 ], UserActionOverride.prototype, "grantedBy", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'expires_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserActionOverride.prototype, "expiresAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'expiry_notified_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserActionOverride.prototype, "expiryNotifiedAt", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], UserActionOverride.prototype, "createdAt", void 0);

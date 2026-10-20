@@ -24,3 +24,8 @@ __decorate([
     (0, class_validator_1.MaxLength)(300),
     __metadata("design:type", String)
 ], AjustarAccionDto.prototype, "reason", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsISO8601)(),
+    __metadata("design:type", Object)
+], AjustarAccionDto.prototype, "expiresAt", void 0);

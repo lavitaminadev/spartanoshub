@@ -31,7 +31,8 @@ let AccionesService = class AccionesService {
             this.permisos.permissionsFor(organizationId, userId, role, clientId),
             this.ajustes.find({ where: { organizationId, userId } }),
         ]);
-        const porAccion = new Map(filas.map((fila) => [fila.action, fila]));
+        const ahora = Date.now();
+        const porAccion = new Map(filas.filter((fila) => !fila.expiresAt || fila.expiresAt.getTime() > ahora).map((fila) => [fila.action, fila]));
         return acciones_1.ACCIONES.map((accion) => {
             const porNivel = (0, permission_level_1.satisfies)(niveles[accion.modulo] ?? 'none', accion.nivelPorDefecto);
             const ajuste = porAccion.get(accion.clave);

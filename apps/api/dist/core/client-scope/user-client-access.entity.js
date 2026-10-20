@@ -35,6 +35,14 @@ __decorate([
     __metadata("design:type", Object)
 ], UserClientAccess.prototype, "reason", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'expires_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "expiresAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'expiry_notified_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "expiryNotifiedAt", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'granted_by', type: 'uuid', nullable: true }),
     __metadata("design:type", Object)
 ], UserClientAccess.prototype, "grantedBy", void 0);
