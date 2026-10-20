@@ -53,6 +53,9 @@ import { CALIFICACIONES, CALIFICACION_TITULO, rotuloDeCalificacion } from './cal
 import { marcaDeInactividad } from './inactividad';
 import './leads-board.css';
 import { puedeAccion } from '../../core/acciones';
+import { estaProtegido } from '@espartanos/shared';
+import { CampoProtegido } from '../../shared/CampoProtegido';
+import { TEXTO_PROTEGIDO, valorLlegado, type AvisoDeDatosProtegidos } from '../../shared/datos-protegidos';
 
 interface Lead {
   id: string;
@@ -61,6 +64,8 @@ interface Lead {
   name: string;
   email?: string | null;
   phone?: string | null;
+  /** Qué datos de contacto el servidor no mandó y si quien mira puede pedirlos. */
+  datosProtegidos?: AvisoDeDatosProtegidos;
   company?: string | null;
   status: string;
   source?: string | null;
@@ -652,6 +657,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
    * mirando en pantalla, y el filtro queda anotado en el encabezado para que el archivo se
    * entienda semanas después.
    */
+  const hayContactoProtegido = leads.some((l) => estaProtegido(l.phone) || estaProtegido(l.email));
   const documento: ExportDocument<Lead> = {
     fileName: 'prospectos',
     title: 'Prospectos del embudo comercial',
@@ -665,8 +671,11 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
     columns: [
       { header: 'Nombre', value: (l) => l.name, width: 22 },
       { header: 'Empresa', value: (l) => l.company, width: 18 },
-      { header: 'Teléfono', value: (l) => l.phone, width: 14 },
-      { header: 'Correo', value: (l) => l.email, width: 22 },
+      // Un archivo que sale del sistema no lleva lo que la pantalla tiene protegido: sin esas columnas, no con la marca.
+      ...(hayContactoProtegido ? [] : [
+        { header: 'Teléfono', value: (l: Lead) => l.phone, width: 14 },
+        { header: 'Correo', value: (l: Lead) => l.email, width: 22 },
+      ]),
       { header: 'Etapa', value: (l) => etapaLabel(l.status), width: 13 },
       { header: 'Origen', value: (l) => l.campaignName || etiquetaDeFuente(l.source), width: 15 },
       { header: 'Responsable', value: (l) => nombreDe(l.assignedTo) ?? 'Sin asignar', width: 14 },
@@ -1014,7 +1023,9 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                     )
                     : <span className="leads-board-avatar es-libre" title="Nadie lo ha tomado todavía">?</span>}
                 </div>
-                {lead.phone ? <span className="leads-board-contacto">📞 {lead.phone}</span> : null}
+                {estaProtegido(lead.phone)
+                  ? <span className="leads-board-contacto">📞 {TEXTO_PROTEGIDO}</span>
+                  : lead.phone ? <span className="leads-board-contacto">📞 {lead.phone}</span> : null}
                 {lead.estimatedAmount ? <span className="leads-board-monto">💰 {montoCorto(Number(lead.estimatedAmount))}</span> : null}
                 {/*
                   El color, y por qué.
@@ -1211,8 +1222,8 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
                   <td data-label="Prospecto" className="col-prospecto">
                     <button type="button" className="link-button" title={lead.name} onClick={() => setAbierto(lead)}>{lead.name}</button>
                   </td>
-                  {ve('phone') ? <td data-label="Teléfono">{lead.phone || '—'}</td> : null}
-                  {ve('email') ? <td data-label="Correo" className="col-larga" title={lead.email ?? undefined}><span className="celda-recortada">{lead.email || '—'}</span></td> : null}
+                  {ve('phone') ? <td data-label="Teléfono"><CampoProtegido valor={lead.phone} campo="phone" ruta={`/crm/leads/${lead.id}/datos-protegidos`} sePuedePedir={lead.datosProtegidos?.sePuedePedir === true} /></td> : null}
+                  {ve('email') ? <td data-label="Correo" className="col-larga" title={valorLlegado(lead.email) ?? undefined}><span className="celda-recortada"><CampoProtegido valor={lead.email} campo="email" ruta={`/crm/leads/${lead.id}/datos-protegidos`} sePuedePedir={lead.datosProtegidos?.sePuedePedir === true} /></span></td> : null}
                   {ve('company') ? <td data-label="Empresa">{lead.company || '—'}</td> : null}
                   {ve('source') ? <td data-label="Origen" className="col-larga" title={lead.campaignName ?? undefined}><span className="celda-recortada">{lead.campaignName || etiquetaDeFuente(lead.source) || '—'}</span></td> : null}
                   {ve('status') ? <td data-label="Etapa">{etapaLabel(lead.status)}</td> : null}

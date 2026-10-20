@@ -18,6 +18,9 @@ interface LeadCreatedEvent {
 /**
  * Entrega el aviso de una captura nueva a las personas activas de esa empresa.
  *
+ * Dice que entró un lead y de dónde; no lleva su teléfono ni su correo, porque llega a todas las
+ * cuentas de la empresa sin mirar el nivel de cada una. El contacto se ve en el CRM.
+ *
  * El vínculo estable es `users.client_id`: no se adivina un dueño por orden de alta ni se usa
  * una dirección global de la agencia. Si una empresa tiene varios usuarios, todos reciben el
  * aviso; cuando no tiene ninguno no se fabrica un destinatario ni se filtra el lead a otra
@@ -53,7 +56,7 @@ export class LeadCreatedEmailListener {
         this.leads.findOne({
           where: { id: event.leadId, organizationId: event.organizationId, clientId: event.clientId },
           select: {
-            id: true, name: true, email: true, phone: true, source: true,
+            id: true, name: true, source: true,
             campaignName: true, organizationId: true, clientId: true,
           },
         }),
@@ -81,8 +84,6 @@ export class LeadCreatedEmailListener {
           lead: lead.name,
           origen: lead.source?.replace(/_/g, ' ') || 'Sin origen informado',
           campana: lead.campaignName || 'Sin campaña',
-          telefono: lead.phone || 'Sin teléfono',
-          correo: lead.email || 'Sin correo',
         });
         const delivered = await this.email.send(address, subject, html);
         if (!delivered) {

@@ -5,6 +5,8 @@ import { DataTable } from '../../shared/DataTable';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { Modal } from '../../shared/Modal';
 import { triggerToast } from '../../shared/toast-events';
+import { estaProtegido } from '@espartanos/shared';
+import { TEXTO_PROTEGIDO } from '../../shared/datos-protegidos';
 
 interface Campana {
   id: string;
@@ -330,7 +332,7 @@ function EditorDeCampana({ campana, empresas, onCerrar, onGuardada }: {
           Ahora mismo llegaría a <strong>{aQuienes.total}</strong> {aQuienes.total === 1 ? 'persona' : 'personas'}
           {' · '}<span>{aQuienes.deQuienes}</span>
           {aQuienes.muestra.length > 0 && <small>
-            {' '}Por ejemplo: {aQuienes.muestra.map((fila) => fila.nombre || fila.email).join(', ')}…
+            {' '}Por ejemplo: {aQuienes.muestra.map((fila) => fila.nombre || (estaProtegido(fila.email) ? TEXTO_PROTEGIDO : fila.email)).join(', ')}…
           </small>}
         </p>}
 
@@ -456,8 +458,8 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
 
         {/* Unos nombres, no la lista entera: sirven para reconocerla, que es de lo que se trata. */}
         {(cuenta?.muestra?.length ?? 0) > 0 && <ul className="envio-muestra">
-          {cuenta!.muestra.map((fila) => (
-            <li key={fila.email}>{fila.nombre ? `${fila.nombre} · ${fila.email}` : fila.email}</li>
+          {cuenta!.muestra.map((fila, posicion) => (
+            <li key={`${posicion}-${fila.email}`}>{[fila.nombre, estaProtegido(fila.email) ? null : fila.email].filter(Boolean).join(' · ') || TEXTO_PROTEGIDO}</li>
           ))}
           {total > cuenta!.muestra.length && <li className="tabla-nota">y {total - cuenta!.muestra.length} más</li>}
         </ul>}
@@ -550,9 +552,9 @@ function FallidosDeLaCampana({ campanaId, cuantos }: { campanaId: string; cuanto
       <summary>{cuantos} sin entregar</summary>
       {!data ? <small className="tabla-nota">Buscando…</small> : (
         <ul>
-          {data.fallidos.map((fallo) => (
-            <li key={fallo.email}>
-              <strong>{fallo.email}</strong>
+          {data.fallidos.map((fallo, posicion) => (
+            <li key={`${posicion}-${fallo.email}`}>
+              <strong>{estaProtegido(fallo.email) ? TEXTO_PROTEGIDO : fallo.email}</strong>
               <small>{fallo.motivo ?? (fallo.estado === 'expired' ? 'Se dio de baja antes de que saliera' : 'Sin detalle')} · {fallo.intentos} {fallo.intentos === 1 ? 'intento' : 'intentos'}</small>
             </li>
           ))}

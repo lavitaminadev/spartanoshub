@@ -262,7 +262,8 @@ export class PublicSurveyFlowService {
    *
    * Sólo cuando la respuesta viene de una reserva se sabe qué local la atendió y a quién avisar.
    * Una encuesta abierta por QR no tiene a quién escribirle: el mensaje queda en los resultados.
-   * La respuesta va dirigida a la persona, para que el local le conteste directo desde su correo.
+   * El aviso no lleva el correo de quien respondió ni permite contestarle desde ahí: eso se ve en
+   * los resultados, donde el acceso está protegido.
    */
   private async avisarAlEquipo(survey: Survey, respuesta: SurveyResponse): Promise<void> {
     /*
@@ -325,7 +326,7 @@ export class PublicSurveyFlowService {
     if (!plantilla.encendido) return;
     const { subject, html } = componerCorreo(
       plantilla.asunto,
-      `${plantilla.cuerpo}${respuesta.respondentEmail ? '\n\nPueden responderle directo a este correo.' : ''}`,
+      `${plantilla.cuerpo}${respuesta.respondentEmail ? '\n\nQuién respondió y cómo contactarle se ve en Encuestas → Resultados.' : ''}`,
       {
         nombre: quien,
         local: nombreDelLocal,
@@ -338,11 +339,10 @@ export class PublicSurveyFlowService {
       [
         { etiqueta: 'Encuesta', valor: survey.title },
         { etiqueta: 'Nota', valor: `${respuesta.rating ?? '—'} de 5` },
-        ...(respuesta.respondentEmail ? [{ etiqueta: 'Correo', valor: respuesta.respondentEmail }] : []),
       ],
     );
     for (const destino of destinatarios) {
-      await this.correo.send(destino, subject, html, respuesta.respondentEmail ? { replyTo: respuesta.respondentEmail } : undefined);
+      await this.correo.send(destino, subject, html);
     }
   }
 }

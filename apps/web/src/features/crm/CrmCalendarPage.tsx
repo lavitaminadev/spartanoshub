@@ -16,6 +16,8 @@ import { MEDIOS, TIPOS_AGENDABLES, TIPO_DE_ACTIVIDAD, admiteMedio, campoDelMedio
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { Modal } from '../../shared/Modal';
+import { estaProtegido } from '@espartanos/shared';
+import { valorLlegado } from '../../shared/datos-protegidos';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
 import { franjasDelDia } from './jornada';
@@ -611,7 +613,7 @@ export function CrmCalendarPage(): JSX.Element {
                           <li key={lead.id}>
                             <button type="button" onClick={() => { setAgendando({ ...agendando, leadId: lead.id }); setBuscandoLead(lead.name); }}>
                               <strong>{lead.name}</strong>
-                              <small>{[lead.email, lead.phone, lead.company].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</small>
+                              <small>{[valorLlegado(lead.email), valorLlegado(lead.phone), lead.company].filter(Boolean).join(' · ') || (estaProtegido(lead.email) || estaProtegido(lead.phone) ? 'Datos de contacto protegidos' : 'Sin datos de contacto')}</small>
                             </button>
                           </li>
                         ))}

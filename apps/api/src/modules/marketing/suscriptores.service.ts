@@ -541,6 +541,18 @@ export class SuscriptoresService {
   }
 
   /**
+   * Un suscriptor para entregar sus datos protegidos a quien los pidió.
+   *
+   * @param encerradoEn - Empresa de la que no puede salir quien pregunta, si es una cuenta de empresa.
+   * Lo que queda fuera se responde como inexistente.
+   */
+  async buscarParaRevelar(organizationId: string, id: string, encerradoEn?: string): Promise<Suscriptor> {
+    const suscriptor = await this.repo.findOne({ where: { id, organizationId } });
+    if (!suscriptor || (encerradoEn && suscriptor.clientId !== encerradoEn)) throw new NotFoundException('El suscriptor no existe');
+    return suscriptor;
+  }
+
+  /**
    * Los que una empresa puede descargar para escribirles por su cuenta.
    *
    * **Nunca la lista cruda.** Sólo quien está suscrito ahora mismo: incluir a quien se dio de baja

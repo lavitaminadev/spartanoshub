@@ -368,7 +368,7 @@ export class CampanasService {
   /** A quiénes no les llegó el correo, y por qué. */
   async fallidos(id: string, organizationId: string) {
     const campana = await this.buscar(id, organizationId);
-    return { asunto: campana.asunto, fallidos: await this.envios.fallidosDe(campana.id) };
+    return { asunto: campana.asunto, clientId: campana.clientId ?? null, fallidos: await this.envios.fallidosDe(campana.id) };
   }
 
   /**

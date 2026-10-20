@@ -8,6 +8,8 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { CampanasService } from './campanas.service';
+import { recortarListaProtegidos } from '@espartanos/shared';
+import { NivelDeDatosService } from '../../core/client-scope/nivel-de-datos.service';
 
 /**
  * Filtros de la lista de campañas.
@@ -65,7 +67,10 @@ class EditarCampanaDto {
 @ModuleScope('marketing')
 @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
 export class CampanasController {
-  constructor(private readonly campanas: CampanasService) {}
+  constructor(
+    private readonly campanas: CampanasService,
+    private readonly niveles: NivelDeDatosService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Campañas escritas, enviadas y en borrador' })
@@ -80,11 +85,12 @@ export class CampanasController {
     @Query('empresa') empresa?: string,
     @Query('destino') destino?: string,
   ) {
-    return this.campanas.destinatarios(
-      req.organizationId || req.user.organizationId,
-      empresa,
-      destino === 'administradores' ? 'administradores' : 'lista',
-    );
+    const organizationId = req.organizationId || req.user.organizationId;
+    const resultado = await this.campanas.destinatarios(organizationId, empresa, destino === 'administradores' ? 'administradores' : 'lista');
+    // La muestra enseña direcciones: sale recortada según el nivel de esta persona en la empresa elegida.
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    const nivel = niveles.de(empresa && empresa !== 'agencia' ? empresa : null);
+    return { ...resultado, muestra: recortarListaProtegidos(resultado.muestra, 'marketing', nivel).datos };
   }
 
   /**
@@ -155,8 +161,11 @@ export class CampanasController {
    */
   @Get(':id/fallidos')
   @ApiOperation({ summary: 'Destinatarios a los que no les llegó, con el motivo' })
-  fallidos(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.campanas.fallidos(id, req.organizationId || req.user.organizationId);
+  async fallidos(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const { clientId, ...resultado } = await this.campanas.fallidos(id, organizationId);
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    return { ...resultado, fallidos: recortarListaProtegidos(resultado.fallidos, 'marketing', niveles.de(clientId)).datos };
   }
 
   /** Qué trajo la campaña: los canjes de su cupón desde que salió. */

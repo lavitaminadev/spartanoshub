@@ -6,6 +6,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { SuscriptoresController } from '../../../src/modules/marketing/suscriptores.controller';
 import { SuscriptoresService } from '../../../src/modules/marketing/suscriptores.service';
 import { ClientCapabilityService } from '../../../src/core/client-scope/client-capability.service';
+import { NivelDeDatosService } from '../../../src/core/client-scope/nivel-de-datos.service';
+import { AuditService } from '../../../src/core/audit/audit.service';
+import { AccountAccessService } from '../../../src/core/client-scope/account-access.service';
 import { ValidationPipe } from '../../../src/core/errors/validation.pipe';
 
 /*
@@ -35,6 +38,9 @@ describe('la baja a través de HTTP', () => {
       providers: [
         { provide: SuscriptoresService, useValue: suscriptores },
         { provide: ClientCapabilityService, useValue: { assert: vi.fn() } },
+        { provide: AccountAccessService, useValue: { empresaElegida: vi.fn() } },
+        { provide: NivelDeDatosService, useValue: {} },
+        { provide: AuditService, useValue: {} },
         // El mismo pipe global que corre en producción: es parte de lo que se quiere comprobar.
         { provide: APP_PIPE, useClass: ValidationPipe },
       ],

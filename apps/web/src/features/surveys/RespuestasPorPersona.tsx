@@ -14,9 +14,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { triggerToast } from '../../shared/toast-events';
 import type { SurveyIndividualResponse, SurveyQuestion } from '@espartanos/shared';
-import { DATOS_DE_CONTACTO } from '@espartanos/shared';
+import { DATOS_DE_CONTACTO, estaProtegido } from '@espartanos/shared';
+import { ValorProtegido } from '../../shared/CampoProtegido';
+import { valorLlegado } from '../../shared/datos-protegidos';
 
-export type RespuestaIndividual = SurveyIndividualResponse;
+/** Lo que el servidor devuelve al pedir «Ver»: nombre, correo, teléfono y las respuestas de contacto por pregunta. */
+interface ContactoRevelado { respondentName?: string | null; respondentEmail?: string | null; respondentPhone?: string | null; respuestasDeContacto?: Record<string, unknown> }
+
+export type RespuestaIndividual = SurveyIndividualResponse & { respondentPhone?: string | null };
 
 type Filtro = 'pendientes' | 'todas' | 'mensajes' | 'bajas' | 'con-contacto';
 
@@ -42,7 +47,7 @@ function enlaceWhatsapp(telefono: string, nombre?: string | null): string | null
   return `https://wa.me/${completo}?text=${encodeURIComponent(mensaje)}`;
 }
 
-export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surveyId: string; respuestas: RespuestaIndividual[]; preguntas: SurveyQuestion[] }): JSX.Element {
+export function RespuestasPorPersona({ surveyId, respuestas, preguntas, sePuedePedir = false }: { surveyId: string; respuestas: RespuestaIndividual[]; preguntas: SurveyQuestion[]; sePuedePedir?: boolean }): JSX.Element {
   const [filtro, setFiltro] = useState<Filtro>(() => (respuestas.some((respuesta) => requiereAtencion(respuesta) && !respuesta.attendedAt) ? 'pendientes' : 'todas'));
   const queryClient = useQueryClient();
   const atender = useMutation({
@@ -50,37 +55,52 @@ export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surv
     onSuccess: (_datos, { atendida }) => { triggerToast(atendida ? 'Marcada como atendida' : 'Vuelve a quedar por atender'); void queryClient.invalidateQueries({ queryKey: ['surveys', surveyId, 'results'] }); },
     onError: (error: Error) => triggerToast(`No se pudo actualizar: ${error.message}`, 'error'),
   });
+  /* Lo que el servidor entregó al pedir «Ver», por respuesta. */
+  const [reveladas, setReveladas] = useState<Record<string, ContactoRevelado>>({});
+  const revelar = useMutation({
+    mutationFn: (id: string) => api.get<{ datos: ContactoRevelado }>(`/surveys/${encodeURIComponent(surveyId)}/responses/${encodeURIComponent(id)}/datos-protegidos`).then((respuesta) => ({ id, datos: respuesta.datos })),
+    onSuccess: ({ id, datos }) => setReveladas((actuales) => ({ ...actuales, [id]: datos })),
+  });
   const [busqueda, setBusqueda] = useState('');
   const [abierta, setAbierta] = useState<string | null>(null);
   const porId = useMemo(() => new Map(preguntas.map((pregunta) => [pregunta.id, pregunta])), [preguntas]);
   const idDe = (dato: string) => preguntas.find((pregunta) => pregunta.dato === dato)?.id;
 
   const contacto = (respuesta: RespuestaIndividual) => {
-    const leer = (dato: string) => { const id = idDe(dato); const valor = id ? respuesta.answers[id] : undefined; return typeof valor === 'string' && valor.trim() ? valor.trim() : null; };
+    const revelado = reveladas[respuesta.id];
+    const leer = (dato: string) => {
+      const id = idDe(dato);
+      const valor = id ? (revelado?.respuestasDeContacto ?? respuesta.answers)[id] : undefined;
+      return typeof valor === 'string' && valor.trim() && !estaProtegido(valor) ? valor.trim() : null;
+    };
+    const nombre = revelado ? revelado.respondentName : valorLlegado(respuesta.respondentName);
+    const correo = revelado ? revelado.respondentEmail : valorLlegado(respuesta.respondentEmail);
     return {
-      nombre: respuesta.respondentName || leer('nombre'),
-      correo: respuesta.respondentEmail || leer('correo'),
+      nombre: nombre || leer('nombre'),
+      correo: correo || leer('correo'),
       telefono: leer('telefono'),
       rut: leer('rut'),
       nacimiento: leer('nacimiento'),
+      /* Hay datos de contacto que el servidor no mandó y que esta persona todavía no pidió. */
+      protegido: !revelado && (estaProtegido(respuesta.respondentName) || estaProtegido(respuesta.respondentEmail) || estaProtegido(respuesta.respondentPhone) || Object.values(respuesta.answers).some(estaProtegido)),
     };
   };
 
   const pendientes = respuestas.filter((respuesta) => requiereAtencion(respuesta) && !respuesta.attendedAt).length;
   const conMensaje = respuestas.filter((respuesta) => respuesta.teamMessage).length;
   const bajas = respuestas.filter((respuesta) => respuesta.rating !== null && respuesta.rating <= 3).length;
-  const conContacto = respuestas.filter((respuesta) => { const c = contacto(respuesta); return c.correo || c.telefono; }).length;
+  const conContacto = respuestas.filter((respuesta) => { const c = contacto(respuesta); return c.correo || c.telefono || c.protegido; }).length;
   const texto = busqueda.trim().toLocaleLowerCase('es');
   const visibles = respuestas
     .filter((respuesta) => {
       if (filtro === 'pendientes') return requiereAtencion(respuesta) && !respuesta.attendedAt;
       if (filtro === 'mensajes') return Boolean(respuesta.teamMessage);
       if (filtro === 'bajas') return respuesta.rating !== null && respuesta.rating <= 3;
-      if (filtro === 'con-contacto') { const c = contacto(respuesta); return Boolean(c.correo || c.telefono); }
+      if (filtro === 'con-contacto') { const c = contacto(respuesta); return Boolean(c.correo || c.telefono || c.protegido); }
       return true;
     })
     .filter((respuesta) => !texto || [respuesta.teamMessage, ...Object.values(respuesta.answers), respuesta.respondentName, respuesta.respondentEmail]
-      .some((valor) => valor !== null && valor !== undefined && String(valor).toLocaleLowerCase('es').includes(texto)))
+      .some((valor) => valor !== null && valor !== undefined && !estaProtegido(valor) && String(valor).toLocaleLowerCase('es').includes(texto)))
     // Los mensajes primero dentro de cualquier filtro: son lo que alguien tiene que contestar.
     .sort((a, b) => Number(Boolean(b.teamMessage)) - Number(Boolean(a.teamMessage)));
 
@@ -111,7 +131,7 @@ export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surv
                   <span className="respuestas-persona-nota" aria-label={respuesta.rating ? `${respuesta.rating} de 5` : 'Sin nota'}>
                     {respuesta.rating ? '★'.repeat(respuesta.rating) + '☆'.repeat(5 - respuesta.rating) : '—'}
                   </span>
-                  <strong>{c.nombre || 'Anónimo'}</strong>
+                  <strong>{c.nombre || (c.protegido ? 'Persona protegida' : 'Anónimo')}</strong>
                   <small>
                     {new Date(respuesta.submittedAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
                     {respuesta.completedAt ? '' : ' · dejó sólo la nota'}
@@ -133,8 +153,10 @@ export function RespuestasPorPersona({ surveyId, respuestas, preguntas }: { surv
                   <span className="respuestas-persona-abrir" aria-hidden="true">{estaAbierta ? '−' : '+'}</span>
                 </button>
                 {respuesta.teamMessage && <blockquote>«{respuesta.teamMessage}»</blockquote>}
-                {(c.correo || whatsapp || requiereAtencion(respuesta)) && (
+                {(c.correo || whatsapp || c.protegido || requiereAtencion(respuesta)) && (
                   <div className="respuestas-persona-contactar">
+                    {/* «Protegido» y no un hueco: un hueco se lee como «no dejó sus datos». */}
+                    {c.protegido && <span className="respuestas-persona-protegido"><ValorProtegido sePuedePedir={sePuedePedir} pendiente={revelar.isPending && revelar.variables === respuesta.id} onVer={() => revelar.mutate(respuesta.id)} /></span>}
                     {whatsapp && <a className="btn btn-primary btn-sm" href={whatsapp} target="_blank" rel="noopener noreferrer">Responder por WhatsApp</a>}
                     {c.correo && <a className="btn btn-outline btn-sm" href={`mailto:${c.correo}`}>{whatsapp ? 'Por correo' : 'Responder por correo'}</a>}
                     {requiereAtencion(respuesta) && (respuesta.attendedAt ? (

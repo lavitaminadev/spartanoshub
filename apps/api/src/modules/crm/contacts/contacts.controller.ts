@@ -8,6 +8,10 @@ import type { AuthenticatedRequest } from '@shared/types/request';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
 import { UserRole } from '../../organizations/user-role.enum';
+import { camposProtegidosDe } from '@espartanos/shared';
+import { AuditService } from '../../../core/audit/audit.service';
+import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../../core/client-scope/nivel-de-datos.service';
+import { exigirConstanciaDeRevelacion } from '../../../core/client-scope/revelar-protegidos';
 
 /**
  * Vínculos de personas con cuentas. **Solo lectura y anotación.**
@@ -28,6 +32,8 @@ export class ContactsController {
     private service: ContactsService,
     private readonly accountAccess: AccountAccessService,
     private readonly capabilities: ClientCapabilityService,
+    private readonly niveles: NivelDeDatosService,
+    private readonly audit: AuditService,
   ) {}
 
   /** El portal entra al CRM de la empresa que está mirando; ver el mismo método en `LeadController`. */
@@ -54,7 +60,9 @@ export class ContactsController {
     await this.assertPortalCrm(req);
     await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed, query.leadId);
+    const pagina = await this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed, query.leadId);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+    return { ...pagina, data: recortarFilasPorEmpresa(pagina.data, 'crm', niveles) };
   }
 
   @Get('segments')
@@ -69,7 +77,24 @@ export class ContactsController {
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.service.findOne(id, req.organizationId, allowed);
+    const contacto = await this.service.findOne(id, req.organizationId, allowed);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+    return recortarFilasPorEmpresa([contacto], 'crm', niveles)[0];
+  }
+
+  /** Correo y teléfono de un contacto, con la misma constancia que en la ficha del lead. */
+  @Get(':id/datos-protegidos')
+  async datosProtegidos(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
+    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    const contacto = await this.service.findOne(id, req.organizationId, allowed);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+    const ficha = contacto as unknown as Record<string, unknown>;
+    const datos = Object.fromEntries(camposProtegidosDe('crm').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, ficha[campo] ?? null]));
+    await exigirConstanciaDeRevelacion(this.audit, niveles.de(contacto.clientId), {
+      organizationId: req.organizationId, actorId: req.user.id, entityType: 'contacts', entityId: id, campos: Object.keys(datos), ipAddress: req.ip,
+    });
+    return { id, datos };
   }
 
   /** Solo el papel en la cuenta y las notas. La identidad se edita en el lead. */
@@ -77,6 +102,8 @@ export class ContactsController {
   async update(@Param('id') id: string, @Body() dto: UpdateContactDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.service.update(id, dto, req.organizationId, allowed);
+    const contacto = await this.service.update(id, dto, req.organizationId, allowed);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+    return recortarFilasPorEmpresa([contacto], 'crm', niveles)[0];
   }
 }

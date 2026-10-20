@@ -186,3 +186,9 @@
   font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--text);
 }
 .lead-detail-edicion label.lead-fuera-de-meta small { color: var(--muted); font-size: 11px; }
+
+/* Teléfono y correo cuando el servidor no los mandó: ocupan la fila de los dos campos que reemplazan. */
+.lead-detail-edicion .campo-protegido-ficha { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lead-detail-edicion .campo-protegido-ficha > span {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}

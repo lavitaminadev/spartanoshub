@@ -77,11 +77,14 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
    * encontrar. El de empresa se queda en el navegador porque tiene un caso que el servidor no
    * expresa: «equipo» son las que no tienen empresa ninguna.
    */
+  const empresaActiva = useEmpresaActiva();
   const { data: pagina_, isLoading, error, refetch, isFetching } = useSurveys({
     buscar: filtros.search,
     estado: filtros.values.estado,
     tipo: typeFilter === 'all' ? '' : typeFilter,
     page: pagina,
+    // Vacío fuera del portal: el equipo ve todas las que alcanza.
+    clientId: empresaActiva.clientId,
   });
   const surveys = pagina_?.encuestas ?? [];
   const totalEncuestas = pagina_?.total ?? 0;
@@ -100,7 +103,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
   }
   const { user } = useAuth();
   // Empresas visibles para esta persona: el servidor ya recorta la lista a las suyas.
-  const empresaActiva = useEmpresaActiva();
+  const nombreParaConfirmar = empresaActiva.varias ? empresaActiva.nombre : undefined;
   const { data: clientsResponse } = useQuery<{ data?: Array<{ id: string; name: string; capabilities?: { surveys?: boolean } }> }>({
     queryKey: ['clients'], queryFn: () => api.get('/clients'),
   });
@@ -292,6 +295,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
       <ConfirmDialog
         open={Boolean(confirmDelete)}
         title="Eliminar encuesta"
+        empresa={nombreParaConfirmar}
         description={`¿Eliminar "${confirmDelete?.title ?? ''}"? Las respuestas ya recibidas se perderán junto con la encuesta.`}
         confirmLabel="Eliminar"
         pending={deleteMutation.isPending}
@@ -316,6 +320,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
       <ConfirmDialog
         open={Boolean(confirmarCierre)}
         title="Cerrar encuesta"
+        empresa={nombreParaConfirmar}
         description={`«${confirmarCierre?.title ?? ''}» dejará de recibir respuestas. Los enlaces y QR ya compartidos mostrarán que no está disponible. Puedes reabrirla cuando quieras.`}
         confirmLabel="Cerrar encuesta"
         pending={statusMutation.isPending}

@@ -2,6 +2,11 @@ import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, Res
 import type { Response } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { columnasAQuitar, camposProtegidosDe } from '@espartanos/shared';
+import { AuditService } from '../../core/audit/audit.service';
+import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../core/client-scope/nivel-de-datos.service';
+import { exigirConstanciaDeRevelacion } from '../../core/client-scope/revelar-protegidos';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { Roles } from '../../core/authorization/roles.decorator';
@@ -61,23 +66,29 @@ export class SuscriptoresController {
   constructor(
     private readonly suscriptores: SuscriptoresService,
     private readonly capacidades: ClientCapabilityService,
+    private readonly acceso: AccountAccessService,
+    private readonly niveles: NivelDeDatosService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
    * La empresa a cuya lista queda encerrada la consulta, o `undefined` si puede verlas todas.
    *
-   * Una cuenta de empresa ve la suya y ninguna otra, diga lo que diga la dirección. Si no tiene
+   * Una cuenta de empresa ve la que eligió entre las que alcanza (404 si no la alcanza); con varias y
+   * sin elegir se le pide elegir. Si no tiene
    * empresa asignada se la rechaza en vez de darle la de la agencia por descarte: caer hacia la
    * lista propia de Espartanos ante un dato que falta es exactamente al revés de lo prudente.
    *
    * La capacidad se afirma también acá y no sólo en el menú: esconder una pantalla no es
    * cerrarla, y el resto del portal —Contactos, Interacciones— afirma la suya del mismo modo.
    */
-  private async encierroDe(req: AuthenticatedRequest): Promise<string | undefined> {
+  private async encierroDe(req: AuthenticatedRequest, elegida?: string): Promise<string | undefined> {
     if (req.user.role !== UserRole.CLIENT) return undefined;
-    if (!req.user.clientId) throw new ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
-    await this.capacidades.assert(req.organizationId || req.user.organizationId, req.user.clientId, 'marketing');
-    return req.user.clientId;
+    const organizationId = req.organizationId || req.user.organizationId;
+    const clientId = await this.acceso.empresaElegida(organizationId, req.user, elegida);
+    if (!clientId) throw new ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
+    await this.capacidades.assert(organizationId, clientId, 'marketing');
+    return clientId;
   }
 
   @Get()
@@ -91,15 +102,40 @@ export class SuscriptoresController {
     @Query('origen') origen?: string,
     @Query('q') busqueda?: string,
   ) {
-    return this.suscriptores.listar(req.organizationId || req.user.organizationId, {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const lista = await this.suscriptores.listar(organizationId, {
       limite: limit ? Number(limit) : undefined,
       empresa,
-      encerradoEn: await this.encierroDe(req),
+      encerradoEn: await this.encierroDe(req, empresa),
       // Sólo los tres estados que existen: un valor inventado en la dirección no filtra nada.
       estado: Object.values(EstadoDeSuscripcion).includes(estado as EstadoDeSuscripcion) ? estado as EstadoDeSuscripcion : undefined,
       origen,
       busqueda,
     });
+    // El correo es lo que identifica a cada suscriptor: sale recortado según el nivel en la empresa de cada fila.
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    return { ...lista, data: recortarFilasPorEmpresa(lista.data, 'marketing', niveles) };
+  }
+
+  /**
+   * El correo (y teléfono, si lo hubiera) de un suscriptor, para quien lo pidió desde la lista.
+   *
+   * Con `bajo_registro` deja constancia de quién lo vio y cuándo antes de responder; si no se puede
+   * escribir, el dato no sale. Con `oculto` no hay forma de pedirlo.
+   */
+  @Get(':id/datos-protegidos')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Ver los datos protegidos de un suscriptor' })
+  async datosProtegidos(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const suscriptor = await this.suscriptores.buscarParaRevelar(organizationId, id, await this.encierroDe(req));
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    const ficha = suscriptor as unknown as Record<string, unknown>;
+    const datos = Object.fromEntries(camposProtegidosDe('marketing').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, ficha[campo] ?? null]));
+    await exigirConstanciaDeRevelacion(this.audit, niveles.de(suscriptor.clientId), {
+      organizationId, actorId: req.user.id, entityType: 'email_subscribers', entityId: id, campos: Object.keys(datos), ipAddress: req.ip,
+    });
+    return { id, datos };
   }
 
   /**
@@ -165,18 +201,27 @@ export class SuscriptoresController {
   async descargar(@Req() req: AuthenticatedRequest, @Query('empresa') empresa: string) {
     const organizationId = req.organizationId || req.user.organizationId;
     // Una cuenta de empresa descarga la suya y ninguna otra, diga lo que diga la dirección.
-    const alcance = (await this.encierroDe(req)) || empresa || 'agencia';
+    const alcance = (await this.encierroDe(req, empresa)) || empresa || 'agencia';
     const filas = await this.suscriptores.paraDescargar(organizationId, alcance);
+    /*
+     * El archivo sale sin las columnas protegidas, no con una marca dentro: quien no puede ver el
+     * correo en la lista tampoco lo recibe en la descarga.
+     */
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    const quitar = new Set(columnasAQuitar('marketing', niveles.de(alcance === 'agencia' ? null : alcance)));
     return {
       empresa: alcance,
       total: filas.length,
-      data: filas.map((fila) => ({
-        email: fila.email,
-        nombre: fila.name,
-        aceptoEl: fila.consentAt,
-        origen: fila.source,
-        detalle: fila.sourceDetail,
-      })),
+      data: filas.map((fila) => {
+        const completa: Record<string, unknown> = {
+          email: fila.email,
+          nombre: fila.name,
+          aceptoEl: fila.consentAt,
+          origen: fila.source,
+          detalle: fila.sourceDetail,
+        };
+        return Object.fromEntries(Object.entries(completa).filter(([columna]) => !quitar.has(columna)));
+      }),
     };
   }
 

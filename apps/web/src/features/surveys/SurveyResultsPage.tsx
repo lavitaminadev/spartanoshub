@@ -28,6 +28,7 @@ import type {
 import './surveys.css';
 import { abrirInformeDeEncuesta } from './informe-pdf';
 import { triggerToast } from '../../shared/toast-events';
+import { estaProtegido } from '@espartanos/shared';
 
 const RATING_SCALE = ['1', '2', '3', '4', '5'];
 
@@ -59,10 +60,15 @@ function exportResultsCsv(surveyTitle: string, summary: SurveyResultsSummary): v
 
 /** Respuestas por persona a CSV: una fila por respuesta y una columna por pregunta. */
 function exportarRespuestasCsv(survey: Survey, respuestas: SurveyIndividualResponse[]): void {
-  const preguntas = survey.questions;
-  const header = ['Fecha', 'Nota', 'Nombre', 'Correo', 'Mensaje al equipo', 'Completó', 'Aceptó uso de datos', ...preguntas.map((q) => (q.dato ? DATOS_DE_CONTACTO[q.dato].etiqueta : q.question))];
+  /*
+   * Un archivo que sale del sistema no lleva lo que la pantalla tiene protegido: sin las columnas de
+   * contacto, no con la marca dentro.
+   */
+  const hayProtegidos = respuestas.some((r) => estaProtegido(r.respondentName) || estaProtegido(r.respondentEmail) || Object.values(r.answers).some(estaProtegido));
+  const preguntas = survey.questions.filter((q) => !(hayProtegidos && q.dato));
+  const header = ['Fecha', 'Nota', ...(hayProtegidos ? [] : ['Nombre', 'Correo']), 'Mensaje al equipo', 'Completó', 'Aceptó uso de datos', ...preguntas.map((q) => (q.dato ? DATOS_DE_CONTACTO[q.dato].etiqueta : q.question))];
   const filas = respuestas.map((r) => [
-    new Date(r.submittedAt).toLocaleString('es-CL'), r.rating ?? '', r.respondentName ?? '', r.respondentEmail ?? '', r.teamMessage ?? '',
+    new Date(r.submittedAt).toLocaleString('es-CL'), r.rating ?? '', ...(hayProtegidos ? [] : [r.respondentName ?? '', r.respondentEmail ?? '']), r.teamMessage ?? '',
     r.completedAt ? 'Sí' : 'No', r.privacyConsentAt ? new Date(r.privacyConsentAt).toLocaleString('es-CL') : '',
     ...preguntas.map((q) => r.answers[q.id] ?? ''),
   ]);
@@ -397,6 +403,8 @@ export function SurveyResultsPage(): JSX.Element {
   }, [rangoActivo, rango, periodo]);
   const { data: summary, isLoading: loadingResults, error: resultsError, refetch, isFetching } = useSurveyResults(survey, ventana);
   const filtradas = summary?.respuestas ?? [];
+  /* El servidor avisa cuando recortó quién respondió, y si quien mira puede pedirlo con «Ver». */
+  const sePuedePedirDatos = (summary as { datosProtegidos?: { sePuedePedir: boolean } | null } | undefined)?.datosProtegidos?.sePuedePedir === true;
 
   if (loadingSurvey || (survey && loadingResults)) return <LoadingSpinner text="Cargando resultados..." />;
   if (surveyError) return <QueryErrorState title="No pudimos cargar la encuesta" message={surveyError.message} />;
@@ -521,7 +529,7 @@ export function SurveyResultsPage(): JSX.Element {
       )}
       {/* Presente cuando el servidor lo entrega; la copia local sin red no tiene quién respondió. */}
       {filtradas.length > 0 && (
-        <RespuestasPorPersona surveyId={survey.id} respuestas={filtradas} preguntas={survey.questions} />
+        <RespuestasPorPersona surveyId={survey.id} respuestas={filtradas} preguntas={survey.questions} sePuedePedir={sePuedePedirDatos} />
       )}
     </div>
   );

@@ -28,6 +28,10 @@ import { leerPlantilla } from '../../core/parameters/plantilla-resuelta';
 import { exigirEncuestasHabilitadas } from './encuestas-de-la-empresa';
 import { Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
+import { camposProtegidosDe, recortarListaProtegidos, sePuedePedir } from '@espartanos/shared';
+import { contestadoEn, sinDatosDeContacto, soloDatosDeContacto } from './datos-de-contacto-protegidos';
+import { NivelDeDatosService } from '../../core/client-scope/nivel-de-datos.service';
+import { exigirConstanciaDeRevelacion } from '../../core/client-scope/revelar-protegidos';
 
 /**
  * El instante en que termina el día de una fecha dada.
@@ -73,6 +77,7 @@ export class SurveysController {
     private readonly audit: AuditService,
     private readonly parametros: ParameterResolver,
     private readonly permisos: PermissionResolverService,
+    private readonly niveles: NivelDeDatosService,
   ) {}
 
   /** Traduce la fila a la forma que el frontend ya consume, con el conteo desnormalizado. */
@@ -109,12 +114,12 @@ export class SurveysController {
     const survey = await this.surveys.findOne({ where: { id, organizationId: req.organizationId } });
     if (!survey) throw new NotFoundException('La encuesta no existe');
     if (req.user.role === UserRole.CLIENT) {
-      if (!survey.clientId || survey.clientId !== req.user.clientId) throw new NotFoundException('La encuesta no existe');
-      await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
+      if (!survey.clientId) throw new NotFoundException('La encuesta no existe');
     }
     if (survey.clientId) {
       const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
       if (permitidas !== undefined && !permitidas.includes(survey.clientId)) throw new NotFoundException('La encuesta no existe');
+      if (req.user.role === UserRole.CLIENT) await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
     }
     return survey;
   }
@@ -123,16 +128,20 @@ export class SurveysController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar encuestas' })
   async list(@Req() req: AuthenticatedRequest, @Query() filtros: ListSurveysDto) {
-    const clientId = filtros.clientId;
+    const esPortal = req.user.role === UserRole.CLIENT;
+    // El portal trabaja sobre la empresa elegida (404 si no la alcanza); con varias y sin elegir, 400.
+    const clientId = esPortal
+      ? await this.accountAccess.empresaElegida(req.organizationId, req.user, filtros.clientId)
+      : filtros.clientId;
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     // Sin empresa elegida, cada persona ve las de sus empresas y las internas del equipo; no las
     // de toda la organización.
     const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     // El portal ve sólo las de su empresa: nunca las internas del equipo.
-    if (req.user.role === UserRole.CLIENT) {
-      if (!req.user.clientId) return [];
-      await exigirEncuestasHabilitadas(this.dataSource, req.user.clientId);
-      return this.listarAcotado({ organizationId: req.organizationId, clientId: req.user.clientId }, filtros);
+    if (esPortal) {
+      if (!clientId) return [];
+      await exigirEncuestasHabilitadas(this.dataSource, clientId);
+      return this.listarAcotado({ organizationId: req.organizationId, clientId }, filtros);
     }
     return this.listarAcotado(
       { organizationId: req.organizationId, clientId, permitidas },
@@ -351,6 +360,8 @@ export class SurveysController {
   @ApiOperation({ summary: 'Resultados agregados de una encuesta' })
   async results(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() periodo?: SurveyResultsQueryDto) {
     const survey = await this.findOwned(id, req);
+    // Qué ve esta persona de quienes respondieron, según el nivel que tiene en la empresa de la encuesta.
+    const nivel = (await this.niveles.nivelesDe(req.organizationId, req.user.id, 'surveys')).de(survey.clientId);
     /*
      * El período acota las respuestas, no la encuesta.
      *
@@ -452,6 +463,8 @@ export class SurveysController {
       rating: row.rating ?? null,
       respondentName: survey.anonymous ? null : row.respondentName ?? null,
       respondentEmail: survey.anonymous ? null : row.respondentEmail ?? null,
+      // El teléfono lo da quien responde en la pregunta de contacto; se expone con el nombre del catálogo.
+      respondentPhone: survey.anonymous ? null : contestadoEn(row.answers, survey.questions, 'telefono'),
       reservationId: survey.anonymous ? null : row.reservationId ?? null,
       teamMessage: row.teamMessage ?? null,
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
@@ -460,7 +473,7 @@ export class SurveysController {
       attendedAt: row.attendedAt ? row.attendedAt.toISOString() : null,
       attendedByName: row.attendedBy ? nombres.get(row.attendedBy) ?? null : null,
       origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
-      answers: row.answers ?? {},
+      answers: nivel === 'directo' ? row.answers ?? {} : sinDatosDeContacto(row.answers, survey.questions),
     }));
     // La misma función que usa el frontend para su respaldo local: un solo cálculo evita que
     // el panel muestre un NPS y la copia sin red muestre otro.
@@ -477,10 +490,19 @@ export class SurveysController {
      * no puede derivarlos de él: con más respuestas que el tope daría la nota de las últimas y no
      * la del período. Este es el único lugar que las tiene todas.
      */
+    /*
+     * Quién respondió sale recortado según el nivel de esta persona en la empresa de la encuesta.
+     *
+     * Con `oculto` los resultados se leen agregados y anónimos; con `bajo_registro` cada respuesta
+     * ofrece «Ver» y queda anotado quién miró. Las respuestas anónimas no traen nombre ni correo:
+     * ahí no hay nada que recortar y la pantalla no debe decir «protegido».
+     */
+    const protegido = recortarListaProtegidos(detalle, 'surveys', nivel);
     const notasDelPeriodo = rows.map((row) => row.rating).filter((nota): nota is number => typeof nota === 'number');
     return {
       ...computeSurveyResults(this.toContract(survey), responses),
-      respuestas: detalle,
+      respuestas: protegido.datos,
+      datosProtegidos: protegido.recortados.length ? { campos: protegido.recortados, sePuedePedir: sePuedePedir(nivel) } : null,
       visitasPorDia,
       campanas,
       campanasTruncadas,
@@ -493,6 +515,33 @@ export class SurveysController {
       },
       periodo: { desde: desde ? desde.toISOString() : null, hasta: hasta ? hasta.toISOString() : null },
     };
+  }
+
+  /**
+   * Nombre y correo de quien dejó una respuesta, para quien los pidió desde los resultados.
+   *
+   * Con `bajo_registro` deja constancia de quién los vio y cuándo antes de responder; si no se
+   * puede escribir, el dato no sale. Con `oculto` no hay forma de pedirlos. En una encuesta
+   * anónima no hay nada que entregar.
+   */
+  @Get(':id/responses/:responseId/datos-protegidos')
+  @RequiresPermission('surveys', 'view')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Ver quién respondió' })
+  async datosProtegidos(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('responseId') responseId: string) {
+    const survey = await this.findOwned(id, req);
+    const respuesta = await this.responses.findOne({ where: { id: responseId, surveyId: survey.id } });
+    if (!respuesta) throw new NotFoundException('La respuesta no existe');
+    const nivel = (await this.niveles.nivelesDe(req.organizationId, req.user.id, 'surveys')).de(survey.clientId);
+    const ficha = respuesta as unknown as Record<string, unknown>;
+    const datos: Record<string, unknown> = Object.fromEntries(camposProtegidosDe('surveys').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, survey.anonymous ? null : ficha[campo] ?? null]));
+    // Teléfono, RUT y demás datos de contacto viven en las respuestas, por id de pregunta.
+    datos.respondentPhone = survey.anonymous ? null : contestadoEn(respuesta.answers, survey.questions, 'telefono');
+    datos.respuestasDeContacto = survey.anonymous ? {} : soloDatosDeContacto(respuesta.answers, survey.questions);
+    await exigirConstanciaDeRevelacion(this.audit, nivel, {
+      organizationId: req.organizationId, actorId: req.user.id, entityType: 'survey_responses', entityId: respuesta.id, campos: Object.keys(datos), ipAddress: req.ip,
+    });
+    return { id: respuesta.id, datos };
   }
 
   /**
