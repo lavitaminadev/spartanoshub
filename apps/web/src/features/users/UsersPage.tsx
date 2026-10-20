@@ -10,6 +10,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { PermisosDeUsuario } from './PermisosDeUsuario';
+import { PerfilesDelEquipo } from './PerfilesDelEquipo';
 import { useSearchParams } from 'react-router-dom';
 
 interface UserRow {
@@ -104,6 +105,7 @@ export function UsersPage() {
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [accessTarget, setAccessTarget] = useState<UserRow | null>(null);
   const [permisosDe, setPermisosDe] = useState<UserRow | null>(null);
+  const [verPerfiles, setVerPerfiles] = useState(false);
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
   const [resetResult, setResetResult] = useState<ResetResult | null>(null);
   const [sendResetEmail, setSendResetEmail] = useState(true);
@@ -598,6 +600,9 @@ export function UsersPage() {
         onClose={() => setPendingBulkAccess(null)}
         onConfirm={() => void confirmBulkAccess()}
       />
+      <Modal open={verPerfiles && Boolean(empresaMirada)} onClose={() => setVerPerfiles(false)} title="Perfiles e invitaciones">
+        {verPerfiles && empresaMirada && <PerfilesDelEquipo clientId={empresaMirada} empresa={clientMap.get(empresaMirada) || empresaActiva.nombre || "esta empresa"} capacidades={usuarioEnEmpresa?.capabilities} onCerrar={() => setVerPerfiles(false)} />}
+      </Modal>
       {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id && !(esOperaciones && ['admin', 'operations_director', 'dev'].includes(permisosDe.role))} limitadoAOperaciones={esOperaciones} limitadoASuEmpresa={administraSuEmpresa} miEmpresa={(administraSuEmpresa && empresaActiva.clientId) || currentUser?.clientId || ''} serviciosDeLaEmpresa={usuarioEnEmpresa?.capabilities} onCerrar={() => setPermisosDe(null)} />}
       <Modal open={Boolean(resetTarget)} onClose={() => { setResetTarget(null); setResetResult(null); }} title={`Resetear clave de ${resetTarget?.name ?? ''}`}>
         <div className="modal-form reset-access-modal">

@@ -523,8 +523,14 @@ export class PermissionsController {
     if (!client) throw new NotFoundException('Cuenta no encontrada');
 
     const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId: client.id } });
+    // Quien fue vetado en esa empresa no vuelve por una asignación corriente: se levanta invitándolo con confirmación.
+    if (existing?.retiredOutcome === 'vetado') throw new BadRequestException('Esa persona está vetada en esa empresa. Para levantar el veto hay que invitarla de nuevo, confirmándolo');
     const saved = await this.clientAccess.save({
       ...(existing ?? {}),
+      retiredAt: null,
+      retiredBy: null,
+      retiredReason: null,
+      retiredOutcome: null,
       organizationId: req.organizationId,
       userId: user.id,
       clientId: client.id,
@@ -579,14 +585,16 @@ export class PermissionsController {
     const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
     if (!existing) throw new NotFoundException('No existe una asignación directa para esa cuenta');
 
-    await this.clientAccess.remove(existing);
+    // Se marca y no se borra: la fila es la constancia de que esa persona estuvo, desde cuándo y quién la retiró.
+    if (existing.retiredAt) throw new NotFoundException('No existe una asignación directa para esa cuenta');
+    await this.clientAccess.save({ ...existing, retiredAt: new Date(), retiredBy: req.user.id, retiredReason: 'Asignación retirada', retiredOutcome: 'retirado' });
     this.accountAccess.invalidateUser(user.id);
     await this.audit.log({
       organizationId: req.organizationId,
       actorId: req.user.id,
       entityType: 'UserClientAccess',
       entityId: existing.id,
-      action: 'deleted',
+      action: 'retired',
       before: { userId: user.id, clientId, reason: existing.reason },
     });
 

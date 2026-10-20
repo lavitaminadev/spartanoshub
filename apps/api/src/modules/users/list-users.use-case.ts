@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { UserClientAccess } from '../../core/client-scope/user-client-access.entity';
 import { UserRole } from '../organizations/user-role.enum';
@@ -51,7 +51,7 @@ export class ListUsersUseCase {
 
     if (filters.clientId && filters.incluirAsignados) {
       const asignaciones = await this.repo.manager.getRepository(UserClientAccess).find({
-        where: { organizationId: filters.organizationId, clientId: filters.clientId },
+        where: { organizationId: filters.organizationId, clientId: filters.clientId, retiredAt: IsNull() },
         select: { userId: true },
       });
       const yaEstan = new Set(users.map((user) => user.id));
