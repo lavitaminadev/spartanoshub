@@ -42,8 +42,12 @@ const process_stage_change_entity_1 = require("../../../core/process-history/pro
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const parameter_resolver_service_1 = require("../../../core/parameters/parameter-resolver.service");
 const requiere_accion_1 = require("../../../core/authorization/requiere-accion");
+const shared_1 = require("@espartanos/shared");
+const audit_service_1 = require("../../../core/audit/audit.service");
+const nivel_de_datos_service_1 = require("../../../core/client-scope/nivel-de-datos.service");
+const revelar_protegidos_1 = require("../../../core/client-scope/revelar-protegidos");
 let LeadController = class LeadController {
-    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, parametros, capacidades, responsablesDelCrm) {
+    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, parametros, capacidades, responsablesDelCrm, niveles, audit) {
         this.createLead = createLead;
         this.listLeads = listLeads;
         this.getLead = getLead;
@@ -57,17 +61,24 @@ let LeadController = class LeadController {
         this.parametros = parametros;
         this.capacidades = capacidades;
         this.responsablesDelCrm = responsablesDelCrm;
+        this.niveles = niveles;
+        this.audit = audit;
+    }
+    async protegidos(req, filas) {
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+        return (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(filas, 'crm', niveles);
     }
     async create(dto, req) {
         const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         await this.capacidades.assert(req.organizationId, clientId, 'crm');
-        return this.createLead.execute({
+        const creado = await this.createLead.execute({
             ...dto,
             clientId,
             domain: req.user.role === user_role_enum_1.UserRole.CLIENT ? 'commercial' : dto.domain,
             organizationId: req.organizationId,
         });
+        return (await this.protegidos(req, [creado]))[0];
     }
     async import(dto, req) {
         const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
@@ -120,15 +131,13 @@ let LeadController = class LeadController {
             warning: Number(ajustes.get(inactividad_del_lead_1.CLAVE_ALERTA) ?? inactividad_del_lead_1.PLAZOS_POR_DEFECTO.warning),
             critical: Number(ajustes.get(inactividad_del_lead_1.CLAVE_ABANDONO) ?? inactividad_del_lead_1.PLAZOS_POR_DEFECTO.critical),
         };
-        return {
-            ...pagina,
-            data: pagina.data.map((lead) => ({
-                ...lead,
-                openTasks: tareas.get(lead.id)?.openTasks ?? 0,
-                nextStep: tareas.get(lead.id)?.nextStep ?? null,
-                ...(0, inactividad_del_lead_1.inactividadDe)(lead, plazos),
-            })),
-        };
+        const filas = pagina.data.map((lead) => ({
+            ...lead,
+            openTasks: tareas.get(lead.id)?.openTasks ?? 0,
+            nextStep: tareas.get(lead.id)?.nextStep ?? null,
+            ...(0, inactividad_del_lead_1.inactividadDe)(lead, plazos),
+        }));
+        return { ...pagina, data: await this.protegidos(req, filas) };
     }
     async responsables(req, solicitado) {
         await this.assertPortalCrm(req);
@@ -142,7 +151,18 @@ let LeadController = class LeadController {
         await this.assertPortalCrm(req);
         const lead = await this.getLead.execute(id, req.organizationId);
         await this.assertLeadAccess(req, lead);
-        return lead;
+        return (await this.protegidos(req, [lead]))[0];
+    }
+    async datosProtegidos(id, req) {
+        await this.assertPortalCrm(req);
+        const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+        const ficha = lead;
+        const datos = Object.fromEntries((0, shared_1.camposProtegidosDe)('crm').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, ficha[campo] ?? null]));
+        await (0, revelar_protegidos_1.exigirConstanciaDeRevelacion)(this.audit, niveles.de(lead.clientId), {
+            organizationId: req.organizationId, actorId: req.user.id, entityType: 'leads', entityId: id, campos: Object.keys(datos), ipAddress: req.ip,
+        });
+        return { id, datos };
     }
     async historial(id, req) {
         await this.assertPortalCrm(req);
@@ -164,7 +184,8 @@ let LeadController = class LeadController {
         const clientIdDestino = dto.clientId !== undefined ? (dto.clientId ?? undefined) : (lead.clientId ?? undefined);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
         await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
-        return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? lead.clientId ?? null : req.user.clientId ?? null);
+        const actualizado = await this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? lead.clientId ?? null : req.user.clientId ?? null);
+        return (await this.protegidos(req, [actualizado]))[0];
     }
     async assertLeadAccess(req, lead) {
         if (!lead)
@@ -215,10 +236,12 @@ let LeadController = class LeadController {
             .andWhere(`(${conditions.join(' OR ')})`);
         if (lead.clientId)
             query.andWhere('r.client_id = :clientId', { clientId: lead.clientId });
-        return query
+        const reservas = await query
             .orderBy('r.starts_at', 'DESC')
             .take(50)
             .getMany();
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        return (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(reservas, 'reservations', niveles);
     }
     async convert(id, req) {
         await this.assertPortalCrm(req);
@@ -277,6 +300,15 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LeadController.prototype, "getById", null);
 __decorate([
+    (0, common_1.Get)(':id/datos-protegidos'),
+    (0, swagger_1.ApiOperation)({ summary: 'Ver los datos de contacto protegidos de un lead' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], LeadController.prototype, "datosProtegidos", null);
+__decorate([
     (0, common_1.Get)(':id/historial'),
     (0, swagger_1.ApiOperation)({ summary: 'Historial de etapas de un lead' }),
     __param(0, (0, common_1.Param)('id')),
@@ -333,5 +365,7 @@ exports.LeadController = LeadController = __decorate([
         lead_task_summary_service_1.LeadTaskSummaryService,
         parameter_resolver_service_1.ParameterResolver,
         client_capability_service_1.ClientCapabilityService,
-        responsables_del_crm_service_1.ResponsablesDelCrmService])
+        responsables_del_crm_service_1.ResponsablesDelCrmService,
+        nivel_de_datos_service_1.NivelDeDatosService,
+        audit_service_1.AuditService])
 ], LeadController);

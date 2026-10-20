@@ -46,7 +46,7 @@ let LeadCreatedEmailListener = LeadCreatedEmailListener_1 = class LeadCreatedEma
                 this.leads.findOne({
                     where: { id: event.leadId, organizationId: event.organizationId, clientId: event.clientId },
                     select: {
-                        id: true, name: true, email: true, phone: true, source: true,
+                        id: true, name: true, source: true,
                         campaignName: true, organizationId: true, clientId: true,
                     },
                 }),
@@ -71,8 +71,6 @@ let LeadCreatedEmailListener = LeadCreatedEmailListener_1 = class LeadCreatedEma
                     lead: lead.name,
                     origen: lead.source?.replace(/_/g, ' ') || 'Sin origen informado',
                     campana: lead.campaignName || 'Sin campaña',
-                    telefono: lead.phone || 'Sin teléfono',
-                    correo: lead.email || 'Sin correo',
                 });
                 const delivered = await this.email.send(address, subject, html);
                 if (!delivered) {

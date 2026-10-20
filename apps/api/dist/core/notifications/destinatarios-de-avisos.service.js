@@ -18,8 +18,9 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const destinatario_de_avisos_entity_1 = require("./destinatario-de-avisos.entity");
 let DestinatariosDeAvisosService = class DestinatariosDeAvisosService {
-    constructor(repo) {
+    constructor(repo, dataSource) {
         this.repo = repo;
+        this.dataSource = dataSource;
     }
     async para(organizationId, clientId, tipo, heredadas = []) {
         const correos = new Set();
@@ -35,6 +36,36 @@ let DestinatariosDeAvisosService = class DestinatariosDeAvisosService {
             }
         }
         return [...correos];
+    }
+    async conNivelDirecto(organizationId, clientId, modulo, correos) {
+        const candidatos = [...new Set(correos.map((c) => c.trim().toLowerCase()).filter(Boolean))];
+        if (!candidatos.length)
+            return new Set();
+        try {
+            const filas = (await this.dataSource.query(`SELECT LOWER(u.email) AS email, p.protected_data AS datos
+           FROM users u
+           JOIN perfil_asignaciones a ON a.user_id = u.id AND a.client_id = ? AND a.organization_id = ?
+           JOIN perfiles p ON p.id = a.perfil_id AND p.client_id = ? AND p.organization_id = ?
+          WHERE u.organization_id = ? AND u.is_active = 1 AND LOWER(u.email) IN (?)`, [clientId, organizationId, clientId, organizationId, organizationId, candidatos]));
+            const directos = new Set();
+            for (const fila of filas ?? []) {
+                let datos = fila.datos;
+                if (typeof datos === 'string') {
+                    try {
+                        datos = JSON.parse(datos);
+                    }
+                    catch {
+                        continue;
+                    }
+                }
+                if (datos?.[modulo] === 'directo')
+                    directos.add(fila.email);
+            }
+            return directos;
+        }
+        catch {
+            return new Set();
+        }
     }
     async listar(organizationId, clientId) {
         return this.repo.find({ where: { organizationId, clientId }, order: { createdAt: 'ASC' } });
@@ -75,5 +106,6 @@ exports.DestinatariosDeAvisosService = DestinatariosDeAvisosService;
 exports.DestinatariosDeAvisosService = DestinatariosDeAvisosService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(destinatario_de_avisos_entity_1.DestinatarioDeAvisos)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.DataSource])
 ], DestinatariosDeAvisosService);

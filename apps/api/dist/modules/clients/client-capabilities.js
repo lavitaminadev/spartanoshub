@@ -10,6 +10,7 @@ exports.CLIENT_CAPABILITY_KEYS = [
     'metaConversions',
     'googleConversions',
     'budgetVisibility',
+    'detalleDeContactoEnAvisos',
 ];
 exports.DEFAULT_CLIENT_CAPABILITIES = {
     reservations: true,
@@ -19,6 +20,7 @@ exports.DEFAULT_CLIENT_CAPABILITIES = {
     metaConversions: false,
     googleConversions: false,
     budgetVisibility: false,
+    detalleDeContactoEnAvisos: false,
 };
 function normalizeClientCapabilities(value) {
     return {

@@ -70,12 +70,14 @@ const notifications_module_1 = require("../../core/notifications/notifications.m
 const crm_field_definition_entity_1 = require("./fields/crm-field-definition.entity");
 const crm_fields_service_1 = require("./fields/crm-fields.service");
 const crm_fields_controller_1 = require("./fields/crm-fields.controller");
+const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
+const users_module_1 = require("../users/users.module");
 let CrmModule = class CrmModule {
 };
 exports.CrmModule = CrmModule;
 exports.CrmModule = CrmModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([crm_field_definition_entity_1.CrmFieldDefinition, regla_de_calificacion_entity_1.ReglaDeCalificacion, lead_entity_1.Lead, contact_entity_1.Contact, opportunity_entity_1.Opportunity, opportunity_stage_change_entity_1.OpportunityStageChange, interaction_entity_1.Interaction, user_entity_1.User, client_entity_1.Client, reservation_entity_1.Reservation, ingest_source_entity_1.LeadIngestSource, campaign_entity_1.Campaign, approval_request_entity_1.ApprovalRequest, parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), account_access_module_1.AccountAccessModule, audit_module_1.AuditModule, process_templates_module_1.ProcessTemplatesModule, notifications_module_1.NotificationsModule, parameters_module_1.ParametersModule, meta_pixels_module_1.MetaPixelsModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([crm_field_definition_entity_1.CrmFieldDefinition, regla_de_calificacion_entity_1.ReglaDeCalificacion, lead_entity_1.Lead, contact_entity_1.Contact, opportunity_entity_1.Opportunity, opportunity_stage_change_entity_1.OpportunityStageChange, interaction_entity_1.Interaction, user_entity_1.User, client_entity_1.Client, reservation_entity_1.Reservation, ingest_source_entity_1.LeadIngestSource, campaign_entity_1.Campaign, approval_request_entity_1.ApprovalRequest, parameter_definition_entity_1.ParameterDefinition, parameter_value_entity_1.ParameterValue]), account_access_module_1.AccountAccessModule, audit_module_1.AuditModule, process_templates_module_1.ProcessTemplatesModule, notifications_module_1.NotificationsModule, parameters_module_1.ParametersModule, meta_pixels_module_1.MetaPixelsModule, users_module_1.UsersModule],
         controllers: [lead_controller_1.LeadController, contacts_controller_1.ContactsController, opportunities_controller_1.OpportunitiesController, interactions_controller_1.InteractionsController, public_agency_leads_controller_1.PublicAgencyLeadsController, lead_ingest_controller_1.LeadIngestController, crm_home_controller_1.CrmHomeController, ingest_sources_controller_1.IngestSourcesController, campaigns_controller_1.CampaignsController, stage_labels_controller_1.StageLabelsController, crm_fields_controller_1.CrmFieldsController, reglas_controller_1.ReglasController],
         providers: [
             reglas_service_1.ReglasService,
@@ -86,6 +88,7 @@ exports.CrmModule = CrmModule = __decorate([
             interactions_service_1.InteractionsService,
             campaigns_service_1.CampaignsService,
             crm_fields_service_1.CrmFieldsService,
+            nivel_de_datos_service_1.NivelDeDatosService,
         ],
         exports: [lead_intake_service_1.LeadIntakeService, crm_lead_automation_service_1.CrmLeadAutomationService, crm_home_service_1.CrmHomeService, crm_fields_service_1.CrmFieldsService],
     })

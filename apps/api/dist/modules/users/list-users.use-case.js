@@ -38,7 +38,7 @@ let ListUsersUseCase = class ListUsersUseCase {
         });
         if (filters.clientId && filters.incluirAsignados) {
             const asignaciones = await this.repo.manager.getRepository(user_client_access_entity_1.UserClientAccess).find({
-                where: { organizationId: filters.organizationId, clientId: filters.clientId },
+                where: { organizationId: filters.organizationId, clientId: filters.clientId, retiredAt: (0, typeorm_2.IsNull)() },
                 select: { userId: true },
             });
             const yaEstan = new Set(users.map((user) => user.id));

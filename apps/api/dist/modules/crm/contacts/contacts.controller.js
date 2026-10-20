@@ -22,11 +22,17 @@ const account_access_service_1 = require("../../../core/client-scope/account-acc
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
+const shared_1 = require("@espartanos/shared");
+const audit_service_1 = require("../../../core/audit/audit.service");
+const nivel_de_datos_service_1 = require("../../../core/client-scope/nivel-de-datos.service");
+const revelar_protegidos_1 = require("../../../core/client-scope/revelar-protegidos");
 let ContactsController = class ContactsController {
-    constructor(service, accountAccess, capabilities) {
+    constructor(service, accountAccess, capabilities, niveles, audit) {
         this.service = service;
         this.accountAccess = accountAccess;
         this.capabilities = capabilities;
+        this.niveles = niveles;
+        this.audit = audit;
     }
     async assertPortalCrm(req) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
@@ -47,7 +53,9 @@ let ContactsController = class ContactsController {
         await this.assertPortalCrm(req);
         await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed, query.leadId);
+        const pagina = await this.service.findAll(req.organizationId, query.limit, query.offset, query.clientId, allowed, query.leadId);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+        return { ...pagina, data: (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(pagina.data, 'crm', niveles) };
     }
     async segments(clientId, req) {
         await this.assertPortalCrm(req);
@@ -58,12 +66,28 @@ let ContactsController = class ContactsController {
     async findOne(id, req) {
         await this.assertPortalCrm(req);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.service.findOne(id, req.organizationId, allowed);
+        const contacto = await this.service.findOne(id, req.organizationId, allowed);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+        return (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)([contacto], 'crm', niveles)[0];
+    }
+    async datosProtegidos(id, req) {
+        await this.assertPortalCrm(req);
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        const contacto = await this.service.findOne(id, req.organizationId, allowed);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+        const ficha = contacto;
+        const datos = Object.fromEntries((0, shared_1.camposProtegidosDe)('crm').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, ficha[campo] ?? null]));
+        await (0, revelar_protegidos_1.exigirConstanciaDeRevelacion)(this.audit, niveles.de(contacto.clientId), {
+            organizationId: req.organizationId, actorId: req.user.id, entityType: 'contacts', entityId: id, campos: Object.keys(datos), ipAddress: req.ip,
+        });
+        return { id, datos };
     }
     async update(id, dto, req) {
         await this.assertPortalCrm(req);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.service.update(id, dto, req.organizationId, allowed);
+        const contacto = await this.service.update(id, dto, req.organizationId, allowed);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+        return (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)([contacto], 'crm', niveles)[0];
     }
 };
 exports.ContactsController = ContactsController;
@@ -92,6 +116,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ContactsController.prototype, "findOne", null);
 __decorate([
+    (0, common_1.Get)(':id/datos-protegidos'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ContactsController.prototype, "datosProtegidos", null);
+__decorate([
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -106,5 +138,7 @@ exports.ContactsController = ContactsController = __decorate([
     (0, module_scope_decorator_1.ModuleScope)('crm'),
     __metadata("design:paramtypes", [contacts_service_1.ContactsService,
         account_access_service_1.AccountAccessService,
-        client_capability_service_1.ClientCapabilityService])
+        client_capability_service_1.ClientCapabilityService,
+        nivel_de_datos_service_1.NivelDeDatosService,
+        audit_service_1.AuditService])
 ], ContactsController);

@@ -217,7 +217,7 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
         });
         if (!plantilla.encendido)
             return;
-        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, `${plantilla.cuerpo}${respuesta.respondentEmail ? '\n\nPueden responderle directo a este correo.' : ''}`, {
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(plantilla.asunto, `${plantilla.cuerpo}${respuesta.respondentEmail ? '\n\nQuién respondió y cómo contactarle se ve en Encuestas → Resultados.' : ''}`, {
             nombre: quien,
             local: nombreDelLocal,
             nota: respuesta.rating ?? '—',
@@ -226,10 +226,9 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
         }, undefined, undefined, [
             { etiqueta: 'Encuesta', valor: survey.title },
             { etiqueta: 'Nota', valor: `${respuesta.rating ?? '—'} de 5` },
-            ...(respuesta.respondentEmail ? [{ etiqueta: 'Correo', valor: respuesta.respondentEmail }] : []),
         ]);
         for (const destino of destinatarios) {
-            await this.correo.send(destino, subject, html, respuesta.respondentEmail ? { replyTo: respuesta.respondentEmail } : undefined);
+            await this.correo.send(destino, subject, html);
         }
     }
 };

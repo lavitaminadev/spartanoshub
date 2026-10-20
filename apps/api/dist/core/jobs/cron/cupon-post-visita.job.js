@@ -26,6 +26,7 @@ const email_service_1 = require("../../notifications/email.service");
 const plantilla_de_correo_1 = require("../../notifications/plantilla-de-correo");
 const enlace_de_baja_1 = require("../../notifications/enlace-de-baja");
 const suscriptor_entity_1 = require("../../../modules/marketing/suscriptor.entity");
+const suscriptores_service_1 = require("../../../modules/marketing/suscriptores.service");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
 const UNA_HORA = 60 * 60 * 1000;
 const HORAS_DE_ESPERA = 24;
@@ -33,13 +34,14 @@ const DIAS_HACIA_ATRAS = 7;
 const DIAS_ENTRE_CUPONES = 60;
 const TOPE_POR_PASADA = 300;
 let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
-    constructor(reservas, formularios, cupones, correo, parametros, suscriptores, servicios) {
+    constructor(reservas, formularios, cupones, correo, parametros, suscriptores, listas, servicios) {
         this.reservas = reservas;
         this.formularios = formularios;
         this.cupones = cupones;
         this.correo = correo;
         this.parametros = parametros;
         this.suscriptores = suscriptores;
+        this.listas = listas;
         this.servicios = servicios;
         this.logger = new common_1.Logger(CuponPostVisitaJob_1.name);
     }
@@ -99,10 +101,15 @@ let CuponPostVisitaJob = CuponPostVisitaJob_1 = class CuponPostVisitaJob {
                 }
                 const porDias = new Date(ahora + ajustes.diasValidez * 24 * UNA_HORA);
                 const vence = ajustes.vigenteHasta && ajustes.vigenteHasta < porDias ? ajustes.vigenteHasta : porDias;
+                const correoDeLaPersona = reserva.guestEmail.trim().toLowerCase();
+                if (await this.listas.exclusionDe(form.organizationId, correoDeLaPersona, form.clientId ?? null))
+                    continue;
                 const suscriptor = await this.suscriptores.findOne({
-                    where: { organizationId: form.organizationId, clientId: form.clientId ?? (0, typeorm_2.IsNull)(), email: reserva.guestEmail.trim().toLowerCase() },
-                    select: { id: true, unsubscribeToken: true },
-                }).catch(() => null);
+                    where: { organizationId: form.organizationId, clientId: form.clientId ?? (0, typeorm_2.IsNull)(), email: correoDeLaPersona },
+                    select: { id: true, status: true, unsubscribeToken: true },
+                });
+                if (!suscriptor || suscriptor.status !== suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO)
+                    continue;
                 const baja = await (0, enlace_de_baja_1.enlaceDeBaja)(this.parametros, 'email.coupon', suscriptor?.unsubscribeToken, form);
                 const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(ajustes.asunto, ajustes.cuerpo, {
                     nombre: reserva.guestName?.trim().split(/\s+/)[0] || '',
@@ -194,12 +201,13 @@ exports.CuponPostVisitaJob = CuponPostVisitaJob = CuponPostVisitaJob_1 = __decor
     __param(1, (0, typeorm_1.InjectRepository)(reservation_form_entity_1.ReservationForm)),
     __param(2, (0, typeorm_1.InjectRepository)(reservation_coupon_entity_1.ReservationCoupon)),
     __param(5, (0, typeorm_1.InjectRepository)(suscriptor_entity_1.Suscriptor)),
-    __param(6, (0, common_1.Optional)()),
+    __param(7, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         email_service_1.EmailService,
         parameter_resolver_service_1.ParameterResolver,
         typeorm_2.Repository,
+        suscriptores_service_1.SuscriptoresService,
         client_capability_service_1.ClientCapabilityService])
 ], CuponPostVisitaJob);

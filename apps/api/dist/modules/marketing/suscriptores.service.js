@@ -283,6 +283,12 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         }
         return { data, total, resumen: [...resumen.values()], origenes };
     }
+    async buscarParaRevelar(organizationId, id, encerradoEn) {
+        const suscriptor = await this.repo.findOne({ where: { id, organizationId } });
+        if (!suscriptor || (encerradoEn && suscriptor.clientId !== encerradoEn))
+            throw new common_1.NotFoundException('El suscriptor no existe');
+        return suscriptor;
+    }
     async paraDescargar(organizationId, empresa) {
         return this.repo.find({
             where: {

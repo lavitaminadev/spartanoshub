@@ -24,6 +24,7 @@ const node_events_1 = require("node:events");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const client_capability_service_1 = require("../../core/client-scope/client-capability.service");
 const audit_service_1 = require("../../core/audit/audit.service");
+const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
@@ -33,7 +34,7 @@ const reservation_dto_1 = require("./dto/reservation.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
 let ReservationsController = class ReservationsController {
-    constructor(service, accountAccess, capabilities, bulkImport, audit, dataSource, permisos) {
+    constructor(service, accountAccess, capabilities, bulkImport, audit, dataSource, permisos, niveles) {
         this.service = service;
         this.accountAccess = accountAccess;
         this.capabilities = capabilities;
@@ -41,6 +42,7 @@ let ReservationsController = class ReservationsController {
         this.audit = audit;
         this.dataSource = dataSource;
         this.permisos = permisos;
+        this.niveles = niveles;
     }
     publicOrigin() {
         return (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '') || undefined;
@@ -66,6 +68,10 @@ let ReservationsController = class ReservationsController {
             clientId: this.client(req),
             clientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
         };
+    }
+    async recortada(req, reserva) {
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        return (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)([reserva], 'reservations', niveles)[0];
     }
     async requestedScope(req, requestedClientId) {
         const scope = await this.scope(req);
@@ -194,7 +200,7 @@ let ReservationsController = class ReservationsController {
         const scope = await this.scope(req);
         if (req.user.role === user_role_enum_1.UserRole.CLIENT)
             dto.skipAvailability = false;
-        return this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds);
+        return this.recortada(req, await this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds));
     }
     async importReservations(req, dto) {
         const scope = await this.scope(req);
@@ -210,14 +216,16 @@ let ReservationsController = class ReservationsController {
     }
     async list(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
-        return this.service.listReservations(req.organizationId, query, scope.clientId, scope.clientIds, req.user.role !== user_role_enum_1.UserRole.CLIENT);
+        const respuesta = await this.service.listReservations(req.organizationId, query, scope.clientId, scope.clientIds, req.user.role !== user_role_enum_1.UserRole.CLIENT);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        return { ...respuesta, data: (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(respuesta.data, 'reservations', niveles) };
     }
     async updateReservation(req, id, dto) {
         const scope = await this.scope(req);
         if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.workflowState !== undefined) {
             throw new common_1.ForbiddenException('La etapa de producción la gestiona el equipo de Espartanos');
         }
-        return this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds);
+        return this.recortada(req, await this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds));
     }
     async allGroupRequests(req, formId, clientId) {
         const scope = await this.requestedScope(req, clientId);
@@ -241,7 +249,28 @@ let ReservationsController = class ReservationsController {
     }
     async guestHistory(req, id) {
         const scope = await this.scope(req);
-        return this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+        const historial = await this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        if (niveles.de(historial.clientId) === 'directo')
+            return historial;
+        const { preferencias: _preferencias, ...sinPreferencias } = historial;
+        return sinPreferencias;
+    }
+    async datosProtegidos(req, id) {
+        const scope = await this.scope(req);
+        const reserva = await this.service.datosProtegidosDeReserva(req.organizationId, id, scope.clientId, scope.clientIds);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        const nivel = niveles.de(reserva.clientId);
+        if (nivel === 'oculto')
+            throw new common_1.ForbiddenException('Tu perfil no permite ver estos datos');
+        if (nivel === 'bajo_registro') {
+            await this.audit.log({
+                organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservations', entityId: id,
+                action: 'reveal_protected_data', reason: `campos=${Object.keys(reserva.datos).join(',')}`,
+                ipAddress: req.ip,
+            });
+        }
+        return { id, datos: reserva.datos };
     }
     async registrarSalida(req, id, dto) {
         const scope = await this.scope(req);
@@ -320,7 +349,8 @@ let ReservationsController = class ReservationsController {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
         res.write('\uFEFF');
-        for await (const chunk of this.service.streamCsv(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        for await (const chunk of this.service.streamCsv(req.organizationId, niveles, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
             if (!res.write(chunk))
                 await (0, node_events_1.once)(res, 'drain');
         }
@@ -328,7 +358,7 @@ let ReservationsController = class ReservationsController {
     }
     async exportForm(req, formId, body, res) {
         const scope = await this.scope(req);
-        const result = await this.service.exportFormReservations(req.organizationId, formId, scope.clientId, scope.clientIds, body.format, body.dateFrom, body.dateTo, body.fields, req.user.role !== user_role_enum_1.UserRole.CLIENT);
+        const result = await this.service.exportFormReservations(req.organizationId, await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations'), formId, scope.clientId, scope.clientIds, body.format, body.dateFrom, body.dateTo, body.fields, req.user.role !== user_role_enum_1.UserRole.CLIENT);
         if (body.format === 'json') {
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.json"`);
@@ -623,6 +653,15 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "guestHistory", null);
 __decorate([
+    (0, common_1.Get)(':id/datos-protegidos'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id', new common_1.ParseUUIDPipe())),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "datosProtegidos", null);
+__decorate([
     (0, common_1.Post)(':id/salida'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
@@ -825,5 +864,6 @@ exports.ReservationsController = ReservationsController = __decorate([
         bulk_import_service_1.ReservationsBulkImportService,
         audit_service_1.AuditService,
         typeorm_1.DataSource,
-        permission_resolver_service_1.PermissionResolverService])
+        permission_resolver_service_1.PermissionResolverService,
+        nivel_de_datos_service_1.NivelDeDatosService])
 ], ReservationsController);

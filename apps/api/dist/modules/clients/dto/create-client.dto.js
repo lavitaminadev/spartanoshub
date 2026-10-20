@@ -51,6 +51,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ClientCapabilitiesDto.prototype, "budgetVisibility", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ClientCapabilitiesDto.prototype, "detalleDeContactoEnAvisos", void 0);
 class CreateClientDto {
 }
 exports.CreateClientDto = CreateClientDto;

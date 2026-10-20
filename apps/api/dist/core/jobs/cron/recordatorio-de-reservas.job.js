@@ -28,7 +28,7 @@ const reservation_management_token_entity_1 = require("../../../modules/reservat
 const crypto_1 = require("crypto");
 const UNA_HORA = 3_600_000;
 const HORAS_POR_DEFECTO = 24;
-const CERRADAS = ['cancelled', 'no_show', 'attended', 'completed'];
+const VIGENTES = ['confirmed', 'rescheduled'];
 let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class RecordatorioDeReservasJob {
     constructor(reservas, formularios, correo, parametros, enlaces, servicios, marcas) {
         this.reservas = reservas;
@@ -45,7 +45,7 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
         const candidatas = await this.reservas.find({
             where: {
                 startsAt: (0, typeorm_2.Between)(ahora, new Date(ahora.getTime() + 168 * UNA_HORA)),
-                status: (0, typeorm_2.Not)((0, typeorm_2.In)(CERRADAS)),
+                status: (0, typeorm_2.In)(VIGENTES),
                 reminderSentAt: (0, typeorm_2.IsNull)(),
             },
             take: 500,
@@ -53,7 +53,7 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
         const seguimientos = await this.reservas.find({
             where: {
                 startsAt: (0, typeorm_2.Between)(ahora, new Date(ahora.getTime() + 168 * UNA_HORA)),
-                status: (0, typeorm_2.Not)((0, typeorm_2.In)(CERRADAS)),
+                status: (0, typeorm_2.In)(VIGENTES),
                 reminderFollowupSentAt: (0, typeorm_2.IsNull)(),
                 reminderSentAt: (0, typeorm_2.Between)(new Date(ahora.getTime() - 48 * UNA_HORA), new Date(ahora.getTime() - 3 * UNA_HORA)),
             },
@@ -78,7 +78,8 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
                 const faltan = (reserva.startsAt.getTime() - ahora.getTime()) / UNA_HORA;
                 if (faltan > ajustes.horas)
                     continue;
-                await this.enviar(form, reserva);
+                if (!(await this.enviar(form, reserva)))
+                    continue;
                 await this.reservas.update(reserva.id, { reminderSentAt: new Date() });
                 enviados += 1;
             }
@@ -98,7 +99,8 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
                 const form = await this.formularios.findOne({ where: { id: reserva.formId } });
                 if (!form || !(await this.ajustesDe(form)).encendido)
                     continue;
-                await this.enviar(form, reserva);
+                if (!(await this.enviar(form, reserva)))
+                    continue;
                 await this.reservas.update(reserva.id, { reminderFollowupSentAt: new Date() });
                 enviados += 1;
             }
@@ -135,7 +137,7 @@ let RecordatorioDeReservasJob = RecordatorioDeReservasJob_1 = class Recordatorio
             codigo: reserva.referenceCode,
             gestion,
         }, gestion ? { texto: 'Confirmar, reagendar o cancelar', url: gestion } : undefined, undefined, undefined, undefined, await this.marcas?.de(form.clientId));
-        await this.correo.send(reserva.guestEmail, subject, html);
+        return Boolean(await this.correo.send(reserva.guestEmail, subject, html));
     }
     async crearEnlace(reservationId) {
         if (!this.enlaces)

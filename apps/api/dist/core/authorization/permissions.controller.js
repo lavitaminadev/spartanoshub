@@ -311,8 +311,14 @@ let PermissionsController = class PermissionsController {
         if (!client)
             throw new common_2.NotFoundException('Cuenta no encontrada');
         const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId: client.id } });
+        if (existing?.retiredOutcome === 'vetado')
+            throw new common_2.BadRequestException('Esa persona está vetada en esa empresa. Para levantar el veto hay que invitarla de nuevo, confirmándolo');
         const saved = await this.clientAccess.save({
             ...(existing ?? {}),
+            retiredAt: null,
+            retiredBy: null,
+            retiredReason: null,
+            retiredOutcome: null,
             organizationId: req.organizationId,
             userId: user.id,
             clientId: client.id,
@@ -340,14 +346,16 @@ let PermissionsController = class PermissionsController {
         const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una asignación directa para esa cuenta');
-        await this.clientAccess.remove(existing);
+        if (existing.retiredAt)
+            throw new common_2.NotFoundException('No existe una asignación directa para esa cuenta');
+        await this.clientAccess.save({ ...existing, retiredAt: new Date(), retiredBy: req.user.id, retiredReason: 'Asignación retirada', retiredOutcome: 'retirado' });
         this.accountAccess.invalidateUser(user.id);
         await this.audit.log({
             organizationId: req.organizationId,
             actorId: req.user.id,
             entityType: 'UserClientAccess',
             entityId: existing.id,
-            action: 'deleted',
+            action: 'retired',
             before: { userId: user.id, clientId, reason: existing.reason },
         });
         const remaining = await this.accountAccess.allowedClientIds(req.organizationId, {

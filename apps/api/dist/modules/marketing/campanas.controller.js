@@ -22,6 +22,8 @@ const module_scope_decorator_1 = require("../../core/authorization/module-scope.
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const campanas_service_1 = require("./campanas.service");
+const shared_1 = require("@espartanos/shared");
+const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
 class ListarCampanasDto {
 }
 __decorate([
@@ -137,14 +139,19 @@ __decorate([
     __metadata("design:type", String)
 ], EditarCampanaDto.prototype, "destino", void 0);
 let CampanasController = class CampanasController {
-    constructor(campanas) {
+    constructor(campanas, niveles) {
         this.campanas = campanas;
+        this.niveles = niveles;
     }
     listar(req, filtros) {
         return this.campanas.listar(req.organizationId || req.user.organizationId, undefined, filtros);
     }
     async destinatarios(req, empresa, destino) {
-        return this.campanas.destinatarios(req.organizationId || req.user.organizationId, empresa, destino === 'administradores' ? 'administradores' : 'lista');
+        const organizationId = req.organizationId || req.user.organizationId;
+        const resultado = await this.campanas.destinatarios(organizationId, empresa, destino === 'administradores' ? 'administradores' : 'lista');
+        const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+        const nivel = niveles.de(empresa && empresa !== 'agencia' ? empresa : null);
+        return { ...resultado, muestra: (0, shared_1.recortarListaProtegidos)(resultado.muestra, 'marketing', nivel).datos };
     }
     vistaPrevia(dto) {
         return this.campanas.vistaPrevia(dto.asunto ?? '', dto.cuerpo ?? '');
@@ -173,8 +180,11 @@ let CampanasController = class CampanasController {
     avance(req, id) {
         return this.campanas.avance(id, req.organizationId || req.user.organizationId);
     }
-    fallidos(req, id) {
-        return this.campanas.fallidos(id, req.organizationId || req.user.organizationId);
+    async fallidos(req, id) {
+        const organizationId = req.organizationId || req.user.organizationId;
+        const { clientId, ...resultado } = await this.campanas.fallidos(id, organizationId);
+        const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+        return { ...resultado, fallidos: (0, shared_1.recortarListaProtegidos)(resultado.fallidos, 'marketing', niveles.de(clientId)).datos };
     }
     retorno(req, id) {
         return this.campanas.retorno(id, req.organizationId || req.user.organizationId);
@@ -262,7 +272,7 @@ __decorate([
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], CampanasController.prototype, "fallidos", null);
 __decorate([
     (0, common_1.Get)(':id/retorno'),
@@ -278,5 +288,6 @@ exports.CampanasController = CampanasController = __decorate([
     (0, common_1.Controller)('marketing/campanas'),
     (0, module_scope_decorator_1.ModuleScope)('marketing'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
-    __metadata("design:paramtypes", [campanas_service_1.CampanasService])
+    __metadata("design:paramtypes", [campanas_service_1.CampanasService,
+        nivel_de_datos_service_1.NivelDeDatosService])
 ], CampanasController);
