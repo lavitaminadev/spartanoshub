@@ -27,6 +27,11 @@ describe('empresa vigente de una cuenta de portal', () => {
     expect(empresaVigente({ guardada: 'c-9', suEmpresa: 'c-1', alcanzables: ['c-1'], listaLista: true })).toBe('c-1');
   });
 
+  it('con varias empresas y ninguna elegida no se cae a la de la sesión', () => {
+    expect(empresaVigente({ guardada: '', suEmpresa: 'c-1', alcanzables: ['c-1', 'c-2'], listaLista: true })).toBe('');
+    expect(empresaVigente({ guardada: 'c-9', suEmpresa: 'c-1', alcanzables: ['c-1', 'c-2'], listaLista: true })).toBe('');
+  });
+
   it('una empresa escrita a mano en el navegador no se acepta', () => {
     expect(empresaVigente({ guardada: 'la-de-otro', suEmpresa: 'c-1', alcanzables: ['c-1'], listaLista: true })).toBe('c-1');
   });

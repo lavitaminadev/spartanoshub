@@ -34,6 +34,8 @@ export interface EmpresaActiva {
    * no tenía ese servicio.
    */
   cargando: boolean;
+  /** Alcanza varias empresas y todavía no eligió ninguna: ninguna pantalla debe operar hasta que elija. */
+  debeElegir: boolean;
 }
 
 /**
@@ -80,7 +82,9 @@ export function empresaVigente({ guardada, suEmpresa, alcanzables, listaLista }:
   // el servidor vuelve a comprobar la empresa en cada petición, así que esto elige qué se pide,
   // nunca qué se concede.
   if (!listaLista) return guardada || suEmpresa;
-  return alcanzables.includes(guardada) ? guardada : suEmpresa;
+  if (alcanzables.includes(guardada)) return guardada;
+  // Con varias y ninguna elegida no se adivina: la pantalla pide elegir.
+  return alcanzables.length > 1 ? '' : suEmpresa;
 }
 
 export function useEmpresaActiva(): EmpresaActiva {
@@ -157,6 +161,7 @@ export function useEmpresaActiva(): EmpresaActiva {
     },
     varias: empresas.length > 1,
     cargando: !listaLista,
+    debeElegir: esPortal && listaLista && empresas.length > 1 && !clientId,
   };
 }
 
@@ -184,4 +189,14 @@ export function useUsuarioEnEmpresaActiva() {
   if (!user || user.role !== 'client' || !activa) return user;
   const propias = Object.fromEntries(SERVICIOS_POR_EMPRESA.map((servicio) => [servicio, activa.capabilities?.[servicio] !== false]));
   return { ...user, capabilities: { ...(user.capabilities ?? {}), ...propias } };
+}
+
+/**
+ * El nombre de la empresa para poner en una confirmación, o `undefined` si no hace falta.
+ *
+ * Solo aparece cuando la cuenta atiende varias: con una sola no hay otra sobre la que equivocarse.
+ */
+export function useEmpresaParaConfirmar(): string | undefined {
+  const { varias, nombre } = useEmpresaActiva();
+  return varias ? nombre : undefined;
 }

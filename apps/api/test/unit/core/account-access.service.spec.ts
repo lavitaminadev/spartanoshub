@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountAccessService } from '../../../src/core/client-scope/account-access.service';
 import { UserRole } from '../../../src/modules/organizations/user-role.enum';
@@ -28,6 +28,36 @@ describe('AccountAccessService', () => {
     podMembers = { find: vi.fn().mockResolvedValue([]) };
     assignments = { find: vi.fn().mockResolvedValue([]) };
     service = new AccountAccessService(clients as any, podMembers as any, assignments as any);
+  });
+
+  describe('empresaElegida', () => {
+    const portal = (clientId: string) => userWith(UserRole.CLIENT, { clientId });
+    const alcanza = (ids: string[]) => {
+      clients.find.mockResolvedValue(ids.map((id) => ({ id, status: 'active' })));
+      clients.findOne.mockImplementation(async ({ where }: any) => (ids.includes(where.id) ? { id: where.id } : null));
+      vi.spyOn(service, 'allowedClientIds').mockResolvedValue(ids);
+    };
+
+    it('usa la elegida cuando la alcanza', async () => {
+      alcanza(['a', 'b']);
+      await expect(service.empresaElegida(ORG, portal('a'), 'b')).resolves.toBe('b');
+    });
+
+    it('responde 404 si la elegida no está entre las que alcanza', async () => {
+      alcanza(['a', 'b']);
+      clients.findOne.mockResolvedValue({ id: 'z' });
+      await expect(service.empresaElegida(ORG, portal('a'), 'z')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('con una sola empresa y sin elegir, la suya', async () => {
+      alcanza(['a']);
+      await expect(service.empresaElegida(ORG, portal('a'))).resolves.toBe('a');
+    });
+
+    it('con varias y sin elegir no adivina: pide elegir', async () => {
+      alcanza(['a', 'b']);
+      await expect(service.empresaElegida(ORG, portal('a'))).rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 
   it('la administración no tiene límite de cuentas', async () => {

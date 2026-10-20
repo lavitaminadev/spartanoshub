@@ -53,6 +53,7 @@ interface ClientCapabilities {
   metaConversions: boolean;
   googleConversions: boolean;
   budgetVisibility: boolean;
+  detalleDeContactoEnAvisos: boolean;
 }
 
 interface MetaPixelCatalog {
@@ -110,7 +111,7 @@ const EMPTY_FORM: ClientFormState = {
   logoPublicId: '',
   // `marketing` nace apagada, igual que en el servidor: entregar una lista de direcciones con el
   // respaldo de cada permiso se decide cuenta por cuenta, no al crearla.
-  capabilities: { reservations: true, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false },
+  capabilities: { reservations: true, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false, detalleDeContactoEnAvisos: false },
   pixelMode: 'none',
   pixelId: '',
   pixelName: '',
@@ -126,6 +127,7 @@ const CAPABILITY_OPTIONS: Array<{ key: keyof ClientCapabilities; label: string; 
   { key: 'metaConversions', label: 'Meta Pixel + CAPI', description: 'Envía Schedule y Reserva_Asistida al Pixel de esta empresa.' },
   { key: 'googleConversions', label: 'Google Ads (conversiones)', description: 'Sube la reserva y la asistencia como conversiones offline a Google Ads.' },
   { key: 'budgetVisibility', label: 'Saldo de presupuesto', description: 'Esta empresa ve en su portal cuántas UD lleva consumidas y cuántas le quedan.' },
+  { key: 'detalleDeContactoEnAvisos', label: 'Teléfono y correo en el aviso de grupo', description: 'El aviso por correo de una solicitud de grupo incluye teléfono y correo, sólo para cuentas con acceso directo. Lo habilita la agencia; las alergias y respuestas del formulario nunca salen por correo.' },
 ];
 
 export function ClientsPage() {
@@ -138,6 +140,11 @@ export function ClientsPage() {
   const [modalOpen, setModalOpen] = useState(searchParams.get('create') === '1');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ClientFormState>(EMPTY_FORM);
+  // Encender el detalle de contacto exige aceptar un texto; apagarlo no.
+  const [detalleActivoAntes, setDetalleActivoAntes] = useState(false);
+  const [aceptaDetalle, setAceptaDetalle] = useState(false);
+  const puedeEncenderDetalle = hasRoleAccess(user?.role, ['admin', 'commercial_director', 'dev']);
+  const encendiendoDetalle = Boolean(editingId) && form.capabilities.detalleDeContactoEnAvisos && !detalleActivoAntes;
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
   const [pendingBulkStatus, setPendingBulkStatus] = useState<{ rows: ClientRecord[]; status: 'active' | 'paused' } | null>(null);
@@ -164,6 +171,12 @@ export function ClientsPage() {
     queryKey: ['meta-client-pixel-catalog'],
     queryFn: () => api.get('/integrations/meta/client-pixels/catalog'),
     enabled: canManage,
+  });
+
+  const { data: textoDetalle } = useQuery<{ id: string; version: number; titulo: string; texto: string }>({
+    queryKey: ['client-detalle-contacto-texto', editingId],
+    queryFn: () => api.get(`/clients/${editingId}/detalle-de-contacto-en-avisos/texto`),
+    enabled: Boolean(editingId) && puedeEncenderDetalle && modalOpen,
   });
 
   const configurePixel = async (clientId: string) => {
@@ -272,6 +285,10 @@ export function ClientsPage() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (encendiendoDetalle && !aceptaDetalle) {
+      setFeedback({ tone: 'error', text: 'Para encender el teléfono y correo en el aviso de grupo hay que aceptar el texto.' });
+      return;
+    }
     const body = {
       name: form.name.trim(),
       legalName: form.legalName.trim() || undefined,
@@ -282,6 +299,7 @@ export function ClientsPage() {
       defaultUdBudget: Number(form.defaultUdBudget),
       dailyReservationCap: Number(form.dailyReservationCap) || 0,
       capabilities: form.capabilities,
+      ...(editingId && encendiendoDetalle ? { aceptacionDetalleDeContacto: textoDetalle?.id } : {}),
       ...(editingId ? {
         status: form.status,
         startedAt: form.startedAt || undefined,
@@ -306,6 +324,8 @@ export function ClientsPage() {
   const openEdit = (client: ClientRecord) => {
     setFeedback(null);
     setEditingId(client.id);
+    setDetalleActivoAntes(client.capabilities?.detalleDeContactoEnAvisos ?? false);
+    setAceptaDetalle(false);
     const binding = pixelCatalog?.bindings.find((item) => item.clientId === client.id);
     setForm({
       name: client.name,
@@ -332,6 +352,7 @@ export function ClientsPage() {
         metaConversions: client.capabilities?.metaConversions ?? Boolean(binding?.pixelId),
         googleConversions: client.capabilities?.googleConversions ?? false,
         budgetVisibility: client.capabilities?.budgetVisibility ?? false,
+        detalleDeContactoEnAvisos: client.capabilities?.detalleDeContactoEnAvisos ?? false,
       },
       pixelMode: binding?.pixelId ? 'existing' : 'none',
       pixelId: binding?.pixelId || '',
@@ -486,9 +507,13 @@ export function ClientsPage() {
             <div className="client-capability-grid">
               {CAPABILITY_OPTIONS.map((option) => {
                 const enabled = form.capabilities[option.key];
+                // Encender el detalle de contacto es de la agencia comercial; apagarlo, de quien edite la cuenta.
+                const bloqueada = option.key === 'detalleDeContactoEnAvisos' && !enabled && (!editingId || !puedeEncenderDetalle);
                 return <button
                   key={option.key}
                   type="button"
+                  disabled={bloqueada}
+                  title={bloqueada ? 'Sólo dirección comercial, administración o desarrollo lo encienden, sobre una cuenta ya creada.' : undefined}
                   className={`client-capability-toggle ${enabled ? 'active' : ''}`}
                   aria-pressed={enabled}
                   onClick={() => setForm((current) => ({
@@ -503,6 +528,12 @@ export function ClientsPage() {
                 </button>;
               })}
             </div>
+            {encendiendoDetalle && textoDetalle && <label className="alert alert-warning" style={{ display: 'block' }}>
+              <input type="checkbox" checked={aceptaDetalle} onChange={(e) => setAceptaDetalle(e.target.checked)} /> <strong>{textoDetalle.titulo}</strong>
+              <p>{textoDetalle.texto}</p>
+              <small>Quedan registrados quién acepta, cuándo y desde qué IP.</small>
+            </label>}
+            {detalleActivoAntes && form.capabilities.detalleDeContactoEnAvisos && <small className="form-hint">Encendido: el aviso de grupo lleva teléfono y correo sólo a cuentas con acceso directo; un buzón compartido recibe la versión sin contacto.</small>}
           </section>
 
           {form.capabilities.metaConversions && <section className="client-pixel-setup" aria-labelledby="client-pixel-title">

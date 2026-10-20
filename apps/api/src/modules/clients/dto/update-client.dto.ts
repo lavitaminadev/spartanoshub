@@ -11,4 +11,6 @@ export class UpdateClientDto extends PartialType(CreateClientDto) {
   @IsOptional() @IsString() @MaxLength(255) driveFolderId?: string;
   @IsOptional() @IsUrl() @MaxLength(500) logoUrl?: string;
   @IsOptional() @IsString() @MaxLength(255) logoPublicId?: string;
+  /** Id del texto de `detalle-de-contacto-en-avisos` que se aceptó; sólo se pide al encender esa capacidad. */
+  @IsOptional() @IsString() @MaxLength(36) aceptacionDetalleDeContacto?: string;
 }

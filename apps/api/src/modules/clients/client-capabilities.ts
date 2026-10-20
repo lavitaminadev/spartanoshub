@@ -6,6 +6,7 @@ export const CLIENT_CAPABILITY_KEYS = [
   'metaConversions',
   'googleConversions',
   'budgetVisibility',
+  'detalleDeContactoEnAvisos',
 ] as const;
 
 export type ClientCapabilityKey = (typeof CLIENT_CAPABILITY_KEYS)[number];
@@ -44,6 +45,19 @@ export const DEFAULT_CLIENT_CAPABILITIES: ClientCapabilities = {
    * ser un acto explícito sobre una cuenta concreta y no un efecto secundario de crearla.
    */
   budgetVisibility: false,
+  /**
+   * Si el aviso de solicitud de grupo de esta empresa lleva el teléfono y el correo de quien
+   * pidió el evento, para los destinatarios que son cuentas con nivel `directo`.
+   *
+   * Nace apagada, con el mismo criterio que `marketing` y `budgetVisibility`: encenderla es una
+   * decisión comercial sobre una cuenta concreta y no el efecto de un despliegue. La enciende
+   * la agencia y no la empresa, porque es la agencia quien responde como encargada del
+   * tratamiento; queda auditada y ligada a la aceptación de un texto con versión.
+   *
+   * Sólo mueve teléfono y correo, y sólo en ese aviso. Las alergias y las respuestas del
+   * formulario no salen por correo estén encendidas o no.
+   */
+  detalleDeContactoEnAvisos: false,
 };
 
 export function normalizeClientCapabilities(value?: Partial<ClientCapabilities> | null): ClientCapabilities {

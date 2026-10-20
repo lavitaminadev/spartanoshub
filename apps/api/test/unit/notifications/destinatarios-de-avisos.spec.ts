@@ -22,7 +22,7 @@ function servicio(filas: DestinatarioDeAvisos[] = []) {
     create: vi.fn((fila: unknown) => fila),
     remove: vi.fn(async () => undefined),
   };
-  return { srv: new DestinatariosDeAvisosService(repo as never), repo };
+  return { srv: new DestinatariosDeAvisosService(repo as never, {} as never), repo };
 }
 
 describe('destinatarios de los avisos del equipo', () => {

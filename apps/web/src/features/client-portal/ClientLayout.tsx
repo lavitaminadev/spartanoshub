@@ -75,6 +75,7 @@ export function ClientLayout() {
               value={empresaActiva.clientId}
               onChange={(evento) => empresaActiva.elegir(evento.target.value)}
             >
+              {empresaActiva.debeElegir && <option value="" disabled>Elige una empresa…</option>}
               {empresaActiva.empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
             </select>
           </label>
@@ -119,6 +120,7 @@ export function ClientLayout() {
                   value={empresaActiva.clientId}
                   onChange={(evento) => empresaActiva.elegir(evento.target.value)}
                 >
+                  {empresaActiva.debeElegir && <option value="" disabled>Elige una empresa…</option>}
                   {empresaActiva.empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
                 </select>
               </label>
@@ -150,7 +152,21 @@ export function ClientLayout() {
             <span aria-hidden="true">?</span>
           </button>
         </header>
-        <main className="main-content"><Outlet /></main>
+        <main className="main-content">
+          {/*
+            Con varias empresas y ninguna elegida no se muestra ninguna pantalla: caer en la de la
+            sesión sin decirlo es operar sobre el local que quizá no era.
+          */}
+          {empresaActiva.debeElegir
+            ? <section className="elegir-empresa" aria-labelledby="elegir-empresa-titulo">
+                <h1 id="elegir-empresa-titulo">¿Con qué empresa vas a trabajar?</h1>
+                <p>Tu cuenta atiende más de una. Elige una para continuar; puedes cambiarla cuando quieras desde la parte superior.</p>
+                <div className="elegir-empresa-lista">
+                  {empresaActiva.empresas.map((empresa) => <button key={empresa.id} type="button" className="btn btn-outline" onClick={() => empresaActiva.elegir(empresa.id)}>{empresa.name}</button>)}
+                </div>
+              </section>
+            : <Outlet />}
+        </main>
         <ContextHelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
       </div>
     </div>

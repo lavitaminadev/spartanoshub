@@ -73,6 +73,7 @@ const ReservationBuilderPage = lazy(() => import('../features/reservations/Reser
 const PublicReservationPage = lazy(() => import('../features/reservations/PublicReservationPage').then(m => ({ default: m.PublicReservationPage })));
 const PublicReservationManagementPage = lazy(() => import('../features/reservations/PublicReservationManagementPage').then(m => ({ default: m.PublicReservationManagementPage })));
 const DocumentoLegalPage = lazy(() => import('../features/legal/DocumentoLegalPage').then(m => ({ default: m.DocumentoLegalPage })));
+const AceptarInvitacionPage = lazy(() => import('../features/users/AceptarInvitacionPage').then(m => ({ default: m.AceptarInvitacionPage })));
 const PublicSurveyPage = lazy(() => import('../features/surveys/PublicSurveyPage').then(m => ({ default: m.PublicSurveyPage })));
 const CaptacionPage = lazy(() => import('../features/marketing/CaptacionPage').then(m => ({ default: m.CaptacionPage })));
 const AudiovisualPage = lazy(() => import('../features/audiovisual/AudiovisualPage').then(m => ({ default: m.AudiovisualPage })));
@@ -125,6 +126,7 @@ export function AppRouter() {
         <Route path="/book/:slug" element={<SafeSuspense><PublicReservationPage /></SafeSuspense>} />
         {/* Enlaces cortos por canal: se convierten en UTM y abren la misma página. */}
         <Route path="/book/:slug/:canal/:campana?" element={<RedireccionDeCanal base="book" />} />
+        <Route path="/invitacion/:token" element={<SafeSuspense><AceptarInvitacionPage /></SafeSuspense>} />
         <Route path="/survey/:id" element={<SafeSuspense><PublicSurveyPage /></SafeSuspense>} />
         {/* Suscribirse sin reservar: el QR de la carta, el cartel del meson. Publica y sin sesion. */}
         <Route path="/novedades/:slug" element={<SafeSuspense><CaptacionPage /></SafeSuspense>} />

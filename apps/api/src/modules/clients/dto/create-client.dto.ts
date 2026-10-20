@@ -19,6 +19,7 @@ export class ClientCapabilitiesDto {
   @IsOptional() @IsBoolean() metaConversions?: boolean;
   @IsOptional() @IsBoolean() googleConversions?: boolean;
   @IsOptional() @IsBoolean() budgetVisibility?: boolean;
+  @IsOptional() @IsBoolean() detalleDeContactoEnAvisos?: boolean;
 }
 
 export class CreateClientDto {

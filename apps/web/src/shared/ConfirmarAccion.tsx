@@ -30,6 +30,8 @@ export interface ConfirmarAccionProps {
    * Obligatoria a propósito. Es la única razón por la que este diálogo existe.
    */
   consecuencia: ReactNode;
+  /** Empresa afectada. Se pasa cuando la cuenta atiende varias, para no actuar sobre la equivocada. */
+  empresa?: string;
   /** Texto del botón que confirma. Nombra la acción: «Quitar la campaña», no «Aceptar». */
   confirmar: string;
   /** Se marca cuando la acción no se puede deshacer, para pintarla como corresponde. */
@@ -42,6 +44,7 @@ export interface ConfirmarAccionProps {
 export function ConfirmarAccion({
   titulo,
   consecuencia,
+  empresa,
   confirmar,
   irreversible = true,
   enCurso = false,
@@ -52,6 +55,7 @@ export function ConfirmarAccion({
     <Modal open onClose={onCancelar} title={titulo}>
       <div className="modal-form">
         <p>{consecuencia}</p>
+        {empresa ? <p className="confirmar-empresa">Empresa: <strong>{empresa}</strong></p> : null}
         {irreversible ? <p className="confirmar-irreversible">Esto no se puede deshacer.</p> : null}
         <div className="modal-actions">
           {/*

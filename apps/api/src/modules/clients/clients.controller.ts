@@ -15,10 +15,12 @@ import { PaquetesDeCorreo } from '../../core/parameters/paquetes-de-correo';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { User } from '../users/user.entity';
+import { PerfilesService } from '../users/perfiles/perfiles.service';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ClientOverviewService } from './client-overview.service';
 import { PaginationDto } from '../../shared/dto/pagination.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { DetalleDeContactoEnAvisosService } from './detalle-de-contacto-en-avisos';
 import { RequiresRecentAuth } from '../../core/auth/requires-recent-auth.decorator';
 
 @ApiTags('Clientes')
@@ -37,13 +39,20 @@ export class ClientsController {
     private listClients: ListClientsUseCase,
     private getClient: GetClientUseCase,
     private readonly paquetes: PaquetesDeCorreo,
+    private readonly perfiles: PerfilesService,
+    private readonly detalleDeContacto: DetalleDeContactoEnAvisosService,
   ) {}
 
   @Post()
   @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Crear un nuevo cliente' })
-  create(@Body() dto: CreateClientDto, @Req() req: AuthenticatedRequest) {
-    return this.createClient.execute({ ...dto, organizationId: req.organizationId });
+  async create(@Body() dto: CreateClientDto, @Req() req: AuthenticatedRequest) {
+    // Nace apagada siempre: encenderla exige aceptar un texto, y eso se hace sobre una cuenta que ya existe.
+    const capabilities = { ...(dto.capabilities ?? {}), detalleDeContactoEnAvisos: false };
+    const creada = await this.createClient.execute({ ...dto, capabilities, organizationId: req.organizationId });
+    // Los módulos con los que nace la empresa también traen sus perfiles sugeridos.
+    await this.perfiles.sembrarSugeridos(req.organizationId, creada.id);
+    return creada;
   }
 
   @Get()
@@ -93,6 +102,14 @@ export class ClientsController {
     return this.getClient.execute(id, req.organizationId);
   }
 
+  @Get(':id/detalle-de-contacto-en-avisos/texto')
+  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Texto que se acepta para encender el detalle de contacto en los avisos de grupo' })
+  async textoDetalleDeContacto(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.accountAccess.assertClient(req.organizationId, req.user, id);
+    return this.detalleDeContacto.texto(req.organizationId);
+  }
+
   @Put(':id')
   @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Actualizar un cliente' })
@@ -113,7 +130,22 @@ export class ClientsController {
      * textos escritos y la pantalla avisa que ese módulo no está contratado—.
      */
     const antes = normalizeClientCapabilities(client.capabilities);
-    Object.assign(client, dto, {
+    const { aceptacionDetalleDeContacto, ...cambios } = dto;
+    if (cambios.capabilities) {
+      /*
+       * Un formulario que no menciona esta capacidad no la apaga: omitirla significa «no la toco».
+       * Sólo cambia cuando viene escrita, y entonces pasa por la comprobación de cargo y aceptación.
+       */
+      const pedida = cambios.capabilities.detalleDeContactoEnAvisos ?? antes.detalleDeContactoEnAvisos;
+      cambios.capabilities = { ...cambios.capabilities, detalleDeContactoEnAvisos: pedida };
+      if (pedida !== antes.detalleDeContactoEnAvisos) {
+        await this.detalleDeContacto.registrarCambio({
+          organizationId: req.organizationId, clientId: client.id, actorId: req.user.id, rol: req.user.role,
+          ip: req.ip, encender: pedida, aceptacion: aceptacionDetalleDeContacto,
+        });
+      }
+    }
+    Object.assign(client, cambios, {
       startedAt: dto.startedAt ? new Date(dto.startedAt) : client.startedAt,
       renewalAt: dto.renewalAt ? new Date(dto.renewalAt) : client.renewalAt,
     });
@@ -122,6 +154,9 @@ export class ClientsController {
     const despues = normalizeClientCapabilities(guardado.capabilities);
     const reciencontratados = (['reservations', 'crm', 'surveys'] as const).filter((servicio) => despues[servicio] && !antes[servicio]);
     if (reciencontratados.length) await this.paquetes.encenderPara(guardado.id, [...reciencontratados]);
+    // Encender un módulo copia sus perfiles sugeridos; desde ahí son de la empresa y no se vuelven a tocar.
+    const encendidos = (['reservations', 'crm', 'surveys', 'marketing'] as const).filter((modulo) => despues[modulo] && !antes[modulo]);
+    if (encendidos.length) await this.perfiles.sembrarSugeridos(req.organizationId, guardado.id, [...encendidos]);
 
     return guardado;
   }
