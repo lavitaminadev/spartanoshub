@@ -173,7 +173,7 @@ export type ProductModuleKey = OrganizationModuleKey | WebOnlyModuleKey;
 export declare const INITIAL_OPERATION_MODULES: Set<string>;
 /** Desarrollo conserva visibilidad total; los demás parten con CRM/Reservas mínimos. */
 export declare function isModuleInInitialOperationScope(module: string | undefined, role?: string): boolean;
-export declare const PRODUCT_VISIBLE_LIFECYCLES: Set<"active" | "development" | "pilot" | "maintenance" | "disabled">;
+export declare const PRODUCT_VISIBLE_LIFECYCLES: Set<"development" | "pilot" | "active" | "maintenance" | "disabled">;
 export declare function isModuleLifecycleVisible(lifecycle: ModuleLifecycleStatus): boolean;
 export declare function getOrganizationModuleLifecycle(module: OrganizationModuleKey): ModuleLifecycleStatus;
 export declare function isOrganizationModuleVisible(module: OrganizationModuleKey): boolean;

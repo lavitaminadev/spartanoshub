@@ -31,4 +31,5 @@ export * from './enums';
 export * from './constants';
 export * from './reglas-de-campo';
 export * from './campos-personalizados';
+export * from './areas';
 //# sourceMappingURL=index.d.ts.map
