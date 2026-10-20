@@ -8,6 +8,7 @@
  */
 
 import { useEmpresaActiva } from '../../shared/empresa-activa';
+import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -19,6 +20,7 @@ import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
+import { TEXTO_PROTEGIDO, contactoDe, telefonoDe } from './datos-protegidos';
 import { localInputToUtc, utcToLocalInput } from './local-time';
 
 /** Ahora, en el formato de un campo `datetime-local` con la hora de este navegador. */
@@ -76,7 +78,7 @@ export function AgendaPage() {
     sesión, elegir un local en el CRM dejaba esta pantalla mostrando el otro.
   */
   const empresaActiva = useEmpresaActiva();
-  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId || user?.clientId || '' : searchParams.get('clientId') ?? '');
+  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId : searchParams.get('clientId') ?? '');
   useEffect(() => {
     if (clientMode && empresaActiva.clientId && empresaActiva.clientId !== clientId) setClientId(empresaActiva.clientId);
   }, [clientMode, empresaActiva.clientId, clientId]);
@@ -164,6 +166,10 @@ export function AgendaPage() {
    * clic para ver una alergia o marcar asistencia. Las decisiones del servicio se toman aqui.
    */
   const [detalle, setDetalle] = useState<Reservation | null>(null);
+  const [confirmaCancelar, setConfirmaCancelar] = useState(false);
+  const [confirmaCierre, setConfirmaCierre] = useState(false);
+  // Solo con varias empresas: con una no hay otra sobre la que equivocarse.
+  const empresaParaConfirmar = empresaActiva.varias ? empresaActiva.nombre : undefined;
   const [motivoCancelacion, setMotivoCancelacion] = useState('');
   const actualizarReserva = useMutation({
     mutationFn: ({ id, body }: { id: string; body: { status?: string; cancellationReason?: string } }) => api.patch<Reservation>(`/reservations/${id}`, body),
@@ -246,7 +252,7 @@ export function AgendaPage() {
       </div>
       <strong className="agenda-date-label">{formatDateLabel(dateFilter)}</strong>
       <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId} onClick={() => { setBlockStart(`${dateFilter}T13:00`); setBlockEnd(`${dateFilter}T23:00`); setBlockOpen(true); }}>Bloquear por evento</button>
-      {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId || closeDay.isPending || new Date(`${dateFilter}T23:59:59`) > new Date()} onClick={() => { if (window.confirm('Se marcarán como asistidas las reservas abiertas de este turno y quedará registrado.')) closeDay.mutate(); }}>{closeDay.isPending ? 'Cerrando...' : 'Cerrar turno'}</button>}
+      {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId || closeDay.isPending || new Date(`${dateFilter}T23:59:59`) > new Date()} onClick={() => setConfirmaCierre(true)}>{closeDay.isPending ? 'Cerrando...' : 'Cerrar turno'}</button>}
       {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId} onClick={() => { setPausaHasta(utcToLocalInput(activeForm?.designConfig?.bookingPausedUntil, activeForm?.timezone || 'America/Santiago')); setPausaOpen(true); }}>{activeForm?.designConfig?.bookingPausedUntil ? 'Reservas pausadas' : 'Pausar reservas'}</button>}
     </div>
 
@@ -305,7 +311,7 @@ export function AgendaPage() {
                               <div className="agenda-card-time">{new Date(reservation.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</div>
                               <div className="agenda-card-body">
                                 <strong>{reservation.guestName}</strong>
-                                <span>{reservation.partySize} persona{reservation.partySize === 1 ? '' : 's'}{reservation.guestPhone ? ` · ${reservation.guestPhone}` : ''}</span>
+                                <span>{reservation.partySize} persona{reservation.partySize === 1 ? '' : 's'}{contactoDe(reservation) === TEXTO_PROTEGIDO ? ` · ${TEXTO_PROTEGIDO}` : telefonoDe(reservation) ? ` · ${telefonoDe(reservation)}` : ''}</span>
                                 {(() => {
                                   // Alergias, niños y accesibilidad se deciden al sentar a la mesa, no al
                                   // revisar el listado despues del turno.
@@ -337,10 +343,29 @@ export function AgendaPage() {
             <button type="button" className="btn btn-outline" disabled={actualizarReserva.isPending} onClick={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'no_show' } })}>No asistió</button>
           </div>
           <label>Cancelar desde el local — motivo<input className="input" value={motivoCancelacion} onChange={(event) => setMotivoCancelacion(event.target.value)} placeholder="Ej. el local cerró por corte de agua" /></label>
-          <div className="modal-actions"><button type="button" className="btn btn-outline" disabled={actualizarReserva.isPending || !motivoCancelacion.trim()} onClick={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'cancelled_business', cancellationReason: motivoCancelacion.trim() } })}>Cancelar reserva</button></div>
+          <div className="modal-actions"><button type="button" className="btn btn-outline" disabled={actualizarReserva.isPending || !motivoCancelacion.trim()} onClick={() => setConfirmaCancelar(true)}>Cancelar reserva</button></div>
         </> : <p className="page-subtitle">Esta reserva ya está cerrada, así que no admite cambios de asistencia.</p>}
       </div>}
     </Modal>
+    {confirmaCancelar && detalle && <ConfirmarAccion
+      titulo={`Cancelar la reserva de ${detalle.guestName}`}
+      empresa={empresaParaConfirmar}
+      consecuencia="La reserva queda cancelada por el local, el cupo se libera y se registra el motivo."
+      confirmar="Cancelar la reserva"
+      enCurso={actualizarReserva.isPending}
+      onCancelar={() => setConfirmaCancelar(false)}
+      onConfirmar={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'cancelled_business', cancellationReason: motivoCancelacion.trim() } }, { onSettled: () => setConfirmaCancelar(false) })}
+    />}
+    {confirmaCierre && <ConfirmarAccion
+      titulo="Cerrar el turno"
+      empresa={empresaParaConfirmar}
+      consecuencia="Se marcarán como asistidas las reservas abiertas de este turno y quedará registrado."
+      confirmar="Cerrar el turno"
+      irreversible={false}
+      enCurso={closeDay.isPending}
+      onCancelar={() => setConfirmaCierre(false)}
+      onConfirmar={() => closeDay.mutate(undefined, { onSettled: () => setConfirmaCierre(false) })}
+    />}
     <Modal open={pausaOpen} onClose={() => setPausaOpen(false)} title="Pausar reservas">
       <div className="modal-form">
         <p className="page-subtitle">La página pública deja de ofrecer horarios hasta la fecha indicada. No cancela reservas ya tomadas ni despublica el local.</p>

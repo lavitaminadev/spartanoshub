@@ -1,3 +1,4 @@
+import { telefonoDe } from './datos-protegidos';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -5,6 +6,8 @@ import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { puedeAccion } from '../../core/acciones';
 import { Modal } from '../../shared/Modal';
+import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
+import { useEmpresaParaConfirmar } from '../../shared/empresa-activa';
 import type { Reservation, ReservationForm } from './types';
 import { localDateBoundsUtc, localInputToUtc, plainDateInZone } from './local-time';
 
@@ -63,7 +66,7 @@ async function reservasDelRango(formId: string, rango: { from: string; to: strin
 
 /** WhatsApp con el aviso ya escrito, editable antes de enviarlo. */
 function whatsappDeAviso(reserva: Reservation): string | null {
-  const digitos = (reserva.guestPhone ?? '').replace(/\D/g, '');
+  const digitos = (telefonoDe(reserva) ?? '').replace(/\D/g, '');
   if (digitos.length < 8) return null;
   const numero = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
   const cuando = new Date(reserva.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' });
@@ -99,6 +102,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
   const zona = local.timezone || 'America/Santiago';
   const zonas = ((local.resourcesConfig ?? []) as Zona[]).filter((zona) => zona.id);
 
+  const [reservaPorCancelar, setReservaPorCancelar] = useState<Reservation | null>(null);
+  const empresaParaConfirmar = useEmpresaParaConfirmar();
   const [cupoPorFranja, setCupoPorFranja] = useState('');
   const [topeDelDia, setTopeDelDia] = useState('');
   const [tolerancia, setTolerancia] = useState('');
@@ -380,11 +385,20 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
               <span>{new Date(reserva.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} · {reserva.guestName} · {reserva.partySize} {reserva.partySize === 1 ? 'persona' : 'personas'}</span>
               <span className="ajustes-afectadas-acciones">
                 {(() => { const wsp = whatsappDeAviso(reserva); return wsp ? <a className="btn btn-outline btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Avisar</a> : null; })()}
-                <button type="button" className="btn btn-outline btn-sm" disabled={!motivoDelCierre.trim() || cancelarReserva.isPending} onClick={() => cancelarReserva.mutate(reserva)}>Cancelar</button>
+                <button type="button" className="btn btn-outline btn-sm" disabled={!motivoDelCierre.trim() || cancelarReserva.isPending} onClick={() => setReservaPorCancelar(reserva)}>Cancelar</button>
               </span>
             </li>)}
           </ul>
           {cancelarReserva.error && <p className="error-text">{cancelarReserva.error.message}</p>}
+          {reservaPorCancelar && <ConfirmarAccion
+            titulo={`Cancelar la reserva de ${reservaPorCancelar.guestName}`}
+            empresa={empresaParaConfirmar}
+            consecuencia="La reserva queda cancelada por el local, el cupo se libera y se registra el motivo del cierre."
+            confirmar="Cancelar la reserva"
+            enCurso={cancelarReserva.isPending}
+            onCancelar={() => setReservaPorCancelar(null)}
+            onConfirmar={() => cancelarReserva.mutate(reservaPorCancelar, { onSettled: () => setReservaPorCancelar(null) })}
+          />}
         </div>}
         {cerrarDia.error && <p className="error-text">{cerrarDia.error.message}</p>}
 

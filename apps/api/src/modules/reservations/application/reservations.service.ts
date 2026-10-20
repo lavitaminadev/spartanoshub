@@ -3,6 +3,8 @@ import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, VERSION_BENEFICIOS_RED, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
+import { camposProtegidosDe, columnasAQuitar, estaProtegido } from '@espartanos/shared';
+import type { NivelesDeDatos } from '../../../core/client-scope/nivel-de-datos.service';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
@@ -1861,18 +1863,23 @@ export class ReservationsService {
     datos: { id: string; guestName: string; guestEmail?: string | null; partySize: number; cuando: string; ocasion?: string; telefono?: string | null; notas?: string | null },
   ): Promise<void> {
     /*
-     * El aviso al equipo lleva con qué decidir sin abrir la aplicación.
+     * El aviso al equipo avisa y enlaza; no transporta datos de contacto.
      *
-     * Con el nombre y la cantidad no se puede responder nada: para acordar un evento hacen falta
-     * la ocasión, cuándo lo quiere, por dónde llamarle y lo que haya contado. El equipo tenía que
-     * entrar a buscarlo, y mientras tanto la solicitud esperaba.
+     * Lleva con qué decidir si abrir la ficha —quién, qué ocasión, cuántas personas, cuándo— y el
+     * teléfono, el correo y lo que contó quien pidió el evento se miran en Reservas → Grupos y
+     * eventos, que es donde el acceso está protegido y deja registro. Un correo no deja constancia
+     * de quién lo leyó. Lo que el código no entrega, ninguna plantilla puede imprimirlo.
      */
-    const variables = {
+    const variablesDelEquipo = {
       nombre: datos.guestName,
       local: form.name,
       fecha: datos.cuando,
       personas: datos.partySize,
       ocasion: datos.ocasion ?? '',
+    };
+    // El acuse vuelve a quien escribió sus propios datos: es el titular, no un tercero.
+    const variablesDelAcuse = {
+      ...variablesDelEquipo,
       telefono: datos.telefono ?? '',
       correo: datos.guestEmail ?? '',
       notas: datos.notas ?? '',
@@ -1885,8 +1892,21 @@ export class ReservationsService {
       if (equipo.correos.length) {
         const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.team_group_request' : 'email.team_waitlist');
         if (plantilla.encendido) {
-          const { subject, html } = this.componerConMarca(plantilla, variables);
-          void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
+          const recortado = this.componerConMarca(plantilla, variablesDelEquipo);
+          const conContacto = tipo === 'grupo' ? await this.destinatariosConContacto(form, equipo.correos) : new Set<string>();
+          // Sólo se compone el cuerpo con contacto si alguien lo va a recibir.
+          const completo = conContacto.size
+            ? this.componerConMarca(plantilla, {
+              ...variablesDelEquipo,
+              telefono: datos.telefono ?? '',
+              correo: datos.guestEmail ?? '',
+              contacto: [datos.telefono && `Teléfono: ${datos.telefono}`, datos.guestEmail && `Correo: ${datos.guestEmail}`].filter(Boolean).join('\n'),
+            })
+            : recortado;
+          void Promise.all(equipo.correos.map((email) => {
+            const { subject, html } = conContacto.has(email.trim().toLowerCase()) ? completo : recortado;
+            return this.emails.send(email, subject, html);
+          }))
             .catch((err) => this.logger.warn(`Aviso al equipo de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
       }
@@ -1897,11 +1917,31 @@ export class ReservationsService {
       if (!datos.guestEmail) return;
       const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.group_request_ack' : 'email.waitlist_ack');
       if (!plantilla.encendido) return;
-      const { subject, html } = this.componerConMarca(plantilla, variables);
+      const { subject, html } = this.componerConMarca(plantilla, variablesDelAcuse);
       void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
         .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
     } catch (err) {
       this.logger.warn(`No se pudo componer el acuse de ${datos.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /**
+   * Las direcciones del equipo que reciben el aviso de grupo con teléfono y correo.
+   *
+   * Exige las dos cosas: que la empresa tenga encendida `detalleDeContactoEnAvisos` y que la
+   * dirección sea una cuenta con nivel `directo` sobre los datos del comensal. Una dirección
+   * suelta de ajustes no tiene nivel que comprobar y recibe siempre la versión recortada. Cualquier
+   * duda o fallo devuelve vacío: se recorta.
+   */
+  private async destinatariosConContacto(form: ReservationForm, correos: string[]): Promise<Set<string>> {
+    try {
+      const filas = (await this.dataSource.query('SELECT capabilities FROM clients WHERE id = ? AND organization_id = ?', [form.clientId, form.organizationId])) as Array<{ capabilities: unknown }>;
+      let crudas = filas?.[0]?.capabilities;
+      if (typeof crudas === 'string') crudas = JSON.parse(crudas);
+      if (!normalizeClientCapabilities(crudas as never).detalleDeContactoEnAvisos) return new Set();
+      return await this.destinatariosDeAvisos.conNivelDirecto(form.organizationId, form.clientId, 'reservations', correos);
+    } catch {
+      return new Set();
     }
   }
 
@@ -3343,12 +3383,27 @@ export class ReservationsService {
     return reserva;
   }
 
+  /**
+   * Los campos protegidos de una reserva tal como están guardados, para la ficha que los pidió.
+   * Quién los pide y si puede lo decide quien llama: aquí sólo se leen dentro del alcance.
+   */
+  async datosProtegidosDeReserva(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) {
+    const reserva = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+    if (!reserva) throw new NotFoundException('Reserva no encontrada');
+    const datos: Record<string, unknown> = {};
+    for (const { campo } of camposProtegidosDe('reservations')) {
+      const valor = (reserva as unknown as Record<string, unknown>)[campo];
+      if (valor !== null && valor !== undefined && !estaProtegido(valor)) datos[campo] = valor;
+    }
+    return { clientId: reserva.clientId, datos };
+  }
+
   async guestHistory(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) {
     const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
     if (!actual) throw new NotFoundException('Reserva no encontrada');
     const correo = actual.guestEmail?.trim().toLowerCase();
     const telefono = actual.guestPhone?.trim();
-    const vacio = { total: 0, attended: 0, noShow: 0, enEsteLocal: 0, alcance: 'local' as 'local' | 'red', deOtrasReservas: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
+    const vacio = { clientId: actual.clientId, total: 0, attended: 0, noShow: 0, enEsteLocal: 0, alcance: 'local' as 'local' | 'red', deOtrasReservas: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
     if (!correo && !telefono) return vacio;
 
     /*
@@ -3370,6 +3425,7 @@ export class ReservationsService {
     const previas = await qb.orderBy('r.starts_at', 'DESC').take(100).getMany();
     const supuestasPrevias = await this.asistenciasSupuestas(previas.filter((item) => item.status === 'attended').map((item) => item.id));
     return {
+      clientId: actual.clientId,
       total: previas.length,
       attended: previas.filter((item) => item.status === 'attended').length,
       asistenciasSupuestas: previas.filter((item) => supuestasPrevias.has(item.id)).length,
@@ -3684,8 +3740,9 @@ export class ReservationsService {
    *
    * @param limit - Máximo de filas a exportar; sin valor se exportan todas las que coincidan.
    */
-  async *streamCsv(organizationId: string, clientId?: string, clientIds?: string[], from?: string, to?: string, limit?: number): AsyncGenerator<string> {
+  async *streamCsv(organizationId: string, niveles: NivelesDeDatos, clientId?: string, clientIds?: string[], from?: string, to?: string, limit?: number): AsyncGenerator<string> {
     const BATCH = 500;
+    const quitar = new Set(columnasAQuitar('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
     const baseQuery = () => {
       const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId });
       if (clientId) qb.andWhere('r.client_id = :clientId', { clientId });
@@ -3698,7 +3755,7 @@ export class ReservationsService {
     // Las respuestas del formulario son columnas dinámicas, así que la cabecera solo se
     // conoce tras mirarlas todas. Este primer recorrido trae únicamente esa columna.
     const answerKeys = new Set<string>();
-    for await (const rows of this.batches(() => baseQuery().select('r.answers', 'answers'), BATCH, limit, true)) {
+    if (!quitar.has('answers')) for await (const rows of this.batches(() => baseQuery().select('r.answers', 'answers'), BATCH, limit, true)) {
       for (const row of rows as Array<{ answers: unknown }>) {
         const answers = typeof row.answers === 'string' ? JSON.parse(row.answers || '{}') : row.answers;
         if (answers && typeof answers === 'object') Object.keys(answers).forEach((key) => answerKeys.add(key));
@@ -3715,12 +3772,18 @@ export class ReservationsService {
     const etiquetas = new Map<string, string>();
     for (const formulario of formularios) for (const campo of formulario.fieldSchema ?? []) if (campo?.id && campo.label && !etiquetas.has(campo.id)) etiquetas.set(campo.id, campo.label);
     const legible = (valor: unknown) => Array.isArray(valor) ? valor.join(', ') : typeof valor === 'boolean' ? (valor ? 'Sí' : 'No') : valor;
-    yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => etiquetas.get(key) || RESPUESTAS_DEL_SISTEMA[key] || key)]);
+    const columnas = [
+      { titulo: 'codigo', campo: undefined, valor: (i: Reservation) => i.referenceCode },
+      { titulo: 'nombre', campo: undefined, valor: (i: Reservation) => i.guestName },
+      { titulo: 'correo', campo: 'guestEmail', valor: (i: Reservation) => i.guestEmail },
+      { titulo: 'telefono', campo: 'guestPhone', valor: (i: Reservation) => i.guestPhone },
+    ].filter((columna) => !columna.campo || !quitar.has(columna.campo));
+    yield toLine([...columnas.map((columna) => columna.titulo), 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => etiquetas.get(key) || RESPUESTAS_DEL_SISTEMA[key] || key)]);
 
     for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
       const lines = (items as Reservation[]).map((item) => {
         const answers = (item.answers || {}) as Record<string, unknown>;
-        return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => legible(answers[key]))]);
+        return toLine([...columnas.map((columna) => columna.valor(item)), item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => legible(answers[key]))]);
       });
       if (lines.length > 0) yield `\r\n${lines.join('\r\n')}`;
     }
@@ -3742,6 +3805,7 @@ export class ReservationsService {
 
   async exportFormReservations(
     organizationId: string,
+    niveles: NivelesDeDatos,
     formId: string,
     clientId?: string,
     clientIds?: string[],
@@ -3768,7 +3832,8 @@ export class ReservationsService {
      */
     const form = await this.forms.findOne({ where: { id: formId, organizationId } });
     const esquema = (form?.fieldSchema as FieldConfig[] | undefined) ?? [];
-    const clavesRespuesta = [...new Set(items.flatMap((item) => Object.keys((item.answers || {}) as Record<string, unknown>)))].sort();
+    const quitar = new Set(columnasAQuitar('reservations', niveles.de(form?.clientId ?? clientId)));
+    const clavesRespuesta = quitar.has('answers') ? [] : [...new Set(items.flatMap((item) => Object.keys((item.answers || {}) as Record<string, unknown>)))].sort();
     const etiquetaDe = (clave: string) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
     const valorDe = (item: Reservation, clave: string) => {
       const valor = ((item.answers || {}) as Record<string, unknown>)[clave];
@@ -3795,7 +3860,9 @@ export class ReservationsService {
       party_size: (item) => item.partySize,
     };
 
-    const allowedFields = includeInternalNotes ? fields : fields.filter((field) => field !== 'notes');
+    const COLUMNA_PROTEGIDA: Record<string, string> = { phone: 'guestPhone', email: 'guestEmail' };
+    const allowedFields = (includeInternalNotes ? fields : fields.filter((field) => field !== 'notes'))
+      .filter((field) => !quitar.has(COLUMNA_PROTEGIDA[field] ?? ''));
 
     /*
      * Las columnas se titulan en palabras, no con el nombre del campo.

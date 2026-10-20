@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { estaProtegido } from '@espartanos/shared';
 import { api } from '../../core/api';
 import type { GuestHistory, Reservation, ReservationForm } from './types';
 import { respuestasLegibles } from './answer-labels';
 import { describirEvento, type EventoDeReserva } from './describir-evento';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { EstadiaEnLaMesa } from './EstadiaEnLaMesa';
+import { TEXTO_PROTEGIDO } from './datos-protegidos';
 
 /** Visitas anteriores que se muestran de entrada; el resto queda tras «Ver las N visitas». */
 const VISITAS_A_LA_VISTA = 2;
@@ -68,6 +70,21 @@ function HistorialDeLaReserva({ reservaId, zonaHoraria }: { reservaId: string; z
   );
 }
 
+/**
+ * Un dato que el servidor no mandó.
+ *
+ * Dice «Protegido» y no queda vacío: vacío se lee como «no lo dejó». Con `sePuedePedir` ofrece
+ * «Ver», y quien lo pulsa queda anotado en el servidor; sin él no hay forma de pedirlo.
+ */
+function ValorProtegido({ sePuedePedir, pendiente, onVer }: { sePuedePedir: boolean; pendiente: boolean; onVer: () => void }) {
+  return <>
+    <strong>{TEXTO_PROTEGIDO}</strong>
+    {sePuedePedir && <button type="button" className="link-button" disabled={pendiente} onClick={onVer} title="Queda anotado quién lo vio y cuándo.">
+      {pendiente ? 'Abriendo…' : 'Ver'}
+    </button>}
+  </>;
+}
+
 export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupon }: Props) {
   const queryClient = useQueryClient();
   /* Marcar la salida devuelve la reserva al día; la pantalla que abrió la ficha puede tardar en refrescarla. */
@@ -77,6 +94,8 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
   const [personas, setPersonas] = useState(String(reserva.partySize));
   const [mesa, setMesa] = useState(reserva.tableLabel ?? '');
   const [nota, setNota] = useState(reserva.internalNotes ?? '');
+  /* Lo que el servidor entregó al pedir «Ver»; vale sólo para la reserva que se pidió. */
+  const [reveladas, setReveladas] = useState<{ id: string; datos: Record<string, unknown> } | null>(null);
 
   useEffect(() => {
     setPersonas(String(reserva.partySize));
@@ -92,6 +111,18 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
       onGuardada?.();
     },
   });
+
+  const revelar = useMutation({
+    mutationFn: () => api.get<{ datos: Record<string, unknown> }>(`/reservations/${reserva.id}/datos-protegidos`),
+    onSuccess: (respuesta) => setReveladas({ id: reserva.id, datos: respuesta.datos }),
+  });
+  const reveladosAhora = reveladas?.id === reserva.id ? reveladas.datos : null;
+  const sePuedePedir = reserva.datosProtegidos?.sePuedePedir === true;
+  const contactoProtegido = !reveladosAhora && (estaProtegido(reserva.guestPhone) || estaProtegido(reserva.guestEmail));
+  const respuestasProtegidas = !reveladosAhora && estaProtegido(reserva.answers);
+  const contacto = reveladosAhora
+    ? String(reveladosAhora.guestPhone || reveladosAhora.guestEmail || 'Sin contacto')
+    : reserva.guestPhone || reserva.guestEmail || 'Sin contacto';
 
   /* Si ya vino antes, para reconocerla al recibirla. El alcance lo decide el servidor. */
   const { data: historial } = useQuery<GuestHistory>({
@@ -117,7 +148,7 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
    * esquema del formulario: recorrer sólo los campos las dejaba fuera justo en la pantalla donde
    * se la recibe. Los rótulos salen del formulario cuando existen, y del catálogo cuando no.
    */
-  const campos = respuestasLegibles(reserva.answers, local?.fieldSchema);
+  const campos = respuestasLegibles((reveladosAhora?.answers ?? reserva.answers) as Record<string, unknown> | undefined, local?.fieldSchema);
   const notasAnteriores = (historial?.anteriores ?? []).filter((anterior) => anterior.internalNotes?.trim());
   /*
    * Lo que ya dice esta reserva no se repite como costumbre.
@@ -138,7 +169,9 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
   return <div className="ficha-de-reserva">
     <div className="booking-detail-grid">
       <div><span>Visitante</span><strong>{reserva.guestName}</strong></div>
-      <div><span>Contacto</span><strong>{reserva.guestPhone || reserva.guestEmail || 'Sin contacto'}</strong></div>
+      <div><span>Contacto</span>{contactoProtegido
+        ? <ValorProtegido sePuedePedir={sePuedePedir} pendiente={revelar.isPending} onVer={() => revelar.mutate()} />
+        : <strong>{contacto}</strong>}</div>
       <div><span>Código</span><strong>#{reserva.referenceCode}</strong></div>
       {/* En la zona del local: quien mira desde otra ciudad no debe ver la hora corrida. */}
       <div><span>Fecha</span><strong>{new Date(reserva.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: local?.timezone })}</strong></div>
@@ -203,7 +236,18 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
     </div>
     <HistorialDeLaReserva reservaId={reserva.id} zonaHoraria={local?.timezone} />
     {guardar.error && <p className="error-text">{guardar.error.message}</p>}
+    {revelar.error && <p className="error-text">No se pudieron abrir los datos: {revelar.error.message}</p>}
     <EstadiaEnLaMesa reserva={reserva} zonaHoraria={local?.timezone} onCambio={(nueva) => { setAlDia(nueva); onGuardada?.(); }} />
+
+    {respuestasProtegidas && <div className="booking-detail-extra">
+      <span className="page-eyebrow">LO QUE COMPLETÓ AL RESERVAR</span>
+      <ul className="booking-preferencias">
+        <li>
+          <span>Respuestas del formulario</span>
+          <ValorProtegido sePuedePedir={sePuedePedir} pendiente={revelar.isPending} onVer={() => revelar.mutate()} />
+        </li>
+      </ul>
+    </div>}
 
     {campos.length > 0 && <div className="booking-detail-extra">
       <span className="page-eyebrow">LO QUE COMPLETÓ AL RESERVAR</span>

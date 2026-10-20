@@ -64,7 +64,8 @@ export function respuestasLegibles(
   answers: Record<string, unknown> | undefined,
   fieldSchema: FormField[] | undefined,
 ): RespuestaLegible[] {
-  if (!answers) return [];
+  // Protegido: el servidor mandó la marca en lugar del objeto.
+  if (!answers || typeof answers !== 'object') return [];
   const porId = new Map((fieldSchema || []).map((field) => [field.id, field.label]));
   return Object.entries(answers)
     .map(([clave, valor]) => ({

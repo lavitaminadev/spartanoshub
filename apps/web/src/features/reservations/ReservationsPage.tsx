@@ -27,6 +27,7 @@ import type { GroupRequest, MetaConversionStatus, Reservation, ReservationForm }
 import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc, plainDateInZone } from './local-time';
 import { publicReservationUrl } from '../../core/public-url';
 import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
+import { contactoDe } from './datos-protegidos';
 import { useAuth } from '../../core/auth';
 import { ExportModal } from './ExportModal';
 import { ReservationResults } from '../dashboard/ReservationResults';
@@ -745,7 +746,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           const preparar = respuestasDestacadas(item.answers, forms.find((form) => form.id === item.formId)?.fieldSchema);
           return <article className="booking-row" key={item.id}>
           <div className="booking-date"><strong>{new Date(item.startsAt).getDate()}</strong><span>{new Date(item.startsAt).toLocaleDateString('es-CL', { month: 'short' })}</span><small>{new Date(item.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</small></div>
-          <button className="booking-guest booking-guest-button" onClick={() => { setSelectedBooking(item); }} aria-label={`Ver detalle de la reserva de ${item.guestName}`}><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || 'Sin contacto'}</span><small>{item.tableLabel ? <em className="booking-mesa">Mesa {item.tableLabel}</em> : null}#{item.referenceCode} · {item.utmCampaign || item.utmSource || 'Origen directo'}{item.couponCode ? <em className="booking-coupon"><VitaIcons.ticket /> {item.couponCode}</em> : null}</small>{(preparar.length > 0 || item.internalNotes) && <span className="booking-flags">{preparar.map((dato) => <em key={dato.clave} title={`${dato.etiqueta}: ${dato.valor}`}>{dato.etiqueta}</em>)}{item.internalNotes ? <em className="es-nota" title={item.internalNotes}>Nota del equipo</em> : null}</span>}</button>
+          <button className="booking-guest booking-guest-button" onClick={() => { setSelectedBooking(item); }} aria-label={`Ver detalle de la reserva de ${item.guestName}`}><strong>{item.guestName}</strong><span>{contactoDe(item)}</span><small>{item.tableLabel ? <em className="booking-mesa">Mesa {item.tableLabel}</em> : null}#{item.referenceCode} · {item.utmCampaign || item.utmSource || 'Origen directo'}{item.couponCode ? <em className="booking-coupon"><VitaIcons.ticket /> {item.couponCode}</em> : null}</small>{(preparar.length > 0 || item.internalNotes) && <span className="booking-flags">{preparar.map((dato) => <em key={dato.clave} title={`${dato.etiqueta}: ${dato.valor}`}>{dato.etiqueta}</em>)}{item.internalNotes ? <em className="es-nota" title={item.internalNotes}>Nota del equipo</em> : null}</span>}</button>
           <div className="booking-status-cell">
             {/* El gesto del dia es marcar asistencia: dos botones directos, sin desplegable.
                 El resto del ciclo queda en el semaforo, que se usa mucho menos. */}

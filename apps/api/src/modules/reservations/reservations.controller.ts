@@ -11,6 +11,7 @@ import { once } from 'node:events';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { AuditService } from '../../core/audit/audit.service';
+import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../core/client-scope/nivel-de-datos.service';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { UserRole } from '../organizations/user-role.enum';
@@ -34,6 +35,7 @@ export class ReservationsController {
     private readonly audit: AuditService,
     private readonly dataSource: DataSource,
     private readonly permisos: PermissionResolverService,
+    private readonly niveles: NivelDeDatosService,
   ) {}
 
   private publicOrigin(): string | undefined {
@@ -63,6 +65,12 @@ export class ReservationsController {
       clientId: this.client(req),
       clientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
     };
+  }
+
+  /** Una reserva recortada según lo que esta persona ve de la empresa a la que pertenece. */
+  private async recortada<T extends { clientId?: string | null }>(req: AuthenticatedRequest, reserva: T) {
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    return recortarFilasPorEmpresa([reserva], 'reservations', niveles)[0];
   }
 
   private async requestedScope(req: AuthenticatedRequest, requestedClientId?: string) {
@@ -274,7 +282,7 @@ export class ReservationsController {
   async createManual(@Req() req: AuthenticatedRequest, @Body() dto: CreateManualReservationDto) {
     const scope = await this.scope(req);
     if (req.user.role === UserRole.CLIENT) dto.skipAvailability = false;
-    return this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds);
+    return this.recortada(req, await this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds));
   }
 
   @Post('import')
@@ -302,7 +310,9 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async list(@Req() req: AuthenticatedRequest, @Query() query: ListReservationsDto) {
     const scope = await this.requestedScope(req, query.clientId);
-    return this.service.listReservations(req.organizationId, query, scope.clientId, scope.clientIds, req.user.role !== UserRole.CLIENT);
+    const respuesta = await this.service.listReservations(req.organizationId, query, scope.clientId, scope.clientIds, req.user.role !== UserRole.CLIENT);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    return { ...respuesta, data: recortarFilasPorEmpresa(respuesta.data, 'reservations', niveles) };
   }
 
   @Patch(':id')
@@ -314,7 +324,7 @@ export class ReservationsController {
     if (req.user.role === UserRole.CLIENT && dto.workflowState !== undefined) {
       throw new ForbiddenException('La etapa de producción la gestiona el equipo de Espartanos');
     }
-    return this.service.updateReservation(
+    return this.recortada(req, await this.service.updateReservation(
       req.organizationId,
       id,
       dto,
@@ -322,7 +332,7 @@ export class ReservationsController {
       req.user.role === UserRole.CLIENT ? 'client' : 'team',
       scope.clientId,
       scope.clientIds,
-    );
+    ));
   }
 
   @Get('group-requests')
@@ -367,7 +377,38 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async guestHistory(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
-    return this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+    const historial = await this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    // Las preferencias salen de las respuestas del formulario, donde viven las alergias: siguen
+    // la misma regla que ellas y no viajan a quien no las ve.
+    if (niveles.de(historial.clientId) === 'directo') return historial;
+    const { preferencias: _preferencias, ...sinPreferencias } = historial;
+    return sinPreferencias;
+  }
+
+  /**
+   * Los datos protegidos de una reserva, para quien los pidió desde su ficha.
+   *
+   * Con `bajo_registro` deja constancia de quién los vio y cuándo antes de responder: si la
+   * constancia no se puede escribir, la respuesta falla y el dato no sale. Con `oculto` no hay
+   * forma de pedirlos. Con `directo` ya los recibía en la ficha y no hay nada que anotar.
+   */
+  @Get(':id/datos-protegidos')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async datosProtegidos(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
+    const scope = await this.scope(req);
+    const reserva = await this.service.datosProtegidosDeReserva(req.organizationId, id, scope.clientId, scope.clientIds);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    const nivel = niveles.de(reserva.clientId);
+    if (nivel === 'oculto') throw new ForbiddenException('Tu perfil no permite ver estos datos');
+    if (nivel === 'bajo_registro') {
+      await this.audit.log({
+        organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservations', entityId: id,
+        action: 'reveal_protected_data', reason: `campos=${Object.keys(reserva.datos).join(',')}`,
+        ipAddress: req.ip,
+      });
+    }
+    return { id, datos: reserva.datos };
   }
 
   /** Quien ya llegó se fue, o sigue en la mesa: mueve el fin de la reserva y con él su cupo. */
@@ -557,7 +598,8 @@ export class ReservationsController {
     // que ocupa en memoria deja de depender de cu\u00E1ntas reservas se exporten. El `drain` evita
     // que los trozos se acumulen si el cliente descarga m\u00E1s lento de lo que se generan.
     res.write('\uFEFF');
-    for await (const chunk of this.service.streamCsv(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    for await (const chunk of this.service.streamCsv(req.organizationId, niveles, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
       if (!res.write(chunk)) await once(res, 'drain');
     }
     res.end();
@@ -575,6 +617,7 @@ export class ReservationsController {
     const scope = await this.scope(req);
     const result = await this.service.exportFormReservations(
       req.organizationId,
+      await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations'),
       formId,
       scope.clientId,
       scope.clientIds,
