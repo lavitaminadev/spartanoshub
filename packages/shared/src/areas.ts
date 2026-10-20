@@ -75,7 +75,7 @@ const SOLO_VER: readonly NivelDeArea[] = ['ninguno', 'ver'] as const;
  * **exportar** y **ver datos protegidos**. Se llaman igual en todas partes para que la pantalla
  * las agrupe y alguien pueda preguntar una sola vez «¿quién saca datos personales de aquí?».
  */
-function transversales(modulo: OrganizationModuleKey, queSonLosDatos: string): DefinicionDeArea[] {
+function transversales(modulo: OrganizationModuleKey): DefinicionDeArea[] {
   return [
     {
       clave: `${modulo}.exportar`,
@@ -85,15 +85,69 @@ function transversales(modulo: OrganizationModuleKey, queSonLosDatos: string): D
       niveles: SI_O_NO,
       tocaDatosDeTerceros: true,
     },
-    {
-      clave: `${modulo}.datos_protegidos`,
-      modulo,
-      nombre: 'Datos protegidos',
-      ayuda: queSonLosDatos,
-      niveles: SOLO_VER,
-      tocaDatosDeTerceros: true,
-    },
   ];
+}
+
+/**
+ * Qué son los datos protegidos en cada módulo, y por qué el nivel va **por módulo**.
+ *
+ * No es lo mismo el teléfono de un prospecto, que alguien de comercial necesita para llamarlo,
+ * que el documento de un comensal, que casi nadie necesita para atender. Un solo nivel por
+ * persona obligaría a conceder el más alto que necesite en cualquier módulo, y se llevaría por
+ * delante todo lo demás.
+ *
+ * No va aquí como área porque su escala es otra —tres valores, no «ver» y «hacer»— y mezclarlas
+ * en un mismo registro acaba en un campo que significa dos cosas según dónde se lea.
+ */
+export interface DatosProtegidosDeModulo {
+  modulo: OrganizationModuleKey;
+  nombre: string;
+  ayuda: string;
+  /**
+   * Si entre estos datos hay alguno de categoría especial —salud, en la práctica las alergias y
+   * restricciones alimentarias del comensal—.
+   *
+   * Cuando lo hay, conceder el acceso exige que quien lo concede acepte un texto con versión, y
+   * queda guardado con `ConsentVersion` y `DataConsent`, que es el mecanismo que la plataforma ya
+   * usa para los consentimientos. No lo pide la ley con esas palabras: lo pide la obligación de
+   * **poder demostrar** que el acceso se limitó y que quien lo recibió conocía su deber de
+   * confidencialidad.
+   */
+  incluyeSensibles?: true;
+}
+
+export const DATOS_PROTEGIDOS: readonly DatosProtegidosDeModulo[] = [
+  {
+    modulo: 'reservations',
+    nombre: 'Datos del comensal',
+    ayuda: 'Documento, fecha de nacimiento, teléfono, correo y las respuestas de alergias o restricciones.',
+    incluyeSensibles: true,
+  },
+  { modulo: 'crm', nombre: 'Datos del prospecto', ayuda: 'Teléfono, correo y documento.' },
+  {
+    modulo: 'surveys',
+    nombre: 'Identidad de quien responde',
+    ayuda: 'Sin este nivel los resultados se leen agregados y anónimos, que es como deberían leerse casi siempre.',
+    incluyeSensibles: true,
+  },
+  { modulo: 'marketing', nombre: 'Direcciones de la lista', ayuda: 'El correo de cada suscriptor.' },
+] as const;
+
+/**
+ * Si conceder este módulo exige que quien concede acepte el texto de confidencialidad.
+ *
+ * Sólo donde hay datos de categoría especial. Pedirlo en todos convertiría la aceptación en un
+ * clic automático, y una evidencia que nadie leyó no prueba nada.
+ */
+export function concederExigeAceptacion(modulo: OrganizationModuleKey, nivel: NivelDeDatosProtegidos): boolean {
+  if (nivel === 'oculto') return false;
+  return DATOS_PROTEGIDOS.some((entrada) => entrada.modulo === modulo && entrada.incluyeSensibles === true);
+}
+
+const MODULOS_CON_DATOS = new Set(DATOS_PROTEGIDOS.map((entrada) => entrada.modulo));
+
+export function tieneDatosProtegidos(modulo: OrganizationModuleKey): boolean {
+  return MODULOS_CON_DATOS.has(modulo);
 }
 
 export const AREAS: readonly DefinicionDeArea[] = [
@@ -107,7 +161,7 @@ export const AREAS: readonly DefinicionDeArea[] = [
   { clave: 'reservations.configurar', modulo: 'reservations', nombre: 'Configurar el local', ayuda: 'Horarios, zonas, mesas, capacidad, tolerancia y cierres del día.', niveles: VER_O_HACER },
   { clave: 'reservations.publicar', modulo: 'reservations', nombre: 'Página pública y textos', ayuda: 'Publicar o despublicar la página de reserva y escribir los correos que recibe el comensal.', niveles: VER_O_HACER },
   { clave: 'reservations.medicion', modulo: 'reservations', nombre: 'Medición', ayuda: 'Las analíticas del local y lo que se le informa a la pauta.', niveles: SOLO_VER },
-  ...transversales('reservations', 'Documento, fecha de nacimiento, teléfono, correo y las respuestas de alergias o restricciones del comensal.'),
+  ...transversales('reservations'),
 
   // ─── CRM ────────────────────────────────────────────────────────────────────
   { clave: 'crm.prospectos', modulo: 'crm', nombre: 'Prospectos', ayuda: 'Abrir la ficha de un prospecto, editarla y cambiarle la etapa.', niveles: VER_O_HACER, tocaDatosDeTerceros: true },
@@ -120,14 +174,14 @@ export const AREAS: readonly DefinicionDeArea[] = [
   { clave: 'crm.campos', modulo: 'crm', nombre: 'Campos propios', ayuda: 'La estructura de la ficha: qué se le pregunta a cada prospecto.', niveles: VER_O_HACER },
   { clave: 'crm.origenes', modulo: 'crm', nombre: 'Orígenes de entrada', ayuda: 'Los formularios externos que dejan prospectos, y sus llaves.', niveles: VER_O_HACER },
   { clave: 'crm.medicion', modulo: 'crm', nombre: 'Medición', ayuda: 'Qué se le informa a la pauta y cómo va la conciliación.', niveles: SOLO_VER },
-  ...transversales('crm', 'Teléfono, correo y documento del prospecto.'),
+  ...transversales('crm'),
 
   // ─── Encuestas ──────────────────────────────────────────────────────────────
   { clave: 'surveys.resultados', modulo: 'surveys', nombre: 'Resultados', ayuda: 'Ver las respuestas y sus indicadores.', niveles: SOLO_VER, tocaDatosDeTerceros: true },
   { clave: 'surveys.editar', modulo: 'surveys', nombre: 'Crear y editar', ayuda: 'Armar la encuesta y cambiar sus preguntas.', niveles: VER_O_HACER },
   { clave: 'surveys.publicar', modulo: 'surveys', nombre: 'Publicar y archivar', ayuda: 'Dejar la encuesta disponible o retirarla.', niveles: SI_O_NO },
   { clave: 'surveys.enviar', modulo: 'surveys', nombre: 'Enviar y compartir', ayuda: 'Mandarla por correo o entregar su enlace.', niveles: SI_O_NO },
-  ...transversales('surveys', 'La identidad de quien respondió. Sin este nivel, los resultados se leen agregados y anónimos, que es como deberían leerse casi siempre.'),
+  ...transversales('surveys'),
 
   // ─── Marketing ──────────────────────────────────────────────────────────────
   { clave: 'marketing.suscriptores', modulo: 'marketing', nombre: 'Suscriptores', ayuda: 'La lista de quienes aceptaron recibir correo.', niveles: VER_O_HACER, tocaDatosDeTerceros: true },
@@ -135,7 +189,7 @@ export const AREAS: readonly DefinicionDeArea[] = [
   { clave: 'marketing.campanas', modulo: 'marketing', nombre: 'Campañas', ayuda: 'Redactar y preparar una campaña.', niveles: VER_O_HACER },
   { clave: 'marketing.enviar', modulo: 'marketing', nombre: 'Enviar campaña', ayuda: 'Ponerla en cola. Va aparte de redactarla porque sale hacia fuera y no se puede deshacer.', niveles: SI_O_NO },
   { clave: 'marketing.bajas', modulo: 'marketing', nombre: 'Bajas y constancia', ayuda: 'Quién pidió no recibir más correo y cuándo lo pidió.', niveles: SOLO_VER, tocaDatosDeTerceros: true },
-  ...transversales('marketing', 'Las direcciones de correo de la lista.'),
+  ...transversales('marketing'),
 
   // ─── Producción ─────────────────────────────────────────────────────────────
   { clave: 'production.piezas', modulo: 'production', nombre: 'Piezas', ayuda: 'Ver el trabajo en curso y moverlo de estado.', niveles: VER_O_HACER },
@@ -176,6 +230,15 @@ export function areasConDatosDeTerceros(): DefinicionDeArea[] {
  */
 export type JuegoDeAreas = Readonly<Record<string, NivelDeArea>>;
 
+/**
+ * El nivel de datos protegidos, módulo por módulo.
+ *
+ * Un módulo ausente significa `oculto`, con la misma regla que las áreas: lo que no se concedió,
+ * no se tiene. La migración escribe `directo` de forma explícita para quienes hoy ya los ven, de
+ * modo que nadie pierda nada el día del despliegue.
+ */
+export type JuegoDeDatos = Readonly<Partial<Record<OrganizationModuleKey, NivelDeDatosProtegidos>>>;
+
 export interface Perfil {
   id: string;
   /** De la empresa, no del producto: un local dice «anfitrión» y otro «recepción». */
@@ -183,7 +246,7 @@ export interface Perfil {
   nombre: string;
   descripcion?: string;
   areas: JuegoDeAreas;
-  datosProtegidos: NivelDeDatosProtegidos;
+  datosProtegidos: JuegoDeDatos;
 }
 
 export function nivelEnJuego(areas: JuegoDeAreas, clave: string): NivelDeArea {
@@ -212,19 +275,38 @@ export function nivelEfectivo(perfil: JuegoDeAreas, extras: JuegoDeAreas, clave:
 }
 
 /**
+ * El nivel de datos protegidos que resulta, para un módulo, del perfil más sus excepciones.
+ *
+ * Misma regla que las áreas: la excepción gana, y lo ausente es lo más restrictivo. Va por
+ * módulo porque alguien puede necesitar el teléfono del prospecto y no el del comensal.
+ */
+export function datosEfectivos(
+  perfil: JuegoDeDatos,
+  extras: JuegoDeDatos,
+  modulo: OrganizationModuleKey,
+): NivelDeDatosProtegidos {
+  return extras[modulo] ?? perfil[modulo] ?? 'oculto';
+}
+
+/** Si hay que anotar quién lo vio. Es lo que `bajo_registro` significa. */
+export function exigeDejarConstancia(nivel: NivelDeDatosProtegidos): boolean {
+  return nivel === 'bajo_registro';
+}
+
+/**
  * Los tres perfiles que se entregan sugeridos para Reservas, y los tres de CRM.
  *
  * Se copian a la empresa al encender el módulo y desde ahí son suyos: puede renombrarlos,
  * cambiarlos o borrarlos. No son roles del producto, y por eso no se consultan en tiempo de
  * ejecución: sólo sirven para no empezar con una pantalla en blanco.
  */
-export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombre: string; descripcion: string; areas: JuegoDeAreas; datosProtegidos: NivelDeDatosProtegidos }[] = [
+export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombre: string; descripcion: string; areas: JuegoDeAreas; datosProtegidos: JuegoDeDatos }[] = [
   {
     modulo: 'reservations',
     nombre: 'Garzón',
     descripcion: 'Atiende el turno: ve a quién le toca, anota que llegó y libera la mesa.',
     areas: { 'reservations.turno': 'hacer', 'reservations.reservas': 'ver', 'reservations.canjear_cupon': 'hacer' },
-    datosProtegidos: 'bajo_registro',
+    datosProtegidos: { reservations: 'bajo_registro' },
   },
   {
     modulo: 'reservations',
@@ -234,7 +316,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
       'reservations.turno': 'hacer', 'reservations.reservas': 'hacer', 'reservations.tomar': 'hacer',
       'reservations.espera_y_grupos': 'hacer', 'reservations.canjear_cupon': 'hacer',
     },
-    datosProtegidos: 'bajo_registro',
+    datosProtegidos: { reservations: 'bajo_registro' },
   },
   {
     modulo: 'reservations',
@@ -246,14 +328,14 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
       'reservations.configurar': 'hacer', 'reservations.publicar': 'hacer', 'reservations.medicion': 'ver',
       'reservations.exportar': 'hacer',
     },
-    datosProtegidos: 'directo',
+    datosProtegidos: { reservations: 'directo' },
   },
   {
     modulo: 'crm',
     nombre: 'Asistente comercial',
     descripcion: 'Registra el contacto del día a día sin mover el embudo.',
     areas: { 'crm.prospectos': 'ver', 'crm.contactos': 'hacer', 'crm.embudo': 'ver' },
-    datosProtegidos: 'bajo_registro',
+    datosProtegidos: { crm: 'bajo_registro' },
   },
   {
     modulo: 'crm',
@@ -263,7 +345,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
       'crm.prospectos': 'hacer', 'crm.descartar': 'hacer', 'crm.contactos': 'hacer',
       'crm.embudo': 'hacer', 'crm.reglas': 'ver', 'crm.medicion': 'ver',
     },
-    datosProtegidos: 'directo',
+    datosProtegidos: { crm: 'directo' },
   },
   {
     modulo: 'crm',
@@ -274,6 +356,6 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
       'crm.contactos': 'hacer', 'crm.embudo': 'hacer', 'crm.reglas': 'hacer', 'crm.campos': 'hacer',
       'crm.origenes': 'hacer', 'crm.medicion': 'ver', 'crm.exportar': 'hacer',
     },
-    datosProtegidos: 'directo',
+    datosProtegidos: { crm: 'directo' },
   },
 ] as const;

@@ -59,6 +59,42 @@ export interface DefinicionDeArea {
     /** Si toca datos personales de un tercero, y entonces el nivel de protección también aplica. */
     tocaDatosDeTerceros?: true;
 }
+/**
+ * Qué son los datos protegidos en cada módulo, y por qué el nivel va **por módulo**.
+ *
+ * No es lo mismo el teléfono de un prospecto, que alguien de comercial necesita para llamarlo,
+ * que el documento de un comensal, que casi nadie necesita para atender. Un solo nivel por
+ * persona obligaría a conceder el más alto que necesite en cualquier módulo, y se llevaría por
+ * delante todo lo demás.
+ *
+ * No va aquí como área porque su escala es otra —tres valores, no «ver» y «hacer»— y mezclarlas
+ * en un mismo registro acaba en un campo que significa dos cosas según dónde se lea.
+ */
+export interface DatosProtegidosDeModulo {
+    modulo: OrganizationModuleKey;
+    nombre: string;
+    ayuda: string;
+    /**
+     * Si entre estos datos hay alguno de categoría especial —salud, en la práctica las alergias y
+     * restricciones alimentarias del comensal—.
+     *
+     * Cuando lo hay, conceder el acceso exige que quien lo concede acepte un texto con versión, y
+     * queda guardado con `ConsentVersion` y `DataConsent`, que es el mecanismo que la plataforma ya
+     * usa para los consentimientos. No lo pide la ley con esas palabras: lo pide la obligación de
+     * **poder demostrar** que el acceso se limitó y que quien lo recibió conocía su deber de
+     * confidencialidad.
+     */
+    incluyeSensibles?: true;
+}
+export declare const DATOS_PROTEGIDOS: readonly DatosProtegidosDeModulo[];
+/**
+ * Si conceder este módulo exige que quien concede acepte el texto de confidencialidad.
+ *
+ * Sólo donde hay datos de categoría especial. Pedirlo en todos convertiría la aceptación en un
+ * clic automático, y una evidencia que nadie leyó no prueba nada.
+ */
+export declare function concederExigeAceptacion(modulo: OrganizationModuleKey, nivel: NivelDeDatosProtegidos): boolean;
+export declare function tieneDatosProtegidos(modulo: OrganizationModuleKey): boolean;
 export declare const AREAS: readonly DefinicionDeArea[];
 export declare function definicionDeArea(clave: string): DefinicionDeArea | undefined;
 export declare function areasDelModulo(modulo: OrganizationModuleKey): DefinicionDeArea[];
@@ -70,6 +106,14 @@ export declare function areasConDatosDeTerceros(): DefinicionDeArea[];
  * Un área ausente significa `ninguno`: lo que no se concedió, no se tiene. Nunca al revés.
  */
 export type JuegoDeAreas = Readonly<Record<string, NivelDeArea>>;
+/**
+ * El nivel de datos protegidos, módulo por módulo.
+ *
+ * Un módulo ausente significa `oculto`, con la misma regla que las áreas: lo que no se concedió,
+ * no se tiene. La migración escribe `directo` de forma explícita para quienes hoy ya los ven, de
+ * modo que nadie pierda nada el día del despliegue.
+ */
+export type JuegoDeDatos = Readonly<Partial<Record<OrganizationModuleKey, NivelDeDatosProtegidos>>>;
 export interface Perfil {
     id: string;
     /** De la empresa, no del producto: un local dice «anfitrión» y otro «recepción». */
@@ -77,7 +121,7 @@ export interface Perfil {
     nombre: string;
     descripcion?: string;
     areas: JuegoDeAreas;
-    datosProtegidos: NivelDeDatosProtegidos;
+    datosProtegidos: JuegoDeDatos;
 }
 export declare function nivelEnJuego(areas: JuegoDeAreas, clave: string): NivelDeArea;
 /** `hacer` incluye `ver`: quien edita, mira. */
@@ -94,6 +138,15 @@ export declare function alcanza(actual: NivelDeArea, exigido: NivelDeArea): bool
  */
 export declare function nivelEfectivo(perfil: JuegoDeAreas, extras: JuegoDeAreas, clave: string): NivelDeArea;
 /**
+ * El nivel de datos protegidos que resulta, para un módulo, del perfil más sus excepciones.
+ *
+ * Misma regla que las áreas: la excepción gana, y lo ausente es lo más restrictivo. Va por
+ * módulo porque alguien puede necesitar el teléfono del prospecto y no el del comensal.
+ */
+export declare function datosEfectivos(perfil: JuegoDeDatos, extras: JuegoDeDatos, modulo: OrganizationModuleKey): NivelDeDatosProtegidos;
+/** Si hay que anotar quién lo vio. Es lo que `bajo_registro` significa. */
+export declare function exigeDejarConstancia(nivel: NivelDeDatosProtegidos): boolean;
+/**
  * Los tres perfiles que se entregan sugeridos para Reservas, y los tres de CRM.
  *
  * Se copian a la empresa al encender el módulo y desde ahí son suyos: puede renombrarlos,
@@ -105,6 +158,6 @@ export declare const PERFILES_SUGERIDOS: readonly {
     nombre: string;
     descripcion: string;
     areas: JuegoDeAreas;
-    datosProtegidos: NivelDeDatosProtegidos;
+    datosProtegidos: JuegoDeDatos;
 }[];
 //# sourceMappingURL=areas.d.ts.map
