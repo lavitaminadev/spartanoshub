@@ -10,9 +10,9 @@ import { describe, expect, it } from 'vitest';
  * router: entonces la pantalla está construida, funciona, y nadie llega a ella salvo escribiendo
  * la dirección de memoria.
  *
- * Esta prueba busca cada ruta en el resto del código. No distingue de qué tipo es la puerta,
- * porque las tres sirven: `/sesiones` cuelga de la barra de cuenta y `/surveys/create` de un
- * botón, y ambas están tan conectadas como una entrada de menú.
+ * Esta prueba busca cada ruta como destino de un enlace real en el resto del código. No distingue
+ * de qué tipo es la puerta, porque las tres sirven: `/sesiones` cuelga de la barra de cuenta y
+ * `/surveys/create` de un botón, y ambas están tan conectadas como una entrada de menú.
  */
 
 /** Rutas públicas y de sesión: se llega por dirección directa, correo o redirección. */
@@ -25,6 +25,19 @@ const ENTRADA_DIRECTA = new Set([
   '/portal',
   // Meta devuelve el navegador acá tras autorizar. La puerta está en Meta, no en el código.
   '/integrations/meta/callback',
+]);
+
+/**
+ * Rutas que hoy existen sólo en el router, sin menú ni enlace. Están declaradas aquí para que la
+ * prueba cubra lo nuevo sin esconder lo viejo: decidir si se enlazan o se retiran no es de esta
+ * prueba. Cuando una se conecte (o se borre) hay que quitarla de la lista; la prueba falla si
+ * la lista queda con rutas que ya tienen puerta.
+ */
+const SIN_ENTRADA_CONOCIDA = new Set([
+  '/crm/pipeline',
+  '/crm/contacts',
+  '/crm/interactions',
+  '/reservations/manage',
 ]);
 
 function archivosFuente(directorio: string): string[] {
@@ -45,19 +58,32 @@ describe('puertas de entrada a cada ruta', () => {
       [...readFileSync(router, 'utf8').matchAll(/path="(\/[a-z0-9/_-]*)"/g)].map(([, ruta]) => ruta),
     )].filter((ruta) => !ENTRADA_DIRECTA.has(ruta));
 
-    // El propio router no cuenta como puerta: declarar la ruta no es poder llegar a ella.
+    // La entrada de menú real vive en el `navigation` de cada feature.manifest.ts.
+    const manifiestos = archivos
+      .filter((archivo) => archivo.endsWith('feature.manifest.ts'))
+      .map((archivo) => readFileSync(archivo, 'utf8'))
+      .join('\n');
+    // Ni el router (declarar la ruta no es poder llegar a ella) ni el registro de navegación
+    // (lista rutas y permisos, no enlaces) cuentan como puerta.
     const resto = archivos
-      .filter((archivo) => archivo !== router)
+      .filter((archivo) => archivo !== router && !archivo.endsWith('navigation.registry.ts'))
       .map((archivo) => readFileSync(archivo, 'utf8'))
       .join('\n');
 
-    const sinPuerta = rutas.filter((ruta) => !resto.includes(`'${ruta}'`)
-      && !resto.includes(`"${ruta}"`)
-      && !resto.includes(`to="${ruta}`)
-      && !resto.includes(`\`${ruta}`));
+    // Sólo cuenta el destino de un enlace real: `to`, `href` o `navigate`. Una llamada a la API
+    // que comparte prefijo con la ruta (`api.get('/crm/contacts')`) no lleva a nadie a la pantalla.
+    const escapar = (ruta: string) => ruta.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tieneEnlace = (ruta: string) => new RegExp(
+      `(?:\\b(?:to|href)\\s*[=:]\\s*\\{?\\s*|navigate\\(\\s*)['"\`]${escapar(ruta)}(?![\\w/-])`,
+    ).test(resto)
+      || new RegExp(`navigation:[^\\]]*?path:\\s*['"\`]${escapar(ruta)}['"\`]`).test(manifiestos);
+    const sinPuerta = rutas.filter((ruta) => !tieneEnlace(ruta));
+    const nuevas = sinPuerta.filter((ruta) => !SIN_ENTRADA_CONOCIDA.has(ruta));
+    const yaConectadas = [...SIN_ENTRADA_CONOCIDA].filter((ruta) => !sinPuerta.includes(ruta));
 
     // Sin esto la prueba pasaría igual si el recorrido dejara de encontrar el router.
     expect(rutas.length).toBeGreaterThan(20);
-    expect(sinPuerta).toEqual([]);
+    expect(nuevas).toEqual([]);
+    expect(yaConectadas).toEqual([]);
   });
 });

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { rutaDocumentoLegal } from '@espartanos/shared';
+import { LoadingSpinner } from '../../shared/LoadingSpinner';
 
 interface DatosDeCaptacion { local: string; texto: string; red?: string }
 interface Resultado { estado: 'alta' | 'omitida' | 'local' | 'todas'; local: string }
@@ -60,7 +61,7 @@ export function CaptacionPage() {
     }),
   });
 
-  if (isLoading) return <main className="captacion"><p>Cargando…</p></main>;
+  if (isLoading) return <main className="captacion"><LoadingSpinner /></main>;
   if (error || !data) {
     return (
       <main className="captacion">

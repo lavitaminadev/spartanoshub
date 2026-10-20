@@ -41,7 +41,7 @@ export function DirectionPage() {
     );
   }
   if (directionQuery.isLoading) return <LoadingSpinner text="Consolidando indicadores estratégicos..." />;
-  if (directionQuery.error) return <QueryErrorState title="No pudimos cargar Dirección" message={directionQuery.error.message} onRetry={() => directionQuery.refetch()} />;
+  if (directionQuery.error) return <QueryErrorState title="No pudimos cargar Dirección" message={directionQuery.error.message} error={directionQuery.error} onRetry={() => directionQuery.refetch()} />;
   if (!directionQuery.data) return null;
 
   const data = directionQuery.data;

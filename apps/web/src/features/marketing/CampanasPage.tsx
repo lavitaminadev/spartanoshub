@@ -159,7 +159,7 @@ export function CampanasPage() {
         <span className="filter-result-count">{total} campaña{total === 1 ? '' : 's'}</span>
       </div>
 
-      {error ? <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} /> : (
+      {error ? <QueryErrorState message={(error as Error).message} error={error} onRetry={() => void refetch()} /> : (
         <DataTable<Campana>
           storageKey="campanas"
           keyExtractor={(fila) => fila.id}

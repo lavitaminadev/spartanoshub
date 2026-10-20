@@ -151,7 +151,7 @@ export function AutomationEditorPage() {
   };
 
   if (!isNew && isLoading) return <LoadingSpinner />;
-  if (!isNew && error) return <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} />;
+  if (!isNew && error) return <QueryErrorState message={(error as Error).message} error={error} onRetry={() => void refetch()} />;
 
   const selectedNode = currentGraph?.nodes.find((node) => node.id === selectedNodeId) ?? null;
 

@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -19,13 +20,13 @@ interface Integration {
 export function IntegrationsPage() {
   const [cloudinaryOpen, setCloudinaryOpen] = useState(false);
 
-  const { data: integrations, isLoading, error } = useQuery<Integration[]>({
+  const { data: integrations, isLoading, error, refetch, isFetching } = useQuery<Integration[]>({
     queryKey: ['integrations'],
     queryFn: () => api.get('/integrations'),
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando integraciones..." />;
-  if (error) return <div className="alert alert-error">Error al cargar integraciones</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar las integraciones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const metaIntegration = integrations?.find((item) => item.provider === 'meta');
 

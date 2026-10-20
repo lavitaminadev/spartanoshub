@@ -258,7 +258,7 @@ export function SuscriptoresPage() {
         <span className="filter-result-count">{data?.total ?? 0} personas</span>
       </div>
 
-      {error ? <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} /> : (
+      {error ? <QueryErrorState message={(error as Error).message} error={error} onRetry={() => void refetch()} /> : (
         <DataTable<Suscriptor>
           storageKey="suscriptores"
           keyExtractor={(fila) => fila.id}

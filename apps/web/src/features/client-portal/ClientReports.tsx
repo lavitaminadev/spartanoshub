@@ -14,7 +14,7 @@ export function ClientReports() {
   const { data: reports = [], isLoading, error, refetch } = useQuery<MonthlyReport[]>({ queryKey: ['client-monthly-reports', empresa.userId, empresa.clientId], enabled: empresa.disponible, queryFn: () => api.get(`/reporting/monthly-reports?clientId=${encodeURIComponent(empresa.clientId)}`) });
   if (!empresa.disponible) return <SoloEmpresaPropia nombre={empresa.nombre} seccion="Los informes" />;
   if (isLoading) return <LoadingSpinner text="Cargando informes publicados..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar tus informes" message={error.message} onRetry={() => refetch()} />;
+  if (error) return <QueryErrorState title="No pudimos cargar tus informes" message={error.message} error={error} onRetry={() => refetch()} />;
   return <div className="page client-reports-page">
     <PageHero
       tone="portal"

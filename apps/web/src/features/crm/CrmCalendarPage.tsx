@@ -168,6 +168,7 @@ export function CrmCalendarPage(): JSX.Element {
     // El rango forma parte de la clave: cambiar de mes trae otras actividades, no las mismas
     // filtradas, así que su resultado no puede reutilizar la caché del período anterior.
     queryKey: ['crm-calendario', scope.clientId, rango.desde, rango.hasta],
+    placeholderData: (previa) => previa,
     queryFn: () => api.get(
       `/crm/interactions?limit=500&from=${encodeURIComponent(rango.desde)}&to=${encodeURIComponent(rango.hasta)}`
       + `${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
@@ -188,6 +189,7 @@ export function CrmCalendarPage(): JSX.Element {
    */
   const { data: tareas } = useQuery<{ data: Array<{ id: string; title: string; dueAt?: string | null; status: string }> }>({
     queryKey: ['crm-calendario-tareas', scope.clientId, rango.desde, rango.hasta],
+    placeholderData: (previa) => previa,
     queryFn: () => api.get(
       `/tasks/agenda?from=${encodeURIComponent(rango.desde)}&to=${encodeURIComponent(rango.hasta)}`
       // La empresa que se está mirando, igual que en las actividades. Sin esto el calendario de
@@ -316,8 +318,8 @@ export function CrmCalendarPage(): JSX.Element {
     footer: 'Espartanos · CRM',
   };
 
-  if (isLoading) return <LoadingSpinner text="Cargando el mes..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar el calendario CRM" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (isLoading && !data) return <LoadingSpinner text="Cargando el mes..." />;
+  if (error) return <QueryErrorState title="No pudimos cargar el calendario CRM" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page crm-cal">

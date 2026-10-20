@@ -22,7 +22,7 @@ export function ReportsPage() {
   const user = useAuth((state) => state.user);
   const reportQuery = useQuery<ReportData>({ queryKey: ['reports'], queryFn: () => api.get('/reporting/reports') });
   if (reportQuery.isLoading) return <LoadingSpinner text="Construyendo reporte operativo..." />;
-  if (reportQuery.error) return <QueryErrorState title="No pudimos construir el reporte" message={reportQuery.error.message} onRetry={() => reportQuery.refetch()} />;
+  if (reportQuery.error) return <QueryErrorState title="No pudimos construir el reporte" message={reportQuery.error.message} error={reportQuery.error} onRetry={() => reportQuery.refetch()} />;
   if (!reportQuery.data) return null;
 
   const data = reportQuery.data;

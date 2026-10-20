@@ -40,7 +40,7 @@ export function ApprovalsPage() {
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando aprobaciones..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar las aprobaciones" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error) return <QueryErrorState title="No pudimos cargar las aprobaciones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   const pending = approvals.filter((approval) => ['pending', 'viewed'].includes(approval.status));
   const resolved = approvals.filter((approval) => !['pending', 'viewed'].includes(approval.status));
   const visible = tab === 'pending' ? pending : resolved;

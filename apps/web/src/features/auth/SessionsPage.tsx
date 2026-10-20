@@ -83,7 +83,7 @@ export function SessionsPage() {
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando tus sesiones..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar tus sesiones" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error) return <QueryErrorState title="No pudimos cargar tus sesiones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const sessions = data ?? [];
   const others = sessions.filter((session) => !session.current).length;

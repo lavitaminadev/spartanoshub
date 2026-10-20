@@ -118,7 +118,7 @@ export function SurveysPage({ soloLectura = false }: { soloLectura?: boolean } =
     return (
       <QueryErrorState
         title="No pudimos cargar las encuestas"
-        message={error.message}
+        message={error.message} error={error}
         onRetry={() => void refetch()}
         retrying={isFetching}
       />

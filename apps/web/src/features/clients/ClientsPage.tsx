@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -152,7 +153,7 @@ export function ClientsPage() {
   const [bulkStatusPending, setBulkStatusPending] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: clientsResp, isLoading, error } = useQuery<{ data: ClientRecord[] }>({
+  const { data: clientsResp, isLoading, error, refetch, isFetching } = useQuery<{ data: ClientRecord[] }>({
     queryKey: ['clients'],
     // La pantalla busca y filtra en el navegador. Debe cargar el mismo universo que usa la
     // verificación posterior al alta; con el límite predeterminado, una empresa podía crearse
@@ -385,7 +386,7 @@ export function ClientsPage() {
   };
 
   if (isLoading) return <LoadingSpinner text="Cargando clientes..." />;
-  if (error) return <div className="alert alert-error">Error al cargar clientes</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar los clientes" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page">

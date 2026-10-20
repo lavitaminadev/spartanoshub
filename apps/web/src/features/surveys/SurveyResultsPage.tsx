@@ -407,10 +407,10 @@ export function SurveyResultsPage(): JSX.Element {
   const sePuedePedirDatos = (summary as { datosProtegidos?: { sePuedePedir: boolean } | null } | undefined)?.datosProtegidos?.sePuedePedir === true;
 
   if (loadingSurvey || (survey && loadingResults)) return <LoadingSpinner text="Cargando resultados..." />;
-  if (surveyError) return <QueryErrorState title="No pudimos cargar la encuesta" message={surveyError.message} />;
+  if (surveyError) return <QueryErrorState title="No pudimos cargar la encuesta" message={surveyError.message} error={surveyError} />;
   if (!survey) return <EmptyState icon="survey" title="Encuesta no encontrada" description="Puede haber sido eliminada." />;
   if (resultsError) {
-    return <QueryErrorState title="No pudimos cargar los resultados" message={resultsError.message} onRetry={() => void refetch()} retrying={isFetching} />;
+    return <QueryErrorState title="No pudimos cargar los resultados" message={resultsError.message} error={resultsError} onRetry={() => void refetch()} retrying={isFetching} />;
   }
   // Sin `questions` no hay resultados que mostrar. Se comprueba y no se asume: una respuesta con
   // otra forma dejaba la página entera en blanco tras el recuperador de errores.

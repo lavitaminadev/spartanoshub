@@ -42,7 +42,9 @@ export class AccionesService {
       this.permisos.permissionsFor(organizationId, userId, role, clientId),
       this.ajustes.find({ where: { organizationId, userId } }),
     ]);
-    const porAccion = new Map(filas.map((fila) => [fila.action, fila]));
+    // Un ajuste vencido ya no rige: la acción vuelve a seguir el nivel de su módulo.
+    const ahora = Date.now();
+    const porAccion = new Map(filas.filter((fila) => !fila.expiresAt || fila.expiresAt.getTime() > ahora).map((fila) => [fila.action, fila]));
     return ACCIONES.map((accion) => {
       const porNivel = satisfies(niveles[accion.modulo] ?? 'none', accion.nivelPorDefecto);
       const ajuste = porAccion.get(accion.clave);

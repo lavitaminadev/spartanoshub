@@ -192,7 +192,7 @@ export function DashboardPage() {
     );
   }
   if (isLoading) return <LoadingSpinner text="Cargando dashboard..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar tu dashboard" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error) return <QueryErrorState title="No pudimos cargar tu dashboard" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   if (!data) return <div className="alert alert-info">No hay datos disponibles</div>;
 
   return (

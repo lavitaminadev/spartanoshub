@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -78,7 +79,7 @@ export function BriefsPage() {
   };
 
   if (briefsQuery.isLoading) return <LoadingSpinner text="Cargando briefs..." />;
-  if (briefsQuery.error) return <div className="alert alert-error">Error al cargar briefs: {briefsQuery.error.message}</div>;
+  if (briefsQuery.error) return <QueryErrorState title="No pudimos cargar los briefs" message={briefsQuery.error.message} error={briefsQuery.error} onRetry={() => void briefsQuery.refetch()} retrying={briefsQuery.isFetching} />;
   return <div className="page">
     <PageHero
       eyebrow="CONTROL DE REQUERIMIENTOS"

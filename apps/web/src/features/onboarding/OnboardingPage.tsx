@@ -165,7 +165,7 @@ export function OnboardingPage() {
   };
 
   if (isLoading) return <LoadingSpinner text="Cargando onboarding..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar el onboarding" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error) return <QueryErrorState title="No pudimos cargar el onboarding" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page">

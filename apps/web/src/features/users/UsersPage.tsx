@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useEmpresaActiva, useUsuarioEnEmpresaActiva } from '../../shared/empresa-activa';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -151,7 +152,7 @@ export function UsersPage() {
     return params.toString();
   }, [administraSuEmpresa, clientFilter, deferredSearch, empresaActiva.clientId, roleFilter, statusFilter]);
 
-  const { data, isLoading, error } = useQuery<UserRow[]>({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<UserRow[]>({
     queryKey: ['users', query],
     queryFn: () => api.get(`/users${query ? `?${query}` : ''}`),
     // Mientras llega el resultado de otra búsqueda o filtro sigue a la vista el anterior: la
@@ -373,7 +374,7 @@ export function UsersPage() {
   };
 
   if (isLoading) return <LoadingSpinner text="Cargando usuarios..." />;
-  if (error) return <div className="alert alert-error">Error al cargar usuarios: {error.message}</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar los usuarios" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const clientRequired = form.accountType === 'client';

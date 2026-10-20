@@ -160,6 +160,7 @@ export function ProductionPage() {
 
   const { data: pieces, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery<Piece[]>({
     queryKey: ['pieces', statusFilter, clientFilter],
+    placeholderData: (previa) => previa,
     queryFn: () => api.get(`/production/pieces${querySuffix}`),
     refetchInterval: refetchWhenIdle(60_000),
   });
@@ -355,8 +356,8 @@ export function ProductionPage() {
     onError: (mutationError: Error) => setFeedbackMessage(`Error: ${getErrorMessage(mutationError)}`),
   });
 
-  if (isLoading) return <LoadingSpinner text="Cargando piezas..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar el plan de produccion" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (isLoading && !pieces) return <LoadingSpinner text="Cargando piezas..." />;
+  if (error) return <QueryErrorState title="No pudimos cargar el plan de produccion" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page">

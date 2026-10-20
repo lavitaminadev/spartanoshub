@@ -74,7 +74,7 @@ export function OperationalHome({ clientId }: { clientId?: string }) {
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando el día..." />;
-  if (error) return <QueryErrorState message={(error as Error).message} onRetry={() => { void refetch(); }} />;
+  if (error) return <QueryErrorState message={(error as Error).message} error={error} onRetry={() => { void refetch(); }} />;
   if (!data) return null;
 
   const { today, upcoming, timezone } = data;

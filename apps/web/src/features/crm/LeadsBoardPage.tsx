@@ -715,7 +715,7 @@ export function LeadsBoardPage({ vista }: { vista: Vista }): JSX.Element {
   // Sólo la primera vez: con datos a la vista, cambiar un filtro no debe desmontar la pantalla.
   if (isLoading && !data) return <LoadingSpinner text="Cargando el embudo..." />;
   if (error) {
-    return <QueryErrorState title="No pudimos cargar el embudo" message={(error as Error).message} onRetry={() => void refetch()} />;
+    return <QueryErrorState title="No pudimos cargar el embudo" message={(error as Error).message} error={error} onRetry={() => void refetch()} />;
   }
 
   const hayLeads = (data?.data ?? []).length > 0;

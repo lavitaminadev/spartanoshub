@@ -70,9 +70,10 @@ export class PermissionsController {
     if (!definicion) throw new BadRequestException(`Acción desconocida: ${accion}`);
     const user = await this.findUser(id, req.organizationId);
     await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined);
+    const venceEl = this.fechaDeTermino(dto.expiresAt);
     const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
-    const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, grantedBy: req.user.id });
-    await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed } });
+    const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, expiresAt: venceEl, expiryNotifiedAt: null, grantedBy: req.user.id });
+    await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed, expiresAt: venceEl } });
     return guardado;
   }
 
@@ -522,6 +523,7 @@ export class PermissionsController {
     const client = await this.clients.findOne({ where: { id: clientId, organizationId: req.organizationId }, select: { id: true } });
     if (!client) throw new NotFoundException('Cuenta no encontrada');
 
+    const venceEl = this.fechaDeTermino(dto.expiresAt);
     const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId: client.id } });
     // Quien fue vetado en esa empresa no vuelve por una asignación corriente: se levanta invitándolo con confirmación.
     if (existing?.retiredOutcome === 'vetado') throw new BadRequestException('Esa persona está vetada en esa empresa. Para levantar el veto hay que invitarla de nuevo, confirmándolo');
@@ -535,6 +537,9 @@ export class PermissionsController {
       userId: user.id,
       clientId: client.id,
       reason: dto.reason ?? null,
+      // Renovar o cambiar la fecha reabre el aviso previo al vencimiento.
+      expiresAt: venceEl,
+      expiryNotifiedAt: null,
       grantedBy: req.user.id,
     });
     this.accountAccess.invalidateUser(user.id);
@@ -544,8 +549,8 @@ export class PermissionsController {
       entityType: 'UserClientAccess',
       entityId: saved.id,
       action: existing ? 'updated' : 'created',
-      before: existing ? { reason: existing.reason } : undefined,
-      after: { userId: user.id, clientId: client.id, reason: dto.reason ?? null },
+      before: existing ? { reason: existing.reason, expiresAt: existing.expiresAt ?? null } : undefined,
+      after: { userId: user.id, clientId: client.id, reason: dto.reason ?? null, expiresAt: venceEl },
     });
     return saved;
   }
@@ -612,6 +617,21 @@ export class PermissionsController {
       clientId,
       stillVisible: remaining === undefined || remaining.includes(clientId),
     };
+  }
+
+  /**
+   * La fecha de término de una cesión o un ajuste, o `null` si se concede sin fecha.
+   *
+   * Rechaza una fecha que ya pasó: aceptarla dejaría una concesión nacida vencida, que no da nada
+   * y que a quien la concede le parece vigente.
+   */
+  private fechaDeTermino(valor?: string | null): Date | null {
+    if (!valor) return null;
+    const fecha = new Date(valor);
+    if (Number.isNaN(fecha.getTime()) || fecha.getTime() <= Date.now()) {
+      throw new BadRequestException('La fecha de término tiene que ser futura');
+    }
+    return fecha;
   }
 
   /**

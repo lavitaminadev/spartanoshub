@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -65,7 +66,7 @@ export function OperationsPage() {
   const queryClient = useQueryClient();
   const [objectiveOpen, setObjectiveOpen] = useState(false);
   const [objectiveForm, setObjectiveForm] = useState(EMPTY_OBJECTIVE);
-  const { data, isLoading, error } = useQuery<OperationsData>({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<OperationsData>({
     queryKey: ['operations'],
     queryFn: () => api.get('/operations/overview'),
   });
@@ -110,7 +111,7 @@ export function OperationsPage() {
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando operaciones..." />;
-  if (error) return <div className="alert alert-error">Error al cargar operaciones</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar las operaciones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   if (!data) return <EmptyState icon="chart" title="Sin datos" description="No hay información de operaciones disponible en este momento." />;
 
   const utilizationPct = data.totalCapacity > 0 ? Math.round((data.usedCapacity / data.totalCapacity) * 100) : 0;

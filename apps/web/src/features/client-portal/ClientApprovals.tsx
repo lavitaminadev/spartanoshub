@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -25,7 +26,7 @@ export function ClientApprovals() {
   const [rejection, setRejection] = useState<{ id: string; title: string } | null>(null);
   const [rejectionNotes, setRejectionNotes] = useState('');
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
-  const { data, isLoading, error } = useQuery<ClientApprovalItem[]>({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<ClientApprovalItem[]>({
     queryKey: ['client-approvals', empresa.userId, empresa.clientId],
     enabled: empresa.disponible,
     queryFn: () => api.get(`/approvals?clientId=${encodeURIComponent(empresa.clientId)}`),
@@ -56,7 +57,7 @@ export function ClientApprovals() {
 
   if (!empresa.disponible) return <SoloEmpresaPropia nombre={empresa.nombre} seccion="Las aprobaciones" />;
   if (isLoading) return <LoadingSpinner text="Cargando aprobaciones..." />;
-  if (error) return <div className="alert alert-error">Error al cargar aprobaciones</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar las aprobaciones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const approvals = Array.isArray(data) ? data.filter((item) => item.status === 'pending') : [];
 

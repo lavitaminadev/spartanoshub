@@ -218,7 +218,7 @@ export function AgendaPage() {
 
   const isLoading = (!clientMode && loadingClients) || (Boolean(clientId) && loadingForms);
   if (isLoading) return <LoadingSpinner text="Preparando la agenda del servicio..." />;
-  if (!clientMode && clientsError) return isForbiddenError(clientsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir la agenda" message={clientsError.message} onRetry={() => void refetchClients()} />;
+  if (!clientMode && clientsError) return isForbiddenError(clientsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir la agenda" message={clientsError.message} error={clientsError} onRetry={() => void refetchClients()} />;
 
 
   return <div className="page agenda-page">
@@ -274,7 +274,7 @@ export function AgendaPage() {
           {totalDelDia > reservations.length && <p className="ajustes-alerta">El tablero muestra {reservations.length} de {totalDelDia} reservas del día; el resumen cuenta todas.</p>}
 
           {reservationsError
-            ? (isForbiddenError(reservationsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas del día" message={reservationsError.message} onRetry={() => void refetchReservations()} retrying={fetchingReservations} />)
+            ? (isForbiddenError(reservationsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas del día" message={reservationsError.message} error={reservationsError} onRetry={() => void refetchReservations()} retrying={fetchingReservations} />)
             : loadingReservations
               ? <LoadingSpinner text="Cargando reservas del día..." />
               : <>

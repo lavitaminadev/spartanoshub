@@ -147,7 +147,7 @@ export function WaitlistPage() {
       <button type="button" className="btn btn-outline btn-sm" disabled={!filtros.hasAny} onClick={filtros.clear}>Limpiar</button>
     </div>
 
-    {error ? (isForbiddenError(error) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar la lista de espera" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />)
+    {error ? (isForbiddenError(error) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar la lista de espera" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />)
       : isFetching && !waitlistPage ? <LoadingSpinner text="Buscando reservas en espera..." />
       : items.length === 0 ? <EmptyState icon="clock" title="Sin reservas en espera" description="Las solicitudes que queden en lista de espera aparecerán aquí." />
       : <div className="crm-table-container">

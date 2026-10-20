@@ -192,6 +192,7 @@ export function CrmDashboardPage(): JSX.Element {
   const { data, isLoading, error, refetch } = useQuery<Panel>({
     // La empresa entra en la clave: cambiarla arriba trae otras cifras, no las mismas filtradas.
     queryKey: ['crm-dashboard', dias, scope.domain, scope.clientId],
+    placeholderData: (previa) => previa,
     queryFn: () => api.get(
       `/crm/home/dashboard?days=${dias}&domain=${scope.domain}${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`,
     ),
@@ -271,9 +272,9 @@ export function CrmDashboardPage(): JSX.Element {
     return dias.some((dia) => dia.total > 0) ? dias : porDia;
   }, [porDia, ventana]);
 
-  if (isLoading) return <LoadingSpinner text="Calculando el embudo..." />;
+  if (isLoading && !data) return <LoadingSpinner text="Calculando el embudo..." />;
   if (error) {
-    return <QueryErrorState title="No pudimos cargar el panel" message={(error as Error).message} onRetry={() => void refetch()} />;
+    return <QueryErrorState title="No pudimos cargar el panel" message={(error as Error).message} error={error} onRetry={() => void refetch()} />;
   }
 
   const maxDia = Math.max(...porDiaCompleto.map((d) => d.total), 1);

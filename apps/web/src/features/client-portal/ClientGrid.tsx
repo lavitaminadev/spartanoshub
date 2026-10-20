@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -21,7 +22,7 @@ interface ClientGridItem {
 
 export function ClientGrid() {
   const empresa = useEmpresaDeDatos();
-  const { data, isLoading, error } = useQuery<ClientGridItem[]>({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<ClientGridItem[]>({
     queryKey: ['client-grid', empresa.userId, empresa.clientId],
     enabled: empresa.disponible,
     queryFn: () => api.get(`/content/grids?clientId=${encodeURIComponent(empresa.clientId)}`),
@@ -29,7 +30,7 @@ export function ClientGrid() {
 
   if (!empresa.disponible) return <SoloEmpresaPropia nombre={empresa.nombre} seccion="La parrilla" />;
   if (isLoading) return <LoadingSpinner text="Cargando parrilla..." />;
-  if (error) return <div className="alert alert-error">Error al cargar parrilla de contenido</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar la parrilla de contenido" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const grids = Array.isArray(data) ? data : [];
 

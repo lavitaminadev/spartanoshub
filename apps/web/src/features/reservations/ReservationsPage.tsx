@@ -563,7 +563,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   ));
 
   if (isLoading) return <LoadingSpinner text="Preparando Reservas..." />;
-  if (formsError) return isForbiddenError(formsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir Reservas y formularios" message={formsError.message} onRetry={() => void refetchForms()} retrying={fetchingForms} />;
+  if (formsError) return isForbiddenError(formsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir Reservas y formularios" message={formsError.message} error={formsError} onRetry={() => void refetchForms()} retrying={fetchingForms} />;
   const formPath = (id: string) => clientView ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`;
   /** Raiz del modulo segun quien mira: la agencia por su panel, la empresa por su portal. */
   const base = clientView ? '/portal/reservations' : '/reservations';
@@ -732,7 +732,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <option value="declarado">Sólo lo declarado en el enlace</option>
           <option value="detectado">Sólo lo que dedujo el sistema</option>
         </select><label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={Object.values(filters).every((valor) => !valor)} onClick={() => resetFilters(FILTROS_VACIOS)}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
-      {bookingsError ? (isForbiddenError(bookingsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas" message={bookingsError.message} onRetry={() => void refetchBookings()} retrying={loadingBookings} />)
+      {bookingsError ? (isForbiddenError(bookingsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas" message={bookingsError.message} error={bookingsError} onRetry={() => void refetchBookings()} retrying={loadingBookings} />)
         : loadingBookings && !bookingPage ? <LoadingSpinner text="Buscando reservas..." />
         : bookings.length === 0 ? <EmptyState icon="calendar" title="Sin reservas para estos filtros" description="Las nuevas solicitudes aparecerán aquí en tiempo real." /> : <div className="booking-list" aria-busy={loadingBookings}>
         {bookings.map((item) => {
@@ -801,7 +801,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         <button type="button" className="btn btn-outline btn-sm" disabled={!filters.formId} onClick={() => resetFilters({ formId: '' })}>Limpiar</button>
         <span className="filter-result-count">{grupos.length} solicitud{grupos.length === 1 ? '' : 'es'}</span>
       </div>
-      {errorGrupos ? <QueryErrorState message={errorGrupos.message} onRetry={() => { void recargarGrupos(); }} />
+      {errorGrupos ? <QueryErrorState message={errorGrupos.message} error={errorGrupos} onRetry={() => { void recargarGrupos(); }} />
         : cargandoGrupos && grupos.length === 0 ? <LoadingSpinner text="Buscando solicitudes..." />
         : grupos.length === 0 ? <EmptyState title="Sin solicitudes de grupo" description="Cuando alguien pida un evento desde la página pública, aparecerá acá." />
         : <div className="reservation-request-list">{grupos.map((request) => {

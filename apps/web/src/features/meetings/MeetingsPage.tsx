@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -70,7 +71,7 @@ export function MeetingsPage() {
   const [meetingStatus, setMeetingStatus] = useState('scheduled');
   const queryClient = useQueryClient();
 
-  const { data: meetings, isLoading, error } = useQuery<Meeting[]>({
+  const { data: meetings, isLoading, error, refetch, isFetching } = useQuery<Meeting[]>({
     queryKey: ['meetings'],
     queryFn: () => api.get('/meetings'),
   });
@@ -120,7 +121,7 @@ export function MeetingsPage() {
   );
 
   if (isLoading) return <LoadingSpinner text="Cargando reuniones..." />;
-  if (error) return <div className="alert alert-error">Error al cargar reuniones</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar las reuniones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const sorted = [...(meetings ?? [])].filter((meeting) => !clientFilter || meeting.clientId === clientFilter).sort(
     (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime(),
