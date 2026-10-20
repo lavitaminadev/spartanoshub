@@ -11,6 +11,9 @@ import { PermissionResolverService } from './permission-resolver.service';
 import { PermissionGuard } from './permission.guard';
 import { UserActionOverride } from './user-action-override.entity';
 import { AccionesService } from './acciones.service';
+import { NivelDeAreaService } from '../client-scope/nivel-de-area.service';
+import { PerfilAsignacion } from '../../modules/users/perfiles/perfil-asignacion.entity';
+import { PerfilDeEmpresa } from '../../modules/users/perfiles/perfil-de-empresa.entity';
 import { AccionGuard } from './requiere-accion';
 import { PermissionsController } from './permissions.controller';
 import { AuditModule } from '../audit/audit.module';
@@ -25,7 +28,7 @@ import { ParametersModule } from '../parameters/parameters.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Organization, User, Client, UserPermissionOverride, RolePermissionOverride, UserClientAccess, UserActionOverride]),
+    TypeOrmModule.forFeature([Organization, User, Client, UserPermissionOverride, RolePermissionOverride, UserClientAccess, UserActionOverride, PerfilAsignacion, PerfilDeEmpresa]),
     AuditModule,
     // Los ajustes preguntan permisos y los permisos leen ajustes: la referencia va diferida.
     forwardRef(() => ParametersModule),
@@ -34,6 +37,7 @@ import { ParametersModule } from '../parameters/parameters.module';
   providers: [
     PermissionResolverService,
     AccionesService,
+    NivelDeAreaService,
     { provide: APP_GUARD, useClass: PermissionGuard },
     // Después del de módulo: primero se entra al módulo, luego se puede o no hacer la acción.
     { provide: APP_GUARD, useClass: AccionGuard },

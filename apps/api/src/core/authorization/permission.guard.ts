@@ -9,6 +9,8 @@ import { PermissionResolverService } from './permission-resolver.service';
 import { PermissionLevel } from './permission-level';
 import { isModuleInInitialOperationScope } from '@espartanos/shared';
 import { ClientCapabilityService } from '../client-scope/client-capability.service';
+import { NivelDeAreaService } from '../client-scope/nivel-de-area.service';
+import { REQUIERE_AREA_KEY, type AreaExigida } from './requiere-area.decorator';
 import type { ClientCapabilityKey } from '../../modules/clients/client-capabilities';
 
 /** Módulos que son un servicio contratado por empresa: sin el servicio, la empresa no entra. */
@@ -48,6 +50,9 @@ export class PermissionGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly permissions: PermissionResolverService,
     @Optional() private readonly capacidades?: ClientCapabilityService,
+    // Opcional y al final: las pruebas construyen este guard por posición, y sin perfiles
+    // repartidos el área no bloquea nada, así que su ausencia deja el comportamiento de antes.
+    @Optional() private readonly areas?: NivelDeAreaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -105,6 +110,23 @@ export class PermissionGuard implements CanActivate {
     if (this.capacidades && MODULOS_CONTRATADOS.has(required.module) && empresa) {
       await this.capacidades.assert(organizationId, empresa, required.module as ClientCapabilityKey);
     }
+
+    /*
+     * Y el área, que es la tercera reja y la más fina.
+     *
+     * El módulo dice si entra a Reservas; el área dice si además puede configurar el local. Sin
+     * esto, el perfil que la empresa reparte decide qué datos ve cada persona y no qué puede
+     * hacer, que es la mitad de lo que el administrador cree estar concediendo.
+     *
+     * Una ruta sin área declarada pasa: se están declarando una por una y exigirla de golpe
+     * dejaría sin servicio todo lo que aún no la tenga. Lo mismo quien no tiene perfil asignado.
+     */
+    const area = this.reflector.getAllAndOverride<AreaExigida>(REQUIERE_AREA_KEY, targets);
+    if (area && this.areas) {
+      const alcanza = await this.areas.alcanzaArea(organizationId, user.id, empresa, area.clave, area.nivel);
+      if (!alcanza) throw new ForbiddenException('Tu perfil no incluye esta parte del módulo');
+    }
+
     return true;
   }
 
