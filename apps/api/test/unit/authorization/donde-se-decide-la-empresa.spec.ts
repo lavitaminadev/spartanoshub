@@ -28,16 +28,16 @@ const RAIZ = join(__dirname, '..', '..', '..', 'src');
  * Leer `user.clientId` sólo es legítimo donde se resuelve la identidad o el alcance mismo.
  *
  * `auth.service`, `jwt.strategy` y `auth.controller` arman la sesión: la empresa de la cuenta es
- * un dato de la credencial. `account-access.service` es quien convierte eso en alcance, y
- * `client-scope.interceptor` lo pone en la petición. `permission.guard` y `requiere-accion`
- * resuelven la empresa de la petición en un solo sitio, que es a donde debe ir todo lo demás.
+ * un dato de la credencial. `account-access.service` convierte eso en alcance, y
+ * `empresa-resuelta` es el único sitio donde se decide la empresa de una petición —a donde debe
+ * ir todo lo demás—. `permission.guard` y `requiere-accion` la leen para sus propias rejas.
  */
 const RESUELVEN_LA_IDENTIDAD = [
   'core/auth/auth.service.ts',
   'core/auth/auth.controller.ts',
   'core/auth/jwt.strategy.ts',
   'core/client-scope/account-access.service.ts',
-  'core/client-scope/client-scope.interceptor.ts',
+  'core/client-scope/empresa-resuelta.ts',
   'core/authorization/permission.guard.ts',
   'core/authorization/requiere-accion.ts',
 ];
@@ -49,12 +49,6 @@ const RESUELVEN_LA_IDENTIDAD = [
  * empresa ya comprobada; ninguno debería volver a entrar.
  */
 const PENDIENTES_DE_MIGRAR = [
-  /*
-   * El repliegue sin comprobar, en una línea: `request.clientId || request.user?.clientId`.
-   * `@Empresa()` existe para reemplazar este decorador, no para convivir con él: mientras siga
-   * aquí, cualquier ruta puede seguir recibiendo «la mía» cuando pidió otra.
-   */
-  'core/client-scope/client-scope.decorator.ts',
   'core/authorization/permissions.controller.ts',
   'core/notifications/destinatarios-de-avisos.controller.ts',
   'core/parameters/organization-settings.controller.ts',
