@@ -29,6 +29,7 @@ const user_role_enum_1 = require("../organizations/user-role.enum");
 const suscriptores_service_1 = require("./suscriptores.service");
 const suscriptor_entity_1 = require("./suscriptor.entity");
 const pagina_de_baja_1 = require("./pagina-de-baja");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 class ImportarSuscriptoresDto {
 }
 class PeticionExternaDto {
@@ -123,6 +124,7 @@ let SuscriptoresController = class SuscriptoresController {
 exports.SuscriptoresController = SuscriptoresController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.suscriptores', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Lista de suscriptores con su procedencia y estado' }),
     __param(0, (0, common_1.Req)()),
@@ -137,6 +139,7 @@ __decorate([
 ], SuscriptoresController.prototype, "listar", null);
 __decorate([
     (0, common_1.Get)(':id/datos-protegidos'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.suscriptores', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Ver los datos protegidos de un suscriptor' }),
     __param(0, (0, common_1.Req)()),
@@ -147,6 +150,7 @@ __decorate([
 ], SuscriptoresController.prototype, "datosProtegidos", null);
 __decorate([
     (0, common_1.Get)('exclusiones'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.bajas', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Si a una dirección se le pidió no escribir más' }),
     __param(0, (0, common_1.Req)()),
@@ -157,6 +161,7 @@ __decorate([
 ], SuscriptoresController.prototype, "exclusiones", null);
 __decorate([
     (0, common_1.Post)('exclusiones'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.suscriptores', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Anotar una petición de baja recibida por fuera (SERNAC, teléfono, correo)' }),
     __param(0, (0, common_1.Req)()),
@@ -167,6 +172,7 @@ __decorate([
 ], SuscriptoresController.prototype, "anotarPeticion", null);
 __decorate([
     (0, common_1.Get)('descargar'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.exportar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Descargar los suscritos de una empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -177,6 +183,7 @@ __decorate([
 ], SuscriptoresController.prototype, "descargar", null);
 __decorate([
     (0, common_1.Post)('importar'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.importar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Importar una lista de correos declarando su origen' }),
     __param(0, (0, common_1.Req)()),

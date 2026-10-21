@@ -20,6 +20,9 @@ const permission_resolver_service_1 = require("./permission-resolver.service");
 const permission_guard_1 = require("./permission.guard");
 const user_action_override_entity_1 = require("./user-action-override.entity");
 const acciones_service_1 = require("./acciones.service");
+const nivel_de_area_service_1 = require("../client-scope/nivel-de-area.service");
+const perfil_asignacion_entity_1 = require("../../modules/users/perfiles/perfil-asignacion.entity");
+const perfil_de_empresa_entity_1 = require("../../modules/users/perfiles/perfil-de-empresa.entity");
 const requiere_accion_1 = require("./requiere-accion");
 const permissions_controller_1 = require("./permissions.controller");
 const audit_module_1 = require("../audit/audit.module");
@@ -30,7 +33,7 @@ exports.AuthorizationModule = AuthorizationModule;
 exports.AuthorizationModule = AuthorizationModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization, user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, role_permission_override_entity_1.RolePermissionOverride, user_client_access_entity_1.UserClientAccess, user_action_override_entity_1.UserActionOverride]),
+            typeorm_1.TypeOrmModule.forFeature([organization_entity_1.Organization, user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, role_permission_override_entity_1.RolePermissionOverride, user_client_access_entity_1.UserClientAccess, user_action_override_entity_1.UserActionOverride, perfil_asignacion_entity_1.PerfilAsignacion, perfil_de_empresa_entity_1.PerfilDeEmpresa]),
             audit_module_1.AuditModule,
             (0, common_1.forwardRef)(() => parameters_module_1.ParametersModule),
         ],
@@ -38,9 +41,10 @@ exports.AuthorizationModule = AuthorizationModule = __decorate([
         providers: [
             permission_resolver_service_1.PermissionResolverService,
             acciones_service_1.AccionesService,
+            nivel_de_area_service_1.NivelDeAreaService,
             { provide: core_1.APP_GUARD, useClass: permission_guard_1.PermissionGuard },
             { provide: core_1.APP_GUARD, useClass: requiere_accion_1.AccionGuard },
         ],
-        exports: [permission_resolver_service_1.PermissionResolverService, acciones_service_1.AccionesService, typeorm_1.TypeOrmModule],
+        exports: [permission_resolver_service_1.PermissionResolverService, acciones_service_1.AccionesService, nivel_de_area_service_1.NivelDeAreaService, typeorm_1.TypeOrmModule],
     })
 ], AuthorizationModule);

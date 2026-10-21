@@ -20,6 +20,7 @@ const piece_types_service_1 = require("./piece-types.service");
 const piece_type_definition_entity_1 = require("./piece-type-definition.entity");
 const piece_type_dto_1 = require("./dto/piece-type.dto");
 const requires_feature_decorator_1 = require("../../core/authorization/requires-feature.decorator");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 let PieceTypesController = class PieceTypesController {
     constructor(service) {
         this.service = service;
@@ -49,6 +50,7 @@ let PieceTypesController = class PieceTypesController {
 exports.PieceTypesController = PieceTypesController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Listar tipos de pieza disponibles' }),
     __param(0, (0, common_1.Query)('area')),
     __param(1, (0, common_1.Query)('includeInactive')),
@@ -59,6 +61,7 @@ __decorate([
 ], PieceTypesController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)('can-approve'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Indicar si el cargo puede aprobar tipos de pieza' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -67,6 +70,7 @@ __decorate([
 ], PieceTypesController.prototype, "canApprove", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Proponer un tipo de pieza nuevo' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -76,6 +80,7 @@ __decorate([
 ], PieceTypesController.prototype, "propose", null);
 __decorate([
     (0, common_1.Post)(':id/approve'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Aprobar un tipo de pieza y ponerlo en circulacion' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -86,6 +91,7 @@ __decorate([
 ], PieceTypesController.prototype, "approve", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Corregir un tipo de pieza del catalogo' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -96,6 +102,7 @@ __decorate([
 ], PieceTypesController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/retire'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Retirar un tipo de pieza de circulacion' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),

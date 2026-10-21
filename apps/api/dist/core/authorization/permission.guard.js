@@ -23,6 +23,8 @@ const requires_feature_decorator_1 = require("./requires-feature.decorator");
 const permission_resolver_service_1 = require("./permission-resolver.service");
 const shared_1 = require("@espartanos/shared");
 const client_capability_service_1 = require("../client-scope/client-capability.service");
+const nivel_de_area_service_1 = require("../client-scope/nivel-de-area.service");
+const requiere_area_decorator_1 = require("./requiere-area.decorator");
 const MODULOS_CONTRATADOS = new Set(['crm', 'reservations', 'surveys']);
 const LEVEL_BY_METHOD = {
     GET: 'view',
@@ -34,10 +36,11 @@ const LEVEL_BY_METHOD = {
     DELETE: 'manage',
 };
 let PermissionGuard = PermissionGuard_1 = class PermissionGuard {
-    constructor(reflector, permissions, capacidades) {
+    constructor(reflector, permissions, capacidades, areas) {
         this.reflector = reflector;
         this.permissions = permissions;
         this.capacidades = capacidades;
+        this.areas = areas;
         this.logger = new common_1.Logger(PermissionGuard_1.name);
     }
     async canActivate(context) {
@@ -67,6 +70,12 @@ let PermissionGuard = PermissionGuard_1 = class PermissionGuard {
         if (this.capacidades && MODULOS_CONTRATADOS.has(required.module) && empresa) {
             await this.capacidades.assert(organizationId, empresa, required.module);
         }
+        const area = this.reflector.getAllAndOverride(requiere_area_decorator_1.REQUIERE_AREA_KEY, targets);
+        if (area && this.areas) {
+            const alcanza = await this.areas.alcanzaArea(organizationId, user.id, empresa, area.clave, area.nivel);
+            if (!alcanza)
+                throw new common_1.ForbiddenException('Tu perfil no incluye esta parte del módulo');
+        }
         return true;
     }
     empresaDeLaPeticion(request, user) {
@@ -90,7 +99,9 @@ exports.PermissionGuard = PermissionGuard;
 exports.PermissionGuard = PermissionGuard = PermissionGuard_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(2, (0, common_1.Optional)()),
+    __param(3, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [core_1.Reflector,
         permission_resolver_service_1.PermissionResolverService,
-        client_capability_service_1.ClientCapabilityService])
+        client_capability_service_1.ClientCapabilityService,
+        nivel_de_area_service_1.NivelDeAreaService])
 ], PermissionGuard);

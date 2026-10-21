@@ -46,8 +46,11 @@ const shared_1 = require("@espartanos/shared");
 const audit_service_1 = require("../../../core/audit/audit.service");
 const nivel_de_datos_service_1 = require("../../../core/client-scope/nivel-de-datos.service");
 const revelar_protegidos_1 = require("../../../core/client-scope/revelar-protegidos");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
+const nivel_de_area_service_1 = require("../../../core/client-scope/nivel-de-area.service");
+const lead_status_enum_1 = require("./lead-status.enum");
 let LeadController = class LeadController {
-    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, parametros, capacidades, responsablesDelCrm, niveles, audit) {
+    constructor(createLead, listLeads, getLead, convertLead, updateLead, importLeads, reservationRepository, accountAccess, history, leadTasks, parametros, capacidades, responsablesDelCrm, niveles, audit, areas) {
         this.createLead = createLead;
         this.listLeads = listLeads;
         this.getLead = getLead;
@@ -63,6 +66,7 @@ let LeadController = class LeadController {
         this.responsablesDelCrm = responsablesDelCrm;
         this.niveles = niveles;
         this.audit = audit;
+        this.areas = areas;
     }
     async protegidos(req, filas) {
         const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
@@ -178,6 +182,11 @@ let LeadController = class LeadController {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== lead.clientId) {
             throw new common_1.ForbiddenException('El portal no puede mover contactos fuera de su empresa');
         }
+        if (dto.status === lead_status_enum_1.LeadStatus.LOST && lead.status !== lead_status_enum_1.LeadStatus.LOST) {
+            const puede = await this.areas.alcanzaArea(req.organizationId, req.user.id, lead.clientId ?? undefined, 'crm.descartar', 'hacer');
+            if (!puede)
+                throw new common_1.ForbiddenException('Tu perfil no incluye descartar prospectos');
+        }
         if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.excludedFromMeta !== undefined) {
             throw new common_1.ForbiddenException('El portal no puede cambiar la medición publicitaria');
         }
@@ -255,6 +264,7 @@ let LeadController = class LeadController {
 exports.LeadController = LeadController;
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Crear un nuevo lead' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -264,6 +274,7 @@ __decorate([
 ], LeadController.prototype, "create", null);
 __decorate([
     (0, common_1.Post)('import'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.importar', 'hacer'),
     (0, requiere_accion_1.RequiereAccion)('crm.importar'),
     (0, swagger_1.ApiOperation)({ summary: 'Importar prospectos desde un archivo' }),
     __param(0, (0, common_1.Body)()),
@@ -274,6 +285,7 @@ __decorate([
 ], LeadController.prototype, "import", null);
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Listar leads' }),
     __param(0, (0, common_1.Query)()),
     __param(1, (0, common_1.Req)()),
@@ -283,6 +295,7 @@ __decorate([
 ], LeadController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)('responsables'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Personas asignables en el CRM de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -292,6 +305,7 @@ __decorate([
 ], LeadController.prototype, "responsables", null);
 __decorate([
     (0, common_1.Get)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Obtener un lead' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -301,6 +315,7 @@ __decorate([
 ], LeadController.prototype, "getById", null);
 __decorate([
     (0, common_1.Get)(':id/datos-protegidos'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Ver los datos de contacto protegidos de un lead' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -310,6 +325,7 @@ __decorate([
 ], LeadController.prototype, "datosProtegidos", null);
 __decorate([
     (0, common_1.Get)(':id/historial'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Historial de etapas de un lead' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -319,6 +335,7 @@ __decorate([
 ], LeadController.prototype, "historial", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar estado de un lead' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -329,6 +346,7 @@ __decorate([
 ], LeadController.prototype, "update", null);
 __decorate([
     (0, common_1.Get)(':id/reservations'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Historial de reservas de un lead' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -338,6 +356,7 @@ __decorate([
 ], LeadController.prototype, "reservations", null);
 __decorate([
     (0, common_1.Post)(':id/convert'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.convertir', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Convertir lead a cliente' }),
     __param(0, (0, common_1.Param)('id')),
@@ -367,5 +386,6 @@ exports.LeadController = LeadController = __decorate([
         client_capability_service_1.ClientCapabilityService,
         responsables_del_crm_service_1.ResponsablesDelCrmService,
         nivel_de_datos_service_1.NivelDeDatosService,
-        audit_service_1.AuditService])
+        audit_service_1.AuditService,
+        nivel_de_area_service_1.NivelDeAreaService])
 ], LeadController);

@@ -23,6 +23,7 @@ const requires_permission_decorator_1 = require("../../../core/authorization/req
 const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const crm_fields_service_1 = require("./crm-fields.service");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 const TIPOS = shared_1.TIPOS_DE_CAMPO.map((tipo) => tipo.value);
 class CrearCampoDto {
 }
@@ -136,6 +137,7 @@ let CrmFieldsController = class CrmFieldsController {
 exports.CrmFieldsController = CrmFieldsController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Campos propios de un tipo de registro' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('entity')),
@@ -147,6 +149,7 @@ __decorate([
 ], CrmFieldsController.prototype, "listar", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(...QUIEN_DEFINE),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Crear un campo propio' }),
@@ -158,6 +161,7 @@ __decorate([
 ], CrmFieldsController.prototype, "crear", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(...QUIEN_DEFINE),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Cambiar nombre, orden, opciones o tipo de un campo' }),
@@ -170,6 +174,7 @@ __decorate([
 ], CrmFieldsController.prototype, "editar", null);
 __decorate([
     (0, common_1.Patch)(':id/archivo'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(...QUIEN_DEFINE),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Archivar o desarchivar un campo, sin borrar lo guardado' }),

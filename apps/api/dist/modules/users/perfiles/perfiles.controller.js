@@ -25,6 +25,7 @@ const administracion_del_equipo_service_1 = require("../administracion-del-equip
 const perfiles_dto_1 = require("./perfiles.dto");
 const invitaciones_service_1 = require("./invitaciones.service");
 const perfiles_service_1 = require("./perfiles.service");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 const CARGOS = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT];
 let PerfilesController = class PerfilesController {
     constructor(perfiles, invitaciones, administracion, accesos) {
@@ -92,6 +93,7 @@ let PerfilesController = class PerfilesController {
 exports.PerfilesController = PerfilesController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Perfiles de la empresa, con cuántas personas usa cada uno' }),
     __param(0, (0, common_1.Req)()),
@@ -102,6 +104,7 @@ __decorate([
 ], PerfilesController.prototype, "listar", null);
 __decorate([
     (0, common_1.Get)('asignaciones'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Qué perfil tiene cada persona de la empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -112,6 +115,7 @@ __decorate([
 ], PerfilesController.prototype, "asignaciones", null);
 __decorate([
     (0, common_1.Get)('reingresos'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Quiénes reingresaron al equipo, cuándo y por qué' }),
     __param(0, (0, common_1.Req)()),
@@ -122,6 +126,7 @@ __decorate([
 ], PerfilesController.prototype, "reingresos", null);
 __decorate([
     (0, common_1.Get)('texto-de-confidencialidad'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Texto que se acepta al dar acceso a datos de categoría especial' }),
     __param(0, (0, common_1.Req)()),
@@ -132,6 +137,7 @@ __decorate([
 ], PerfilesController.prototype, "texto", null);
 __decorate([
     (0, common_1.Post)('sugeridos'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.perfiles', 'hacer'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Copiar los perfiles sugeridos de los módulos que la empresa tiene encendidos' }),
     __param(0, (0, common_1.Req)()),
@@ -142,6 +148,7 @@ __decorate([
 ], PerfilesController.prototype, "sugeridos", null);
 __decorate([
     (0, common_1.Get)('invitaciones'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Invitaciones pendientes de la empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -152,6 +159,7 @@ __decorate([
 ], PerfilesController.prototype, "pendientes", null);
 __decorate([
     (0, common_1.Post)('invitaciones'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.invitar', 'hacer'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Invitar por correo, eligiendo el perfil en el mismo paso' }),
     __param(0, (0, common_1.Req)()),
@@ -163,6 +171,7 @@ __decorate([
 ], PerfilesController.prototype, "invitar", null);
 __decorate([
     (0, common_1.Delete)('invitaciones/:id'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.invitar', 'hacer'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Cancelar una invitación pendiente' }),
     __param(0, (0, common_1.Req)()),
@@ -174,6 +183,7 @@ __decorate([
 ], PerfilesController.prototype, "cancelar", null);
 __decorate([
     (0, common_1.Put)('asignaciones/:userId'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.perfiles', 'hacer'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Asignar un perfil a una persona de la empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -186,6 +196,7 @@ __decorate([
 ], PerfilesController.prototype, "asignar", null);
 __decorate([
     (0, common_1.Delete)('equipo/:userId'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.invitar', 'hacer'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('quitar a una persona del equipo'),
     (0, swagger_1.ApiOperation)({ summary: 'Retirar (o vetar) a una persona del equipo de esta empresa, con su motivo' }),
@@ -200,6 +211,7 @@ __decorate([
 ], PerfilesController.prototype, "quitar", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('users.perfiles', 'hacer'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Crear un perfil' }),
     __param(0, (0, common_1.Req)()),
@@ -211,6 +223,7 @@ __decorate([
 ], PerfilesController.prototype, "crear", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.perfiles', 'hacer'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Editar un perfil; cambia lo que ven quienes lo usan' }),
     __param(0, (0, common_1.Req)()),
@@ -223,6 +236,7 @@ __decorate([
 ], PerfilesController.prototype, "editar", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.perfiles', 'hacer'),
     (0, roles_decorator_1.Roles)(...CARGOS),
     (0, swagger_1.ApiOperation)({ summary: 'Borrar un perfil; si alguien lo usa hay que decir a quién pasan' }),
     __param(0, (0, common_1.Req)()),

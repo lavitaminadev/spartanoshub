@@ -26,6 +26,7 @@ const shared_1 = require("@espartanos/shared");
 const audit_service_1 = require("../../../core/audit/audit.service");
 const nivel_de_datos_service_1 = require("../../../core/client-scope/nivel-de-datos.service");
 const revelar_protegidos_1 = require("../../../core/client-scope/revelar-protegidos");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 let ContactsController = class ContactsController {
     constructor(service, accountAccess, capabilities, niveles, audit) {
         this.service = service;
@@ -93,6 +94,7 @@ let ContactsController = class ContactsController {
 exports.ContactsController = ContactsController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.contactos', 'ver'),
     __param(0, (0, common_1.Query)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -101,6 +103,7 @@ __decorate([
 ], ContactsController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)('segments'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.contactos', 'ver'),
     __param(0, (0, common_1.Query)('clientId')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -109,6 +112,7 @@ __decorate([
 ], ContactsController.prototype, "segments", null);
 __decorate([
     (0, common_1.Get)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.contactos', 'ver'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -117,6 +121,7 @@ __decorate([
 ], ContactsController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Get)(':id/datos-protegidos'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.contactos', 'ver'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -125,6 +130,7 @@ __decorate([
 ], ContactsController.prototype, "datosProtegidos", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.contactos', 'hacer'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),

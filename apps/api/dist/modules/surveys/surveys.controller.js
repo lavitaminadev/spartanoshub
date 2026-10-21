@@ -44,6 +44,7 @@ const shared_3 = require("@espartanos/shared");
 const datos_de_contacto_protegidos_1 = require("./datos-de-contacto-protegidos");
 const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
 const revelar_protegidos_1 = require("../../core/client-scope/revelar-protegidos");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 function finDelDia(fecha) {
     const momento = new Date(fecha);
     if (/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim()))
@@ -493,6 +494,7 @@ let SurveysController = class SurveysController {
 exports.SurveysController = SurveysController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar encuestas' }),
     __param(0, (0, common_1.Req)()),
@@ -503,6 +505,7 @@ __decorate([
 ], SurveysController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)('company-legal'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -512,6 +515,7 @@ __decorate([
 ], SurveysController.prototype, "companyLegal", null);
 __decorate([
     (0, common_1.Put)('company-legal'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
@@ -523,6 +527,7 @@ __decorate([
 ], SurveysController.prototype, "saveCompanyLegal", null);
 __decorate([
     (0, common_1.Get)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Leer una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -533,6 +538,7 @@ __decorate([
 ], SurveysController.prototype, "detail", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Crear una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -543,6 +549,7 @@ __decorate([
 ], SurveysController.prototype, "create", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -554,6 +561,7 @@ __decorate([
 ], SurveysController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.publicar', 'hacer'),
     (0, requiere_accion_1.RequiereAccion)('surveys.borrar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar una encuesta' }),
@@ -565,6 +573,7 @@ __decorate([
 ], SurveysController.prototype, "remove", null);
 __decorate([
     (0, common_1.Get)(':id/results'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.resultados', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Resultados agregados de una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -576,6 +585,7 @@ __decorate([
 ], SurveysController.prototype, "results", null);
 __decorate([
     (0, common_1.Get)(':id/responses/:responseId/datos-protegidos'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.resultados', 'ver'),
     (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Ver quién respondió' }),
@@ -588,6 +598,7 @@ __decorate([
 ], SurveysController.prototype, "datosProtegidos", null);
 __decorate([
     (0, common_1.Patch)(':id/responses/:responseId/attention'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
@@ -611,6 +622,7 @@ __decorate([
 ], SurveysController.prototype, "submit", null);
 __decorate([
     (0, common_1.Post)(':id/send-email'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.enviar', 'hacer'),
     (0, requiere_accion_1.RequiereAccion)('surveys.enviar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Enviar la encuesta por correo a sus destinatarios' }),

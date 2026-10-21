@@ -23,6 +23,7 @@ const client_capability_service_1 = require("../../../core/client-scope/client-c
 const crm_dashboard_service_1 = require("./crm-dashboard.service");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 let CrmHomeController = class CrmHomeController {
     constructor(home, dashboard, accountAccess, capacidades) {
         this.home = home;
@@ -92,6 +93,7 @@ let CrmHomeController = class CrmHomeController {
 exports.CrmHomeController = CrmHomeController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Avisos y carga del equipo al entrar al CRM' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('coolingDays')),
@@ -103,6 +105,7 @@ __decorate([
 ], CrmHomeController.prototype, "get", null);
 __decorate([
     (0, common_1.Get)('dashboard'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Cifras del embudo comercial' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('days')),

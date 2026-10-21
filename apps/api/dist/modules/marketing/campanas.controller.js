@@ -24,6 +24,7 @@ const user_role_enum_1 = require("../organizations/user-role.enum");
 const campanas_service_1 = require("./campanas.service");
 const shared_1 = require("@espartanos/shared");
 const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 class ListarCampanasDto {
 }
 __decorate([
@@ -193,6 +194,7 @@ let CampanasController = class CampanasController {
 exports.CampanasController = CampanasController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Campañas escritas, enviadas y en borrador' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -202,6 +204,7 @@ __decorate([
 ], CampanasController.prototype, "listar", null);
 __decorate([
     (0, common_1.Get)('destinatarios'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'A cuántos llegaría la campaña si se enviara ahora' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('empresa')),
@@ -212,6 +215,7 @@ __decorate([
 ], CampanasController.prototype, "destinatarios", null);
 __decorate([
     (0, common_1.Post)('vista-previa'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Ver cómo queda la campaña, sin enviarla' }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -220,6 +224,7 @@ __decorate([
 ], CampanasController.prototype, "vistaPrevia", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Escribir una campaña, en borrador' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -229,6 +234,7 @@ __decorate([
 ], CampanasController.prototype, "crear", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Corregir una campaña que todavía no se ha enviado' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -239,6 +245,7 @@ __decorate([
 ], CampanasController.prototype, "editar", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Descartar un borrador' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -248,6 +255,7 @@ __decorate([
 ], CampanasController.prototype, "borrar", null);
 __decorate([
     (0, common_1.Post)(':id/enviar'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.enviar', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('marketing', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Poner la campaña en cola para salir' }),
     __param(0, (0, common_1.Req)()),
@@ -258,6 +266,7 @@ __decorate([
 ], CampanasController.prototype, "enviar", null);
 __decorate([
     (0, common_1.Get)(':id/avance'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Avance del envío de una campaña' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -267,6 +276,7 @@ __decorate([
 ], CampanasController.prototype, "avance", null);
 __decorate([
     (0, common_1.Get)(':id/fallidos'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Destinatarios a los que no les llegó, con el motivo' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -276,6 +286,7 @@ __decorate([
 ], CampanasController.prototype, "fallidos", null);
 __decorate([
     (0, common_1.Get)(':id/retorno'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.campanas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Canjes del cupón de la campaña desde su envío' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),

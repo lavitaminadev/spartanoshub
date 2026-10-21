@@ -30,6 +30,7 @@ const client_entity_1 = require("../clients/client.entity");
 const piece_entity_1 = require("../production/piece.entity");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 let ApprovalsController = class ApprovalsController {
     constructor(listApprovals, updateStatus, repo, clients, pieces, accountAccess) {
         this.listApprovals = listApprovals;
@@ -73,6 +74,7 @@ let ApprovalsController = class ApprovalsController {
 exports.ApprovalsController = ApprovalsController;
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('production.aprobaciones', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Crear solicitud de aprobación' }),
     __param(0, (0, common_1.Body)()),
@@ -83,6 +85,7 @@ __decorate([
 ], ApprovalsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('production.aprobaciones', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar solicitudes de aprobación' }),
     __param(0, (0, common_1.Req)()),
@@ -92,6 +95,7 @@ __decorate([
 ], ApprovalsController.prototype, "list", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.aprobaciones', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Aprobar o rechazar solicitud' }),
     __param(0, (0, common_1.Param)('id')),

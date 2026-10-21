@@ -25,6 +25,7 @@ const module_scope_decorator_1 = require("../../../core/authorization/module-sco
 const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const client_capability_service_1 = require("../../../core/client-scope/client-capability.service");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 class CondicionDto {
 }
@@ -215,6 +216,7 @@ let ReglasController = class ReglasController {
 exports.ReglasController = ReglasController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'ver'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'view'),
     (0, swagger_1.ApiOperation)({ summary: 'Reglas de una empresa, en orden' }),
     __param(0, (0, common_1.Req)()),
@@ -226,6 +228,7 @@ __decorate([
 ], ReglasController.prototype, "listar", null);
 __decorate([
     (0, common_1.Get)('preguntas'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'ver'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'view'),
     (0, swagger_1.ApiOperation)({ summary: 'Preguntas que están llegando, con sus respuestas y cuántos las contestan' }),
     __param(0, (0, common_1.Req)()),
@@ -236,6 +239,7 @@ __decorate([
 ], ReglasController.prototype, "preguntas", null);
 __decorate([
     (0, common_1.Post)('probar'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Cuántos leads calzarían con una regla, sin tocarlos' }),
     __param(0, (0, common_1.Req)()),
@@ -247,6 +251,7 @@ __decorate([
 ], ReglasController.prototype, "probar", null);
 __decorate([
     (0, common_1.Post)('aplicar'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'edit'),
     (0, swagger_1.ApiOperation)({ summary: 'Aplicar las reglas a los leads elegidos' }),
     __param(0, (0, common_1.Req)()),
@@ -258,6 +263,7 @@ __decorate([
 ], ReglasController.prototype, "aplicar", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Crear una regla' }),
     __param(0, (0, common_1.Req)()),
@@ -269,6 +275,7 @@ __decorate([
 ], ReglasController.prototype, "crear", null);
 __decorate([
     (0, common_1.Put)('orden'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Reordenar: manda la primera que calza' }),
     __param(0, (0, common_1.Req)()),
@@ -280,6 +287,7 @@ __decorate([
 ], ReglasController.prototype, "reordenar", null);
 __decorate([
     (0, common_1.Post)('copiar'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Copiar las reglas de otra empresa, apagadas' }),
     __param(0, (0, common_1.Req)()),
@@ -291,6 +299,7 @@ __decorate([
 ], ReglasController.prototype, "copiar", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Editar una regla' }),
     __param(0, (0, common_1.Req)()),
@@ -302,6 +311,7 @@ __decorate([
 ], ReglasController.prototype, "editar", null);
 __decorate([
     (0, common_1.Put)(':id/activa'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Encender o apagar' }),
     __param(0, (0, common_1.Req)()),
@@ -313,6 +323,7 @@ __decorate([
 ], ReglasController.prototype, "activar", null);
 __decorate([
     (0, common_1.Put)(':id/automatica'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Que corra sola al entrar un lead, o solo a mano' }),
     __param(0, (0, common_1.Req)()),
@@ -324,6 +335,7 @@ __decorate([
 ], ReglasController.prototype, "automatizar", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Archivar una regla' }),
     __param(0, (0, common_1.Req)()),
@@ -334,6 +346,7 @@ __decorate([
 ], ReglasController.prototype, "archivar", null);
 __decorate([
     (0, common_1.Put)(':id/restaurar'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Sacar del archivo' }),
     __param(0, (0, common_1.Req)()),
