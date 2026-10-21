@@ -55,6 +55,18 @@ interface ClientCapabilities {
   googleConversions: boolean;
   budgetVisibility: boolean;
   detalleDeContactoEnAvisos: boolean;
+  production: boolean;
+  audiovisual: boolean;
+  content: boolean;
+  approvals: boolean;
+  meetings: boolean;
+  documents: boolean;
+  briefs: boolean;
+  billing: boolean;
+  contracts: boolean;
+  intake: boolean;
+  reports: boolean;
+  commercialPipeline: boolean;
 }
 
 interface MetaPixelCatalog {
@@ -112,7 +124,9 @@ const EMPTY_FORM: ClientFormState = {
   logoPublicId: '',
   // `marketing` nace apagada, igual que en el servidor: entregar una lista de direcciones con el
   // respaldo de cada permiso se decide cuenta por cuenta, no al crearla.
-  capabilities: { reservations: true, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false, detalleDeContactoEnAvisos: false },
+  capabilities: { reservations: true, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false, detalleDeContactoEnAvisos: false,
+    // Los módulos por empresa nacen apagados, igual que en el servidor.
+    production: false, audiovisual: false, content: false, approvals: false, meetings: false, documents: false, briefs: false, billing: false, contracts: false, intake: false, reports: false, commercialPipeline: false },
   pixelMode: 'none',
   pixelId: '',
   pixelName: '',
@@ -129,6 +143,18 @@ const CAPABILITY_OPTIONS: Array<{ key: keyof ClientCapabilities; label: string; 
   { key: 'googleConversions', label: 'Google Ads (conversiones)', description: 'Sube la reserva y la asistencia como conversiones offline a Google Ads.' },
   { key: 'budgetVisibility', label: 'Saldo de presupuesto', description: 'Esta empresa ve en su portal cuántas UD lleva consumidas y cuántas le quedan.' },
   { key: 'detalleDeContactoEnAvisos', label: 'Teléfono y correo en el aviso de grupo', description: 'El aviso por correo de una solicitud de grupo incluye teléfono y correo, sólo para cuentas con acceso directo. Lo habilita la agencia; las alergias y respuestas del formulario nunca salen por correo.' },
+  { key: 'production', label: 'Producción', description: 'Piezas, tablero y asignaciones de producción de esta empresa.' },
+  { key: 'audiovisual', label: 'Audiovisual', description: 'Producción audiovisual de esta empresa: guiones, grabaciones y entregas.' },
+  { key: 'content', label: 'Contenido', description: 'Parrilla de contenido de esta empresa.' },
+  { key: 'approvals', label: 'Aprobaciones', description: 'Piezas y entregables que esta empresa revisa y aprueba.' },
+  { key: 'meetings', label: 'Reuniones', description: 'Reuniones y actas de esta empresa.' },
+  { key: 'documents', label: 'Documentos', description: 'Archivos y documentos compartidos con esta empresa.' },
+  { key: 'briefs', label: 'Briefs', description: 'Briefs de trabajo de esta empresa.' },
+  { key: 'billing', label: 'Facturación', description: 'Facturas y cobros de esta empresa.' },
+  { key: 'contracts', label: 'Contratos', description: 'Contratos vigentes y su vencimiento para esta empresa.' },
+  { key: 'intake', label: 'Intake', description: 'Solicitudes de trabajo que ingresan para esta empresa.' },
+  { key: 'reports', label: 'Informes', description: 'Informes de resultados de esta empresa.' },
+  { key: 'commercialPipeline', label: 'Embudo comercial', description: 'Embudo de oportunidades comerciales de esta empresa.' },
 ];
 
 export function ClientsPage() {
@@ -354,6 +380,18 @@ export function ClientsPage() {
         googleConversions: client.capabilities?.googleConversions ?? false,
         budgetVisibility: client.capabilities?.budgetVisibility ?? false,
         detalleDeContactoEnAvisos: client.capabilities?.detalleDeContactoEnAvisos ?? false,
+        production: client.capabilities?.production ?? false,
+        audiovisual: client.capabilities?.audiovisual ?? false,
+        content: client.capabilities?.content ?? false,
+        approvals: client.capabilities?.approvals ?? false,
+        meetings: client.capabilities?.meetings ?? false,
+        documents: client.capabilities?.documents ?? false,
+        briefs: client.capabilities?.briefs ?? false,
+        billing: client.capabilities?.billing ?? false,
+        contracts: client.capabilities?.contracts ?? false,
+        intake: client.capabilities?.intake ?? false,
+        reports: client.capabilities?.reports ?? false,
+        commercialPipeline: client.capabilities?.commercialPipeline ?? false,
       },
       pixelMode: binding?.pixelId ? 'existing' : 'none',
       pixelId: binding?.pixelId || '',

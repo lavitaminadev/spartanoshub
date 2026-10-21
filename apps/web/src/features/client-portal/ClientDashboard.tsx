@@ -20,6 +20,7 @@ interface Inicio {
   presupuesto?: {
     contratado: number; reservado: number; consumido: number; disponible: number; mes: string; cerrado: boolean;
     /** En qué se fueron las UD, lo más reciente primero. Sin quién lo hizo: es reparto interno. */
+    /** `unidades` ya viene con signo desde el servidor: negativo descuenta, positivo suma. */
     movimientos: Array<{ fecha: string; tipo: string; unidades: number; pieza: string | null; motivo: string | null }>;
   };
 }
@@ -204,7 +205,7 @@ export function ClientDashboard() {
                   <ul>
                     {data.presupuesto.movimientos.map((movimiento, indice) => (
                       <li key={`${movimiento.fecha}-${indice}`}>
-                        <span className="portal-movimiento-ud">{movimiento.unidades > 0 ? '−' : '+'}{ud(Math.abs(movimiento.unidades))} UD</span>
+                        <span className="portal-movimiento-ud">{movimiento.unidades < 0 ? '−' : '+'}{ud(Math.abs(movimiento.unidades))} UD</span>
                         <strong>{movimiento.pieza ?? MOVIMIENTOS[movimiento.tipo] ?? movimiento.tipo}</strong>
                         <small>
                           {new Date(movimiento.fecha).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}

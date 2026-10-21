@@ -13,6 +13,7 @@ import { EmailService } from '../../core/notifications/email.service';
 import { DestinatariosDeAvisosService } from '../../core/notifications/destinatarios-de-avisos.service';
 import { problemasDeRespuesta } from '@espartanos/shared';
 import { aceptacionAGuardar, contactoEscrito } from './consentimiento-de-encuesta';
+import { respuestasFueraDeRango } from './validar-respuestas-publicas';
 import { componerCorreo } from '../../core/notifications/plantilla-de-correo';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 import { leerPlantilla } from '../../core/parameters/plantilla-resuelta';
@@ -216,6 +217,8 @@ export class PublicSurveyFlowService {
     const nota = preguntaDeNota(survey.questions ?? []);
     const malFormados = problemasDeRespuesta((survey.questions ?? []).map((pregunta) => ({ ...pregunta, required: false })), respuestas, nota ? [nota.id] : []);
     if (malFormados.length > 0) throw new BadRequestException(malFormados.join(' · '));
+    const fueraDeRango = respuestasFueraDeRango(survey.questions ?? [], respuestas);
+    if (fueraDeRango.length > 0) throw new BadRequestException(fueraDeRango.join(' · '));
     let aceptacion: { privacyConsentAt?: Date; privacyConsentText?: string } = {};
     try {
       aceptacion = await aceptacionAGuardar(this.dataSource, survey, respuestas, datos.aceptaPrivacidad || Boolean(respuesta.privacyConsentAt));
