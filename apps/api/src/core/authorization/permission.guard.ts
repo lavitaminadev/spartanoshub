@@ -11,10 +11,10 @@ import { isModuleInInitialOperationScope } from '@espartanos/shared';
 import { ClientCapabilityService } from '../client-scope/client-capability.service';
 import { NivelDeAreaService } from '../client-scope/nivel-de-area.service';
 import { REQUIERE_AREA_KEY, type AreaExigida } from './requiere-area.decorator';
-import type { ClientCapabilityKey } from '../../modules/clients/client-capabilities';
+import { CAPACIDADES_DE_MODULO, type ClientCapabilityKey } from '../../modules/clients/client-capabilities';
 
 /** Módulos que son un servicio contratado por empresa: sin el servicio, la empresa no entra. */
-const MODULOS_CONTRATADOS = new Set<string>(['crm', 'reservations', 'surveys']);
+const MODULOS_CONTRATADOS = new Set<string>(['crm', 'reservations', 'surveys', ...CAPACIDADES_DE_MODULO]);
 
 /**
  * Nivel que exige cada verbo cuando el endpoint no declara uno propio.

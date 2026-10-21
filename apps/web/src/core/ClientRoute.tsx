@@ -9,6 +9,12 @@ import { useEmpresaActiva, useUsuarioEnEmpresaActiva } from '../shared/empresa-a
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { AccessDenied } from './AccessDenied';
 
+/** Servicios que una empresa contrata y que una ruta del portal puede exigir. */
+export type ServicioDelPortal =
+  | 'crm' | 'reservations' | 'surveys'
+  | 'production' | 'audiovisual' | 'content' | 'approvals' | 'meetings' | 'documents' | 'briefs'
+  | 'billing' | 'contracts' | 'intake' | 'reports' | 'commercialPipeline';
+
 /**
  * Props del route guard de cliente.
  */
@@ -16,9 +22,9 @@ export interface ClientRouteProps {
   /** Elemento(s) de ruta hijo a renderizar cuando el usuario es un cliente. */
   children: React.ReactNode;
   /** Servicio contratado que exige esta rama del portal. */
-  capability?: 'crm' | 'reservations' | 'surveys';
+  capability?: ServicioDelPortal;
   /** Alternativa a `capability`: basta con que la empresa tenga uno de estos servicios. */
-  anyCapability?: Array<'crm' | 'reservations' | 'surveys'>;
+  anyCapability?: ServicioDelPortal[];
 }
 
 /**
