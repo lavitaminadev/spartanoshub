@@ -62,6 +62,21 @@ export class PerfilesController {
     return { data: await this.perfiles.asignacionesDeLaEmpresa(await this.contexto(req, clientId)) };
   }
 
+  /**
+   * Qué ve y qué puede hacer una persona, y de dónde le viene cada cosa.
+   *
+   * Es lo que permite comprobar lo que se repartió, y la pieza con la que se contesta «por qué
+   * esta persona ve esto» sin entrar a la base. Pide `users.equipo` en `ver`: quien administra
+   * el equipo puede revisarlo, y nadie más.
+   */
+  @Get('que-ve/:userId')
+  @RequiereArea('users.equipo', 'ver')
+  @Roles(...CARGOS)
+  @ApiOperation({ summary: 'Qué ve una persona en esta empresa, y por qué' })
+  async queVe(@Req() req: AuthenticatedRequest, @Param('userId') userId: string, @Query('clientId') clientId?: string) {
+    return this.perfiles.queVe(await this.contexto(req, clientId), userId);
+  }
+
   @Get('reingresos')
   @RequiereArea('users.equipo', 'ver')
   @Roles(...CARGOS)
