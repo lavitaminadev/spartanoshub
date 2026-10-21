@@ -65,20 +65,32 @@ export class DestinatariosDeAvisosController {
     return clientId;
   }
 
-  /** Qué empresa, antes de preguntar si tiene el servicio. Separado para que se lea el orden. */
+  /**
+   * De qué empresa es el equipo, antes de preguntar si tiene el servicio.
+   *
+   * La empresa declarada se honra para los dos papeles, portal incluido, siempre que la cuenta la
+   * alcance. Para una cuenta de portal salía siempre de la sesión, así que quien atiende dos
+   * locales mantenía las casillas del segundo y se guardaban en el primero. Sin declarar nada, la
+   * cuenta de portal usa la suya y el equipo interno recibe un 403: elegirle una sería repartir
+   * los avisos de una empresa que nadie nombró.
+   *
+   * Una empresa fuera de alcance da 404 y no 403, como el resto del sistema: decir «no la
+   * alcanzas» ya confirma que existe y que la agencia la atiende.
+   *
+   * Separado de la comprobación del servicio para que se lea el orden.
+   */
   private async cualEmpresa(req: AuthenticatedRequest, pedida?: string): Promise<string> {
     const organizationId = req.organizationId || req.user.organizationId;
+    const declarada = pedida?.trim();
+    if (declarada) {
+      await this.acceso.assertClient(organizationId, req.user, declarada);
+      return declarada;
+    }
     if (req.user.role === UserRole.CLIENT) {
       if (!req.user.clientId) throw new ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
       return req.user.clientId;
     }
-    if (!pedida) throw new ForbiddenException('Falta indicar de qué empresa es el equipo');
-    // `undefined` significa que alcanza todas: la agencia y el equipo interno.
-    const alcanzables = await this.acceso.allowedClientIds(organizationId, req.user);
-    if (alcanzables && !alcanzables.includes(pedida)) {
-      throw new ForbiddenException('Esta cuenta no alcanza esa empresa');
-    }
-    return pedida;
+    throw new ForbiddenException('Falta indicar de qué empresa es el equipo');
   }
 
   /** Los tipos de aviso que se pueden repartir, para que la pantalla no los repita por su cuenta. */

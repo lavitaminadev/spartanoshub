@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { exigirIdentidadLegalDeEncuesta } from './consentimiento-de-encuesta';
 import { AuditService } from '../../core/audit/audit.service';
-import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDeLosDatosLegales, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
@@ -226,18 +226,25 @@ export class SurveysController {
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
     const empresa = await this.empresaLegal(req, query.clientId);
     await asegurarQueAdministraLaEmpresa(this.permisos, req.organizationId, req.user, empresa);
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+    // El contrato de encargo lo acepta la empresa, no la agencia en su nombre: sólo una cuenta de
+    // portal puede marcarlo. Estaba escrito como «si la cuenta tiene empresa», que daba lo mismo
+    // mientras la empresa de la sesión fuera la única posible, y ahora ya no lo es.
+    const laAceptaLaEmpresa = req.user.role === UserRole.CLIENT;
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
   }
 
+  /**
+   * La empresa cuyos datos legales se tocan, y que tiene Encuestas habilitado.
+   *
+   * La resolución es la misma que en Reservas y vive en `empresaDeLosDatosLegales`; aquí sólo se
+   * añade la reja propia del módulo. Una cuenta de portal que declara una empresa que alcanza
+   * trabaja sobre ella, que es lo que permite a quien atiende dos locales mantener los datos del
+   * segundo en vez de escribirlos en el primero.
+   */
   private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {
-    if (req.user.role === UserRole.CLIENT) {
-      const propia = empresaDelPortal(req.user.clientId);
-      await exigirEncuestasHabilitadas(this.dataSource, propia);
-      return propia;
-    }
-    if (!pedida) throw new BadRequestException('Indica la empresa');
-    await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
-    return pedida;
+    const empresa = await empresaDeLosDatosLegales(this.accountAccess, req.organizationId, req.user, pedida);
+    await exigirEncuestasHabilitadas(this.dataSource, empresa);
+    return empresa;
   }
 
   @Get(':id')

@@ -1,6 +1,6 @@
 import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDeLosDatosLegales, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { DataSource } from 'typeorm';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -49,21 +49,33 @@ export class ReservationsController {
     return { ...form, ...context, publicUrl: publicOrigin ? `${publicOrigin}/book/${form.publicSlug}` : undefined };
   }
 
-  private client(req: AuthenticatedRequest): string | undefined {
+  /**
+   * La empresa sobre la que trabaja una cuenta de portal: la que declare y alcance, o la suya.
+   *
+   * Declararla no concede nada —`scope` comprueba a continuación que tenga Reservas contratado—,
+   * y una que no se alcanza da 404. Lo que arregla es el caso de quien atiende dos locales: la
+   * empresa salía siempre de la sesión, así que mirar el segundo mostraba y escribía en el
+   * primero. Devuelve `undefined` para el equipo interno, que se acota por `clientIds`; las rutas
+   * que además admiten elegir una empresa concreta usan `requestedScope`.
+   */
+  private async empresaDelPortalEnLaPeticion(req: AuthenticatedRequest): Promise<string | undefined> {
     if (req.user.role !== UserRole.CLIENT) return undefined;
+    const declarada = (req.query as { clientId?: string } | undefined)?.clientId?.trim();
+    if (declarada && declarada !== req.user.clientId) {
+      await this.accountAccess.assertClient(req.organizationId, req.user, declarada);
+      return declarada;
+    }
     if (!req.user.clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
     return req.user.clientId;
   }
 
   private async scope(req: AuthenticatedRequest) {
-    // El identificador de empresa del portal viene exclusivamente de la sesión. Ningún
-    // parámetro de la URL puede convertir una cuenta sin Reservas en una con acceso.
-    if (req.user.role === UserRole.CLIENT) {
-      const clientId = this.client(req)!;
-      await this.capabilities.assert(req.organizationId, clientId, 'reservations');
-    }
+    const clientId = await this.empresaDelPortalEnLaPeticion(req);
+    // Ningún parámetro de la URL convierte una cuenta sin Reservas en una con acceso: la empresa
+    // ya pasó por el alcance, y aquí se comprueba que tenga el servicio contratado.
+    if (clientId) await this.capabilities.assert(req.organizationId, clientId, 'reservations');
     return {
-      clientId: this.client(req),
+      clientId,
       clientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
     };
   }
@@ -98,18 +110,25 @@ export class ReservationsController {
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
     const empresa = await this.empresaLegal(req, query.clientId);
     await asegurarQueAdministraLaEmpresa(this.permisos, req.organizationId, req.user, empresa);
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+    // El contrato de encargo lo acepta la empresa, no la agencia en su nombre: sólo una cuenta de
+    // portal puede marcarlo. Estaba escrito como «si la cuenta tiene empresa», que daba lo mismo
+    // mientras la empresa de la sesión fuera la única posible, y ahora ya no lo es.
+    const laAceptaLaEmpresa = req.user.role === UserRole.CLIENT;
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
   }
 
+  /**
+   * La empresa cuyos datos legales se tocan, y que tiene Reservas contratado.
+   *
+   * La resolución es la misma que en Encuestas y vive en `empresaDeLosDatosLegales`; aquí sólo se
+   * añade la reja propia del módulo. Una cuenta de portal que declara una empresa que alcanza
+   * trabaja sobre ella, que es lo que permite a quien atiende dos locales mantener los datos del
+   * segundo en vez de escribirlos en el primero.
+   */
   private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {
-    if (req.user.role === UserRole.CLIENT) {
-      const propia = empresaDelPortal(req.user.clientId);
-      await this.capabilities.assert(req.organizationId, propia, 'reservations');
-      return propia;
-    }
-    if (!pedida) throw new BadRequestException('Indica la empresa');
-    await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
-    return pedida;
+    const empresa = await empresaDeLosDatosLegales(this.accountAccess, req.organizationId, req.user, pedida);
+    await this.capabilities.assert(req.organizationId, empresa, 'reservations');
+    return empresa;
   }
 
   /** Envíos a Meta de una sucursal en los últimos 30 días: enviados, pendientes, fallidos y último error. */
@@ -519,7 +538,7 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async createCoupon(@Req() req: AuthenticatedRequest, @Body() dto: CreateCouponDto) {
     // Una cuenta de empresa crea cupones sólo para sí misma, diga lo que diga el cuerpo.
-    if (req.user.role === UserRole.CLIENT) dto.clientId = this.client(req)!;
+    if (req.user.role === UserRole.CLIENT) dto.clientId = (await this.empresaDelPortalEnLaPeticion(req))!;
     // Todo cupón tiene empresa. Uno sin dueño se aceptaba en los locales de todos los clientes, y
     // un descuento pensado para un negocio terminaba aplicándose en otro.
     if (!dto.clientId) throw new BadRequestException('Elige la empresa del cupón: cada cupón vale sólo en los locales de su empresa.');
