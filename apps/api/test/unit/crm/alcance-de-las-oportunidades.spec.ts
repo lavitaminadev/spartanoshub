@@ -12,6 +12,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CreateOpportunityUseCase } from '../../../src/modules/crm/opportunities/use-cases/create-opportunity.use-case';
 import { GetOpportunityUseCase } from '../../../src/modules/crm/opportunities/use-cases/get-opportunity.use-case';
+import { ListOpportunitiesUseCase } from '../../../src/modules/crm/opportunities/use-cases/list-opportunities.use-case';
 import { RemoveOpportunityUseCase } from '../../../src/modules/crm/opportunities/use-cases/remove-opportunity.use-case';
 import { UpdateOpportunityUseCase } from '../../../src/modules/crm/opportunities/use-cases/update-opportunity.use-case';
 
@@ -89,6 +90,32 @@ describe('alcance de las oportunidades', () => {
 
     await crear.execute({ name: 'Carta', clientId: 'mia' } as never, ORG, 'u1', ALCANCE);
     expect(repo.save).toHaveBeenCalled();
+  });
+
+  /*
+   * El embudo de una empresa a la vez.
+   *
+   * Sin poder acotarlo, el listado devolvía todas las carteras que la cuenta alcanza y la
+   * pantalla las mostraba mezcladas bajo el encabezado de una sola: no es una fuga de permisos
+   * —todo era alcanzable— pero es la cartera de una cuenta leída como la de otra.
+   */
+  it('con empresa elegida, el listado trae sólo su embudo', async () => {
+    const repo = { findAndCount: vi.fn().mockResolvedValue([[], 0]) };
+    const listar = new ListOpportunitiesUseCase(repo as never);
+
+    await listar.execute(ORG, 20, 0, undefined, ALCANCE, 'mia');
+
+    expect(repo.findAndCount.mock.calls[0][0].where).toMatchObject({ clientId: 'mia' });
+  });
+
+  it('sin empresa elegida sigue acotando a lo alcanzable, con los tratos sin empresa', async () => {
+    const repo = { findAndCount: vi.fn().mockResolvedValue([[], 0]) };
+    const listar = new ListOpportunitiesUseCase(repo as never);
+
+    await listar.execute(ORG, 20, 0, undefined, ALCANCE, undefined);
+
+    // Dos ramas: los del embudo propio de la agencia, que no tienen empresa, y los alcanzables.
+    expect(repo.findAndCount.mock.calls[0][0].where).toHaveLength(2);
   });
 
   /*

@@ -60,8 +60,9 @@ export class OpportunitiesController {
   @Get()
   @RequiereArea('crm.embudo', 'ver')
   async findAll(@Query() query: ListOpportunitiesDto, @Req() req: AuthenticatedRequest) {
+    if (query.clientId) await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed);
+    return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed, query.clientId);
   }
 
   @Get(':id')
