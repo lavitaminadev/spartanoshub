@@ -50,38 +50,38 @@ describe('limpiarFiltros', () => {
 describe('SavedViewsService', () => {
   it('el equipo interno sólo ve vistas sin empresa', async () => {
     const { servicio, condiciones } = armar();
-    await servicio.listar(EQUIPO, 'reservas.lista');
+    await servicio.listar(EQUIPO, 'reservas.lista', null);
     expect(condiciones.map(([sql]) => sql)).toContain('v.clientId IS NULL');
   });
 
   /* Si el portal viera las vistas del equipo, sabría cómo filtra la agencia a sus clientes. */
   it('el portal sólo ve las vistas de su propia empresa', async () => {
     const { servicio, condiciones } = armar();
-    await servicio.listar(PORTAL, 'reservas.lista');
+    await servicio.listar(PORTAL, 'reservas.lista', 'cliente-1' as never);
     const empresa = condiciones.find(([sql]) => sql === 'v.clientId = :empresa');
     expect(empresa?.[1]).toEqual({ empresa: 'cliente-1' });
   });
 
   it('rechaza una lista con nombre inventado', async () => {
     const { servicio } = armar();
-    await expect(servicio.listar(EQUIPO, 'cualquier cosa; DROP')).rejects.toThrow(BadRequestException);
+    await expect(servicio.listar(EQUIPO, 'cualquier cosa; DROP', null)).rejects.toThrow(BadRequestException);
   });
 
   it('guarda la vista atada a quien la crea y a su mundo', async () => {
     const { servicio, repo } = armar();
-    const vista = await servicio.guardar(PORTAL, { scope: 'reservas.lista', name: '  Hoy  ', filters: { status: 'pending' } });
+    const vista = await servicio.guardar(PORTAL, { scope: 'reservas.lista', name: '  Hoy  ', filters: { status: 'pending' } }, 'cliente-1' as never);
     expect(vista).toMatchObject({ name: 'Hoy', shared: false, propia: true });
     expect(repo.save.mock.calls[0][0]).toMatchObject({ ownerUserId: 'u-portal', clientId: 'cliente-1', organizationId: 'org-1' });
   });
 
   it('no deja pasar del tope de vistas por lista', async () => {
     const { servicio } = armar({ cuantas: MAXIMO_VISTAS_POR_LISTA });
-    await expect(servicio.guardar(EQUIPO, { scope: 'reservas.lista', name: 'Otra', filters: {} })).rejects.toThrow(BadRequestException);
+    await expect(servicio.guardar(EQUIPO, { scope: 'reservas.lista', name: 'Otra', filters: {} }, null)).rejects.toThrow(BadRequestException);
   });
 
   it('reemplazar una existente por nombre no cuenta contra el tope', async () => {
     const { servicio } = armar({ existente: { id: 'v-9', ownerUserId: 'u-equipo', shared: true }, cuantas: MAXIMO_VISTAS_POR_LISTA });
-    await expect(servicio.guardar(EQUIPO, { scope: 'reservas.lista', name: 'Hoy', filters: {} })).resolves.toMatchObject({ shared: true });
+    await expect(servicio.guardar(EQUIPO, { scope: 'reservas.lista', name: 'Hoy', filters: {} }, null)).resolves.toMatchObject({ shared: true });
   });
 
   it('sólo quien la creó la comparte o la borra', async () => {
