@@ -15,6 +15,7 @@ import { ProcessTemplatesService } from '../../process-templates/process-templat
 import { OpportunityStageHistoryService } from './opportunity-stage-history.service';
 import { COMMERCIAL_PIPELINE_TEMPLATE } from '../../process-templates/process-template-defaults';
 import { RequiereAccion } from '../../../core/authorization/requiere-accion';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 @Controller('crm/opportunities')
 @UseGuards(AuthGuard('jwt'))
@@ -43,23 +44,27 @@ export class OpportunitiesController {
    * el identificador de una oportunidad.
    */
   @Get('stages')
+  @RequiereArea('crm.embudo', 'ver')
   async stages(@Req() req: AuthenticatedRequest) {
     const steps = await this.processTemplates.getSteps(req.organizationId, COMMERCIAL_PIPELINE_TEMPLATE);
     return steps.map((step) => ({ key: step.key, label: step.label }));
   }
 
   @Post()
+  @RequiereArea('crm.embudo', 'hacer')
   create(@Body() dto: CreateOpportunityDto, @Req() req: AuthenticatedRequest) {
     return this.createOpportunity.execute(dto, req.organizationId, req.user.id);
   }
 
   @Get()
+  @RequiereArea('crm.embudo', 'ver')
   async findAll(@Query() query: ListOpportunitiesDto, @Req() req: AuthenticatedRequest) {
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed);
   }
 
   @Get(':id')
+  @RequiereArea('crm.embudo', 'ver')
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.getOpportunity.execute(id, req.organizationId, allowed);
@@ -73,6 +78,7 @@ export class OpportunitiesController {
    * `findOne` para que un trato de otra empresa dé el mismo 404 que en el resto del CRM.
    */
   @Get(':id/recorrido')
+  @RequiereArea('crm.embudo', 'ver')
   async recorrido(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     await this.getOpportunity.execute(id, req.organizationId, allowed);
@@ -80,11 +86,13 @@ export class OpportunitiesController {
   }
 
   @Put(':id')
+  @RequiereArea('crm.embudo', 'hacer')
   update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto, @Req() req: AuthenticatedRequest) {
     return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id);
   }
 
   @Delete(':id')
+  @RequiereArea('crm.embudo', 'hacer')
   @RequiereAccion('crm.borrar')
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.removeOpportunity.execute(id, req.organizationId);

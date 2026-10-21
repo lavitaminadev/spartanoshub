@@ -33,6 +33,7 @@ import { camposProtegidosDe } from '@espartanos/shared';
 import { AuditService } from '../../../core/audit/audit.service';
 import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../../core/client-scope/nivel-de-datos.service';
 import { exigirConstanciaDeRevelacion } from '../../../core/client-scope/revelar-protegidos';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 @ApiTags('CRM - Leads')
 @Controller('crm/leads')
@@ -83,6 +84,7 @@ export class LeadController {
   }
 
   @Post()
+  @RequiereArea('crm.prospectos', 'hacer')
   @ApiOperation({ summary: 'Crear un nuevo lead' })
   async create(@Body() dto: CreateLeadDto, @Req() req: AuthenticatedRequest) {
     /*
@@ -113,6 +115,7 @@ export class LeadController {
    * petición inválida, y responder un error dejaría a quien importa sin saber qué se guardó.
    */
   @Post('import')
+  @RequiereArea('crm.importar', 'hacer')
   @RequiereAccion('crm.importar')
   @ApiOperation({ summary: 'Importar prospectos desde un archivo' })
   async import(@Body() dto: ImportLeadsDto, @Req() req: AuthenticatedRequest) {
@@ -140,6 +143,7 @@ export class LeadController {
    * toda la organización.
    */
   @Get()
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Listar leads' })
   async list(@Query() query: ListLeadsQueryDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -258,6 +262,7 @@ export class LeadController {
    * @returns Identificador y nombre, nada más. Es lo único que la pantalla dibuja.
    */
   @Get('responsables')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Personas asignables en el CRM de una empresa' })
   async responsables(@Req() req: AuthenticatedRequest, @Query('clientId') solicitado?: string) {
     await this.assertPortalCrm(req);
@@ -271,6 +276,7 @@ export class LeadController {
 
   /** Devuelve un lead, siempre que pertenezca a una cuenta accesible para el usuario. */
   @Get(':id')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Obtener un lead' })
   async getById(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -286,6 +292,7 @@ export class LeadController {
    * puede escribir, el dato no sale. Con `oculto` no hay forma de pedirlos.
    */
   @Get(':id/datos-protegidos')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Ver los datos de contacto protegidos de un lead' })
   async datosProtegidos(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -307,6 +314,7 @@ export class LeadController {
    * al escribirse, así que la ficha no tiene que restar fechas para mostrarla.
    */
   @Get(':id/historial')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Historial de etapas de un lead' })
   async historial(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -330,6 +338,7 @@ export class LeadController {
 
   /** Actualiza estado, calidad o etiquetas de un lead de una cuenta accesible. */
   @Put(':id')
+  @RequiereArea('crm.prospectos', 'hacer')
   @ApiOperation({ summary: 'Actualizar estado de un lead' })
   async update(@Param('id') id: string, @Body() dto: UpdateLeadDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -416,6 +425,7 @@ export class LeadController {
    * persona puede haber reservado con varios clientes de la organización.
    */
   @Get(':id/reservations')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Historial de reservas de un lead' })
   async reservations(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -439,6 +449,7 @@ export class LeadController {
   }
 
   @Post(':id/convert')
+  @RequiereArea('crm.convertir', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Convertir lead a cliente' })
   async convert(@Param('id') id: string, @Req() req: AuthenticatedRequest) {

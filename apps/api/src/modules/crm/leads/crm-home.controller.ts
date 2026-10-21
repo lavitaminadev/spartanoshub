@@ -9,6 +9,7 @@ import { ClientCapabilityService } from '../../../core/client-scope/client-capab
 import { CrmDashboardService } from './crm-dashboard.service';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { UserRole } from '../../organizations/user-role.enum';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 /**
  * Lo que se ve al entrar al CRM.
@@ -54,6 +55,7 @@ export class CrmHomeController {
   }
 
   @Get()
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Avisos y carga del equipo al entrar al CRM' })
   async get(
     @Req() req: AuthenticatedRequest,
@@ -100,6 +102,7 @@ export class CrmHomeController {
   }
 
   @Get('dashboard')
+  @RequiereArea('crm.embudo', 'ver')
   @ApiOperation({ summary: 'Cifras del embudo comercial' })
   async panel(
     @Req() req: AuthenticatedRequest,

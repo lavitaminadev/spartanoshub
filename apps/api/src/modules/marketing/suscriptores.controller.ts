@@ -16,6 +16,7 @@ import type { AuthenticatedRequest } from '../../shared/types/request';
 import { SuscriptoresService } from './suscriptores.service';
 import { EstadoDeSuscripcion } from './suscriptor.entity';
 import { paginaDeBaja, paginaDeConfirmarBaja } from './pagina-de-baja';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 /** Lo que se necesita para importar una lista sin dejarla sin procedencia. */
 class ImportarSuscriptoresDto {
@@ -92,6 +93,7 @@ export class SuscriptoresController {
   }
 
   @Get()
+  @RequiereArea('marketing.suscriptores', 'ver')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Lista de suscriptores con su procedencia y estado' })
   async listar(
@@ -124,6 +126,7 @@ export class SuscriptoresController {
    * escribir, el dato no sale. Con `oculto` no hay forma de pedirlo.
    */
   @Get(':id/datos-protegidos')
+  @RequiereArea('marketing.suscriptores', 'ver')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Ver los datos protegidos de un suscriptor' })
   async datosProtegidos(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -151,6 +154,7 @@ export class SuscriptoresController {
    * de empresa preguntando por una dirección cualquiera sabría si esa persona está en el sistema.
    */
   @Get('exclusiones')
+  @RequiereArea('marketing.bajas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Si a una dirección se le pidió no escribir más' })
   async exclusiones(@Req() req: AuthenticatedRequest, @Query('correo') correo?: string) {
@@ -174,6 +178,7 @@ export class SuscriptoresController {
    * Sólo la agencia: es la que recibe el aviso y la que responde de haberlo aplicado.
    */
   @Post('exclusiones')
+  @RequiereArea('marketing.suscriptores', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Anotar una petición de baja recibida por fuera (SERNAC, teléfono, correo)' })
   async anotarPeticion(@Req() req: AuthenticatedRequest, @Body() dto: PeticionExternaDto) {
@@ -196,6 +201,7 @@ export class SuscriptoresController {
    * copia es responsabilidad de quien la tiene.
    */
   @Get('descargar')
+  @RequiereArea('marketing.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Descargar los suscritos de una empresa' })
   async descargar(@Req() req: AuthenticatedRequest, @Query('empresa') empresa: string) {
@@ -226,6 +232,7 @@ export class SuscriptoresController {
   }
 
   @Post('importar')
+  @RequiereArea('marketing.importar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Importar una lista de correos declarando su origen' })
   importar(@Req() req: AuthenticatedRequest, @Body() dto: ImportarSuscriptoresDto) {

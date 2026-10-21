@@ -9,6 +9,7 @@ import { Roles } from '../../core/authorization/roles.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { RequiresFeature } from '../../core/authorization/requires-feature.decorator';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 @ApiTags('Briefs')
 @Controller('briefs')
@@ -20,6 +21,7 @@ export class BriefsController {
   constructor(private service: BriefsService) {}
 
   @Post()
+  @RequiereArea('production.briefs', 'hacer')
   @Roles(UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Crear un nuevo brief' })
   create(@Body() dto: CreateBriefDto, @Req() req: AuthenticatedRequest) {
@@ -27,12 +29,14 @@ export class BriefsController {
   }
 
   @Get()
+  @RequiereArea('production.briefs', 'ver')
   @ApiOperation({ summary: 'Listar briefs' })
   findAll(@Query() query: PaginationDto, @Req() req: AuthenticatedRequest) {
     return this.service.findAll(req.organizationId, query.limit, query.offset);
   }
 
   @Get(':id')
+  @RequiereArea('production.briefs', 'ver')
   @ApiOperation({ summary: 'Obtener un brief por ID' })
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.service.findOne(id, req.organizationId);
@@ -46,12 +50,14 @@ export class BriefsController {
    * pieza recuerda su brief (migración 0180), se puede.
    */
   @Get(':id/piezas')
+  @RequiereArea('production.briefs', 'ver')
   @ApiOperation({ summary: 'Piezas producidas a partir de este brief' })
   piezas(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.service.piezasDelBrief(id, req.organizationId);
   }
 
   @Put(':id')
+  @RequiereArea('production.briefs', 'hacer')
   @Roles(UserRole.OPERATIONS_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Actualizar un brief' })
   update(@Param('id') id: string, @Body() dto: UpdateBriefDto, @Req() req: AuthenticatedRequest) {
@@ -59,6 +65,7 @@ export class BriefsController {
   }
 
   @Delete(':id')
+  @RequiereArea('production.briefs', 'hacer')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Eliminar un brief' })
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {

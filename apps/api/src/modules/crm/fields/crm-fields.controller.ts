@@ -9,6 +9,7 @@ import { Roles } from '../../../core/authorization/roles.decorator';
 import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../../shared/types/request';
 import { CrmFieldsService } from './crm-fields.service';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 const TIPOS = TIPOS_DE_CAMPO.map((tipo) => tipo.value);
 
@@ -63,6 +64,7 @@ export class CrmFieldsController {
   constructor(private readonly campos: CrmFieldsService) {}
 
   @Get()
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Campos propios de un tipo de registro' })
   /** @param clientId - Empresa que se está mirando: devuelve los campos de todas más los suyos. */
   listar(@Req() req: AuthenticatedRequest, @Query('entity') entity: string, @Query('archivados') archivados?: string, @Query('clientId') clientId?: string) {
@@ -70,6 +72,7 @@ export class CrmFieldsController {
   }
 
   @Post()
+  @RequiereArea('crm.campos', 'hacer')
   @Roles(...QUIEN_DEFINE)
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Crear un campo propio' })
@@ -78,6 +81,7 @@ export class CrmFieldsController {
   }
 
   @Patch(':id')
+  @RequiereArea('crm.campos', 'hacer')
   @Roles(...QUIEN_DEFINE)
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Cambiar nombre, orden, opciones o tipo de un campo' })
@@ -86,6 +90,7 @@ export class CrmFieldsController {
   }
 
   @Patch(':id/archivo')
+  @RequiereArea('crm.campos', 'hacer')
   @Roles(...QUIEN_DEFINE)
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Archivar o desarchivar un campo, sin borrar lo guardado' })

@@ -8,6 +8,7 @@ import type { AuthenticatedRequest } from '@shared/types/request';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 @Controller('crm/interactions')
 @UseGuards(AuthGuard('jwt'))
@@ -23,6 +24,7 @@ export class InteractionsController {
   ) {}
 
   @Post()
+  @RequiereArea('crm.contactos', 'hacer')
   async create(@Body() dto: CreateInteractionDto, @Req() req: AuthenticatedRequest) {
     /*
      * La empresa sale del lead o del contacto; sin ellos, de la que se está mirando.
@@ -43,6 +45,7 @@ export class InteractionsController {
   }
 
   @Get()
+  @RequiereArea('crm.contactos', 'ver')
   async findAll(@Query() query: ListInteractionsDto, @Req() req: AuthenticatedRequest) {
     // El portal toma la empresa de la sesión. El query string es controlable por el navegador y
     // no puede bloquear su propio calendario ni utilizarse para consultar la empresa vecina.
@@ -58,6 +61,7 @@ export class InteractionsController {
   }
 
   @Get(':id')
+  @RequiereArea('crm.contactos', 'ver')
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const interaction = await this.service.findOne(id, req.organizationId);
     await this.assertClientScope(req, await this.service.effectiveClientId(interaction, {}, req.organizationId));
@@ -65,6 +69,7 @@ export class InteractionsController {
   }
 
   @Put(':id')
+  @RequiereArea('crm.contactos', 'hacer')
   async update(@Param('id') id: string, @Body() dto: UpdateInteractionDto, @Req() req: AuthenticatedRequest) {
     const interaction = await this.service.findOne(id, req.organizationId);
     await this.assertClientScope(req, await this.service.effectiveClientId(interaction, {}, req.organizationId));
@@ -73,6 +78,7 @@ export class InteractionsController {
   }
 
   @Delete(':id')
+  @RequiereArea('crm.contactos', 'hacer')
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const interaction = await this.service.findOne(id, req.organizationId);
     await this.assertClientScope(req, await this.service.effectiveClientId(interaction, {}, req.organizationId));

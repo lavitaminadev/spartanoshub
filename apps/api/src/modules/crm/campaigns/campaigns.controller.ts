@@ -7,6 +7,7 @@ import { AccountAccessService } from '../../../core/client-scope/account-access.
 import { CampaignsService } from './campaigns.service';
 import { SaveCampaignDto } from './dto/save-campaign.dto';
 import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 /**
  * Campañas de captación y su costo por lead.
@@ -26,6 +27,7 @@ export class CampaignsController {
   ) {}
 
   @Get()
+  @RequiereArea('crm.medicion', 'ver')
   @ApiOperation({ summary: 'Campañas con su inversión y costo por lead' })
   async list(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const scope = await this.resolveScope(req, clientId);
@@ -41,6 +43,7 @@ export class CampaignsController {
    * sería tener la contraseña de escritura de una cuenta a un `GET` de distancia.
    */
   @Post()
+  @RequiereArea('crm.origenes', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Registrar una campaña y emitir su llave de entrada' })
   async create(@Body() dto: SaveCampaignDto, @Req() req: AuthenticatedRequest) {
@@ -67,6 +70,7 @@ export class CampaignsController {
   }
 
   @Put(':id')
+  @RequiereArea('crm.origenes', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Actualizar una campaña' })
   async update(@Param('id') id: string, @Body() dto: SaveCampaignDto, @Req() req: AuthenticatedRequest) {
@@ -79,6 +83,7 @@ export class CampaignsController {
   }
 
   @Delete(':id')
+  @RequiereArea('crm.origenes', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Eliminar una campaña' })
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {

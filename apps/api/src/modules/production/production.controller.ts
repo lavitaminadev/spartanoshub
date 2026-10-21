@@ -32,6 +32,7 @@ import { User } from '../users/user.entity';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ParameterResolver } from '../../core/parameters/parameter-resolver.service';
 import { RequiresFeature } from '../../core/authorization/requires-feature.decorator';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 @ApiTags('Produccion')
 @Controller('production/pieces')
@@ -62,6 +63,7 @@ export class ProductionController {
   ) {}
 
   @Post()
+  @RequiereArea('production.piezas', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Crear una nueva pieza' })
   async create(@Body() dto: CreatePieceDto, @Req() req: AuthenticatedRequest) {
@@ -105,6 +107,7 @@ export class ProductionController {
   }
 
   @Get()
+  @RequiereArea('production.piezas', 'ver')
   @ApiOperation({ summary: 'Listar piezas de produccion' })
   async list(@Query('status') status: PieceStatus, @Query('clientId') clientId: string, @Query('assignedTo') assignedTo: string, @Req() req: AuthenticatedRequest) {
     const effectiveAssignee = [UserRole.DESIGNER, UserRole.AUDIOVISUAL].includes(req.user.role as UserRole)
@@ -116,6 +119,7 @@ export class ProductionController {
   }
 
   @Get('options/assignees')
+  @RequiereArea('production.asignar', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Listar responsables creativos activos' })
   assigneeOptions(@Req() req: AuthenticatedRequest) {
@@ -131,6 +135,7 @@ export class ProductionController {
   }
 
   @Post(':id/assign')
+  @RequiereArea('production.asignar', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Asignar responsable a una pieza' })
   assign(@Param('id') id: string, @Body() dto: AssignPieceDto, @Req() req: AuthenticatedRequest) {
@@ -145,6 +150,7 @@ export class ProductionController {
    * había forma de verlos.
    */
   @Get(':id/versions')
+  @RequiereArea('production.piezas', 'ver')
   @ApiOperation({ summary: 'Listar versiones de una pieza' })
   async versions(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const piece = await this.pieceRepo.findOne({ where: { id, organizationId: req.organizationId } });
@@ -164,6 +170,7 @@ export class ProductionController {
   }
 
   @Post(':id/versions')
+  @RequiereArea('production.piezas', 'hacer')
   @Roles(UserRole.DESIGNER, UserRole.AUDIOVISUAL, UserRole.ART_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Subir nueva version de una pieza' })
   submitVersion(@Param('id') id: string, @Body() dto: SubmitVersionDto, @Req() req: AuthenticatedRequest) {
@@ -171,6 +178,7 @@ export class ProductionController {
   }
 
   @Post(':id/reject')
+  @RequiereArea('production.aprobaciones', 'hacer')
   // Rechazar una pieza es un acto de validación, no de producción: es lo que hace el cliente
   // desde su portal. Se declara sobre `approvals` para no tener que darle al cargo cliente
   // acceso de edición a todo el módulo de producción.
@@ -190,6 +198,7 @@ export class ProductionController {
   }
 
   @Post(':id/cancel')
+  @RequiereArea('production.cancelar', 'hacer')
   // La cancela quien lleva la cuenta, no el cliente. El cliente pide bajar un trabajo y la
   // community manager lo registra declarando de quién fue la decisión. Dejar el botón en el
   // portal convertiría un pedido en un movimiento de presupuesto que nadie revisó, y sin nadie
@@ -201,6 +210,7 @@ export class ProductionController {
   }
 
   @Post(':id/deliver')
+  @RequiereArea('production.entregar', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Entregar pieza al cliente' })
   deliver(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
@@ -208,6 +218,7 @@ export class ProductionController {
   }
 
   @Post(':id/approve')
+  @RequiereArea('production.aprobaciones', 'hacer')
   // Como el rechazo, aprobar es validación y no producción: lo hacen quienes revisan la
   // pieza, no quienes la fabrican.
   @RequiresPermission('approvals', 'edit')
@@ -227,6 +238,7 @@ export class ProductionController {
   }
 
   @Post(':id/start')
+  @RequiereArea('production.piezas', 'hacer')
   @Roles(UserRole.DESIGNER, UserRole.AUDIOVISUAL, UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Iniciar progreso de una pieza' })
   async startProgress(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
@@ -244,6 +256,7 @@ export class ProductionController {
   }
 
   @Post(':id/send-to-client')
+  @RequiereArea('production.aprobaciones', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Enviar pieza a validacion del cliente' })
   async sendToClient(@Param('id') id: string, @Req() req: AuthenticatedRequest) {

@@ -20,6 +20,7 @@ import { ReservationsBulkImportService } from './application/bulk-import.service
 import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListCanjesDto, ListCouponsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 @ApiTags('Reservas')
 @ApiBearerAuth()
@@ -113,6 +114,7 @@ export class ReservationsController {
 
   /** Envíos a Meta de una sucursal en los últimos 30 días: enviados, pendientes, fallidos y último error. */
   @Get('forms/:id/meta-health')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async metaHealth(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -121,6 +123,7 @@ export class ReservationsController {
 
   /** Pixels que este local puede elegir. Antes del `:id`, o la ruta la tomaría el detalle. */
   @Get('forms/meta-pixels')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async pixelesDisponibles(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -140,6 +143,7 @@ export class ReservationsController {
   }
 
   @Post('forms')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateReservationFormDto) {
     await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
@@ -148,6 +152,7 @@ export class ReservationsController {
   }
 
   @Get('forms/:id')
+  @RequiereArea('reservations.configurar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async form(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -156,6 +161,7 @@ export class ReservationsController {
   }
 
   @Patch('forms/:id/pause')
+  @RequiereArea('reservations.publicar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async pause(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PauseReservationFormDto) {
     const scope = await this.scope(req);
@@ -165,6 +171,7 @@ export class ReservationsController {
 
   @Patch('forms/:id')
   @RequiereAccion('reservations.configurar')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReservationFormDto) {
     const scope = await this.scope(req);
@@ -204,12 +211,14 @@ export class ReservationsController {
   /**
    * Los ajustes del día a día, sin pasar por el constructor.
    *
-   * No lleva `reservations.configurar`: es justamente la puerta que queda abierta para quien
-   * opera el local y no debe tocar campos, textos legales, medición ni publicación. La lista de
+   * No lleva la acción `reservations.configurar`: es la puerta que queda abierta para quien opera
+   * el local sin tocar campos, textos legales, medición ni publicación. Sí exige el área
+   * `reservations.configurar`, porque cupo, tolerancia y zonas son configuración del local. La lista de
    * lo que acepta la fija el DTO, y lo que no esté en ella se descarta aquí, no en la pantalla.
    */
   @Patch('forms/:id/operacion')
   @RequiresPermission('reservations', 'edit')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async actualizarOperacion(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ActualizarOperacionDto) {
     const scope = await this.scope(req);
@@ -218,6 +227,7 @@ export class ReservationsController {
   }
 
   @Post('forms/:id/duplicate')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async duplicate(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -227,6 +237,7 @@ export class ReservationsController {
 
   /** Quién cambió qué en esta reserva, para el hub: la auditoría completa sigue en Gobernanza. */
   @Get('forms/:id/ultimos-cambios')
+  @RequiereArea('reservations.configurar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async ultimosCambios(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -234,6 +245,7 @@ export class ReservationsController {
   }
 
   @Get('forms/:id/blocks')
+  @RequiereArea('reservations.configurar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async blocks(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -241,6 +253,7 @@ export class ReservationsController {
   }
 
   @Post('forms/:id/blocks')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async block(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: CreateBlockDto) {
     const scope = await this.scope(req);
@@ -248,6 +261,7 @@ export class ReservationsController {
   }
 
   @Post('forms/:id/blocks/batch')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async batchBlock(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body(new ParseArrayPipe({ items: CreateBlockDto, whitelist: true, forbidNonWhitelisted: true })) dtos: CreateBlockDto[]) {
     if (dtos.length > 365) throw new BadRequestException('No puedes crear mas de 365 bloqueos por lote');
@@ -263,6 +277,7 @@ export class ReservationsController {
   // administración: el cliente abre y cierra franjas a diario. Se declara `edit` en vez de
   // heredar el `manage` que el verbo asigna por omisión.
   @RequiresPermission('reservations', 'edit')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async deleteBlock(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -278,6 +293,7 @@ export class ReservationsController {
    * una decisión que se reserva al equipo de operaciones.
    */
   @Post('manual')
+  @RequiereArea('reservations.tomar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async createManual(@Req() req: AuthenticatedRequest, @Body() dto: CreateManualReservationDto) {
     const scope = await this.scope(req);
@@ -287,6 +303,7 @@ export class ReservationsController {
 
   @Post('import')
   @RequiereAccion('reservations.importar')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async importReservations(@Req() req: AuthenticatedRequest, @Body() dto: ImportReservationsDto) {
@@ -307,6 +324,7 @@ export class ReservationsController {
   }
 
   @Get()
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async list(@Req() req: AuthenticatedRequest, @Query() query: ListReservationsDto) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -316,6 +334,7 @@ export class ReservationsController {
   }
 
   @Patch(':id')
+  @RequiereArea('reservations.reservas', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateReservation(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReservationDto) {
     const scope = await this.scope(req);
@@ -336,6 +355,7 @@ export class ReservationsController {
   }
 
   @Get('group-requests')
+  @RequiereArea('reservations.espera_y_grupos', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async allGroupRequests(@Req() req: AuthenticatedRequest, @Query('formId') formId?: string, @Query('clientId') clientId?: string) {
     // La empresa elegida en el filtro acota de verdad; antes se ignoraba y la lista no cambiaba.
@@ -344,6 +364,7 @@ export class ReservationsController {
   }
 
   @Get('forms/:id/group-requests')
+  @RequiereArea('reservations.espera_y_grupos', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async groupRequests(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -352,6 +373,7 @@ export class ReservationsController {
 
   /** Convierte una solicitud de grupo en reserva real, con la fecha que se acordó. */
   @Post('group-requests/:id/convert')
+  @RequiereArea('reservations.espera_y_grupos', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async convertGroupRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ConvertGroupRequestDto) {
     const scope = await this.scope(req);
@@ -359,6 +381,7 @@ export class ReservationsController {
   }
 
   @Patch('group-requests/:id')
+  @RequiereArea('reservations.espera_y_grupos', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateGroupRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateGroupRequestDto) {
     const scope = await this.scope(req);
@@ -366,6 +389,7 @@ export class ReservationsController {
   }
 
   @Post('close-day')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async closeDay(@Req() req: AuthenticatedRequest, @Body() dto: CloseReservationDayDto) {
     const scope = await this.scope(req);
@@ -374,6 +398,7 @@ export class ReservationsController {
 
   /** Si esta persona ya reservó antes en la misma empresa. Solo lectura. */
   @Get(':id/guest-history')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async guestHistory(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -394,6 +419,7 @@ export class ReservationsController {
    * forma de pedirlos. Con `directo` ya los recibía en la ficha y no hay nada que anotar.
    */
   @Get(':id/datos-protegidos')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async datosProtegidos(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
     const scope = await this.scope(req);
@@ -413,6 +439,7 @@ export class ReservationsController {
 
   /** Quien ya llegó se fue, o sigue en la mesa: mueve el fin de la reserva y con él su cupo. */
   @Post(':id/salida')
+  @RequiereArea('reservations.turno', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async registrarSalida(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: RegistrarSalidaDto) {
     const scope = await this.scope(req);
@@ -420,6 +447,7 @@ export class ReservationsController {
   }
 
   @Get(':id/history')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async history(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -434,6 +462,7 @@ export class ReservationsController {
    */
   @Get(':id/historial')
   @RequiresPermission('reservations', 'view')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async historialDeReserva(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -441,6 +470,7 @@ export class ReservationsController {
   }
 
   @Get('coupons')
+  @RequiereArea('reservations.cupones', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async listCoupons(@Req() req: AuthenticatedRequest, @Query() query: ListCouponsDto) {
     /*
@@ -485,6 +515,7 @@ export class ReservationsController {
    */
   @Post('coupons')
   @RequiresPermission('reservations', 'manage')
+  @RequiereArea('reservations.cupones', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async createCoupon(@Req() req: AuthenticatedRequest, @Body() dto: CreateCouponDto) {
     // Una cuenta de empresa crea cupones sólo para sí misma, diga lo que diga el cuerpo.
@@ -502,6 +533,7 @@ export class ReservationsController {
   /** Cambiar un cupón es cambiar la oferta: el mismo `manage` que crearlo. */
   @Patch('coupons/:id')
   @RequiresPermission('reservations', 'manage')
+  @RequiereArea('reservations.cupones', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateCoupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateCouponDto) {
     const scope = await this.scope(req);
@@ -522,6 +554,7 @@ export class ReservationsController {
    */
   @Get('coupons/buscar')
   @RequiresPermission('reservations', 'edit')
+  @RequiereArea('reservations.canjear_cupon', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async buscarCupon(@Req() req: AuthenticatedRequest, @Query('codigo') codigo: string) {
     if (!codigo?.trim()) throw new BadRequestException('Escribe el código del cupón');
@@ -532,6 +565,7 @@ export class ReservationsController {
   /** Qué pasó con un cupón: cuándo se usó, por qué camino y cuánto costó. */
   @Get('coupons/:id/metricas')
   @RequiresPermission('reservations', 'view')
+  @RequiereArea('reservations.cupones', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async metricasDeCupon(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -547,6 +581,7 @@ export class ReservationsController {
    */
   @Get('coupons/:id/canjes')
   @RequiresPermission('reservations', 'view')
+  @RequiereArea('reservations.cupones', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async canjesDeCupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: ListCanjesDto) {
     const scope = await this.scope(req);
@@ -556,6 +591,7 @@ export class ReservationsController {
   /** Los mismos canjes, para abrir en una planilla y cuadrar con la caja. */
   @Get('coupons/:id/canjes.csv')
   @RequiereAccion('reservations.exportar')
+  @RequiereArea('reservations.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async canjesCsv(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: ListCanjesDto, @Res() res: Response) {
     const scope = await this.scope(req);
@@ -574,6 +610,7 @@ export class ReservationsController {
 
   @Post('coupons/:id/canjes')
   @RequiresPermission('reservations', 'edit')
+  @RequiereArea('reservations.canjear_cupon', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async canjearCuponEnLocal(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: CanjeDeCuponDto) {
     const scope = await this.scope(req);
@@ -582,6 +619,7 @@ export class ReservationsController {
 
   @Get('export/csv')
   @RequiereAccion('reservations.exportar')
+  @RequiereArea('reservations.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async exportCsv(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto, @Res() res: Response) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -607,6 +645,7 @@ export class ReservationsController {
 
   @Post('forms/:formId/export')
   @RequiereAccion('reservations.exportar')
+  @RequiereArea('reservations.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async exportForm(
     @Req() req: AuthenticatedRequest,
@@ -646,6 +685,7 @@ export class ReservationsController {
 
   /** Resumen del día para la portada operativa: cómo viene la jornada y si la señal llega. */
   @Get('analytics/operational-home')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async operationalHome(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -653,6 +693,7 @@ export class ReservationsController {
   }
 
   @Get('analytics/metrics')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async metrics(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -660,6 +701,7 @@ export class ReservationsController {
   }
 
   @Get('analytics/occupancy')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async occupancy(@Req() req: AuthenticatedRequest, @Query() query: OccupancyQueryDto) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -688,6 +730,7 @@ export class ReservationsController {
 
   /** Una reserva concreta: es a donde lleva tocar un aviso de reserva nueva, cancelada o reagendada. */
   @Get(':id')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async getReservation(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
     const scope = await this.scope(req);

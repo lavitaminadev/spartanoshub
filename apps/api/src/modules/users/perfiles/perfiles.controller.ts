@@ -12,6 +12,7 @@ import { AdministracionDelEquipoService } from '../administracion-del-equipo.ser
 import { AsignarPerfilDto, InvitarDto, PerfilDto } from './perfiles.dto';
 import { InvitacionesService } from './invitaciones.service';
 import { PerfilesService, type ContextoDePerfiles } from './perfiles.service';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 const CARGOS = [UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT] as const;
 
@@ -46,6 +47,7 @@ export class PerfilesController {
   }
 
   @Get()
+  @RequiereArea('users.equipo', 'ver')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Perfiles de la empresa, con cuántas personas usa cada uno' })
   async listar(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -53,6 +55,7 @@ export class PerfilesController {
   }
 
   @Get('asignaciones')
+  @RequiereArea('users.equipo', 'ver')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Qué perfil tiene cada persona de la empresa' })
   async asignaciones(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -60,6 +63,7 @@ export class PerfilesController {
   }
 
   @Get('reingresos')
+  @RequiereArea('users.equipo', 'ver')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Quiénes reingresaron al equipo, cuándo y por qué' })
   async reingresos(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -67,6 +71,7 @@ export class PerfilesController {
   }
 
   @Get('texto-de-confidencialidad')
+  @RequiereArea('users.equipo', 'ver')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Texto que se acepta al dar acceso a datos de categoría especial' })
   async texto(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -75,6 +80,7 @@ export class PerfilesController {
   }
 
   @Post('sugeridos')
+  @RequiereArea('users.perfiles', 'hacer')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Copiar los perfiles sugeridos de los módulos que la empresa tiene encendidos' })
   async sugeridos(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -83,6 +89,7 @@ export class PerfilesController {
   }
 
   @Get('invitaciones')
+  @RequiereArea('users.equipo', 'ver')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Invitaciones pendientes de la empresa' })
   async pendientes(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -91,6 +98,7 @@ export class PerfilesController {
 
   /** Responde lo mismo exista o no la cuenta del correo; ver `InvitacionesService`. */
   @Post('invitaciones')
+  @RequiereArea('users.invitar', 'hacer')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Invitar por correo, eligiendo el perfil en el mismo paso' })
   async invitar(@Req() req: AuthenticatedRequest, @Body() dto: InvitarDto, @Query('clientId') clientId?: string) {
@@ -100,6 +108,7 @@ export class PerfilesController {
   }
 
   @Delete('invitaciones/:id')
+  @RequiereArea('users.invitar', 'hacer')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Cancelar una invitación pendiente' })
   async cancelar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query('clientId') clientId?: string) {
@@ -108,6 +117,7 @@ export class PerfilesController {
   }
 
   @Put('asignaciones/:userId')
+  @RequiereArea('users.perfiles', 'hacer')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Asignar un perfil a una persona de la empresa' })
   async asignar(@Req() req: AuthenticatedRequest, @Param('userId') userId: string, @Body() dto: AsignarPerfilDto, @Query('clientId') clientId?: string) {
@@ -116,6 +126,7 @@ export class PerfilesController {
   }
 
   @Delete('equipo/:userId')
+  @RequiereArea('users.invitar', 'hacer')
   @Roles(...CARGOS)
   @RequiresRecentAuth('quitar a una persona del equipo')
   @ApiOperation({ summary: 'Retirar (o vetar) a una persona del equipo de esta empresa, con su motivo' })
@@ -130,6 +141,7 @@ export class PerfilesController {
   }
 
   @Post()
+  @RequiereArea('users.perfiles', 'hacer')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Crear un perfil' })
   async crear(@Req() req: AuthenticatedRequest, @Body() dto: PerfilDto, @Query('clientId') clientId?: string) {
@@ -137,6 +149,7 @@ export class PerfilesController {
   }
 
   @Put(':id')
+  @RequiereArea('users.perfiles', 'hacer')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Editar un perfil; cambia lo que ven quienes lo usan' })
   async editar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PerfilDto, @Query('clientId') clientId?: string) {
@@ -144,6 +157,7 @@ export class PerfilesController {
   }
 
   @Delete(':id')
+  @RequiereArea('users.perfiles', 'hacer')
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Borrar un perfil; si alguien lo usa hay que decir a quién pasan' })
   async borrar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query('reasignarA') reasignarA?: string, @Query('clientId') clientId?: string) {

@@ -32,6 +32,7 @@ import { camposProtegidosDe, recortarListaProtegidos, sePuedePedir } from '@espa
 import { contestadoEn, sinDatosDeContacto, soloDatosDeContacto } from './datos-de-contacto-protegidos';
 import { NivelDeDatosService } from '../../core/client-scope/nivel-de-datos.service';
 import { exigirConstanciaDeRevelacion } from '../../core/client-scope/revelar-protegidos';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 /**
  * El instante en que termina el día de una fecha dada.
@@ -125,6 +126,7 @@ export class SurveysController {
   }
 
   @Get()
+  @RequiereArea('surveys.editar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar encuestas' })
   async list(@Req() req: AuthenticatedRequest, @Query() filtros: ListSurveysDto) {
@@ -210,12 +212,14 @@ export class SurveysController {
    * Va antes de `:id` para que la ruta no se lea como el id de una encuesta.
    */
   @Get('company-legal')
+  @RequiereArea('surveys.editar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async companyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto) {
     return leerDatosLegales(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
   }
 
   @Put('company-legal')
+  @RequiereArea('surveys.editar', 'hacer')
   // Son los datos de la propia empresa: una empresa con sólo Encuestas (lectura) debe poder mantenerlos.
   @RequiresPermission('surveys', 'view')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
@@ -237,6 +241,7 @@ export class SurveysController {
   }
 
   @Get(':id')
+  @RequiereArea('surveys.editar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Leer una encuesta' })
   async detail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -244,6 +249,7 @@ export class SurveysController {
   }
 
   @Post()
+  @RequiereArea('surveys.editar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Crear una encuesta' })
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateSurveyDto) {
@@ -274,6 +280,7 @@ export class SurveysController {
   }
 
   @Put(':id')
+  @RequiereArea('surveys.editar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Actualizar una encuesta' })
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateSurveyDto) {
@@ -341,6 +348,7 @@ export class SurveysController {
   }
 
   @Delete(':id')
+  @RequiereArea('surveys.publicar', 'hacer')
   @RequiereAccion('surveys.borrar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Eliminar una encuesta' })
@@ -356,6 +364,7 @@ export class SurveysController {
   }
 
   @Get(':id/results')
+  @RequiereArea('surveys.resultados', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Resultados agregados de una encuesta' })
   async results(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() periodo?: SurveyResultsQueryDto) {
@@ -525,6 +534,7 @@ export class SurveysController {
    * anónima no hay nada que entregar.
    */
   @Get(':id/responses/:responseId/datos-protegidos')
+  @RequiereArea('surveys.resultados', 'ver')
   @RequiresPermission('surveys', 'view')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Ver quién respondió' })
@@ -550,6 +560,7 @@ export class SurveysController {
    * La empresa también puede hacerlo desde su portal: es quien suele contestarle a su cliente.
    */
   @Patch(':id/responses/:responseId/attention')
+  @RequiereArea('surveys.editar', 'hacer')
   // Marcar atendida no modifica la encuesta: basta con poder verla (la empresa tiene lectura).
   @RequiresPermission('surveys', 'view')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
@@ -663,6 +674,7 @@ export class SurveysController {
    * Quien lo usa responde por tener permiso para escribirles. La pantalla lo pide confirmar antes.
    */
   @Post(':id/send-email')
+  @RequiereArea('surveys.enviar', 'hacer')
   @RequiereAccion('surveys.enviar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Enviar la encuesta por correo a sus destinatarios' })

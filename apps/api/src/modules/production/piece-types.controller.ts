@@ -7,6 +7,7 @@ import { CreatePieceTypeDto, UpdatePieceTypeDto } from './dto/piece-type.dto';
 import { RequiresFeature } from '../../core/authorization/requires-feature.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 /**
  * Catálogo de tipos de pieza.
@@ -25,6 +26,7 @@ export class PieceTypesController {
   constructor(private readonly service: PieceTypesService) {}
 
   @Get()
+  @RequiereArea('production.piezas', 'ver')
   @ApiOperation({ summary: 'Listar tipos de pieza disponibles' })
   list(
     @Query('area') area: PieceTypeArea,
@@ -39,30 +41,35 @@ export class PieceTypesController {
 
   /** Si quien consulta puede aprobar, para que la vista muestre o esconda esas acciones. */
   @Get('can-approve')
+  @RequiereArea('production.piezas', 'ver')
   @ApiOperation({ summary: 'Indicar si el cargo puede aprobar tipos de pieza' })
   async canApprove(@Req() req: AuthenticatedRequest) {
     return { canApprove: await this.service.canApprove(req.organizationId, req.user.role as UserRole) };
   }
 
   @Post()
+  @RequiereArea('production.piezas', 'hacer')
   @ApiOperation({ summary: 'Proponer un tipo de pieza nuevo' })
   propose(@Body() dto: CreatePieceTypeDto, @Req() req: AuthenticatedRequest) {
     return this.service.propose(req.organizationId, dto, req.user.id, req.user.role as UserRole);
   }
 
   @Post(':id/approve')
+  @RequiereArea('production.piezas', 'hacer')
   @ApiOperation({ summary: 'Aprobar un tipo de pieza y ponerlo en circulacion' })
   approve(@Param('id') id: string, @Body() dto: UpdatePieceTypeDto, @Req() req: AuthenticatedRequest) {
     return this.service.approve(req.organizationId, id, req.user.role as UserRole, req.user.id, dto);
   }
 
   @Patch(':id')
+  @RequiereArea('production.piezas', 'hacer')
   @ApiOperation({ summary: 'Corregir un tipo de pieza del catalogo' })
   update(@Param('id') id: string, @Body() dto: UpdatePieceTypeDto, @Req() req: AuthenticatedRequest) {
     return this.service.update(req.organizationId, id, req.user.role as UserRole, dto);
   }
 
   @Post(':id/retire')
+  @RequiereArea('production.piezas', 'hacer')
   @ApiOperation({ summary: 'Retirar un tipo de pieza de circulacion' })
   retire(@Param('id') id: string, @Body() body: { reason?: string }, @Req() req: AuthenticatedRequest) {
     return this.service.retire(req.organizationId, id, req.user.role as UserRole, body?.reason);

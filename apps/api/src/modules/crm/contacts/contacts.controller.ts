@@ -12,6 +12,7 @@ import { camposProtegidosDe } from '@espartanos/shared';
 import { AuditService } from '../../../core/audit/audit.service';
 import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../../core/client-scope/nivel-de-datos.service';
 import { exigirConstanciaDeRevelacion } from '../../../core/client-scope/revelar-protegidos';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 /**
  * Vínculos de personas con cuentas. **Solo lectura y anotación.**
@@ -56,6 +57,7 @@ export class ContactsController {
   }
 
   @Get()
+  @RequiereArea('crm.contactos', 'ver')
   async findAll(@Query() query: ListContactsDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
@@ -66,6 +68,7 @@ export class ContactsController {
   }
 
   @Get('segments')
+  @RequiereArea('crm.contactos', 'ver')
   async segments(@Query('clientId') clientId: string | undefined, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
@@ -74,6 +77,7 @@ export class ContactsController {
   }
 
   @Get(':id')
+  @RequiereArea('crm.contactos', 'ver')
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -84,6 +88,7 @@ export class ContactsController {
 
   /** Correo y teléfono de un contacto, con la misma constancia que en la ficha del lead. */
   @Get(':id/datos-protegidos')
+  @RequiereArea('crm.contactos', 'ver')
   async datosProtegidos(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -99,6 +104,7 @@ export class ContactsController {
 
   /** Solo el papel en la cuenta y las notas. La identidad se edita en el lead. */
   @Patch(':id')
+  @RequiereArea('crm.contactos', 'hacer')
   async update(@Param('id') id: string, @Body() dto: UpdateContactDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);

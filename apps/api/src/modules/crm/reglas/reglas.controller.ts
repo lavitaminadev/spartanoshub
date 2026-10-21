@@ -11,6 +11,7 @@ import { RequiresPermission } from '../../../core/authorization/requires-permiss
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ClientCapabilityService } from '../../../core/client-scope/client-capability.service';
 import type { AuthenticatedRequest } from '../../../shared/types/request';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 /** Forma de un identificador de empresa, para rechazar lo que no puede serlo antes de consultar. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,6 +91,7 @@ export class ReglasController {
   ) {}
 
   @Get()
+  @RequiereArea('crm.reglas', 'ver')
   @RequiresPermission('crm', 'view')
   @ApiOperation({ summary: 'Reglas de una empresa, en orden' })
   async listar(@Req() req: AuthenticatedRequest, @Query('clientId') clientId: string, @Query('archivadas') archivadas?: string) {
@@ -97,6 +99,7 @@ export class ReglasController {
   }
 
   @Get('preguntas')
+  @RequiereArea('crm.reglas', 'ver')
   @RequiresPermission('crm', 'view')
   @ApiOperation({ summary: 'Preguntas que están llegando, con sus respuestas y cuántos las contestan' })
   async preguntas(@Req() req: AuthenticatedRequest, @Query('clientId') clientId: string) {
@@ -104,6 +107,7 @@ export class ReglasController {
   }
 
   @Post('probar')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Cuántos leads calzarían con una regla, sin tocarlos' })
   async probar(@Req() req: AuthenticatedRequest, @Query('clientId') clientId: string, @Body() dto: GuardarReglaDto) {
@@ -118,6 +122,7 @@ export class ReglasController {
    * es precisamente pedirlo.
    */
   @Post('aplicar')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'edit')
   @ApiOperation({ summary: 'Aplicar las reglas a los leads elegidos' })
   async aplicar(@Req() req: AuthenticatedRequest, @Query('clientId') clientId: string, @Body() dto: AplicarDto) {
@@ -125,6 +130,7 @@ export class ReglasController {
   }
 
   @Post()
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Crear una regla' })
   async crear(@Req() req: AuthenticatedRequest, @Query('clientId') clientId: string, @Body() dto: GuardarReglaDto) {
@@ -132,6 +138,7 @@ export class ReglasController {
   }
 
   @Put('orden')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Reordenar: manda la primera que calza' })
   async reordenar(@Req() req: AuthenticatedRequest, @Query('clientId') clientId: string, @Body() dto: OrdenDto) {
@@ -146,6 +153,7 @@ export class ReglasController {
    * calificación de cualquier otra, que es leerla.
    */
   @Post('copiar')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Copiar las reglas de otra empresa, apagadas' })
   async copiar(@Req() req: AuthenticatedRequest, @Query('clientId') clientId: string, @Body() dto: CopiarDto) {
@@ -156,6 +164,7 @@ export class ReglasController {
   }
 
   @Put(':id')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Editar una regla' })
   async editar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: GuardarReglaDto) {
@@ -164,6 +173,7 @@ export class ReglasController {
   }
 
   @Put(':id/activa')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Encender o apagar' })
   async activar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { activa: boolean }) {
@@ -172,6 +182,7 @@ export class ReglasController {
   }
 
   @Put(':id/automatica')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Que corra sola al entrar un lead, o solo a mano' })
   async automatizar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { automatica: boolean }) {
@@ -187,6 +198,7 @@ export class ReglasController {
    * porque es lo que la pantalla espera de un botón de quitar.
    */
   @Delete(':id')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Archivar una regla' })
   async archivar(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -195,6 +207,7 @@ export class ReglasController {
   }
 
   @Put(':id/restaurar')
+  @RequiereArea('crm.reglas', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Sacar del archivo' })
   async restaurar(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

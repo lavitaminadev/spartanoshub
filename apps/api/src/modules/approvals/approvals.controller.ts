@@ -16,6 +16,7 @@ import { Client } from '../clients/client.entity';
 import { Piece } from '../production/piece.entity';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 @ApiTags('Aprobaciones')
 @Controller('approvals')
@@ -33,6 +34,7 @@ export class ApprovalsController {
   ) {}
 
   @Post()
+  @RequiereArea('production.aprobaciones', 'hacer')
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Crear solicitud de aprobación' })
   async create(@Body() dto: CreateApprovalDto, @Req() req: AuthenticatedRequest) {
@@ -52,6 +54,7 @@ export class ApprovalsController {
   }
 
   @Get()
+  @RequiereArea('production.aprobaciones', 'ver')
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar solicitudes de aprobación' })
   async list(@Req() req: AuthenticatedRequest) {
@@ -62,6 +65,7 @@ export class ApprovalsController {
   }
 
   @Put(':id')
+  @RequiereArea('production.aprobaciones', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Aprobar o rechazar solicitud' })
   async update(@Param('id') id: string, @Body() dto: UpdateApprovalDto, @Req() req: AuthenticatedRequest) {
