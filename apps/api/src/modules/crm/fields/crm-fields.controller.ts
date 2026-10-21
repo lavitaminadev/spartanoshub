@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, IsUUID } from 'class-validator';
 import { TIPOS_DE_CAMPO } from '@espartanos/shared';
+import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { ModuleScope } from '../../../core/authorization/module-scope.decorator';
 import { RequiresPermission } from '../../../core/authorization/requires-permission.decorator';
 import { Roles } from '../../../core/authorization/roles.decorator';
@@ -61,14 +62,27 @@ const QUIEN_DEFINE = [UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR];
 @Controller('crm/fields')
 @ModuleScope('crm')
 export class CrmFieldsController {
-  constructor(private readonly campos: CrmFieldsService) {}
+  constructor(
+    private readonly campos: CrmFieldsService,
+    private readonly accesos: AccountAccessService,
+  ) {}
 
+  /**
+   * Campos propios de un tipo de registro: los comunes de la organización más los de la empresa.
+   *
+   * @param clientId - Empresa que se está mirando. Se comprueba contra el alcance de la cuenta:
+   *   el nombre de un campo propio dice a qué se dedica la empresa y qué anota de sus clientes,
+   *   así que leer los de otra cuenta es leer su operación. Las rutas de escritura de este
+   *   controlador no lo necesitan porque `@Roles` las deja en cargos sin límite de alcance; esta
+   *   la alcanza cualquiera con lectura de CRM, incluida una cuenta de portal.
+   */
   @Get()
   @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Campos propios de un tipo de registro' })
-  /** @param clientId - Empresa que se está mirando: devuelve los campos de todas más los suyos. */
-  listar(@Req() req: AuthenticatedRequest, @Query('entity') entity: string, @Query('archivados') archivados?: string, @Query('clientId') clientId?: string) {
-    return this.campos.listar(req.organizationId!, entity, archivados === 'true', clientId || undefined);
+  async listar(@Req() req: AuthenticatedRequest, @Query('entity') entity: string, @Query('archivados') archivados?: string, @Query('clientId') clientId?: string) {
+    const empresa = clientId?.trim() || undefined;
+    if (empresa) await this.accesos.assertClient(req.organizationId!, req.user, empresa);
+    return this.campos.listar(req.organizationId!, entity, archivados === 'true', empresa);
   }
 
   @Post()
