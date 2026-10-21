@@ -21,6 +21,7 @@ import {
 import { api } from '../../core/api';
 import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { QueVeUnaPersona } from './QueVeUnaPersona';
 
 interface PerfilFila {
   id: string;
@@ -71,6 +72,7 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, onCerrar }: 
   const [editando, setEditando] = useState<PerfilFila | 'nuevo' | null>(null);
   const [borrando, setBorrando] = useState<PerfilFila | null>(null);
   const [quitando, setQuitando] = useState<Persona | null>(null);
+  const [mirando, setMirando] = useState<Persona | null>(null);
   const [motivo, setMotivo] = useState('');
   const [vetar, setVetar] = useState(false);
   const [mensaje, setMensaje] = useState<{ tono: 'success' | 'error'; texto: string } | null>(null);
@@ -167,6 +169,7 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, onCerrar }: 
                 <option value="">Sin perfil</option>
                 {lista.map((perfil) => <option key={perfil.id} value={perfil.id}>{perfil.nombre}</option>)}
               </select>{' '}
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setMirando(persona)}>Qué ve</button>{' '}
               <button type="button" className="btn btn-outline btn-sm" onClick={() => setQuitando(persona)}>Quitar del equipo</button>
             </li>
           ))}
@@ -187,6 +190,10 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, onCerrar }: 
             ))}
           </ul>
         </section>
+      )}
+
+      {mirando && (
+        <QueVeUnaPersona clientId={clientId} empresa={empresa} persona={mirando} onCerrar={() => setMirando(null)} />
       )}
 
       {editando && (
