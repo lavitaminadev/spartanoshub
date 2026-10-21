@@ -108,3 +108,20 @@ describe('nivel de área', () => {
     await expect(servicio.alcanzaArea(ORG, USUARIO, EMPRESA, 'reservations.inventada', 'hacer')).rejects.toThrow(/inventada/);
   });
 });
+
+/**
+ * Descartar un prospecto no tiene ruta propia: viaja como un estado dentro de editarlo, así que
+ * el decorador —que mira la ruta y no el cuerpo— no alcanza y se comprueba en el controlador.
+ * Estas dos fijan que el área exista y se comporte como las demás.
+ */
+describe('descartar, el área sin ruta propia', () => {
+  it('un perfil que no la incluye no descarta', async () => {
+    const servicio = montar({ perfil: { 'crm.prospectos': 'hacer' } });
+    await expect(servicio.alcanzaArea(ORG, USUARIO, EMPRESA, 'crm.descartar', 'hacer')).resolves.toBe(false);
+  });
+
+  it('y uno que sí la incluye, descarta aunque sólo vea los prospectos', async () => {
+    const servicio = montar({ perfil: { 'crm.prospectos': 'ver', 'crm.descartar': 'hacer' } });
+    await expect(servicio.alcanzaArea(ORG, USUARIO, EMPRESA, 'crm.descartar', 'hacer')).resolves.toBe(true);
+  });
+});

@@ -42,6 +42,6 @@ import { ParametersModule } from '../parameters/parameters.module';
     // Después del de módulo: primero se entra al módulo, luego se puede o no hacer la acción.
     { provide: APP_GUARD, useClass: AccionGuard },
   ],
-  exports: [PermissionResolverService, AccionesService, TypeOrmModule],
+  exports: [PermissionResolverService, AccionesService, NivelDeAreaService, TypeOrmModule],
 })
 export class AuthorizationModule {}

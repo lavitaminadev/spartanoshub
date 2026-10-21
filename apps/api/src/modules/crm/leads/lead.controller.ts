@@ -34,6 +34,8 @@ import { AuditService } from '../../../core/audit/audit.service';
 import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../../core/client-scope/nivel-de-datos.service';
 import { exigirConstanciaDeRevelacion } from '../../../core/client-scope/revelar-protegidos';
 import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
+import { NivelDeAreaService } from '../../../core/client-scope/nivel-de-area.service';
+import { LeadStatus } from './lead-status.enum';
 
 @ApiTags('CRM - Leads')
 @Controller('crm/leads')
@@ -70,6 +72,8 @@ export class LeadController {
     private readonly responsablesDelCrm: ResponsablesDelCrmService,
     private readonly niveles: NivelDeDatosService,
     private readonly audit: AuditService,
+    // Al final, como el resto: las pruebas construyen este controlador por posición.
+    private readonly areas: NivelDeAreaService,
   ) {}
 
   /**
@@ -349,6 +353,23 @@ export class LeadController {
     // El lead ya pasó por el alcance: lo que el portal no puede es cambiarlo de empresa.
     if (req.user.role === UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== lead.clientId) {
       throw new ForbiddenException('El portal no puede mover contactos fuera de su empresa');
+    }
+
+    /*
+     * Descartar es un área aparte, y no se puede declarar en la ruta.
+     *
+     * Cerrar un prospecto no tiene endpoint propio: viaja como un estado dentro de esta misma
+     * edición, así que `@RequiereArea` —que mira la ruta y no el cuerpo— no alcanza. Se comprueba
+     * aquí, que es donde ya se sabe sobre qué empresa va la petición.
+     *
+     * Sólo cuando el descarte es **nuevo**, con el mismo criterio con que el caso de uso exige
+     * motivo: corregir el texto de un prospecto ya cerrado no vuelve a cerrarlo.
+     */
+    if (dto.status === LeadStatus.LOST && lead.status !== LeadStatus.LOST) {
+      const puede = await this.areas.alcanzaArea(
+        req.organizationId, req.user.id, lead.clientId ?? undefined, 'crm.descartar', 'hacer',
+      );
+      if (!puede) throw new ForbiddenException('Tu perfil no incluye descartar prospectos');
     }
     if (req.user.role === UserRole.CLIENT && dto.excludedFromMeta !== undefined) {
       throw new ForbiddenException('El portal no puede cambiar la medición publicitaria');
