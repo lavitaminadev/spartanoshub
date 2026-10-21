@@ -121,8 +121,8 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
     permisos.can.mockImplementation(async (_org: string, _user: string, _rol: string, modulo: string) => modulo !== 'users');
     settings.list.mockResolvedValue([{ key: 'email.reservation_confirmation_subject' }]);
 
-    await expect(controller.correos(request)).rejects.toThrow(ForbiddenException);
-    await expect(controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } }))
+    await expect(controller.correos(request, 'c-1' as any)).rejects.toThrow(ForbiddenException);
+    await expect(controller.guardarCorreos(request, { values: { 'email.reservation_confirmation_subject': 'Hola' } }, 'c-1' as any))
       .rejects.toThrow(ForbiddenException);
     expect(settings.update).not.toHaveBeenCalled();
   });
@@ -133,7 +133,7 @@ describe('OrganizationSettingsController: límites de configuración por rol', (
     permisos.can.mockResolvedValue(true);
     settings.list.mockResolvedValue([{ key: 'email.reservation_confirmation_subject' }]);
 
-    await expect(controller.correos(request)).resolves.toEqual([{ key: 'email.reservation_confirmation_subject' }]);
+    await expect(controller.correos(request, 'c-1' as any)).resolves.toEqual([{ key: 'email.reservation_confirmation_subject' }]);
   });
 
   /*
@@ -164,16 +164,16 @@ describe('Correos: la empresa no edita el texto', () => {
   const administradora = { organizationId: 'org-1', user: { id: 'ana', role: UserRole.CLIENT, clientId: 'c-1' } } as any;
 
   it('no puede cambiar el asunto ni el cuerpo', async () => {
-    await expect(controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_subject': 'Hola' } }))
+    await expect(controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_subject': 'Hola' } }, 'c-1' as any))
       .rejects.toThrow(ForbiddenException);
-    await expect(controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_body': 'Hola' } }))
+    await expect(controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_body': 'Hola' } }, 'c-1' as any))
       .rejects.toThrow(ForbiddenException);
     expect(settings.update).not.toHaveBeenCalled();
   });
 
   it('sí puede encenderlo o apagarlo', async () => {
     settings.update.mockResolvedValue([]);
-    await controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_enabled': false } });
+    await controller.guardarCorreos(administradora, { values: { 'email.reservation_confirmation_enabled': false } }, 'c-1' as any);
     expect(settings.update).toHaveBeenCalledWith('org-1', 'ana', { 'email.reservation_confirmation_enabled': false }, 'c-1', null);
   });
 

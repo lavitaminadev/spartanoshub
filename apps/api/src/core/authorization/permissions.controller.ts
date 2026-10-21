@@ -19,6 +19,8 @@ import { roleLevel } from './role-permissions';
 import { AuditService } from '../audit/audit.service';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { ModuleExempt, ModuleScope } from '../authorization/module-scope.decorator';
+import { ambitoDeLaPeticion } from '../client-scope/empresa.interceptor';
+import { esUnaEmpresa } from '../client-scope/empresa-resuelta';
 import { AccountAccessService } from '../client-scope/account-access.service';
 import { UserClientAccess } from '../client-scope/user-client-access.entity';
 import { GrantClientAccessDto } from './dto/grant-client-access.dto';
@@ -269,12 +271,9 @@ export class PermissionsController {
      * Administrar el equipo se concede empresa por empresa, y al resolver sin ninguna todas esas
      * concesiones se descartaban: `users` quedaba siempre en «none», así que marcar «Administra el
      * equipo» no encendía nada —ni el menú Equipo, ni Correos, ni Datos legales— por más que la
-     * concesión estuviera guardada. Se toma la empresa que está mirando, comprobada contra su
-     * alcance, y si no manda ninguna, la de su cuenta.
+     * concesión estuviera guardada. Se toma la empresa de la petición, ya resuelta contra su alcance.
      */
-    const empresa = req.user.role === UserRole.CLIENT
-      ? await this.empresaDelPortal(req, clientId)
-      : clientId;
+    const empresa = await this.empresaDeLosPermisos(req, clientId);
     const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role as UserRole, empresa);
     // Las acciones van junto a los niveles para que la pantalla esconda lo que el servidor rechazaría.
     const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role as UserRole, empresa)).map((accion) => [accion.clave, accion.permitida]));
@@ -282,17 +281,24 @@ export class PermissionsController {
   }
 
   /**
-   * La empresa pedida si esa cuenta de portal la alcanza; si no, la de su cuenta.
+   * La empresa sobre la que se piden los permisos.
    *
-   * La pedida llega del navegador, así que se comprueba contra el alcance en vez de creerle. Se
-   * cae a la suya en silencio y no con un error: pedir los propios permisos no puede fallar por
-   * una empresa mal escrita, porque sin permisos la aplicación queda inutilizable.
+   * Una cuenta de portal la toma de la petición ya resuelta: la que declara si la alcanza, la
+   * única que tiene si no declara ninguna, y un 404 o un 400 en los demás casos. No se repliega
+   * a la de su cuenta cuando pidió otra.
+   *
+   * El equipo interno no resuelve aquí: sus permisos por defecto no dependen de una empresa, y
+   * esta es la petición con la que arranca la aplicación, así que exigirle una a quien atiende
+   * varias la dejaría sin menú. Lo que declare se comprueba contra su alcance.
    */
-  private async empresaDelPortal(req: AuthenticatedRequest, pedida?: string): Promise<string | undefined> {
-    const propia = req.user.clientId ?? undefined;
-    if (!pedida || pedida === propia) return propia;
-    const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user).catch(() => undefined);
-    return alcanzables?.includes(pedida) ? pedida : propia;
+  private async empresaDeLosPermisos(req: AuthenticatedRequest, declarada?: string): Promise<string | undefined> {
+    if (req.user.role === UserRole.CLIENT) {
+      const ambito = ambitoDeLaPeticion(req as unknown as Record<PropertyKey, unknown>);
+      if (ambito instanceof Error) throw ambito;
+      return ambito !== undefined && esUnaEmpresa(ambito) ? ambito : undefined;
+    }
+    if (declarada) await this.accountAccess.assertClient(req.organizationId, req.user, declarada);
+    return declarada || undefined;
   }
 
   /**

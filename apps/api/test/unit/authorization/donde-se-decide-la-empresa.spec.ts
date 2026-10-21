@@ -51,7 +51,6 @@ const RESUELVEN_LA_IDENTIDAD = [
 const PENDIENTES_DE_MIGRAR = [
   'core/authorization/permissions.controller.ts',
   'core/notifications/destinatarios-de-avisos.controller.ts',
-  'core/parameters/organization-settings.controller.ts',
   'modules/client-portal/portal-home.controller.ts',
   'modules/crm/leads/lead.controller.ts',
   'modules/meetings/meetings.controller.ts',
