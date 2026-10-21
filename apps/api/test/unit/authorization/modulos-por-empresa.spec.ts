@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PermissionGuard } from '../../../src/core/authorization/permission.guard';
 import { MODULE_SCOPE_KEY } from '../../../src/core/authorization/module-scope.decorator';
@@ -21,6 +21,14 @@ const contexto = (clientId: string, role = 'dev') => ({
   getHandler: vi.fn(), getClass: vi.fn(),
   switchToHttp: () => ({
     getRequest: () => ({ method: 'GET', url: '/api/x', organizationId: 'org', query: { clientId }, user: { id: 'u', role, organizationId: 'org' } }),
+  }),
+}) as never;
+
+/** La misma petición, sin nombrar ninguna empresa. */
+const sinEmpresa = (role = 'dev') => ({
+  getHandler: vi.fn(), getClass: vi.fn(),
+  switchToHttp: () => ({
+    getRequest: () => ({ method: 'GET', url: '/api/x', organizationId: 'org', query: {}, user: { id: 'u', role, organizationId: 'org' } }),
   }),
 }) as never;
 
@@ -58,6 +66,27 @@ describe('los módulos por empresa', () => {
 
     await expect(guard.canActivate(contexto('sin'))).rejects.toThrow(ForbiddenException);
     await expect(guard.canActivate(contexto('con'))).resolves.toBe(true);
+  });
+
+  /*
+   * La reja se comprobaba sólo si la petición nombraba una empresa, así que quitar `?clientId=`
+   * de la dirección dejaba la petición sin capacidad **y** sin empresa: entraba. Para un módulo
+   * cuyo sujeto es siempre una empresa atendida, no decir cuál no es una consulta agregada.
+   */
+  it.each([...CAPACIDADES_DE_MODULO])('%s: omitir la empresa no salta la comprobación', async (modulo) => {
+    const guard = new PermissionGuard(reflector(modulo), permisos, capacidadesDe({ con: { [modulo]: true } }));
+
+    await expect(guard.canActivate(sinEmpresa())).rejects.toThrow(BadRequestException);
+  });
+
+  /*
+   * Y el otro lado: CRM, Reservas y Encuestas tienen rutas que de verdad son de la agencia —el
+   * panel de dirección, los listados—, así que exigirles empresa las rompería.
+   */
+  it.each(['crm', 'reservations', 'surveys'])('%s sigue admitiendo una petición sin empresa', async (modulo) => {
+    const guard = new PermissionGuard(reflector(modulo), permisos, capacidadesDe({}));
+
+    await expect(guard.canActivate(sinEmpresa())).resolves.toBe(true);
   });
 
   it('encender uno no abre los otros', async () => {
