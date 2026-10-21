@@ -38,29 +38,55 @@ const RESUELVEN_LA_IDENTIDAD = [
   'core/auth/jwt.strategy.ts',
   'core/client-scope/account-access.service.ts',
   'core/client-scope/empresa-resuelta.ts',
+  /*
+   * El único sitio donde se decide de qué empresa son los datos legales, que Reservas y Encuestas
+   * resolvían cada una por su cuenta. Aplica la misma tabla y lee la empresa de la cuenta sólo
+   * como el caso «no la declara y alcanza una sola».
+   */
+  'modules/clients/datos-legales-de-empresa.ts',
   'core/authorization/permission.guard.ts',
   'core/authorization/requiere-accion.ts',
+];
+
+/**
+ * Los que la leen por otra razón, no para decidir sobre qué empresa va la petición.
+ *
+ * Son los que el triaje de la migración separó, y la diferencia importa: reescribirlos «por
+ * uniformidad» cambiaría lo que hacen. Cada uno dice aquí por qué está.
+ */
+const LA_LEEN_POR_OTRA_RAZON = [
+  /*
+   * Compara con la propia («¿es su empresa?») y reconstruye la cuenta de **otra** persona para
+   * preguntar qué alcanza ella: ahí `clientId` es un dato de esa cuenta, no de esta petición.
+   */
+  'core/authorization/permissions.controller.ts',
+  /* Compara con la propia antes de responder 404. */
+  'modules/meetings/meetings.controller.ts',
+  /*
+   * **Asigna** a qué empresa pertenece una cuenta. Es el dato que todo lo demás lee, no un
+   * repliegue: aquí es donde se escribe.
+   */
+  'modules/users/update-user.use-case.ts',
+  /*
+   * Honran la empresa declarada y sólo usan la de la cuenta cuando no se declaró ninguna, que es
+   * la regla del contrato —«no la declara y alcanza una sola → esa»—, con `assertClient` delante.
+   */
+  'modules/client-portal/portal-home.controller.ts',
+  'core/notifications/destinatarios-de-avisos.controller.ts',
+  'modules/reservations/reservations.controller.ts',
+  'modules/users/administracion-del-equipo.service.ts',
 ];
 
 /**
  * Los que todavía la deciden por su cuenta, y que `@Empresa()` va a reemplazar.
  *
  * Esta lista sólo puede encogerse. Cada nombre que sale de aquí es una ruta que pasó a recibir la
- * empresa ya comprobada; ninguno debería volver a entrar.
+ * empresa ya comprobada; ninguno debería volver a entrar. Vacía significa que la migración
+ * terminó, y entonces lo que queda vigilando es el primer caso: que no aparezca uno nuevo.
  */
-const PENDIENTES_DE_MIGRAR = [
-  'core/authorization/permissions.controller.ts',
-  'core/notifications/destinatarios-de-avisos.controller.ts',
-  'modules/client-portal/portal-home.controller.ts',
-  'modules/crm/leads/lead.controller.ts',
-  'modules/meetings/meetings.controller.ts',
-  'modules/reservations/reservations.controller.ts',
-  'modules/surveys/surveys.controller.ts',
-  'modules/users/administracion-del-equipo.service.ts',
-  'modules/users/update-user.use-case.ts',
-];
+const PENDIENTES_DE_MIGRAR: string[] = [];
 
-const PERMITIDOS = new Set([...RESUELVEN_LA_IDENTIDAD, ...PENDIENTES_DE_MIGRAR]);
+const PERMITIDOS = new Set([...RESUELVEN_LA_IDENTIDAD, ...LA_LEEN_POR_OTRA_RAZON, ...PENDIENTES_DE_MIGRAR]);
 
 function archivosTs(directorio: string, acumulado: string[] = []): string[] {
   for (const entrada of readdirSync(directorio, { withFileTypes: true })) {
@@ -99,7 +125,8 @@ describe('dónde se decide la empresa de la petición', () => {
    */
   it('la lista de pendientes no nombra archivos que ya no la leen', () => {
     const leen = new Set(losQueLeenLaEmpresaDeLaCuenta());
-    const sobrantes = [...PENDIENTES_DE_MIGRAR, ...RESUELVEN_LA_IDENTIDAD].filter((ruta) => !leen.has(ruta));
+    const sobrantes = [...PENDIENTES_DE_MIGRAR, ...LA_LEEN_POR_OTRA_RAZON, ...RESUELVEN_LA_IDENTIDAD]
+      .filter((ruta) => !leen.has(ruta));
 
     expect(sobrantes, [
       'Estos archivos ya no leen la empresa desde la cuenta. Sácalos de la lista de este archivo:',

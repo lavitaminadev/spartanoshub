@@ -67,7 +67,6 @@ export class UpdateLeadUseCase {
     },
     organizationId: string,
     actorId?: string,
-    actorClientId?: string | null,
   ) {
     const lead = await this.repo.findOne({ where: { id, organizationId } });
     if (!lead) throw new NotFoundException('Lead not found');
@@ -173,7 +172,8 @@ export class UpdateLeadUseCase {
      *
      * Solo alcanza a quien pertenece a la empresa del lead. Desde la agencia se supervisa un
      * embudo sin venderlo, y quedarse como responsable por corregir una etapa atribuiría ese
-     * trabajo a quien no lo hace.
+     * trabajo a quien no lo hace. Lo garantiza la propia lista de responsables: son las cuentas
+     * cuya empresa es la del lead, así que estar en ella —y ser la única— es pertenecer.
      *
      * Una asignación explícita en la misma petición manda: quien eligió responsable ya decidió.
      */
@@ -183,7 +183,6 @@ export class UpdateLeadUseCase {
       && actorId
       && etapaPrevia !== lead.status
       && lead.clientId
-      && actorClientId === lead.clientId
     ) {
       const equipo = await this.responsables.execute(organizationId, lead.clientId);
       if (equipo.length === 1 && equipo[0].id === actorId) lead.assignedTo = actorId;
