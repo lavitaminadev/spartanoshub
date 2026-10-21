@@ -193,7 +193,8 @@ export class ProductionController {
       ...dto,
       userId: req.user.id,
       role: req.user.role as UserRole,
-      clientId: req.user.clientId,
+      // Ya se comprobó contra la empresa de la pieza: es esa la que se entrega al caso de uso.
+      clientId: piece.clientId,
     });
   }
 

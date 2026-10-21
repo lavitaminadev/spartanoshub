@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReportingController } from '../../../src/modules/reports/reports.controller';
+import { AGENCIA } from '../../../src/core/client-scope/empresa-resuelta';
 
 const dataSource = {
   query: vi.fn(),
@@ -31,7 +32,7 @@ describe('ReportingController', () => {
     const result = await controller.reports({
       organizationId: 'org-1',
       user: { role: 'admin' },
-    } as any);
+    } as any, AGENCIA);
 
     expect(dataSource.query.mock.calls[0][0]).toContain('FROM invoices');
     expect(dataSource.query.mock.calls[0][0]).not.toContain('billing_invoices');
@@ -68,7 +69,7 @@ describe('ReportingController', () => {
     await controller.reports({
       organizationId: 'org-1',
       user: { role: 'client', clientId: 'client-1' },
-    } as any);
+    } as any, 'client-1' as any);
 
     expect(dataSource.query.mock.calls[0][0]).toContain('client_id = ?');
     expect(dataSource.query.mock.calls[0][1]).toEqual(['org-1', 'client-1']);
@@ -108,7 +109,7 @@ describe('ReportingController', () => {
     await controller.reports({
       organizationId: 'org-1',
       user: { id: 'cm-1', role: 'community_manager' },
-    } as any);
+    } as any, AGENCIA);
 
     expect(dataSource.query.mock.calls[0][0]).toContain('client_id IN (?,?)');
     expect(dataSource.query.mock.calls[0][1]).toEqual(['org-1', 'client-1', 'client-2']);
