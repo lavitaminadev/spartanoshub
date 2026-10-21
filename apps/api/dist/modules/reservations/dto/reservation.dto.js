@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CanjeDeCuponDto = exports.ActualizarOperacionDto = exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.ReservationScopeDto = exports.ListCanjesDto = exports.ListCouponsDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.ConvertGroupRequestDto = exports.UpdateReservationDto = exports.RegistrarSalidaDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.CaptacionPublicaDto = exports.PublicLookupReservationDto = exports.PublicRecoverReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
+exports.CanjeDeCuponDto = exports.ActualizarOperacionDto = exports.PauseReservationFormDto = exports.OccupancyQueryDto = exports.ExportCsvQueryDto = exports.ReservationScopeDto = exports.ListCanjesDto = exports.ListCouponsDto = exports.HojaDelTurnoDto = exports.ExportFormReservationsDto = exports.UpdateCouponDto = exports.ListReservationsDto = exports.ImportReservationsDto = exports.CreateManualReservationDto = exports.CreateCouponDto = exports.UpdateContactRequestDto = exports.PublicContactRequestDto = exports.PublicSurveyResponseDto = exports.PublicFormEventDto = exports.UpdateGroupRequestDto = exports.ConvertGroupRequestDto = exports.UpdateReservationDto = exports.RegistrarSalidaDto = exports.CloseReservationDayDto = exports.PublicReservationHoldDto = exports.PublicRescheduleReservationDto = exports.CaptacionPublicaDto = exports.PublicLookupReservationDto = exports.PublicRecoverReservationDto = exports.PublicGroupRequestDto = exports.PublicReservationDto = exports.CouponValidateDto = exports.CreateBlockDto = exports.UpdateReservationFormDto = exports.CreateReservationFormDto = exports.FormFieldDto = exports.CHILEAN_MOBILE_PHONE_MESSAGE = exports.CHILEAN_MOBILE_PHONE = exports.FORM_FIELD_TYPES = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const vacioComoAusente = ({ value }) => (value === '' ? undefined : value);
@@ -1522,7 +1522,7 @@ class ExportFormReservationsDto {
 }
 exports.ExportFormReservationsDto = ExportFormReservationsDto;
 __decorate([
-    (0, class_validator_1.IsIn)(['csv', 'json', 'xlsx']),
+    (0, class_validator_1.IsIn)(['csv', 'xlsx']),
     __metadata("design:type", String)
 ], ExportFormReservationsDto.prototype, "format", void 0);
 __decorate([
@@ -1541,6 +1541,19 @@ __decorate([
     (0, class_validator_1.MaxLength)(120, { each: true }),
     __metadata("design:type", Array)
 ], ExportFormReservationsDto.prototype, "fields", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], ExportFormReservationsDto.prototype, "motivo", void 0);
+class HojaDelTurnoDto {
+}
+exports.HojaDelTurnoDto = HojaDelTurnoDto;
+__decorate([
+    (0, class_validator_1.Matches)(/^\d{4}-\d{2}-\d{2}$/),
+    __metadata("design:type", String)
+], HojaDelTurnoDto.prototype, "fecha", void 0);
 class ListCouponsDto {
 }
 exports.ListCouponsDto = ListCouponsDto;
@@ -1630,6 +1643,15 @@ __decorate([
     (0, class_validator_1.Max)(365),
     __metadata("design:type", Number)
 ], ReservationScopeDto.prototype, "days", void 0);
+class ExportCsvQueryDto extends ReservationScopeDto {
+}
+exports.ExportCsvQueryDto = ExportCsvQueryDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], ExportCsvQueryDto.prototype, "motivo", void 0);
 class OccupancyQueryDto extends ReservationScopeDto {
 }
 exports.OccupancyQueryDto = OccupancyQueryDto;

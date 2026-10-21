@@ -166,18 +166,13 @@ let SurveysController = class SurveysController {
     async saveCompanyLegal(req, query, dto) {
         const empresa = await this.empresaLegal(req, query.clientId);
         await (0, datos_legales_de_empresa_1.asegurarQueAdministraLaEmpresa)(this.permisos, req.organizationId, req.user, empresa);
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+        const laAceptaLaEmpresa = req.user.role === user_role_enum_1.UserRole.CLIENT;
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
     }
     async empresaLegal(req, pedida) {
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
-            const propia = (0, datos_legales_de_empresa_1.empresaDelPortal)(req.user.clientId);
-            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, propia);
-            return propia;
-        }
-        if (!pedida)
-            throw new common_1.BadRequestException('Indica la empresa');
-        await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
-        return pedida;
+        const empresa = await (0, datos_legales_de_empresa_1.empresaDeLosDatosLegales)(this.accountAccess, req.organizationId, req.user, pedida);
+        await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, empresa);
+        return empresa;
     }
     async detail(req, id) {
         return this.toContract(await this.findOwned(id, req));

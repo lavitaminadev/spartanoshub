@@ -33,6 +33,8 @@ const google_calendar_service_1 = require("../integrations/google/google-calenda
 const update_meeting_dto_1 = require("./dto/update-meeting.dto");
 const client_entity_1 = require("../clients/client.entity");
 const user_entity_1 = require("../users/user.entity");
+const empresa_decorator_1 = require("../../core/client-scope/empresa.decorator");
+const empresa_resuelta_1 = require("../../core/client-scope/empresa-resuelta");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 let MeetingsController = class MeetingsController {
     constructor(repo, actionItemRepo, clientRepo, userRepo, createMeeting, listMeetings, calendar) {
@@ -56,13 +58,18 @@ let MeetingsController = class MeetingsController {
             minutes: dto.minutes?.trim() || notes?.trim() || undefined,
         });
     }
-    async list(type, req) {
-        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : undefined;
+    async list(type, req, ambito) {
+        const clientId = (0, empresa_resuelta_1.esUnaEmpresa)(ambito) ? ambito : undefined;
         if (req.user?.role === user_role_enum_1.UserRole.CLIENT && !clientId)
             throw new common_1.ForbiddenException('Client account is not associated');
-        const assignedClientIds = req.user.role === user_role_enum_1.UserRole.COMMUNITY_MANAGER
+        let assignedClientIds = req.user.role === user_role_enum_1.UserRole.COMMUNITY_MANAGER
             ? (await this.clientRepo.find({ select: { id: true }, where: { organizationId: req.organizationId, communityManagerId: req.user.id } })).map((client) => client.id)
             : undefined;
+        if (clientId && assignedClientIds) {
+            if (!assignedClientIds.includes(clientId))
+                throw new common_1.NotFoundException('Client not found');
+            assignedClientIds = undefined;
+        }
         const meetings = await this.listMeetings.execute(req.organizationId, type, clientId, assignedClientIds);
         if (meetings.length === 0)
             return [];
@@ -79,10 +86,7 @@ let MeetingsController = class MeetingsController {
         return meetings.map((meeting) => ({ ...meeting, actionItems: actionItemsByMeeting.get(meeting.id) ?? [] }));
     }
     async getOne(id, req) {
-        const clientId = req.user.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : undefined;
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT && !clientId)
-            throw new common_1.ForbiddenException('Client account is not associated');
-        const meeting = await this.repo.findOne({ where: { id, organizationId: req.organizationId, ...(clientId ? { clientId } : {}) } });
+        const meeting = await this.repo.findOne({ where: { id, organizationId: req.organizationId } });
         if (!meeting)
             throw new common_1.NotFoundException('Meeting not found');
         await this.assertClientAccess(req, meeting.clientId);
@@ -224,8 +228,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Listar reuniones' }),
     __param(0, (0, common_1.Query)('type')),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, String]),
     __metadata("design:returntype", Promise)
 ], MeetingsController.prototype, "list", null);
 __decorate([

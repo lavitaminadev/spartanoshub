@@ -53,20 +53,24 @@ let ReservationsController = class ReservationsController {
         const publicOrigin = this.publicOrigin();
         return { ...form, ...context, publicUrl: publicOrigin ? `${publicOrigin}/book/${form.publicSlug}` : undefined };
     }
-    client(req) {
+    async empresaDelPortalEnLaPeticion(req) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
             return undefined;
+        const declarada = req.query?.clientId?.trim();
+        if (declarada && declarada !== req.user.clientId) {
+            await this.accountAccess.assertClient(req.organizationId, req.user, declarada);
+            return declarada;
+        }
         if (!req.user.clientId)
             throw new common_1.ForbiddenException('La cuenta cliente no está asociada a una empresa');
         return req.user.clientId;
     }
     async scope(req) {
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
-            const clientId = this.client(req);
+        const clientId = await this.empresaDelPortalEnLaPeticion(req);
+        if (clientId)
             await this.capabilities.assert(req.organizationId, clientId, 'reservations');
-        }
         return {
-            clientId: this.client(req),
+            clientId,
             clientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
         };
     }
@@ -87,18 +91,13 @@ let ReservationsController = class ReservationsController {
     async saveCompanyLegal(req, query, dto) {
         const empresa = await this.empresaLegal(req, query.clientId);
         await (0, datos_legales_de_empresa_1.asegurarQueAdministraLaEmpresa)(this.permisos, req.organizationId, req.user, empresa);
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+        const laAceptaLaEmpresa = req.user.role === user_role_enum_1.UserRole.CLIENT;
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
     }
     async empresaLegal(req, pedida) {
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
-            const propia = (0, datos_legales_de_empresa_1.empresaDelPortal)(req.user.clientId);
-            await this.capabilities.assert(req.organizationId, propia, 'reservations');
-            return propia;
-        }
-        if (!pedida)
-            throw new common_1.BadRequestException('Indica la empresa');
-        await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
-        return pedida;
+        const empresa = await (0, datos_legales_de_empresa_1.empresaDeLosDatosLegales)(this.accountAccess, req.organizationId, req.user, pedida);
+        await this.capabilities.assert(req.organizationId, empresa, 'reservations');
+        return empresa;
     }
     async metaHealth(req, id) {
         const scope = await this.scope(req);
@@ -299,7 +298,7 @@ let ReservationsController = class ReservationsController {
     }
     async createCoupon(req, dto) {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT)
-            dto.clientId = this.client(req);
+            dto.clientId = (await this.empresaDelPortalEnLaPeticion(req));
         if (!dto.clientId)
             throw new common_1.BadRequestException('Elige la empresa del cupón: cada cupón vale sólo en los locales de su empresa.');
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
@@ -342,15 +341,19 @@ let ReservationsController = class ReservationsController {
     }
     async exportCsv(req, query, res) {
         const scope = await this.requestedScope(req, query.clientId);
-        void this.audit.log({
-            organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservations',
-            action: 'export_csv', reason: `clientId=${scope.clientId ?? 'all'} from=${query.from ?? ''} to=${query.to ?? ''}`,
-            ipAddress: req.ip,
-        }).catch(() => { });
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
-        res.write('\uFEFF');
         const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        const { columnas, conProtegidos } = this.service.columnasDelCsv(niveles, scope.clientId, scope.clientIds);
+        const filas = await this.service.contarParaExportar(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit);
+        await this.service.registrarExportacion({
+            organizationId: req.organizationId, actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
+            finalidad: 'procesable', formato: 'csv',
+            filtro: { clientId: scope.clientId ?? null, desde: query.from ?? null, hasta: query.to ?? null, limite: query.limit ?? null },
+            filas, columnas, conProtegidos, desde: query.from, hasta: query.to, motivo: query.motivo,
+        });
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="reservas-para-procesar-${new Date().toISOString().slice(0, 10)}.csv"`);
+        res.setHeader('X-Uso', 'interno; contiene datos personales');
+        res.write('\uFEFF');
         for await (const chunk of this.service.streamCsv(req.organizationId, niveles, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
             if (!res.write(chunk))
                 await (0, node_events_1.once)(res, 'drain');
@@ -359,22 +362,44 @@ let ReservationsController = class ReservationsController {
     }
     async exportForm(req, formId, body, res) {
         const scope = await this.scope(req);
-        const result = await this.service.exportFormReservations(req.organizationId, await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations'), formId, scope.clientId, scope.clientIds, body.format, body.dateFrom, body.dateTo, body.fields, req.user.role !== user_role_enum_1.UserRole.CLIENT);
-        if (body.format === 'json') {
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.json"`);
-            res.send(JSON.stringify(result, null, 2));
-        }
-        else if (body.format === 'csv') {
+        const { cuerpo } = await this.service.exportFormReservations({
+            organizationId: req.organizationId,
+            niveles: await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations'),
+            formId,
+            clientId: scope.clientId,
+            clientIds: scope.clientIds,
+            formato: body.format,
+            dateFrom: body.dateFrom,
+            dateTo: body.dateTo,
+            fields: body.fields,
+            includeInternalNotes: req.user.role !== user_role_enum_1.UserRole.CLIENT,
+            actor: { id: req.user.id, nombre: req.user.name },
+            motivo: body.motivo,
+            ip: req.ip,
+        });
+        const dia = new Date().toISOString().slice(0, 10);
+        res.setHeader('X-Uso', 'interno; contiene datos personales');
+        if (body.format === 'csv') {
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
-            res.send(result);
+            res.setHeader('Content-Disposition', `attachment; filename="reservas-para-procesar-${dia}.csv"`);
+            res.send(cuerpo);
         }
-        else if (body.format === 'xlsx') {
+        else {
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.xlsx"`);
-            res.end(result);
+            res.setHeader('Content-Disposition', `attachment; filename="reservas-${dia}.xlsx"`);
+            res.end(cuerpo);
         }
+    }
+    async hojaDelTurno(req, formId, query, res) {
+        const scope = await this.scope(req);
+        const hoja = await this.service.hojaDelTurno({
+            organizationId: req.organizationId, formId, fecha: query.fecha,
+            clientId: scope.clientId, clientIds: scope.clientIds,
+            actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
+        });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${hoja.nombre}"`);
+        res.end(hoja.cuerpo);
     }
     async operationalHome(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
@@ -819,7 +844,7 @@ __decorate([
     __param(1, (0, common_1.Query)()),
     __param(2, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto, Object]),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ExportCsvQueryDto, Object]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "exportCsv", null);
 __decorate([
@@ -835,6 +860,19 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, reservation_dto_1.ExportFormReservationsDto, Object]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "exportForm", null);
+__decorate([
+    (0, common_1.Get)('forms/:formId/hoja-del-turno'),
+    (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.exportar', 'hacer'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('formId')),
+    __param(2, (0, common_1.Query)()),
+    __param(3, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.HojaDelTurnoDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "hojaDelTurno", null);
 __decorate([
     (0, common_1.Get)('analytics/operational-home'),
     (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),

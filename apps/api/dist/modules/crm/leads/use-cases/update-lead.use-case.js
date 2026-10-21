@@ -45,7 +45,7 @@ let UpdateLeadUseCase = UpdateLeadUseCase_1 = class UpdateLeadUseCase {
         this.automatizacion = automatizacion;
         this.logger = new common_1.Logger(UpdateLeadUseCase_1.name);
     }
-    async execute(id, data, organizationId, actorId, actorClientId) {
+    async execute(id, data, organizationId, actorId) {
         const lead = await this.repo.findOne({ where: { id, organizationId } });
         if (!lead)
             throw new common_1.NotFoundException('Lead not found');
@@ -106,8 +106,7 @@ let UpdateLeadUseCase = UpdateLeadUseCase_1 = class UpdateLeadUseCase {
             && !lead.assignedTo
             && actorId
             && etapaPrevia !== lead.status
-            && lead.clientId
-            && actorClientId === lead.clientId) {
+            && lead.clientId) {
             const equipo = await this.responsables.execute(organizationId, lead.clientId);
             if (equipo.length === 1 && equipo[0].id === actorId)
                 lead.assignedTo = actorId;

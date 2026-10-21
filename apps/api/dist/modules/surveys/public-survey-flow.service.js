@@ -27,6 +27,7 @@ const email_service_1 = require("../../core/notifications/email.service");
 const destinatarios_de_avisos_service_1 = require("../../core/notifications/destinatarios-de-avisos.service");
 const shared_1 = require("@espartanos/shared");
 const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
+const validar_respuestas_publicas_1 = require("./validar-respuestas-publicas");
 const plantilla_de_correo_1 = require("../../core/notifications/plantilla-de-correo");
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
 const plantilla_resuelta_1 = require("../../core/parameters/plantilla-resuelta");
@@ -157,6 +158,9 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
         const malFormados = (0, shared_1.problemasDeRespuesta)((survey.questions ?? []).map((pregunta) => ({ ...pregunta, required: false })), respuestas, nota ? [nota.id] : []);
         if (malFormados.length > 0)
             throw new common_1.BadRequestException(malFormados.join(' · '));
+        const fueraDeRango = (0, validar_respuestas_publicas_1.respuestasFueraDeRango)(survey.questions ?? [], respuestas);
+        if (fueraDeRango.length > 0)
+            throw new common_1.BadRequestException(fueraDeRango.join(' · '));
         let aceptacion = {};
         try {
             aceptacion = await (0, consentimiento_de_encuesta_1.aceptacionAGuardar)(this.dataSource, survey, respuestas, datos.aceptaPrivacidad || Boolean(respuesta.privacyConsentAt));

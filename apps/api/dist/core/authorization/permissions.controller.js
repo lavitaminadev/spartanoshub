@@ -33,6 +33,8 @@ const permission_level_1 = require("./permission-level");
 const role_permissions_1 = require("./role-permissions");
 const audit_service_1 = require("../audit/audit.service");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
+const empresa_interceptor_1 = require("../client-scope/empresa.interceptor");
+const empresa_resuelta_1 = require("../client-scope/empresa-resuelta");
 const account_access_service_1 = require("../client-scope/account-access.service");
 const user_client_access_entity_1 = require("../client-scope/user-client-access.entity");
 const grant_client_access_dto_1 = require("./dto/grant-client-access.dto");
@@ -184,19 +186,21 @@ let PermissionsController = class PermissionsController {
         return { data: excepciones };
     }
     async mine(req, clientId) {
-        const empresa = req.user.role === user_role_enum_1.UserRole.CLIENT
-            ? await this.empresaDelPortal(req, clientId)
-            : clientId;
+        const empresa = await this.empresaDeLosPermisos(req, clientId);
         const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role, empresa);
         const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role, empresa)).map((accion) => [accion.clave, accion.permitida]));
         return { permissions, acciones };
     }
-    async empresaDelPortal(req, pedida) {
-        const propia = req.user.clientId ?? undefined;
-        if (!pedida || pedida === propia)
-            return propia;
-        const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user).catch(() => undefined);
-        return alcanzables?.includes(pedida) ? pedida : propia;
+    async empresaDeLosPermisos(req, declarada) {
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
+            const ambito = (0, empresa_interceptor_1.ambitoDeLaPeticion)(req);
+            if (ambito instanceof Error)
+                throw ambito;
+            return ambito !== undefined && (0, empresa_resuelta_1.esUnaEmpresa)(ambito) ? ambito : undefined;
+        }
+        if (declarada)
+            await this.accountAccess.assertClient(req.organizationId, req.user, declarada);
+        return declarada || undefined;
     }
     async ofRole(role, req) {
         if (!Object.values(user_role_enum_1.UserRole).includes(role))

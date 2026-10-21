@@ -21,16 +21,18 @@ let ListOpportunitiesUseCase = class ListOpportunitiesUseCase {
     constructor(repo) {
         this.repo = repo;
     }
-    async execute(organizationId, limit = 20, offset = 0, leadId, allowedClientIds) {
+    async execute(organizationId, limit = 20, offset = 0, leadId, allowedClientIds, clientId) {
         const base = { organizationId };
         if (leadId)
             base.leadId = leadId;
-        const where = allowedClientIds === undefined
-            ? base
-            : [
-                { ...base, clientId: (0, typeorm_2.IsNull)() },
-                ...(allowedClientIds.length ? [{ ...base, clientId: (0, typeorm_2.In)(allowedClientIds) }] : []),
-            ];
+        const where = clientId
+            ? { ...base, clientId }
+            : allowedClientIds === undefined
+                ? base
+                : [
+                    { ...base, clientId: (0, typeorm_2.IsNull)() },
+                    ...(allowedClientIds.length ? [{ ...base, clientId: (0, typeorm_2.In)(allowedClientIds) }] : []),
+                ];
         const [data, total] = await this.repo.findAndCount({
             where,
             order: { createdAt: 'DESC' },

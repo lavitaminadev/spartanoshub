@@ -148,7 +148,7 @@ let ProductionController = class ProductionController {
             ...dto,
             userId: req.user.id,
             role: req.user.role,
-            clientId: req.user.clientId,
+            clientId: piece.clientId,
         });
     }
     cancel(id, dto, req) {

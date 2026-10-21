@@ -29,6 +29,8 @@ const update_grid_status_dto_1 = require("./dto/update-grid-status.dto");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
+const empresa_decorator_1 = require("../../core/client-scope/empresa.decorator");
+const empresa_resuelta_1 = require("../../core/client-scope/empresa-resuelta");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 let ContentController = class ContentController {
     constructor(createGrid, listGrids, itemRepo, gridRepo, accountAccess) {
@@ -47,11 +49,10 @@ let ContentController = class ContentController {
             weekEnd: new Date(dto.weekEnd),
         });
     }
-    async list(clientId, month, req) {
-        const effectiveClientId = req.user?.role === user_role_enum_1.UserRole.CLIENT ? req.user.clientId : clientId;
+    async list(ambito, month, req) {
+        const effectiveClientId = (0, empresa_resuelta_1.esUnaEmpresa)(ambito) ? ambito : undefined;
         if (req.user?.role === user_role_enum_1.UserRole.CLIENT && !effectiveClientId)
             throw new common_1.ForbiddenException('Client account is not associated');
-        await this.accountAccess.assertClient(req.organizationId, req.user, effectiveClientId);
         const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.listGrids.execute(req.organizationId, effectiveClientId, month, req.user?.role === user_role_enum_1.UserRole.CLIENT, clientIds);
     }
@@ -112,7 +113,7 @@ __decorate([
     (0, common_1.Get)('content/grids'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar parrillas de contenido' }),
-    __param(0, (0, common_1.Query)('clientId')),
+    __param(0, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __param(1, (0, common_1.Query)('month')),
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),

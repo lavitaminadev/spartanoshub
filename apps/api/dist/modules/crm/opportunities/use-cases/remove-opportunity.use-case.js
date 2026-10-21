@@ -23,8 +23,8 @@ let RemoveOpportunityUseCase = class RemoveOpportunityUseCase {
         this.repo = repo;
         this.getOpportunity = getOpportunity;
     }
-    async execute(id, organizationId) {
-        const opportunity = await this.getOpportunity.execute(id, organizationId);
+    async execute(id, organizationId, allowedClientIds) {
+        const opportunity = await this.getOpportunity.execute(id, organizationId, allowedClientIds);
         return this.repo.remove(opportunity);
     }
 };

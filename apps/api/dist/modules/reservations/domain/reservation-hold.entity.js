@@ -47,6 +47,10 @@ __decorate([
     __metadata("design:type", String)
 ], ReservationHold.prototype, "resourceId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'origin_key', type: 'varchar', length: 64, nullable: true }),
+    __metadata("design:type", Object)
+], ReservationHold.prototype, "originKey", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'expires_at', type: 'timestamp' }),
     __metadata("design:type", Date)
 ], ReservationHold.prototype, "expiresAt", void 0);

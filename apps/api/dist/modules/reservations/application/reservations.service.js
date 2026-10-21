@@ -64,6 +64,10 @@ const geo_inference_1 = require("../../../shared/geo-inference");
 const google_conversion_outbox_service_1 = require("../../integrations/google/google-conversion-outbox.service");
 const client_capabilities_1 = require("../../clients/client-capabilities");
 const planilla_xlsx_1 = require("../../../shared/planilla-xlsx");
+const exportaciones_1 = require("./exportaciones");
+const pdf_de_tabla_1 = require("./pdf-de-tabla");
+const respuesta_publica_1 = require("./respuesta-publica");
+const retenciones_1 = require("./retenciones");
 const DEFAULT_VENUE_TIPS = [
     'Te esperamos 10 minutos antes para acomodarte con calma.',
     'Estamos en la esquina; si llegas en auto, hay estacionamiento a media cuadra.',
@@ -1732,14 +1736,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             pausadoPorCredencial: Boolean(error[0] && /\[TOKEN\]/.test(String(error[0].last_error)) && Date.now() - new Date(error[0].updated_at).getTime() < 24 * 3600000 && !(ultimoEnvio && ultimoEnvio.getTime() > new Date(error[0].updated_at).getTime())),
         };
     }
-    async holdPublic(slug, dto) {
+    async holdPublic(slug, dto, ipAddress) {
         if (dto.website)
             throw new common_1.BadRequestException('Solicitud inválida');
-        if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800)
+        const renderedMs = dto.renderedAt ? new Date(dto.renderedAt).getTime() : NaN;
+        if (Number.isNaN(renderedMs))
+            throw new common_1.BadRequestException('Solicitud inválida');
+        if (Date.now() - renderedMs < 800)
             throw new common_1.BadRequestException('Completa el formulario antes de enviarlo');
         const startsAt = new Date(dto.startsAt);
         if (Number.isNaN(startsAt.getTime()))
             throw new common_1.BadRequestException('Fecha inválida');
+        const origen = (0, retenciones_1.huellaDeOrigen)(ipAddress);
         return this.transaction('retener cupo público', async (manager) => {
             const form = await this.publishedForm(slug, manager);
             this.assertPublicBookingOpen(form);
@@ -1748,10 +1756,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
             const repo = manager.getRepository(reservation_hold_entity_1.ReservationHold);
             const current = await repo.findOne({ where: { formId: form.id, holdKey: dto.holdKey } });
+            if (!current && origen) {
+                const vigentes = await repo.count({ where: { formId: form.id, originKey: origen, expiresAt: (0, typeorm_2.MoreThan)(new Date()) } });
+                if (vigentes >= retenciones_1.TOPE_RETENCIONES_POR_ORIGEN)
+                    throw new common_1.HttpException('Tienes varios horarios reservados a la espera. Termina uno o espera unos minutos.', common_1.HttpStatus.TOO_MANY_REQUESTS);
+            }
             const configuredMinutes = Number(form.designConfig.holdMinutes);
             const holdMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 30 ? configuredMinutes : 10;
             const expiresAt = new Date(Date.now() + holdMinutes * 60_000);
-            const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt });
+            const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt, originKey: origen });
             hold.startsAt = startsAt;
             hold.endsAt = availability.endsAt;
             hold.partySize = partySize;
@@ -2208,7 +2221,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const managementToken = result.created ? result.managementToken : undefined;
         if (result.created)
             await this.notifyNewBooking(result.form, result.booking, managementToken);
-        return { ...result.booking, managementToken };
+        return (0, respuesta_publica_1.respuestaPublicaDeReserva)(result.booking, managementToken);
     }
     async recordIntegrationFailure(booking, provider) {
         await this.events.save(this.events.create({
@@ -2955,7 +2968,47 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             offset += rows.length;
         }
     }
-    async exportFormReservations(organizationId, niveles, formId, clientId, clientIds, format = 'csv', dateFrom, dateTo, fields = ['name', 'phone', 'email', 'date', 'status', 'attendance'], includeInternalNotes = true) {
+    async registrarExportacion(e) {
+        const razones = (0, exportaciones_1.razonesParaExigirMotivo)({ filas: e.filas, desde: e.desde, hasta: e.hasta }, e.conProtegidos);
+        const motivo = (0, exportaciones_1.motivoEscrito)(e.motivo);
+        if (razones.length > 0 && !motivo) {
+            throw new common_1.BadRequestException(`Esta exportación exige un motivo escrito (al menos ${exportaciones_1.MOTIVO_MINIMO} caracteres) porque ${razones.join(' y ')}.`);
+        }
+        await this.audit.log({
+            organizationId: e.organizationId,
+            actorId: e.actor.id,
+            entityType: 'reservations',
+            entityId: e.entityId ?? null,
+            action: 'export',
+            after: { finalidad: e.finalidad, formato: e.formato, filtro: e.filtro, filas: e.filas, columnas: e.columnas, motivoExigido: razones },
+            reason: motivo,
+            ipAddress: e.ip,
+        });
+    }
+    async contarParaExportar(organizationId, clientId, clientIds, from, to, limit) {
+        const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId });
+        if (clientId)
+            qb.andWhere('r.client_id = :clientId', { clientId });
+        else if (clientIds !== undefined)
+            qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds });
+        if (from)
+            qb.andWhere('r.starts_at >= :from', { from });
+        if (to)
+            qb.andWhere('r.starts_at <= :to', { to });
+        const total = await qb.getCount();
+        return limit === undefined ? total : Math.min(total, limit);
+    }
+    columnasDelCsv(niveles, clientId, clientIds) {
+        const quitar = new Set((0, shared_3.columnasAQuitar)('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
+        const base = ['codigo', 'nombre', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas'];
+        const protegidas = [['correo', 'guestEmail'], ['telefono', 'guestPhone']].filter(([, campo]) => !quitar.has(campo)).map(([nombre]) => nombre);
+        const respuestas = quitar.has('answers') ? [] : ['respuestas_del_formulario'];
+        return { columnas: [...base, ...protegidas, ...respuestas], conProtegidos: protegidas.length > 0 || respuestas.length > 0 };
+    }
+    async exportFormReservations(p) {
+        const { organizationId, niveles, formId, clientId, clientIds, formato, dateFrom, dateTo } = p;
+        const fields = p.fields ?? ['name', 'phone', 'email', 'date', 'status', 'attendance'];
+        const includeInternalNotes = p.includeInternalNotes ?? true;
         const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }).andWhere('r.form_id = :formId', { formId });
         if (clientId)
             qb.andWhere('r.client_id = :clientId', { clientId });
@@ -2999,40 +3052,81 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         };
         const COLUMNA_PROTEGIDA = { phone: 'guestPhone', email: 'guestEmail' };
         const allowedFields = (includeInternalNotes ? fields : fields.filter((field) => field !== 'notes'))
-            .filter((field) => !quitar.has(COLUMNA_PROTEGIDA[field] ?? ''));
+            .filter((field) => fieldMap[field] && !quitar.has(COLUMNA_PROTEGIDA[field] ?? ''));
         const TITULOS = {
             name: 'Nombre', phone: 'Teléfono', email: 'Correo', date: 'Fecha y hora',
             status: 'Estado', attendance: 'Asistió', notes: 'Notas internas',
             origin: 'Canal', medium: 'Medio', campaign: 'Campaña', content: 'Contenido',
             code: 'Código', coupon: 'Cupón', party_size: 'Personas',
         };
-        const tituloDe = (campo) => TITULOS[campo] ?? campo;
-        const cabeceras = [...allowedFields.map(tituloDe), ...clavesRespuesta.map(etiquetaDe)];
+        const cabeceras = [...allowedFields.map((campo) => TITULOS[campo] ?? campo), ...clavesRespuesta.map(etiquetaDe)];
         const valores = (item) => [
             ...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'),
             ...clavesRespuesta.map((clave) => valorDe(item, clave)),
         ];
-        if (format === 'xlsx') {
+        await this.registrarExportacion({
+            organizationId, actor: p.actor, ip: p.ip, entityId: formId,
+            finalidad: formato === 'xlsx' ? 'con_contacto' : 'procesable', formato,
+            filtro: { formId, desde: dateFrom ?? null, hasta: dateTo ?? null },
+            filas: items.length, columnas: cabeceras,
+            conProtegidos: allowedFields.some((campo) => COLUMNA_PROTEGIDA[campo]) || clavesRespuesta.length > 0,
+            desde: dateFrom, hasta: dateTo, motivo: p.motivo,
+        });
+        if (formato === 'xlsx') {
             const fecha = (valor) => (valor instanceof Date ? valor.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : valor);
-            return (0, planilla_xlsx_1.planillaXlsx)(cabeceras, items.map((item) => valores(item).map(fecha)), form?.name ?? 'Reservas');
+            return {
+                cuerpo: (0, planilla_xlsx_1.planillaXlsx)(cabeceras, items.map((item) => valores(item).map(fecha)), form?.name ?? 'Reservas', (0, exportaciones_1.marcaDeExportacion)(p.actor.nombre, new Date())),
+                filas: items.length,
+            };
         }
-        if (format === 'json') {
-            return items.map((item) => {
-                const record = {};
-                for (const field of allowedFields) {
-                    record[field] = fieldMap[field]?.(item) ?? '-';
-                }
-                for (const clave of clavesRespuesta)
-                    record[etiquetaDe(clave)] = valorDe(item, clave);
-                return record;
-            });
-        }
-        else if (format === 'csv') {
-            const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
-            const filas = items.map((item) => valores(item));
-            return `﻿${[cabeceras, ...filas].map((row) => row.map(escape).join(',')).join('\r\n')}`;
-        }
-        throw new common_1.BadRequestException('Formato no soportado');
+        const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+        return { cuerpo: `﻿${[cabeceras, ...items.map((item) => valores(item))].map((row) => row.map(escape).join(',')).join('\r\n')}`, filas: items.length };
+    }
+    async hojaDelTurno(p) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha))
+            throw new common_1.BadRequestException('Indica el día de la hoja');
+        const form = await this.getForm(p.organizationId, p.formId, p.clientId, p.clientIds);
+        const desde = (0, timezone_1.startOfLocalDayUtc)(p.fecha, form.timezone);
+        const hasta = (0, timezone_1.startOfLocalDayUtc)((0, timezone_1.addPlainDays)(p.fecha, 1), form.timezone);
+        const items = await this.reservations.createQueryBuilder('r')
+            .where('r.organization_id = :organizationId', { organizationId: p.organizationId })
+            .andWhere('r.form_id = :formId', { formId: form.id })
+            .andWhere('r.status IN (:...estados)', { estados: ACTIVE_STATUSES })
+            .andWhere('r.starts_at >= :desde AND r.starts_at < :hasta', { desde, hasta })
+            .orderBy('r.starts_at', 'ASC')
+            .getMany();
+        const esquema = form.fieldSchema ?? [];
+        const etiquetaDe = (clave) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
+        const ESTADOS = { pending: 'Pendiente', confirmed: 'Confirmada', rescheduled: 'Reagendada' };
+        const hora = (fecha) => fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: form.timezone });
+        const cabeceras = ['Hora', 'Nombre', 'Personas', 'Estado', 'Código', 'Aviso'];
+        const filas = items.map((item) => [
+            hora(item.startsAt), item.guestName, String(item.partySize), ESTADOS[item.status] ?? item.status, item.referenceCode,
+            (0, exportaciones_1.tieneRestricciones)(item.answers, etiquetaDe) ? exportaciones_1.AVISO_DE_RESTRICCIONES : '',
+        ]);
+        await this.registrarExportacion({
+            organizationId: p.organizationId, actor: p.actor, ip: p.ip, entityId: form.id,
+            finalidad: 'hoja_del_turno', formato: 'pdf',
+            filtro: { formId: form.id, fecha: p.fecha }, filas: items.length, columnas: cabeceras, conProtegidos: false,
+            desde: p.fecha, hasta: p.fecha,
+        });
+        const personas = items.reduce((suma, item) => suma + item.partySize, 0);
+        const cuando = new Date().toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone });
+        return {
+            nombre: `hoja-del-turno-${p.fecha}.pdf`,
+            filas: items.length,
+            cuerpo: (0, pdf_de_tabla_1.pdfDeTabla)({
+                titulo: `Hoja del turno · ${form.name} · ${p.fecha}`,
+                lineas: [
+                    `${items.length} reserva${items.length === 1 ? '' : 's'} · ${personas} persona${personas === 1 ? '' : 's'} · impresa por ${p.actor.nombre} el ${cuando}`,
+                    'Uso interno. Sin teléfonos, correos ni respuestas del formulario.',
+                ],
+                cabeceras,
+                filas,
+                anchos: [45, 115, 45, 65, 65, 180],
+                pie: 'Las restricciones y los datos de contacto se consultan en pantalla, donde queda anotado quién los vio.',
+            }),
+        };
     }
     async createCoupon(organizationId, userId, dto, clientId) {
         const code = dto.code.trim().toUpperCase();

@@ -86,9 +86,16 @@ let IngestSourcesController = class IngestSourcesController {
         }));
     }
     async create(dto, req) {
+        const empresa = dto.clientId?.trim() || null;
+        if (empresa) {
+            await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
+        }
+        else if ((await this.accountAccess.allowedClientIds(req.organizationId, req.user)) !== undefined) {
+            throw new common_1.BadRequestException('Indica la empresa a la que entran estos leads');
+        }
         const { source, token } = await this.ingest.issueToken(this.sources.create({
             organizationId: req.organizationId,
-            clientId: dto.clientId ?? null,
+            clientId: empresa,
             name: dto.name.trim(),
             source: dto.source,
             isActive: true,

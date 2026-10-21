@@ -45,12 +45,15 @@ let OpportunitiesController = class OpportunitiesController {
         const steps = await this.processTemplates.getSteps(req.organizationId, process_template_defaults_1.COMMERCIAL_PIPELINE_TEMPLATE);
         return steps.map((step) => ({ key: step.key, label: step.label }));
     }
-    create(dto, req) {
-        return this.createOpportunity.execute(dto, req.organizationId, req.user.id);
+    async create(dto, req) {
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.createOpportunity.execute(dto, req.organizationId, req.user.id, allowed);
     }
     async findAll(query, req) {
+        if (query.clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed);
+        return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed, query.clientId);
     }
     async findOne(id, req) {
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -61,11 +64,13 @@ let OpportunitiesController = class OpportunitiesController {
         await this.getOpportunity.execute(id, req.organizationId, allowed);
         return { recorrido: await this.stageHistory.recorridoDe(req.organizationId, id) };
     }
-    update(id, dto, req) {
-        return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id);
+    async update(id, dto, req) {
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id, allowed);
     }
-    remove(id, req) {
-        return this.removeOpportunity.execute(id, req.organizationId);
+    async remove(id, req) {
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.removeOpportunity.execute(id, req.organizationId, allowed);
     }
 };
 exports.OpportunitiesController = OpportunitiesController;
@@ -84,7 +89,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_opportunity_dto_1.CreateOpportunityDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], OpportunitiesController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
@@ -121,7 +126,7 @@ __decorate([
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, update_opportunity_dto_1.UpdateOpportunityDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], OpportunitiesController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
@@ -131,7 +136,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], OpportunitiesController.prototype, "remove", null);
 exports.OpportunitiesController = OpportunitiesController = __decorate([
     (0, common_1.Controller)('crm/opportunities'),
