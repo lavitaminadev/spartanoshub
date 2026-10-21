@@ -1,3 +1,4 @@
+import { DialogoModal } from '../../shared/DialogoModal';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { CATEGORIAS_DE_EVENTO, leerTiposDeEvento, type CategoriaDeEvento } from './tipos-de-evento';
 import { SaludDeMedicion } from './SaludDeMedicion';
@@ -518,8 +519,8 @@ export function ReservationBuilderPage() {
           <ReservationLivePreview draft={draft} fields={fields} previewDevice="mobile" style={designPreviewStyle} />
         </aside>
       </div>
-      {editingField && editingDraft && <div className="field-editor-overlay" onClick={() => closeEditor(true)}><div className="field-editor-popup" onClick={(e) => e.stopPropagation()}>
-        <div className="field-editor-header"><h3>Editar {editingDraft.label}</h3><button type="button" className="btn btn-sm btn-outline" onClick={() => closeEditor(true)}>✕</button></div>
+      {editingField && editingDraft && <DialogoModal etiqueta={`Editar ${editingDraft.label}`} onCerrar={() => closeEditor(true)} className="field-editor-overlay"><div className="field-editor-popup" data-retiene-toque>
+        <div className="field-editor-header"><h3>Editar {editingDraft.label}</h3><button type="button" className="btn btn-sm btn-outline" onClick={() => closeEditor(true)} aria-label="Cerrar el editor del campo">✕</button></div>
         <div className="field-editor-body">
           <label>Etiqueta<input className="input" value={editingDraft.label} onChange={(e) => updateEditor({ label: e.target.value })} /></label>
           <label>Texto de ayuda<input className="input" value={editingDraft.placeholder || ''} onChange={(e) => updateEditor({ placeholder: e.target.value })} /></label>
@@ -570,7 +571,7 @@ export function ReservationBuilderPage() {
           </div>
         </div>
         <div className="field-editor-footer"><button type="button" className="btn btn-outline btn-sm" onClick={() => closeEditor(false)}>Descartar cambios</button><button type="button" className="btn btn-primary btn-sm" onClick={() => closeEditor(true)}>Guardar</button></div>
-      </div></div>}
+      </div></DialogoModal>}
     </Fragment>}
 
     {step === 1 && <div className="builder-stage"><div className="stage-heading"><span className="page-eyebrow">AGENDA Y CAPACIDAD</span><h2>¿Cuándo pueden reservar?</h2><p>Define el horario habitual y bloqueos.</p></div><div className="schedule-layout">

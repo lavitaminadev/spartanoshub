@@ -17,7 +17,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListCanjesDto, ListCouponsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportCsvQueryDto, ExportFormReservationsDto, HojaDelTurnoDto, ImportReservationsDto, ListCanjesDto, ListCouponsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
 import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
@@ -617,32 +617,42 @@ export class ReservationsController {
     return this.service.canjearCuponEnLocal(req.organizationId, id, req.user.id, dto, scope.clientIds);
   }
 
+  /**
+   * CSV para que otra herramienta lo procese. Para que lo lea una persona está la planilla.
+   *
+   * Va etiquetado en el nombre y en la cabecera `X-Uso`: una línea de marca dentro del archivo
+   * rompería a los lectores. Se anota antes de entregarlo y exige motivo si lleva datos protegidos
+   * o es voluminoso.
+   */
   @Get('export/csv')
   @RequiereAccion('reservations.exportar')
   @RequiereArea('reservations.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async exportCsv(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto, @Res() res: Response) {
+  async exportCsv(@Req() req: AuthenticatedRequest, @Query() query: ExportCsvQueryDto, @Res() res: Response) {
     const scope = await this.requestedScope(req, query.clientId);
-    // GET no pasa por AuditInterceptor (solo intercepta verbos mutantes) y esto mueve PII en
-    // bloque fuera del sistema, así que se audita explícitamente en vez de quedar sin rastro.
-    void this.audit.log({
-      organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservations',
-      action: 'export_csv', reason: `clientId=${scope.clientId ?? 'all'} from=${query.from ?? ''} to=${query.to ?? ''}`,
-      ipAddress: req.ip,
-    }).catch(() => {});
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    const { columnas, conProtegidos } = this.service.columnasDelCsv(niveles, scope.clientId, scope.clientIds);
+    const filas = await this.service.contarParaExportar(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit);
+    await this.service.registrarExportacion({
+      organizationId: req.organizationId, actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
+      finalidad: 'procesable', formato: 'csv',
+      filtro: { clientId: scope.clientId ?? null, desde: query.from ?? null, hasta: query.to ?? null, limite: query.limit ?? null },
+      filas, columnas, conProtegidos, desde: query.from, hasta: query.to, motivo: query.motivo,
+    });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="reservas-para-procesar-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.setHeader('X-Uso', 'interno; contiene datos personales');
     // Se escribe por lotes en vez de armar el archivo completo y enviarlo de una sola vez: lo
     // que ocupa en memoria deja de depender de cu\u00E1ntas reservas se exporten. El `drain` evita
     // que los trozos se acumulen si el cliente descarga m\u00E1s lento de lo que se generan.
     res.write('\uFEFF');
-    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
     for await (const chunk of this.service.streamCsv(req.organizationId, niveles, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
       if (!res.write(chunk)) await once(res, 'drain');
     }
     res.end();
   }
 
+  /** Planilla `.xlsx` (por defecto) o CSV de proceso de un local. Se arma y se anota en el servidor. */
   @Post('forms/:formId/export')
   @RequiereAccion('reservations.exportar')
   @RequiereArea('reservations.exportar', 'hacer')
@@ -654,33 +664,56 @@ export class ReservationsController {
     @Res() res: Response
   ) {
     const scope = await this.scope(req);
-    const result = await this.service.exportFormReservations(
-      req.organizationId,
-      await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations'),
+    const { cuerpo } = await this.service.exportFormReservations({
+      organizationId: req.organizationId,
+      niveles: await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations'),
       formId,
-      scope.clientId,
-      scope.clientIds,
-      body.format,
-      body.dateFrom,
-      body.dateTo,
-      body.fields,
-      req.user.role !== UserRole.CLIENT,
-    );
+      clientId: scope.clientId,
+      clientIds: scope.clientIds,
+      formato: body.format,
+      dateFrom: body.dateFrom,
+      dateTo: body.dateTo,
+      fields: body.fields,
+      includeInternalNotes: req.user.role !== UserRole.CLIENT,
+      actor: { id: req.user.id, nombre: req.user.name },
+      motivo: body.motivo,
+      ip: req.ip,
+    });
 
-    if (body.format === 'json') {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.json"`);
-      res.send(JSON.stringify(result, null, 2));
-    } else if (body.format === 'csv') {
+    const dia = new Date().toISOString().slice(0, 10);
+    res.setHeader('X-Uso', 'interno; contiene datos personales');
+    if (body.format === 'csv') {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="reservas-para-procesar-${dia}.csv"`);
       // La marca de orden de bytes la pone quien arma el texto: aqu\u00ED se env\u00EDa tal cual.
-      res.send(result);
-    } else if (body.format === 'xlsx') {
+      res.send(cuerpo);
+    } else {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.xlsx"`);
-      res.end(result as Buffer);
+      res.setHeader('Content-Disposition', `attachment; filename="reservas-${dia}.xlsx"`);
+      res.end(cuerpo as Buffer);
     }
+  }
+
+  /** Hoja del turno: un día en PDF para imprimir, sin campos protegidos. */
+  @Get('forms/:formId/hoja-del-turno')
+  @RequiereAccion('reservations.exportar')
+  @RequiereArea('reservations.exportar', 'hacer')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async hojaDelTurno(
+    @Req() req: AuthenticatedRequest,
+    @Param('formId') formId: string,
+    @Query() query: HojaDelTurnoDto,
+    @Res() res: Response,
+  ) {
+    const scope = await this.scope(req);
+    const hoja = await this.service.hojaDelTurno({
+      organizationId: req.organizationId, formId, fecha: query.fecha,
+      clientId: scope.clientId, clientIds: scope.clientIds,
+      actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${hoja.nombre}"`);
+    res.end(hoja.cuerpo);
   }
 
   /** Resumen del día para la portada operativa: cómo viene la jornada y si la señal llega. */

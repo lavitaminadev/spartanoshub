@@ -745,6 +745,9 @@
 .local-hub-cabecera .page-subtitle { margin: 0; }
 .local-hub-cabecera .estado-sucursal { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #e7f5ec; color: #1d5b35; font-size: 11px; font-weight: 700; letter-spacing: .04em; vertical-align: middle; }
 .local-hub-cabecera .estado-sucursal.is-borrador { background: #fff4d6; color: #6b4d00; }
+/* El «Cambiar» del horario elegido y la etiqueta del grupo de servicios. */
+.public-booking .selected-slot-badge .btn-xs { min-height: 44px; padding-inline: 14px; }
+.public-resource-etiqueta { display: block; margin-bottom: 6px; font-weight: 700; }
 /* Accesibilidad táctil (WCAG 2.5.5): objetivos de al menos 44 px en pantallas táctiles. */
 @media (pointer: coarse) {
   .public-booking .btn-sm, .public-evento-cta .btn, .booking-ocasion-ampliar, .pie-legal a, .consent-detalle > summary { min-height: 44px; display: inline-flex; align-items: center; }
@@ -990,9 +993,9 @@
 .captacion form { display: grid; gap: 14px; }
 .captacion label { display: grid; gap: 5px; font-size: 14px; font-weight: 600; }
 .captacion label small { color: var(--muted, #6b6e78); font-weight: 400; }
-.captacion-consent label { display: flex; align-items: flex-start; gap: 8px; font-weight: 400; line-height: 1.45; }
+.captacion-consent label { display: flex; align-items: flex-start; gap: 8px; min-height: 44px; font-weight: 400; line-height: 1.45; }
 .captacion-consent details { margin-top: 6px; }
-.captacion-consent summary { color: var(--muted, #6b6e78); font-size: 12px; cursor: pointer; }
+.captacion-consent summary { display: flex; align-items: center; min-height: 44px; color: var(--muted, #6b6e78); font-size: 12px; cursor: pointer; }
 .captacion-consent details p { margin: 6px 0 0; font-size: 12px; line-height: 1.6; }
 .captacion-nota { margin-top: 18px; color: var(--muted, #6b6e78); font-size: 13px; line-height: 1.55; }
 /* El campo trampa: fuera de la vista y del lector de pantalla, pero rellenable por un robot. */

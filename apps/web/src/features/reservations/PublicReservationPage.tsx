@@ -7,6 +7,7 @@ import { origenDeEstaVisita } from '../../shared/origen-automatico';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { PieLegal } from '../../shared/PieLegal';
 import { DialogoModal } from '../../shared/DialogoModal';
+import { enfocarPrimerError } from '../../shared/foco-al-error';
 import { resumenDeHorarios } from './resumen-de-horarios';
 import { VERSION_BENEFICIOS, formatearRut, rutValido, leerDocumento, documentoLegible, PAISES_DE_DOCUMENTO, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, documentoATexto, faltantesDeIdentidadLegal, nombreLegalDelLocal, politicaDePrivacidadDelLocal, rutaDocumentoLegal, textosDeAceptacionDeReserva, type IdentidadLegal } from '@espartanos/shared';
 import { useNavigate, useParams, Link } from 'react-router-dom';
@@ -150,6 +151,9 @@ export function PublicReservationPage() {
 
   const started = useRef(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const tarjetaRef = useRef<HTMLFormElement>(null);
+  /** Pantalla de éxito: recibe el foco al aparecer para que el lector de pantalla la anuncie. */
+  const exitoRef = useRef<HTMLElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
   const focusTimerRef = useRef<number>(0);
@@ -544,30 +548,39 @@ export function PublicReservationPage() {
     });
   }, [form?.ga4MeasurementId, form?.mode, form?.name, isSurvey, measurementConsent, slug, submit.data?.id]);
 
+  // Al aparecer la pantalla de éxito el foco va a su título, y el lector de pantalla la anuncia.
+  const hayExito = Boolean(submit.data || waitlist.data);
+  useEffect(() => {
+    if (hayExito) exitoRef.current?.querySelector<HTMLElement>('h1')?.focus();
+  }, [hayExito]);
+
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!guest.guestName.trim()) errs.name = 'El nombre es obligatorio';
+    if (!guest.guestName.trim()) errs.name = 'Escribe tu nombre para continuar';
     if (hayDatosSensibles && !sensitiveConsent) errs.sensitiveConsent = 'Autoriza el uso de la información de salud o alimentación, o bórrala para continuar';
-    if (!isSurvey && !reservationConsent) errs.reservationConsent = requestMode ? 'Debes aceptar las condiciones para enviar la solicitud' : 'Debes aceptar las condiciones para gestionar la reserva';
+    if (!isSurvey && !reservationConsent) errs.reservationConsent = requestMode ? 'Marca la casilla de aceptación para enviar la solicitud' : 'Marca la casilla de aceptación para gestionar la reserva';
     // Pedir la mesa porque no quedaba lugar no es una celebración: no se le exige elegir ocasión.
     if (!isSurvey && !pedidoPorFaltaDeCupo.current && (guest.partySize > groupThreshold || requestMode) && (!tipoDeEvento || (preguntaDeOcasiones && !ocasionElegida))) errs.groupEvent = 'Cuéntanos qué tipo de grupo o celebración es';
     if (requestMode && requestPreference.date && requestPreference.date < hoyEnElLocal) errs.groupEvent = 'La fecha preferida ya pasó: elige hoy o una fecha futura';
-    if (systemFields.phone?.required && !guest.guestPhone.trim()) errs.phone = 'El teléfono es obligatorio';
+    if (systemFields.phone?.required && !guest.guestPhone.trim()) errs.phone = 'Escribe tu celular, por ejemplo +56 9 1234 5678';
     else if (guest.guestPhone.trim() && !isValidChileanMobilePhone(guest.guestPhone)) errs.phone = 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678';
-    if (systemFields.email?.required && !guest.guestEmail.trim()) errs.email = 'El correo es obligatorio';
-    else if (guest.guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guest.guestEmail)) errs.email = 'Correo inválido';
+    if (systemFields.email?.required && !guest.guestEmail.trim()) errs.email = 'Escribe tu correo, por ejemplo nombre@correo.com';
+    else if (guest.guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guest.guestEmail)) errs.email = 'Revisa el correo: falta algo, por ejemplo nombre@correo.com';
     for (const field of customFields) {
-      if (field.required && field.type === 'consent' && !answers[field.id]) errs[field.id] = 'Debes aceptar';
+      if (field.required && field.type === 'consent' && !answers[field.id]) errs[field.id] = `Marca la casilla «${field.label}» para continuar`;
       const valor = answers[field.id];
       const vacio = valor === undefined || valor === null || (typeof valor === 'string' && !valor.trim()) || (Array.isArray(valor) && valor.length === 0);
-      if (field.required && field.type !== 'consent' && vacio) errs[field.id] = 'Campo obligatorio';
+      if (field.required && field.type !== 'consent' && vacio) errs[field.id] = `Completa «${field.label}» para continuar`;
       else if (!vacio && field.type === 'number' && !Number.isFinite(Number(valor))) errs[field.id] = 'Ingresa un número';
-      else if (!vacio && field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(valor))) errs[field.id] = 'Correo inválido';
+      else if (!vacio && field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(valor))) errs[field.id] = 'Revisa el correo: falta algo, por ejemplo nombre@correo.com';
       else if (!vacio && field.type === 'rut' && !rutValido(String(valor))) errs[field.id] = 'RUT inválido: revisa el dígito verificador';
       else if (!vacio && field.type === 'document' && !leerDocumento(String(valor))) errs[field.id] = String(valor).startsWith('pasaporte') ? 'Elige el país y escribe el número del documento' : 'RUT inválido: revisa el dígito verificador';
     }
     setErrors(errs);
-    return Object.keys(errs).length === 0;
+    const valido = Object.keys(errs).length === 0;
+    // Se espera a que los mensajes estén dibujados: el foco va al primer campo con error y no a la burbuja del navegador.
+    if (!valido) window.setTimeout(() => enfocarPrimerError(tarjetaRef.current), 0);
+    return valido;
   };
 
   const goToConfirm = () => {
@@ -591,6 +604,13 @@ export function PublicReservationPage() {
   };
 
   const goToForm = () => {
+    // Con `noValidate` el navegador no exige el servicio: se pide aquí, con el mensaje propio.
+    if (services.length > 4 && !serviceId) {
+      setErrors({ service: 'Elige el servicio que quieres reservar' });
+      window.setTimeout(() => enfocarPrimerError(tarjetaRef.current), 0);
+      return;
+    }
+    setErrors({});
     if (!selectedDate && selected) setSelectedDate(slotDateKey(selected, form!.timezone));
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setStep(2);
@@ -905,14 +925,14 @@ export function PublicReservationPage() {
   const networkConsentText = String(design.networkConsentText || textosBase.red);
 
   // Página de éxito
-  if (waitlist.data) return <main className="public-booking" style={style}><section className="booking-success"><span className="success-icon">✓</span><span className="success-state is-pending">LISTA DE ESPERA</span><h1>Te avisaremos por correo si se libera un cupo a esa hora</h1><p>No se confirmó una reserva ni se tomó un cupo. El local revisará tu solicitud en orden de llegada.</p><p className="success-datetime">{selected && new Date(selected).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {waitlist.data.referenceCode}</strong></div><Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link></section></main>;
+  if (waitlist.data) return <main className="public-booking" style={style}><section className="booking-success" role="status" ref={exitoRef}><span className="success-icon" aria-hidden="true">✓</span><span className="success-state is-pending">LISTA DE ESPERA</span><h1 tabIndex={-1}>Te avisaremos por correo si se libera un cupo a esa hora</h1><p>No se confirmó una reserva ni se tomó un cupo. El local revisará tu solicitud en orden de llegada.</p><p className="success-datetime">{selected && new Date(selected).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone })}</p><div className="success-code"><strong>Código {waitlist.data.referenceCode}</strong></div><Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link></section></main>;
 
   if (submit.data) {
     const googleReviewUrl = safeUrl(design.googleReviewUrl || '');
     const rating = Number(answers.rating || answers.experience_rating || 0);
     const reviewMinRating = safeNumber(design.googleReviewMinRating, 4, 1, 5);
-    if (isSurvey) return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} enabled={measurementConsent} /><Ga4Tag measurementId={form?.ga4MeasurementId} enabled={measurementConsent} /><section className="booking-success"><span className="success-icon">✓</span><h1>{design.surveySuccessTitle || 'Gracias por tu opinión'}</h1><p>{design.confirmationMessage || 'Tu respuesta fue registrada correctamente.'}</p>{Number.isFinite(rating) && rating > 0 && <p className="success-datetime">Calificación recibida: {rating}/5</p>}<div className="success-actions">{googleReviewUrl ? <a className="btn btn-primary" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">{rating >= reviewMinRating ? 'Dejar reseña en Google' : 'Ir a Google si quieres opinar públicamente'}</a> : null}<Link className="btn btn-outline" to={`/book/${slug}`}>Enviar otra respuesta</Link></div><small className="success-note">La reseña en Google es opcional y queda a tu criterio.</small></section></main>;
-    if (submit.data.kind === 'group_request') { const whatsappUrl = businessWhatsAppUrl(design.whatsappBusinessNumber, String(design.whatsappGroupMessage || `Hola, envié una solicitud de ${groupEventType || 'grupo'} para ${Math.max(groupThreshold + 1, guest.partySize)} personas desde la reserva web.`)); return <main className="public-booking" style={style}><section className="booking-success"><span className="success-icon">✓</span><span className="success-state is-pending">SOLICITUD RECIBIDA</span><h1>Revisaremos tu solicitud</h1><p>No se tomó ningún cupo ni se confirmó una reserva. El local te contactará para acordar disponibilidad y detalles.</p><p className="success-datetime">Grupo de {Math.max(groupThreshold + 1, guest.partySize)} personas · {ocasionElegida || groupEventType || 'evento'}</p><div className="success-actions">{whatsappUrl && <a className="btn btn-primary" href={whatsappUrl} target="_blank" rel="noreferrer">Continuar por WhatsApp</a>}<Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link></div>{design.supportEmail && <small className="success-note">Si necesitas agregar algo, escribe a {design.supportEmail}</small>}</section></main>; }
+    if (isSurvey) return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} enabled={measurementConsent} /><Ga4Tag measurementId={form?.ga4MeasurementId} enabled={measurementConsent} /><section className="booking-success" role="status" ref={exitoRef}><span className="success-icon" aria-hidden="true">✓</span><h1 tabIndex={-1}>{design.surveySuccessTitle || 'Gracias por tu opinión'}</h1><p>{design.confirmationMessage || 'Tu respuesta fue registrada correctamente.'}</p>{Number.isFinite(rating) && rating > 0 && <p className="success-datetime">Calificación recibida: {rating}/5</p>}<div className="success-actions">{googleReviewUrl ? <a className="btn btn-primary" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">{rating >= reviewMinRating ? 'Dejar reseña en Google' : 'Ir a Google si quieres opinar públicamente'}</a> : null}<Link className="btn btn-outline" to={`/book/${slug}`}>Enviar otra respuesta</Link></div><small className="success-note">La reseña en Google es opcional y queda a tu criterio.</small></section></main>;
+    if (submit.data.kind === 'group_request') { const whatsappUrl = businessWhatsAppUrl(design.whatsappBusinessNumber, String(design.whatsappGroupMessage || `Hola, envié una solicitud de ${groupEventType || 'grupo'} para ${Math.max(groupThreshold + 1, guest.partySize)} personas desde la reserva web.`)); return <main className="public-booking" style={style}><section className="booking-success" role="status" ref={exitoRef}><span className="success-icon" aria-hidden="true">✓</span><span className="success-state is-pending">SOLICITUD RECIBIDA</span><h1 tabIndex={-1}>Revisaremos tu solicitud</h1><p>No se tomó ningún cupo ni se confirmó una reserva. El local te contactará para acordar disponibilidad y detalles.</p><p className="success-datetime">Grupo de {Math.max(groupThreshold + 1, guest.partySize)} personas · {ocasionElegida || groupEventType || 'evento'}</p><div className="success-actions">{whatsappUrl && <a className="btn btn-primary" href={whatsappUrl} target="_blank" rel="noreferrer">Continuar por WhatsApp</a>}<Link className="btn btn-outline" to={`/book/${slug}`}>Volver al inicio</Link></div>{design.supportEmail && <small className="success-note">Si necesitas agregar algo, escribe a {design.supportEmail}</small>}</section></main>; }
     const svcDuration = serviceId ? (form.servicesConfig || []).find((s) => s.id === serviceId)?.durationMinutes : null;
     const icsDuration = (svcDuration || form.durationMinutes || 60) * 60000;
     /*
@@ -937,7 +957,7 @@ export function PublicReservationPage() {
     const icsUrl = URL.createObjectURL(icsBlob);
     const calendarSaveEnabled = design.calendarSaveEnabled !== 'false' && fechaUtil;
     const isPending = submit.data.status === 'pending';
-    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} enabled={measurementConsent} /><Ga4Tag measurementId={form?.ga4MeasurementId} enabled={measurementConsent} /><section className="booking-success"><span className="success-icon">✓</span><span className={`success-state ${isPending ? 'is-pending' : ''}`}>{isPending ? 'PENDIENTE DE CONFIRMACIÓN' : 'RESERVA CONFIRMADA'}</span><h1>{isPending ? 'Recibimos tu reserva' : '¡Te esperamos!'}</h1><p>{isPending ? 'Aún no está confirmada. El local revisará tu solicitud y te responderá al correo indicado.' : (design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.')}</p><p className="success-datetime">{startDate ? startDate.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }) : 'Te confirmaremos la fecha por correo.'}</p>{/* Resumen de lo que quedó registrado. Antes la pantalla confirmaba sin mostrar con qué datos:
+    return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} enabled={measurementConsent} /><Ga4Tag measurementId={form?.ga4MeasurementId} enabled={measurementConsent} /><section className="booking-success" role="status" ref={exitoRef}><span className="success-icon" aria-hidden="true">✓</span><span className={`success-state ${isPending ? 'is-pending' : ''}`}>{isPending ? 'PENDIENTE DE CONFIRMACIÓN' : 'RESERVA CONFIRMADA'}</span><h1 tabIndex={-1}>{isPending ? 'Recibimos tu reserva' : '¡Te esperamos!'}</h1><p>{isPending ? 'Aún no está confirmada. El local revisará tu solicitud y te responderá al correo indicado.' : (design.confirmationMessage || 'Tu reserva quedó registrada. Te esperamos.')}</p><p className="success-datetime">{startDate ? startDate.toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'short', timeZone: form.timezone }) : 'Te confirmaremos la fecha por correo.'}</p>{/* Resumen de lo que quedó registrado. Antes la pantalla confirmaba sin mostrar con qué datos:
     quien se equivocaba en el nombre o en la cantidad de personas no tenía cómo darse cuenta, y el
     error aparecía recién al llegar al local. */}
 {!marketingConsent && submit.data?.managementToken && <OfertaDeBeneficios token={submit.data.managementToken} texto={textosBase.novedades} nombre={identidadLegal.nombreComercial || responsableLegal} />}
@@ -967,7 +987,7 @@ export function PublicReservationPage() {
     {design.cancellationPolicy && <small className="success-note">{design.cancellationPolicy}</small>}{design.supportEmail && <small className="success-note">¿Necesitas ayuda? {design.supportEmail}</small>}{calendarSaveEnabled && <small className="success-note">{design.calendarSaveText || 'Al tocar una opción, tu dispositivo abrirá su calendario y te pedirá confirmar antes de guardar.'}</small>}</section></main>;
   }
 
-  if (form.status === 'paused') return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} enabled={measurementConsent} /><Ga4Tag measurementId={form?.ga4MeasurementId} enabled={measurementConsent} /><section className="booking-success"><h1>Reservas temporalmente cerradas</h1><p>Este local no acepta reservas en este momento. Vuelve más tarde o contacta al establecimiento.</p></section></main>;
+  if (form.status === 'paused') return <main className="public-booking" style={style}><MetaPixel pixelId={form?.pixelId} enabled={measurementConsent} /><Ga4Tag measurementId={form?.ga4MeasurementId} enabled={measurementConsent} /><section className="booking-success" role="status" ref={exitoRef}><h1>Reservas temporalmente cerradas</h1><p>Este local no acepta reservas en este momento. Vuelve más tarde o contacta al establecimiento.</p></section></main>;
 
   return <main className={`public-booking layout-${safeDesignChoice(design.layoutPosition, ['left', 'center', 'right'], 'right')}`} style={style} onFocusCapture={markStarted} onPointerDown={markStarted}>
     <MetaPixel pixelId={form.pixelId} enabled={measurementConsent} />
@@ -1027,8 +1047,8 @@ export function PublicReservationPage() {
     {!isSurvey && <details className="booking-buscar">
       <summary>¿Ya tienes una reserva? Cámbiala o cancélala</summary>
       <form onSubmit={(event) => { event.preventDefault(); buscarReserva.mutate(); }}>
-        <label>Código de reserva<input className="input" value={codigoBuscado} onChange={(event) => setCodigoBuscado(event.target.value)} placeholder="Aparece en tu confirmación" required autoComplete="off" /></label>
-        <label>Correo o teléfono con que reservaste<input className="input" value={contactoBuscado} onChange={(event) => setContactoBuscado(event.target.value)} required /></label>
+        <label>Código de reserva<input className="input" value={codigoBuscado} onChange={(event) => setCodigoBuscado(event.target.value)} placeholder="Aparece en tu confirmación" required autoComplete="off" autoCapitalize="characters" spellCheck={false} /></label>
+        <label>Correo o teléfono con que reservaste<input className="input" value={contactoBuscado} onChange={(event) => setContactoBuscado(event.target.value)} required autoComplete="email" inputMode="email" /></label>
         <button className="btn btn-primary btn-sm" disabled={buscarReserva.isPending}>{buscarReserva.isPending ? 'Buscando...' : 'Buscar mi reserva'}</button>
         {buscarReserva.error && <small className="error-text">{buscarReserva.error.message}</small>}
       </form>
@@ -1037,7 +1057,7 @@ export function PublicReservationPage() {
         {recuperar.isSuccess
           ? <p>Si hay reservas con ese correo en este local, te enviamos un enlace para gestionarlas. Revisa también la carpeta de spam.</p>
           : <form onSubmit={(event) => { event.preventDefault(); recuperar.mutate(); }}>
-            <label>Te enviamos el enlace al correo con que reservaste<input className="input" type="email" value={correoRecuperar} onChange={(event) => setCorreoRecuperar(event.target.value)} required autoComplete="email" /></label>
+            <label>Te enviamos el enlace al correo con que reservaste<input className="input" type="email" inputMode="email" value={correoRecuperar} onChange={(event) => setCorreoRecuperar(event.target.value)} required autoComplete="email" /></label>
             <button className="btn btn-outline btn-sm" disabled={recuperar.isPending}>{recuperar.isPending ? 'Enviando...' : 'Enviarme el enlace'}</button>
             {recuperar.error && <small className="error-text">{recuperar.error.message}</small>}
           </form>}
@@ -1075,7 +1095,7 @@ export function PublicReservationPage() {
           </div>
         </div>}
       </section>
-      <form className={`public-booking-card ${isSurvey ? 'is-survey' : ''}`} onSubmit={(event) => { event.preventDefault(); if (step === 3) { submit.mutate(); } else if (step === 2) { goToConfirm(); } else { goToForm(); } }}>
+      <form ref={tarjetaRef} noValidate className={`public-booking-card ${isSurvey ? 'is-survey' : ''}`} onSubmit={(event) => { event.preventDefault(); if (step === 3) { submit.mutate(); } else if (step === 2) { goToConfirm(); } else { goToForm(); } }}>
         {/* Se oculta desplazándolo fuera de pantalla y no con `display:none`, que los bots
             reconocen como campo técnico y omiten. `aria-hidden` y `tabIndex={-1}` lo dejan
             fuera del alcance de lectores de pantalla y de la navegación con teclado. */}
@@ -1108,7 +1128,7 @@ export function PublicReservationPage() {
             setGuest({ ...guest, partySize: personas });
           }}>{Array.from({ length: groupThreshold }, (_, i) => i + 1).map((size) => <option key={size} value={size}>{size} persona{size === 1 ? '' : 's'}</option>)}<option value={groupThreshold + 1}>{groupThreshold + 1} o más personas</option></select></label>{guest.partySize > groupThreshold && design.groupRequestEnabled === 'false' && <small className="group-flow-hint">Grupo grande: elige fecha y horario; el local confirmará la reserva antes de dejarla lista.</small>}</div>
           {(services.length > 0 || resources.length > 0) && <div className="public-resource-choice">
-            {services.length > 0 && (services.length <= 4 ? <div className="public-resource-tiles"><label>Servicio</label><div className="resource-tile-grid">{services.map((service) => <button type="button" key={service.id} className={`resource-tile ${serviceId === service.id ? 'selected' : ''}`} onClick={() => { setServiceId(serviceId === service.id ? '' : service.id); setSelected(''); }}><strong>{service.name}</strong><small>{service.durationMinutes ? `${service.durationMinutes} min` : ''}</small></button>)}</div></div> : <label>Servicio<select required value={serviceId} onChange={(event) => { setServiceId(event.target.value); setSelected(''); }}><option value="">Selecciona un servicio</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}{service.durationMinutes ? ` · ${service.durationMinutes} min` : ''}</option>)}</select></label>)}
+            {services.length > 0 && (services.length <= 4 ? <div className="public-resource-tiles" role="group" aria-labelledby="etiqueta-servicio"><span id="etiqueta-servicio" className="public-resource-etiqueta">Servicio</span><div className="resource-tile-grid">{services.map((service) => <button type="button" key={service.id} className={`resource-tile ${serviceId === service.id ? 'selected' : ''}`} aria-pressed={serviceId === service.id} onClick={() => { setServiceId(serviceId === service.id ? '' : service.id); setSelected(''); }}><strong>{service.name}</strong><small>{service.durationMinutes ? `${service.durationMinutes} min` : ''}</small></button>)}</div></div> : <label className={errors.service ? 'has-error' : ''}>Servicio<select required aria-invalid={Boolean(errors.service)} aria-describedby={errors.service ? 'error-service' : undefined} value={serviceId} onChange={(event) => { setServiceId(event.target.value); setSelected(''); }}><option value="">Selecciona un servicio</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}{service.durationMinutes ? ` · ${service.durationMinutes} min` : ''}</option>)}</select>{errors.service && <span className="field-error" id="error-service" role="alert">{errors.service}</span>}</label>)}
             {resources.length > 0 && <label>Sector preferido <small>(opcional)</small><select value={resourceId} onChange={(event) => { setResourceId(event.target.value); setSelected(''); }}><option value="">Sin preferencia</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}{resource.description ? ` · ${resource.description}` : ''}{resource.smokingAllowed ? ' · fumadores' : ''}</option>)}</select></label>}
           </div>}
           {loadingSlots && <div className="no-slots"><LoadingSpinner text="Buscando disponibilidad..." /></div>}
@@ -1197,9 +1217,9 @@ export function PublicReservationPage() {
           <div className="booking-selected-slot">{selected && <div className="selected-slot-badge"><span><VitaIcons.calendar /></span><strong>{new Date(selected).toLocaleString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: form.timezone })}</strong>{hold.isPending && <small aria-live="polite">Guardando tu cupo...</small>}{hold.isSuccess && holdRestante > 0 && <small className="success-text" aria-live="polite">Cupo retenido {Math.floor(holdRestante / 60)}:{String(holdRestante % 60).padStart(2, "0")}</small>}{hold.isSuccess && holdExpiraEn && holdRestante === 0 && <small aria-live="polite">La retención venció. Puedes seguir, pero confirmaremos que el horario siga libre.</small>}<button type="button" className="btn btn-outline btn-xs" onClick={goBackToSlots}>Cambiar</button></div>}</div>
           <div className="public-form-fields">
             {/* El orden es el del editor: los campos fijos van donde se los puso, no siempre arriba. */}
-            {camposEnOrden.filter((field) => !(preguntaDeOcasiones && field.id === preguntaDeOcasiones.id && (requestMode || guest.partySize > groupThreshold))).map((field) => field.id === 'name' ? <Fragment key="name"><div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div></Fragment>
-              : field.id === 'phone' ? <Fragment key="phone"><div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div></Fragment>
-              : field.id === 'email' ? <Fragment key="email"><div className={`public-field ${errors.email ? 'has-error' : ''}`}><label>{systemFields.email.label} {systemFields.email.required ? <span className="required-star">*</span> : null}<input className={errors.email ? 'input-error' : ''} type="email" required={systemFields.email.required} placeholder={systemFields.email.placeholder || 'tu@correo.com'} value={guest.guestEmail} onChange={(event) => setGuest({ ...guest, guestEmail: event.target.value })} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'error-email' : undefined} /></label>{errors.email && <span className="field-error" id="error-email" role="alert">{errors.email}</span>}</div></Fragment>
+            {camposEnOrden.filter((field) => !(preguntaDeOcasiones && field.id === preguntaDeOcasiones.id && (requestMode || guest.partySize > groupThreshold))).map((field) => field.id === 'name' ? <Fragment key="name"><div className={`public-field ${errors.name ? 'has-error' : ''}`}><label>{systemFields.name.label} {systemFields.name.required ? <span className="required-star">*</span> : null}<input ref={nameInputRef} className={errors.name ? 'input-error' : ''} type="text" autoComplete="name" required={systemFields.name.required} placeholder={systemFields.name.placeholder || 'Tu nombre completo'} value={guest.guestName} onChange={(event) => setGuest({ ...guest, guestName: event.target.value })} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'error-name' : undefined} /></label>{errors.name && <span className="field-error" id="error-name" role="alert">{errors.name}</span>}</div></Fragment>
+              : field.id === 'phone' ? <Fragment key="phone"><div className={`public-field ${errors.phone ? 'has-error' : ''}`}><label>{systemFields.phone.label} {systemFields.phone.required ? <span className="required-star">*</span> : null}<input className={errors.phone ? 'input-error' : ''} type="tel" autoComplete="tel" inputMode="tel" required={systemFields.phone.required} placeholder={systemFields.phone.placeholder || '+56 9 ...'} value={guest.guestPhone} onChange={(event) => setGuest({ ...guest, guestPhone: event.target.value })} aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? 'error-phone' : undefined} /></label>{errors.phone && <span className="field-error" id="error-phone" role="alert">{errors.phone}</span>}</div></Fragment>
+              : field.id === 'email' ? <Fragment key="email"><div className={`public-field ${errors.email ? 'has-error' : ''}`}><label>{systemFields.email.label} {systemFields.email.required ? <span className="required-star">*</span> : null}<input className={errors.email ? 'input-error' : ''} type="email" autoComplete="email" inputMode="email" required={systemFields.email.required} placeholder={systemFields.email.placeholder || 'tu@correo.com'} value={guest.guestEmail} onChange={(event) => setGuest({ ...guest, guestEmail: event.target.value })} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'error-email' : undefined} /></label>{errors.email && <span className="field-error" id="error-email" role="alert">{errors.email}</span>}</div></Fragment>
               : <Fragment key={field.id}>{renderField(field, answers[field.id], (value) => setAnswers({ ...answers, [field.id]: value }), errors[field.id])}</Fragment>)}
             {/* ---- Evento o grupo: todo lo del evento junto, separado de las preferencias de una visita normal. */}
             {!isSurvey && (guest.partySize > groupThreshold || requestMode) && <section className={`booking-bloque ${errors.groupEvent ? 'has-error' : ''}`} aria-labelledby="bloque-evento">
@@ -1228,7 +1248,7 @@ export function PublicReservationPage() {
             </details>}
 
             {/* ---- Cupón: sólo para una reserva con horario; una solicitud no tiene precio todavía. */}
-            {!requestMode && form.designConfig?.couponEnabled !== 'false' && <div className="public-field"><label>Cupón de descuento <small>(opcional)</small><div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" placeholder="Código" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div>{couponMsg && <small className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small>}</label></div>}
+            {!requestMode && form.designConfig?.couponEnabled !== 'false' && <div className="public-field"><label>Cupón de descuento <small>(opcional)</small><div className="public-coupon-row"><input className={couponValid === false ? 'input-error' : ''} type="text" autoComplete="off" autoCapitalize="characters" spellCheck={false} placeholder="Código" value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponValid(null); setCouponMsg(''); }} /><button type="button" className="btn btn-outline btn-sm" disabled={!couponCode.trim() || validateCoupon.isPending} onClick={() => validateCoupon.mutate()}>{validateCoupon.isPending ? '...' : 'Aplicar'}</button></div><small role="status" className={couponValid ? 'success-text' : 'error-text'}>{couponMsg}</small></label></div>}
 
             {/*
               * Aceptaciones: una casilla por finalidad, ninguna marcada de antemano, texto corto y el
@@ -1237,14 +1257,14 @@ export function PublicReservationPage() {
             <section className="booking-bloque booking-aceptaciones" aria-labelledby="bloque-aceptaciones">
               <h3 id="bloque-aceptaciones">{isSurvey ? 'Antes de enviar' : 'Aceptaciones'}</h3>
               {!isSurvey && <div className={`public-consent ${errors.reservationConsent ? 'has-error' : ''}`}>
-                <label><input type="checkbox" required checked={reservationConsent} onChange={(event) => setReservationConsent(event.target.checked)} aria-invalid={Boolean(errors.reservationConsent)} /><span><strong>Acepto las condiciones de la {requestMode ? 'solicitud' : 'reserva'} y leí la política de privacidad <span className="required-star">*</span></strong></span></label>
+                <label><input type="checkbox" required checked={reservationConsent} onChange={(event) => setReservationConsent(event.target.checked)} aria-invalid={Boolean(errors.reservationConsent)} aria-describedby={errors.reservationConsent ? 'error-reservationConsent' : undefined} /><span><strong>Acepto las condiciones de la {requestMode ? 'solicitud' : 'reserva'} y leí la política de privacidad <span className="required-star">*</span></strong></span></label>
                 <details className="consent-detalle"><summary>Ver detalle</summary><p>{reservationConsentText}</p><p className="consent-legal">Responsable de tus datos: {responsableLegal}. Plataforma: Espartanos, encargada por el local.</p><EnlacesLegales design={design as Record<string, unknown>} identidad={identidadLegal} onAbrir={setDocumentoLegal} /></details>
-                {errors.reservationConsent && <span className="field-error" role="alert">{errors.reservationConsent}</span>}
+                {errors.reservationConsent && <span className="field-error" id="error-reservationConsent" role="alert">{errors.reservationConsent}</span>}
               </div>}
               {hayDatosSensibles && <div className={`public-consent public-consent-sensible ${errors.sensitiveConsent ? 'has-error' : ''}`}>
-                <label><input type="checkbox" checked={sensitiveConsent} onChange={(event) => setSensitiveConsent(event.target.checked)} aria-invalid={Boolean(errors.sensitiveConsent)} /><span><strong>Autorizo el uso de la información de salud o alimentación que indiqué <span className="required-star">*</span></strong></span></label>
+                <label><input type="checkbox" checked={sensitiveConsent} onChange={(event) => setSensitiveConsent(event.target.checked)} aria-invalid={Boolean(errors.sensitiveConsent)} aria-describedby={errors.sensitiveConsent ? 'error-sensitiveConsent' : undefined} /><span><strong>Autorizo el uso de la información de salud o alimentación que indiqué <span className="required-star">*</span></strong></span></label>
                 <details className="consent-detalle"><summary>Ver detalle</summary><p>{textosBase.sensibles}</p></details>
-                {errors.sensitiveConsent && <span className="field-error" role="alert">{errors.sensitiveConsent}</span>}
+                {errors.sensitiveConsent && <span className="field-error" id="error-sensitiveConsent" role="alert">{errors.sensitiveConsent}</span>}
               </div>}
               {!isSurvey && <div className="public-consent public-marketing-consent">
                 <label><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Quiero beneficios y novedades de {identidadLegal.nombreComercial || responsableLegal} <small>(opcional)</small></strong><small className="consent-beneficio">Promociones, beneficios de cumpleaños y eventos, cuando el local los ofrezca.</small></span></label>
@@ -1434,7 +1454,7 @@ function renderField(field: FormField, value: unknown, onChange: (v: string | bo
   if (field.type === 'select') return <label>{field.label}{field.required && <span className="required-star"> *</span>}<select className={error ? 'input-error' : ''} required={field.required} value={String(value || '')} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined}><option value="">Selecciona</option>{field.options?.map((option) => <option key={option}>{option}</option>)}</select>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</label>;
   if (field.type === 'rut') return <div className={`public-field ${error ? 'has-error' : ''}`}><label>{field.label} {field.required ? <span className="required-star">*</span> : <small>(opcional)</small>}<input className={error ? 'input-error' : ''} inputMode="text" autoComplete="off" maxLength={12} placeholder={field.placeholder || '12.345.678-9'} value={String(value || '')} onChange={(event) => onChange(event.target.value.replace(/[^0-9kK.\-]/g, ''))} onBlur={(event) => { if (rutValido(event.target.value)) onChange(formatearRut(event.target.value)); }} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
   if (field.type === 'textarea') return <label>{field.label}{field.required && <span className="required-star"> *</span>}<textarea className={error ? 'input-error' : ''} required={field.required} value={String(value || '')} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} />{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</label>;
-  return <div className={`public-field ${error ? 'has-error' : ''}`}><label>{field.label} {field.required ? <span className="required-star">*</span> : null}<input className={error ? 'input-error' : ''} type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : field.type === 'date' || field.type === 'birthdate' ? 'date' : field.type === 'number' ? 'number' : 'text'} required={field.required} placeholder={field.placeholder} value={String(value || '')} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
+  return <div className={`public-field ${error ? 'has-error' : ''}`}><label>{field.label} {field.required ? <span className="required-star">*</span> : null}<input className={error ? 'input-error' : ''} autoComplete={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : undefined} inputMode={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : undefined} type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : field.type === 'date' || field.type === 'birthdate' ? 'date' : field.type === 'number' ? 'number' : 'text'} required={field.required} placeholder={field.placeholder} value={String(value || '')} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} /></label>{error && <span className="field-error" id={errorId} role="alert">{error}</span>}</div>;
 }
 
 /** Lo que responde el servidor al aceptar: o quedó, o hay que preguntarle de nuevo. */

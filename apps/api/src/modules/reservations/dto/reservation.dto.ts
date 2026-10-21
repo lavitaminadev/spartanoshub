@@ -462,10 +462,17 @@ export class UpdateCouponDto {
 }
 
 export class ExportFormReservationsDto {
-  @IsIn(['csv', 'json', 'xlsx']) format: 'csv' | 'json' | 'xlsx';
+  @IsIn(['csv', 'xlsx']) format: 'csv' | 'xlsx';
   @IsOptional() @IsDateString() dateFrom?: string;
   @IsOptional() @IsDateString() dateTo?: string;
   @IsArray() @IsString({ each: true }) @MaxLength(120, { each: true }) fields: string[];
+  /** Para qué se saca. Obligatorio si el archivo lleva datos protegidos o es voluminoso. */
+  @IsOptional() @IsString() @MaxLength(500) motivo?: string;
+}
+
+/** La hoja del turno es de un solo día. */
+export class HojaDelTurnoDto {
+  @Matches(/^\d{4}-\d{2}-\d{2}$/) fecha: string;
 }
 
 /** Filtros de la lista de cupones. Aparte del alcance porque sólo los usa esa pantalla. */
@@ -501,6 +508,11 @@ export class ReservationScopeDto {
   @IsOptional() @IsDateString() to?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100000) limit?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(365) days?: number;
+}
+
+/** El CSV de proceso, que además puede traer el motivo de la exportación. */
+export class ExportCsvQueryDto extends ReservationScopeDto {
+  @IsOptional() @IsString() @MaxLength(500) motivo?: string;
 }
 
 /**

@@ -5,7 +5,7 @@ import { VERSION_BENEFICIOS, VERSION_BENEFICIOS_RED, rutValido, MENSAJE_FALTA_CO
 import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
 import { camposProtegidosDe, columnasAQuitar, estaProtegido } from '@espartanos/shared';
 import type { NivelesDeDatos } from '../../../core/client-scope/nivel-de-datos.service';
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
@@ -50,6 +50,10 @@ import { inferLocationFromPhone } from '../../../shared/geo-inference';
 import { GoogleConversionOutboxService } from '../../integrations/google/google-conversion-outbox.service';
 import { normalizeClientCapabilities } from '../../clients/client-capabilities';
 import { planillaXlsx } from '../../../shared/planilla-xlsx';
+import { AVISO_DE_RESTRICCIONES, MOTIVO_MINIMO, marcaDeExportacion, motivoEscrito, razonesParaExigirMotivo, tieneRestricciones } from './exportaciones';
+import { pdfDeTabla } from './pdf-de-tabla';
+import { respuestaPublicaDeReserva } from './respuesta-publica';
+import { huellaDeOrigen, TOPE_RETENCIONES_POR_ORIGEN } from './retenciones';
 
 /**
  * Recomendaciones que el local muestra al confirmar una reserva.
@@ -2326,12 +2330,17 @@ export class ReservationsService {
   }
 
   /** Conserva un cupo por diez minutos mientras la persona termina el formulario. */
-  async holdPublic(slug: string, dto: PublicReservationHoldDto) {
+  async holdPublic(slug: string, dto: PublicReservationHoldDto, ipAddress?: string) {
     // Retener cupo aparta inventario real, asi que exige las mismas senales que el alta.
     if (dto.website) throw new BadRequestException('Solicitud inválida');
-    if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
+    // Sin `renderedAt` no hay forma de saber que la página llegó a pintarse: es la señal que
+    // distingue a una persona de un script que llama al endpoint directamente.
+    const renderedMs = dto.renderedAt ? new Date(dto.renderedAt).getTime() : NaN;
+    if (Number.isNaN(renderedMs)) throw new BadRequestException('Solicitud inválida');
+    if (Date.now() - renderedMs < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
     const startsAt = new Date(dto.startsAt);
     if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
+    const origen = huellaDeOrigen(ipAddress);
     return this.transaction('retener cupo público', async (manager) => {
       const form = await this.publishedForm(slug, manager);
       this.assertPublicBookingOpen(form);
@@ -2340,10 +2349,15 @@ export class ReservationsService {
       const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
       const repo = manager.getRepository(ReservationHold);
       const current = await repo.findOne({ where: { formId: form.id, holdKey: dto.holdKey } });
+      // Cambiar de horario reutiliza la retención; el tope sólo frena a quien abre retenciones nuevas.
+      if (!current && origen) {
+        const vigentes = await repo.count({ where: { formId: form.id, originKey: origen, expiresAt: MoreThan(new Date()) } });
+        if (vigentes >= TOPE_RETENCIONES_POR_ORIGEN) throw new HttpException('Tienes varios horarios reservados a la espera. Termina uno o espera unos minutos.', HttpStatus.TOO_MANY_REQUESTS);
+      }
       const configuredMinutes = Number((form.designConfig as DesignConfig).holdMinutes);
       const holdMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 30 ? configuredMinutes : 10;
       const expiresAt = new Date(Date.now() + holdMinutes * 60_000);
-      const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt });
+      const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt, originKey: origen });
       hold.startsAt = startsAt; hold.endsAt = availability.endsAt; hold.partySize = partySize; hold.serviceId = dto.serviceId; hold.resourceId = dto.resourceId; hold.expiresAt = expiresAt;
       await repo.save(hold);
       return { expiresAt: hold.expiresAt, available: availability.available };
@@ -2879,7 +2893,7 @@ export class ReservationsService {
 
     const managementToken = result.created ? result.managementToken : undefined;
     if (result.created) await this.notifyNewBooking(result.form, result.booking, managementToken);
-    return { ...result.booking, managementToken };
+    return respuestaPublicaDeReserva(result.booking, managementToken);
   }
 
   private async recordIntegrationFailure(booking: Reservation, provider: string) {
@@ -3803,18 +3817,70 @@ export class ReservationsService {
     }
   }
 
-  async exportFormReservations(
-    organizationId: string,
-    niveles: NivelesDeDatos,
-    formId: string,
-    clientId?: string,
-    clientIds?: string[],
-    format: 'csv' | 'json' | 'xlsx' = 'csv',
-    dateFrom?: string,
-    dateTo?: string,
-    fields: string[] = ['name', 'phone', 'email', 'date', 'status', 'attendance'],
-    includeInternalNotes = true,
-  ) {
+  /**
+   * Deja constancia de una exportación antes de entregarla, y exige motivo cuando corresponde.
+   *
+   * Es lo único que contesta «quién tuvo estos datos»: quién, cuándo, con qué filtro, cuántas
+   * filas y qué columnas. Si la constancia no se puede escribir, el archivo no sale.
+   */
+  async registrarExportacion(e: {
+    organizationId: string; actor: { id: string; nombre: string }; ip?: string; entityId?: string;
+    finalidad: 'con_contacto' | 'hoja_del_turno' | 'procesable'; formato: 'xlsx' | 'csv' | 'pdf';
+    filtro: Record<string, unknown>; filas: number; columnas: string[]; conProtegidos: boolean;
+    desde?: string; hasta?: string; motivo?: string;
+  }): Promise<void> {
+    const razones = razonesParaExigirMotivo({ filas: e.filas, desde: e.desde, hasta: e.hasta }, e.conProtegidos);
+    const motivo = motivoEscrito(e.motivo);
+    if (razones.length > 0 && !motivo) {
+      throw new BadRequestException(`Esta exportación exige un motivo escrito (al menos ${MOTIVO_MINIMO} caracteres) porque ${razones.join(' y ')}.`);
+    }
+    await this.audit.log({
+      organizationId: e.organizationId,
+      actorId: e.actor.id,
+      entityType: 'reservations',
+      entityId: e.entityId ?? null,
+      action: 'export',
+      after: { finalidad: e.finalidad, formato: e.formato, filtro: e.filtro, filas: e.filas, columnas: e.columnas, motivoExigido: razones },
+      reason: motivo,
+      ipAddress: e.ip,
+    });
+  }
+
+  /** Cuántas filas entregaría `streamCsv` con estos filtros, para decidir si exige motivo. */
+  async contarParaExportar(organizationId: string, clientId?: string, clientIds?: string[], from?: string, to?: string, limit?: number): Promise<number> {
+    const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId });
+    if (clientId) qb.andWhere('r.client_id = :clientId', { clientId });
+    else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds });
+    if (from) qb.andWhere('r.starts_at >= :from', { from });
+    if (to) qb.andWhere('r.starts_at <= :to', { to });
+    const total = await qb.getCount();
+    return limit === undefined ? total : Math.min(total, limit);
+  }
+
+  /** Las columnas de `streamCsv` para un nivel, para anotarlas en la constancia. */
+  columnasDelCsv(niveles: NivelesDeDatos, clientId?: string, clientIds?: string[]): { columnas: string[]; conProtegidos: boolean } {
+    const quitar = new Set(columnasAQuitar('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
+    const base = ['codigo', 'nombre', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas'];
+    const protegidas = [['correo', 'guestEmail'], ['telefono', 'guestPhone']].filter(([, campo]) => !quitar.has(campo)).map(([nombre]) => nombre);
+    const respuestas = quitar.has('answers') ? [] : ['respuestas_del_formulario'];
+    return { columnas: [...base, ...protegidas, ...respuestas], conProtegidos: protegidas.length > 0 || respuestas.length > 0 };
+  }
+
+  /**
+   * Exportación de un local, armada en el servidor.
+   *
+   * Devuelve la planilla `.xlsx` —con la marca en la primera fila— o el CSV de proceso. Pasa por
+   * `columnasAQuitar` según el nivel de quien pide, deja constancia y exige motivo si el archivo
+   * lleva datos protegidos o es voluminoso. No se entrega nada hasta que la constancia se escribe.
+   */
+  async exportFormReservations(p: {
+    organizationId: string; niveles: NivelesDeDatos; formId: string; clientId?: string; clientIds?: string[];
+    formato: 'csv' | 'xlsx'; dateFrom?: string; dateTo?: string; fields?: string[]; includeInternalNotes?: boolean;
+    actor: { id: string; nombre: string }; motivo?: string; ip?: string;
+  }): Promise<{ cuerpo: string | Buffer; filas: number }> {
+    const { organizationId, niveles, formId, clientId, clientIds, formato, dateFrom, dateTo } = p;
+    const fields = p.fields ?? ['name', 'phone', 'email', 'date', 'status', 'attendance'];
+    const includeInternalNotes = p.includeInternalNotes ?? true;
     const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }).andWhere('r.form_id = :formId', { formId });
     if (clientId) qb.andWhere('r.client_id = :clientId', { clientId });
     else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds });
@@ -3862,7 +3928,7 @@ export class ReservationsService {
 
     const COLUMNA_PROTEGIDA: Record<string, string> = { phone: 'guestPhone', email: 'guestEmail' };
     const allowedFields = (includeInternalNotes ? fields : fields.filter((field) => field !== 'notes'))
-      .filter((field) => !quitar.has(COLUMNA_PROTEGIDA[field] ?? ''));
+      .filter((field) => fieldMap[field] && !quitar.has(COLUMNA_PROTEGIDA[field] ?? ''));
 
     /*
      * Las columnas se titulan en palabras, no con el nombre del campo.
@@ -3877,12 +3943,20 @@ export class ReservationsService {
       origin: 'Canal', medium: 'Medio', campaign: 'Campaña', content: 'Contenido',
       code: 'Código', coupon: 'Cupón', party_size: 'Personas',
     };
-    const tituloDe = (campo: string) => TITULOS[campo] ?? campo;
-    const cabeceras = [...allowedFields.map(tituloDe), ...clavesRespuesta.map(etiquetaDe)];
+    const cabeceras = [...allowedFields.map((campo) => TITULOS[campo] ?? campo), ...clavesRespuesta.map(etiquetaDe)];
     const valores = (item: Reservation) => [
       ...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'),
       ...clavesRespuesta.map((clave) => valorDe(item, clave)),
     ];
+
+    await this.registrarExportacion({
+      organizationId, actor: p.actor, ip: p.ip, entityId: formId,
+      finalidad: formato === 'xlsx' ? 'con_contacto' : 'procesable', formato,
+      filtro: { formId, desde: dateFrom ?? null, hasta: dateTo ?? null },
+      filas: items.length, columnas: cabeceras,
+      conProtegidos: allowedFields.some((campo) => COLUMNA_PROTEGIDA[campo]) || clavesRespuesta.length > 0,
+      desde: dateFrom, hasta: dateTo, motivo: p.motivo,
+    });
 
     /*
      * La planilla de Excel, que es lo que de verdad se pide.
@@ -3891,42 +3965,82 @@ export class ReservationsService {
      * y un teléfono que empieza por `+` lo interpreta como fórmula. Aquí va como texto, con la
      * cabecera fija y las columnas al ancho de su contenido.
      */
-    if (format === 'xlsx') {
+    if (formato === 'xlsx') {
       const fecha = (valor: unknown) => (valor instanceof Date ? valor.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : valor);
-      return planillaXlsx(
+      return {
+        cuerpo: planillaXlsx(cabeceras, items.map((item) => valores(item).map(fecha)), form?.name ?? 'Reservas', marcaDeExportacion(p.actor.nombre, new Date())),
+        filas: items.length,
+      };
+    }
+
+    const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+    /*
+     * Con marca de orden de bytes al principio.
+     *
+     * Sin ella, Excel en español abre el archivo en la codificación del sistema y las eñes y las
+     * tildes salen como pares de símbolos sin sentido. Son tres bytes que ahorran tener que
+     * importar el archivo a mano eligiendo UTF-8 en el asistente.
+     */
+    return { cuerpo: `﻿${[cabeceras, ...items.map((item) => valores(item))].map((row) => row.map(escape).join(',')).join('\r\n')}`, filas: items.length };
+  }
+
+  /**
+   * La hoja del turno: un día, en PDF, para imprimir.
+   *
+   * No lleva ningún campo protegido —ni contacto, ni documento, ni las respuestas del formulario—
+   * ni las notas internas. Donde la reserva declara restricciones sólo dice que las tiene: el
+   * papel no registra quién lo vio, así que no puede llevar lo que sólo se entrega con constancia.
+   */
+  async hojaDelTurno(p: {
+    organizationId: string; formId: string; fecha: string; clientId?: string; clientIds?: string[];
+    actor: { id: string; nombre: string }; ip?: string;
+  }): Promise<{ cuerpo: Buffer; filas: number; nombre: string }> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha)) throw new BadRequestException('Indica el día de la hoja');
+    const form = await this.getForm(p.organizationId, p.formId, p.clientId, p.clientIds);
+    const desde = startOfLocalDayUtc(p.fecha, form.timezone);
+    const hasta = startOfLocalDayUtc(addPlainDays(p.fecha, 1), form.timezone);
+    const items = await this.reservations.createQueryBuilder('r')
+      .where('r.organization_id = :organizationId', { organizationId: p.organizationId })
+      .andWhere('r.form_id = :formId', { formId: form.id })
+      .andWhere('r.status IN (:...estados)', { estados: ACTIVE_STATUSES })
+      .andWhere('r.starts_at >= :desde AND r.starts_at < :hasta', { desde, hasta })
+      .orderBy('r.starts_at', 'ASC')
+      .getMany();
+
+    const esquema = (form.fieldSchema as FieldConfig[] | undefined) ?? [];
+    const etiquetaDe = (clave: string) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
+    const ESTADOS: Record<string, string> = { pending: 'Pendiente', confirmed: 'Confirmada', rescheduled: 'Reagendada' };
+    const hora = (fecha: Date) => fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: form.timezone });
+    const cabeceras = ['Hora', 'Nombre', 'Personas', 'Estado', 'Código', 'Aviso'];
+    const filas = items.map((item) => [
+      hora(item.startsAt), item.guestName, String(item.partySize), ESTADOS[item.status] ?? item.status, item.referenceCode,
+      tieneRestricciones(item.answers, etiquetaDe) ? AVISO_DE_RESTRICCIONES : '',
+    ]);
+
+    await this.registrarExportacion({
+      organizationId: p.organizationId, actor: p.actor, ip: p.ip, entityId: form.id,
+      finalidad: 'hoja_del_turno', formato: 'pdf',
+      filtro: { formId: form.id, fecha: p.fecha }, filas: items.length, columnas: cabeceras, conProtegidos: false,
+      desde: p.fecha, hasta: p.fecha,
+    });
+
+    const personas = items.reduce((suma, item) => suma + item.partySize, 0);
+    const cuando = new Date().toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone });
+    return {
+      nombre: `hoja-del-turno-${p.fecha}.pdf`,
+      filas: items.length,
+      cuerpo: pdfDeTabla({
+        titulo: `Hoja del turno · ${form.name} · ${p.fecha}`,
+        lineas: [
+          `${items.length} reserva${items.length === 1 ? '' : 's'} · ${personas} persona${personas === 1 ? '' : 's'} · impresa por ${p.actor.nombre} el ${cuando}`,
+          'Uso interno. Sin teléfonos, correos ni respuestas del formulario.',
+        ],
         cabeceras,
-        items.map((item) => valores(item).map(fecha)),
-        form?.name ?? 'Reservas',
-      );
-    }
-
-    if (format === 'json') {
-      return items.map((item) => {
-        const record: Record<string, any> = {};
-        for (const field of allowedFields) {
-          record[field] = fieldMap[field]?.(item) ?? '-';
-        }
-        for (const clave of clavesRespuesta) record[etiquetaDe(clave)] = valorDe(item, clave);
-        return record;
-      });
-    } else if (format === 'csv') {
-      const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
-      const filas = items.map((item) => valores(item));
-      /*
-       * Con marca de orden de bytes al principio.
-       *
-       * Sin ella, Excel en español abre el archivo en la codificación del sistema y las eñes y las
-       * tildes salen como pares de símbolos sin sentido. Son tres bytes que ahorran tener que
-       * importar el archivo a mano eligiendo UTF-8 en el asistente.
-       */
-      return `﻿${[cabeceras, ...filas].map((row) => row.map(escape).join(',')).join('\r\n')}`;
-    }
-
-    // El formato PDF se retiró: devolvía texto separado por tabuladores con cabecera de PDF,
-    // sin la firma `%PDF-`, así que ningún lector lo abría. Un archivo roto es peor que un
-    // formato ausente, porque el fallo aparece recién al abrirlo, fuera de la aplicación.
-    // Volverá cuando se genere con una librería real.
-    throw new BadRequestException('Formato no soportado');
+        filas,
+        anchos: [45, 115, 45, 65, 65, 180],
+        pie: 'Las restricciones y los datos de contacto se consultan en pantalla, donde queda anotado quién los vio.',
+      }),
+    };
   }
 
   async createCoupon(organizationId: string, userId: string, dto: CreateCouponDto, clientId?: string) {

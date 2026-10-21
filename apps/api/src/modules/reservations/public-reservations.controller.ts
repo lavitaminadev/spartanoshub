@@ -113,7 +113,7 @@ export class PublicReservationsController {
 
   @Post(':slug/hold')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  hold(@Param('slug') slug: string, @Body() dto: PublicReservationHoldDto) { return this.service.holdPublic(slug, dto); }
+  hold(@Param('slug') slug: string, @Body() dto: PublicReservationHoldDto, @Ip() ipAddress: string) { return this.service.holdPublic(slug, dto, ipAddress); }
 
   @Get(':slug')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
@@ -157,7 +157,8 @@ export class PublicReservationsController {
     @Headers('user-agent') userAgent: string | undefined,
   ) {
     // La IP y el user-agent se leen de la petición y no del cuerpo: un dato que el navegador
-    // puede escribir no sirve para atribuir.
+    // puede escribir no sirve para atribuir. Lo mismo vale para la URL: la declara el servidor.
+    dto.eventSourceUrl = this.eventSourceUrl(slug, dto.eventSourceUrl);
     return this.service.trackPublicEvent(slug, dto, ipAddress, userAgent);
   }
 
@@ -183,6 +184,7 @@ export class PublicReservationsController {
   @Post(':slug/group-request')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   groupRequest(@Param('slug') slug: string, @Body() dto: PublicGroupRequestDto, @Ip() ipAddress: string, @Headers('user-agent') userAgent: string | undefined) {
+    dto.eventSourceUrl = this.eventSourceUrl(slug, dto.eventSourceUrl);
     return this.service.createPublicGroupRequest(slug, dto, ipAddress, userAgent);
   }
 
