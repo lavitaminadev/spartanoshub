@@ -128,12 +128,20 @@ jobs:
           VITE_API_URL: https://refugio.espartanos.cl/api
           VITE_APP_PUBLIC_URL: https://cuartel.espartanos.cl
 
+      # Deja constancia de que commit y cuando se compilo, junto al `main.js` que lo ejecuta.
+      # `/api/health` lee este archivo; sin el responde "desconocido" en vez de un numero fijo.
+      - name: Registrar el build
+        run: |
+          printf '{"commit":"%s","builtAt":"%s"}
+' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > apps/api/dist/build-info.json
+
       # La misma comprobacion que hace `.cpanel.yml`, pero aca, donde fallar es gratis.
       - name: Verificar artefactos
         run: |
           test -f apps/api/dist/main.js
           test -f apps/web/dist/index.html
           test -f apps/web/dist/.htaccess
+          test -f apps/api/dist/build-info.json
 
       - name: Publicar rama deploy
         run: |
