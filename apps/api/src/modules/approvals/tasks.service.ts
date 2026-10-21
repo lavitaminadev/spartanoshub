@@ -75,9 +75,10 @@ export class TasksService {
    * Se piden las abiertas y también las cerradas del rango: haber completado algo forma parte de
    * lo que ocurrió ese día, y esconderlo dejaría huecos en jornadas que sí tuvieron trabajo.
    *
-   * @param clientIds - Empresas que quien mira alcanza. Vacío o ausente no acota: la llamada ya
-   *   viene de un controlador que resolvió el alcance, y filtrar por una lista vacía devolvería
-   *   siempre cero.
+   * @param clientIds - Empresas que quien mira alcanza. `undefined` es sin límite —dirección,
+   *   administración— y no acota. Una lista **vacía** es no alcanzar ninguna, y entonces no
+   *   devuelve nada: tratarla como «sin filtro» es cómo un alcance vacío se convierte en la
+   *   agenda de toda la organización, que es la distinción que `AccountAccessService` documenta.
    */
   listAgenda(
     organizationId: string,
@@ -85,12 +86,13 @@ export class TasksService {
     hasta: Date,
     clientIds?: string[],
   ): Promise<ApprovalRequest[]> {
+    if (clientIds?.length === 0) return Promise.resolve([]);
     return this.repo.find({
       where: {
         organizationId,
         kind: PendingKind.TASK,
         dueAt: Between(desde, hasta),
-        ...(clientIds?.length ? { clientId: In(clientIds) } : {}),
+        ...(clientIds ? { clientId: In(clientIds) } : {}),
       },
       order: { dueAt: 'ASC' },
       take: 500,
