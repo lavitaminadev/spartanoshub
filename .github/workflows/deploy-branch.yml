@@ -132,8 +132,8 @@ jobs:
       # `/api/health` lee este archivo; sin el responde "desconocido" en vez de un numero fijo.
       - name: Registrar el build
         run: |
-          printf '{"commit":"%s","builtAt":"%s"}
-' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > apps/api/dist/build-info.json
+          printf '{"commit":"%s","builtAt":"%s"}\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > apps/api/dist/build-info.json
+          test -f apps/api/dist/build-info.json
 
       # La misma comprobacion que hace `.cpanel.yml`, pero aca, donde fallar es gratis.
       - name: Verificar artefactos
