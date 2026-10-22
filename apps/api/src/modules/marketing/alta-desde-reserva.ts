@@ -5,6 +5,14 @@ import { IsNull, Repository } from 'typeorm';
 import { EstadoDeSuscripcion, Suscriptor } from './suscriptor.entity';
 import { SuscriptoresService } from './suscriptores.service';
 
+/**
+ * Procedencia de una dirección que entró marcando la casilla al reservar.
+ *
+ * Es una constante y no un literal repetido porque la lee también quien filtra: la ruta con la que
+ * una empresa ve a quién captó por sus reservas depende de que las dos partes digan lo mismo.
+ */
+export const ORIGEN_RESERVA = 'reserva';
+
 /** Lo que una reserva sabe de quien la hizo y hace falta para la lista. */
 export interface AltaDesdeReserva {
   organizationId: string;
@@ -120,7 +128,7 @@ export class AltaDeSuscriptorDesdeReserva {
         email,
         name: datos.name ?? null,
         birthDate: datos.birthDate ? new Date(`${datos.birthDate}T00:00:00Z`) : null,
-        source: datos.source ?? 'reserva',
+        source: datos.source ?? ORIGEN_RESERVA,
         sourceDetail: datos.origen,
         status: EstadoDeSuscripcion.SUSCRITO,
         consentAt: datos.consentAt ?? new Date(),

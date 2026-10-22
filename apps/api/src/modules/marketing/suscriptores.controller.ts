@@ -11,6 +11,7 @@ import { ClientCapabilityService } from '../../core/client-scope/client-capabili
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { ORIGEN_RESERVA } from './alta-desde-reserva';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { SuscriptoresService } from './suscriptores.service';
@@ -84,11 +85,29 @@ export class SuscriptoresController {
    * cerrarla, y el resto del portal —Contactos, Interacciones— afirma la suya del mismo modo.
    */
   private async encierroDe(req: AuthenticatedRequest, elegida?: string): Promise<string | undefined> {
+    return this.encierroConCapacidad(req, 'marketing', elegida);
+  }
+
+  /**
+   * El mismo encierro, afirmando la capacidad que gobierna la ruta.
+   *
+   * Casi todas las rutas de aquí son de Marketing y afirman `marketing`. La de lo captado por
+   * reservas afirma `reservations`, porque es la empresa leyendo lo que se guardó a su nombre al
+   * reservar: exigirle Marketing la dejaría sin ver sus propios datos, que es justo lo que esa
+   * ruta existe para arreglar.
+   *
+   * @param capacidad - La que de verdad gobierna, no la del módulo donde vive el archivo.
+   */
+  private async encierroConCapacidad(
+    req: AuthenticatedRequest,
+    capacidad: 'marketing' | 'reservations',
+    elegida?: string,
+  ): Promise<string | undefined> {
     if (req.user.role !== UserRole.CLIENT) return undefined;
     const organizationId = req.organizationId || req.user.organizationId;
     const clientId = await this.acceso.empresaElegida(organizationId, req.user, elegida);
     if (!clientId) throw new ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
-    await this.capacidades.assert(organizationId, clientId, 'marketing');
+    await this.capacidades.assert(organizationId, clientId, capacidad);
     return clientId;
   }
 
@@ -116,6 +135,55 @@ export class SuscriptoresController {
     });
     // El correo es lo que identifica a cada suscriptor: sale recortado según el nivel en la empresa de cada fila.
     const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    return { ...lista, data: recortarFilasPorEmpresa(lista.data, 'marketing', niveles) };
+  }
+
+  /**
+   * A quién captó esta empresa por sus propias reservas.
+   *
+   * Existe porque el consentimiento se guarda donde la empresa no siempre puede leerlo. Cuando
+   * alguien marca la casilla de marketing al reservar, la dirección entra en la lista con su texto
+   * y su fecha, y eso es correcto: honrar un «sí» no depende de lo que la empresa haya contratado.
+   * Lo que no era correcto es que, sin Marketing contratado, la empresa **responsable** de esos
+   * datos no pudiera verlos — y entonces tampoco atender una solicitud de derechos sobre ellos.
+   *
+   * Por eso esta ruta se gobierna con **Reservas** y no con Marketing: `@ModuleScope` a nivel de
+   * método manda sobre el de la clase, así que pide el permiso, la capacidad y el área de Reservas.
+   * Quien ve las reservas de un local ve a quién consintió en ellas; no es una puerta nueva a la
+   * lista, porque sólo devuelve lo captado por reserva (`origen: 'reserva'`), nunca lo importado ni
+   * lo captado por otras vías.
+   *
+   * El recorte va por el nivel de datos protegidos en **Reservas**, por lo mismo: es la reja de
+   * quien está mirando, y el correo del comensal ya está en su reserva.
+   */
+  @Get('captados-por-reservas')
+  @ModuleScope('reservations')
+  @RequiereArea('reservations.reservas', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Quiénes consintieron recibir correos al reservar en esta empresa' })
+  async captadosPorReservas(
+    @Req() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+    @Query('empresa') empresa?: string,
+    @Query('q') busqueda?: string,
+  ) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const lista = await this.suscriptores.listar(organizationId, {
+      limite: limit ? Number(limit) : undefined,
+      empresa,
+      encerradoEn: await this.encierroConCapacidad(req, 'reservations', empresa),
+      origen: ORIGEN_RESERVA,
+      busqueda,
+    });
+    /*
+     * La reja sale de Reservas y el mapa de campos de Marketing, y las dos cosas son a propósito.
+     *
+     * El nivel es el que esa persona tiene en **Reservas**, porque es el módulo que gobierna esta
+     * ruta. Los campos a recortar son los de **Marketing**, porque la fila es un suscriptor: su
+     * correo está en `email`, no en `guestEmail`. Usar el mapa de Reservas no encontraría nada que
+     * recortar y entregaría el correo entero con cualquier nivel.
+     */
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'reservations');
     return { ...lista, data: recortarFilasPorEmpresa(lista.data, 'marketing', niveles) };
   }
 
