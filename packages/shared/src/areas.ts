@@ -161,6 +161,7 @@ export const AREAS: readonly DefinicionDeArea[] = [
   { clave: 'reservations.configurar', modulo: 'reservations', nombre: 'Configurar el local', ayuda: 'Horarios, zonas, mesas, capacidad, tolerancia y cierres del día.', niveles: VER_O_HACER },
   { clave: 'reservations.publicar', modulo: 'reservations', nombre: 'Página pública y textos', ayuda: 'Publicar o despublicar la página de reserva y escribir los correos que recibe el comensal.', niveles: VER_O_HACER },
   { clave: 'reservations.medicion', modulo: 'reservations', nombre: 'Medición', ayuda: 'Las analíticas del local y lo que se le informa a la pauta.', niveles: SOLO_VER },
+  { clave: 'reservations.historial', modulo: 'reservations', nombre: 'Historial de asistencia', ayuda: 'Ver cuántas veces cada comensal llegó o no llegó, y en qué días del local falla más gente.', niveles: SOLO_VER },
   ...transversales('reservations'),
 
   // ─── CRM ────────────────────────────────────────────────────────────────────
@@ -314,7 +315,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
     descripcion: 'Recibe, toma reservas por teléfono y resuelve la lista de espera.',
     areas: {
       'reservations.turno': 'hacer', 'reservations.reservas': 'hacer', 'reservations.tomar': 'hacer',
-      'reservations.espera_y_grupos': 'hacer', 'reservations.canjear_cupon': 'hacer',
+      'reservations.espera_y_grupos': 'hacer', 'reservations.canjear_cupon': 'hacer', 'reservations.historial': 'ver',
     },
     datosProtegidos: { reservations: 'bajo_registro' },
   },
@@ -326,7 +327,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
       'reservations.turno': 'hacer', 'reservations.reservas': 'hacer', 'reservations.tomar': 'hacer',
       'reservations.espera_y_grupos': 'hacer', 'reservations.canjear_cupon': 'hacer', 'reservations.cupones': 'hacer',
       'reservations.configurar': 'hacer', 'reservations.publicar': 'hacer', 'reservations.medicion': 'ver',
-      'reservations.exportar': 'hacer',
+      'reservations.historial': 'ver', 'reservations.exportar': 'hacer',
     },
     datosProtegidos: { reservations: 'directo' },
   },

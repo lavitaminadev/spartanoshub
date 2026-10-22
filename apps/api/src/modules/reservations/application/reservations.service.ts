@@ -7,7 +7,7 @@ import { camposProtegidosDe, columnasAQuitar, estaProtegido } from '@espartanos/
 import type { NivelesDeDatos } from '../../../core/client-scope/nivel-de-datos.service';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, EntityManager, Between, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
 import { promises as dns } from 'dns';
 import { ReservationForm } from '../domain/reservation-form.entity';
@@ -29,6 +29,7 @@ import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { evaluarCambioDeZona, type ZonaDelLocal } from './cambio-de-zona';
 import { describirCambio } from './describir-cambio';
+import { MUESTRA_MINIMA_POR_DIA, noShowPorLocalYDia, resumirAsistenciaDelComensal } from './historial-de-asistencia';
 import { FORM_FIELD_TYPES, ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
@@ -3451,6 +3452,51 @@ export class ReservationsService {
       deOtrasReservas: previas.filter((item) => item.formId !== actual.formId).length,
       preferencias: this.preferenciasDeLaPersona(previas, actual),
       anteriores: previas.slice(0, 5).map((item) => ({ asistenciaSupuesta: supuestasPrevias.has(item.id), id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
+    };
+  }
+
+  /**
+   * Cómo ha respondido este comensal a sus reservas en esta empresa.
+   *
+   * Agrupa por el teléfono o el correo de la reserva —la misma empresa y su propio comensal— y
+   * **nunca cruza empresas**: la consulta lleva el `client_id` de la reserva, no el alcance de
+   * quien mira. Devuelve los datos de contacto con los que se agrupó dentro de `comensal` y no
+   * sueltos, para que la ruta pueda recortarlos según el nivel de la persona sin tocar los números.
+   */
+  async historialDelComensal(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[], ahora = new Date()) {
+    const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+    if (!actual) throw new NotFoundException('Reserva no encontrada');
+    const correo = actual.guestEmail?.trim().toLowerCase() || undefined;
+    const telefono = actual.guestPhone?.trim() || undefined;
+    const comensal = { clientId: actual.clientId, guestName: actual.guestName, guestPhone: actual.guestPhone ?? null, guestEmail: actual.guestEmail ?? null };
+    if (!correo && !telefono) return { clientId: actual.clientId, comensal, ...resumirAsistenciaDelComensal([], ahora) };
+
+    const qb = this.reservations.createQueryBuilder('r')
+      .where('r.organization_id = :organizationId AND r.client_id = :clientId AND r.id != :id', { organizationId, clientId: actual.clientId, id: actual.id });
+    if (correo && telefono) qb.andWhere('(LOWER(r.guest_email) = :correo OR r.guest_phone = :telefono)', { correo, telefono });
+    else if (correo) qb.andWhere('LOWER(r.guest_email) = :correo', { correo });
+    else qb.andWhere('r.guest_phone = :telefono', { telefono });
+    const anteriores = await qb.orderBy('r.starts_at', 'DESC').take(200).getMany();
+    return { clientId: actual.clientId, comensal, ...resumirAsistenciaDelComensal(anteriores, ahora) };
+  }
+
+  /**
+   * La tasa de no-show de cada local de las empresas a la vista, por día de la semana.
+   *
+   * @param dias - La ventana hacia atrás; entre 7 y 365.
+   */
+  async noShowPorLocalYDia(organizationId: string, clientId?: string, clientIds?: string[], dias = 90, ahora = new Date()) {
+    const ventana = Math.min(Math.max(Math.trunc(dias) || 90, 7), 365);
+    const desde = new Date(ahora.getTime() - ventana * 86_400_000);
+    const alcance = this.scope(organizationId, clientId, clientIds);
+    const [locales, reservas] = await Promise.all([
+      this.forms.find({ where: alcance, select: ['id', 'name', 'clientId', 'timezone'] }),
+      this.reservations.find({ where: { ...alcance, status: In(['attended', 'no_show']), startsAt: Between(desde, ahora) }, select: ['id', 'formId', 'status', 'startsAt'] }),
+    ]);
+    return {
+      dias: ventana,
+      muestraMinimaPorDia: MUESTRA_MINIMA_POR_DIA,
+      locales: noShowPorLocalYDia(reservas, (locales ?? []).map((local) => ({ id: local.id, nombre: local.name, clientId: local.clientId, timezone: local.timezone || 'America/Santiago' }))),
     };
   }
 

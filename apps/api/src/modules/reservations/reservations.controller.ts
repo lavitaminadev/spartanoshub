@@ -474,6 +474,24 @@ export class ReservationsController {
   }
 
   /**
+   * Cuántas veces este comensal se presentó y cuántas no, dentro de la misma empresa.
+   *
+   * El teléfono y el correo sirven para agrupar, pero lo que sale pasa por el recorte de la
+   * persona que mira: con `oculto` o `bajo_registro` la respuesta trae el recuento y no el dato
+   * de contacto. Quien lo necesita lo pide desde la ficha, que deja la constancia.
+   */
+  @Get(':id/historial-del-comensal')
+  @RequiereArea('reservations.historial', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async historialDelComensal(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
+    const scope = await this.scope(req);
+    const historial = await this.service.historialDelComensal(req.organizationId, id, scope.clientId, scope.clientIds);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    const [comensal] = recortarFilasPorEmpresa([historial.comensal], 'reservations', niveles);
+    return { ...historial, comensal };
+  }
+
+  /**
    * Qué le pasó a una reserva, en orden.
    *
    * Los eventos se guardaban con su actor desde hace tiempo y no los leía nadie: «quién canceló
@@ -750,6 +768,15 @@ export class ReservationsController {
   async metrics(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
     return this.service.metrics(req.organizationId, scope.clientId, scope.clientIds, query.days ? String(query.days) : '30');
+  }
+
+  /** Qué porcentaje de las reservas no se presenta, por local y por día de la semana. */
+  @Get('analytics/no-show')
+  @RequiereArea('reservations.historial', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async noShow(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
+    const scope = await this.requestedScope(req, query.clientId);
+    return this.service.noShowPorLocalYDia(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
   }
 
   @Get('analytics/occupancy')
