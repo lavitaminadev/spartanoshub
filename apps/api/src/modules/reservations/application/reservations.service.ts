@@ -3904,14 +3904,6 @@ export class ReservationsService {
   }
 
   /** Las columnas de `streamCsv` para un nivel, para anotarlas en la constancia. */
-  columnasDelCsv(niveles: NivelesDeDatos, clientId?: string, clientIds?: string[]): { columnas: string[]; conProtegidos: boolean } {
-    const quitar = new Set(columnasAQuitar('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
-    const base = ['codigo', 'nombre', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas'];
-    const protegidas = [['correo', 'guestEmail'], ['telefono', 'guestPhone']].filter(([, campo]) => !quitar.has(campo)).map(([nombre]) => nombre);
-    const respuestas = quitar.has('answers') ? [] : ['respuestas_del_formulario'];
-    return { columnas: [...base, ...protegidas, ...respuestas], conProtegidos: protegidas.length > 0 || respuestas.length > 0 };
-  }
-
   /**
    * Exportación de un local, armada en el servidor.
    *

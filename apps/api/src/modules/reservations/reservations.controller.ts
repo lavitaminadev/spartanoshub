@@ -17,6 +17,7 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
+import { columnasDelCsv } from './application/exportaciones';
 import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportCsvQueryDto, ExportFormReservationsDto, HojaDelTurnoDto, ImportReservationsDto, ListCanjesDto, ListCouponsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
@@ -668,7 +669,7 @@ export class ReservationsController {
   async exportCsv(@Req() req: AuthenticatedRequest, @Query() query: ExportCsvQueryDto, @Res() res: Response) {
     const scope = await this.requestedScope(req, query.clientId);
     const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
-    const { columnas, conProtegidos } = this.service.columnasDelCsv(niveles, scope.clientId, scope.clientIds);
+    const { columnas, conProtegidos } = columnasDelCsv(niveles, scope.clientId, scope.clientIds);
     const filas = await this.service.contarParaExportar(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit);
     await this.service.registrarExportacion({
       organizationId: req.organizationId, actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
