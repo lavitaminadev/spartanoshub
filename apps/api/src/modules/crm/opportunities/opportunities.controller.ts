@@ -52,15 +52,17 @@ export class OpportunitiesController {
 
   @Post()
   @RequiereArea('crm.embudo', 'hacer')
-  create(@Body() dto: CreateOpportunityDto, @Req() req: AuthenticatedRequest) {
-    return this.createOpportunity.execute(dto, req.organizationId, req.user.id);
+  async create(@Body() dto: CreateOpportunityDto, @Req() req: AuthenticatedRequest) {
+    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    return this.createOpportunity.execute(dto, req.organizationId, req.user.id, allowed);
   }
 
   @Get()
   @RequiereArea('crm.embudo', 'ver')
   async findAll(@Query() query: ListOpportunitiesDto, @Req() req: AuthenticatedRequest) {
+    if (query.clientId) await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
     const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-    return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed);
+    return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed, query.clientId);
   }
 
   @Get(':id')
@@ -87,14 +89,16 @@ export class OpportunitiesController {
 
   @Put(':id')
   @RequiereArea('crm.embudo', 'hacer')
-  update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto, @Req() req: AuthenticatedRequest) {
-    return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id);
+  async update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto, @Req() req: AuthenticatedRequest) {
+    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id, allowed);
   }
 
   @Delete(':id')
   @RequiereArea('crm.embudo', 'hacer')
   @RequiereAccion('crm.borrar')
-  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.removeOpportunity.execute(id, req.organizationId);
+  async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+    return this.removeOpportunity.execute(id, req.organizationId, allowed);
   }
 }

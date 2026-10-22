@@ -1,0 +1,64 @@
+/*
+ * Qué ve una persona.
+ *
+ * Lo único que esta hoja tiene que lograr es que un acceso concedido aparte se distinga de un
+ * golpe de los que trae el perfil: son los que hay que revisar uno por uno. La marca va en el
+ * borde y en la etiqueta, nunca sólo en el color, para que se lea igual sin distinguirlos.
+ */
+
+.que-ve-perfil {
+  margin-bottom: var(--space-sm);
+}
+
+.que-ve-modulo h4,
+.que-ve-datos h4 {
+  margin: var(--space-md) 0 var(--space-xs);
+  font-size: 0.95rem;
+}
+
+.que-ve .lista-simple {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.que-ve .lista-simple > li {
+  padding: 0.35rem 0 0.35rem 0.6rem;
+  border-left: 3px solid transparent;
+}
+
+/* Lo normal: viene del perfil y se revisa cambiando el perfil, no persona por persona. */
+.que-ve .origen-perfil {
+  border-left-color: var(--border);
+}
+
+.que-ve .origen-concedido {
+  border-left-color: var(--warning);
+}
+
+.que-ve .origen-quitado {
+  border-left-color: var(--muted);
+}
+
+.que-ve-origen {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.origen-concedido .que-ve-origen {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* El motivo, quién lo hizo y hasta cuándo: en su propia línea, que es como se leen. */
+.que-ve-detalle {
+  display: block;
+  color: var(--text-muted);
+}
+
+.texto-apagado {
+  color: var(--text-muted);
+}

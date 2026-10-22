@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, IsNull, Repository } from 'typeorm';
 import { SavedView } from './saved-view.entity';
 import type { AuthUser } from '../../shared/types/request';
+import type { EmpresaResuelta } from '../../core/client-scope/empresa-resuelta';
 
 /** Listas que pueden guardar vistas. Un ámbito libre sería un almacén genérico de JSON por usuario. */
 const AMBITO = /^[a-z][a-z0-9-]*(\.[a-z0-9-]+){1,3}$/;
@@ -53,15 +54,14 @@ export class SavedViewsService {
     return limpio;
   }
 
-  /** Las del portal quedan atadas a su empresa; las del equipo, a ninguna. */
-  private empresaDe(user: AuthUser): string | null {
-    return user.clientId ?? null;
-  }
-
-  /** Las propias y las compartidas del mismo mundo: equipo con equipo, portal con su empresa. */
-  async listar(user: AuthUser, scope: string): Promise<VistaParaLeer[]> {
+  /**
+   * Las propias y las compartidas del mismo mundo: equipo con equipo, portal con su empresa.
+   *
+   * @param empresa - La empresa ya comprobada a la que pertenecen las vistas; `null` para las del
+   *   equipo, que no están atadas a ninguna. Quien llama la resuelve: aquí no se deduce de la cuenta.
+   */
+  async listar(user: AuthUser, scope: string, empresa: EmpresaResuelta | null): Promise<VistaParaLeer[]> {
     const ambito = this.validarAmbito(scope);
-    const empresa = this.empresaDe(user);
     const qb = this.vistas.createQueryBuilder('v')
       .where('v.organizationId = :org AND v.scope = :ambito', { org: user.organizationId, ambito })
       .andWhere(empresa ? 'v.clientId = :empresa' : 'v.clientId IS NULL', empresa ? { empresa } : {})
@@ -77,14 +77,20 @@ export class SavedViewsService {
    *
    * Repetir un nombre reemplaza la vista en vez de crear otra igual: dos «Hoy» que sólo se
    * distinguen abriéndolos es peor que ninguno.
+   *
+   * @param empresa - La empresa ya comprobada a la que queda atada la vista; `null` si es del equipo.
    */
-  async guardar(user: AuthUser, datos: { scope: string; name: string; filters: unknown; shared?: boolean }): Promise<VistaParaLeer> {
+  async guardar(
+    user: AuthUser,
+    datos: { scope: string; name: string; filters: unknown; shared?: boolean },
+    empresa: EmpresaResuelta | null,
+  ): Promise<VistaParaLeer> {
     const ambito = this.validarAmbito(datos.scope);
     const nombre = (datos.name ?? '').trim().slice(0, 60);
     if (!nombre) throw new BadRequestException('La vista necesita un nombre');
     const filtros = limpiarFiltros(datos.filters);
 
-    const existente = await this.vistas.findOne({ where: { ownerUserId: user.id, scope: ambito, name: nombre } });
+    const existente = await this.vistas.findOne({ where: { ownerUserId: user.id, scope: ambito, name: nombre, clientId: empresa ?? IsNull() } });
     if (!existente) {
       const cuantas = await this.vistas.count({ where: { ownerUserId: user.id, scope: ambito } });
       if (cuantas >= MAXIMO_VISTAS_POR_LISTA) throw new BadRequestException(`Ya tienes ${MAXIMO_VISTAS_POR_LISTA} vistas en esta lista. Borra alguna para guardar otra.`);
@@ -93,7 +99,7 @@ export class SavedViewsService {
     const guardada = await this.vistas.save(this.vistas.create({
       ...(existente ?? {}),
       organizationId: user.organizationId,
-      clientId: this.empresaDe(user),
+      clientId: empresa,
       ownerUserId: user.id,
       scope: ambito,
       name: nombre,

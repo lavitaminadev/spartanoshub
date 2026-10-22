@@ -50,12 +50,8 @@ let SavedViewsService = class SavedViewsService {
             throw new common_1.BadRequestException('Lista inválida');
         return limpio;
     }
-    empresaDe(user) {
-        return user.clientId ?? null;
-    }
-    async listar(user, scope) {
+    async listar(user, scope, empresa) {
         const ambito = this.validarAmbito(scope);
-        const empresa = this.empresaDe(user);
         const qb = this.vistas.createQueryBuilder('v')
             .where('v.organizationId = :org AND v.scope = :ambito', { org: user.organizationId, ambito })
             .andWhere(empresa ? 'v.clientId = :empresa' : 'v.clientId IS NULL', empresa ? { empresa } : {})
@@ -65,13 +61,13 @@ let SavedViewsService = class SavedViewsService {
         const filas = await qb.getMany();
         return filas.map((fila) => ({ id: fila.id, name: fila.name, filters: fila.filters ?? {}, shared: fila.shared, propia: fila.ownerUserId === user.id }));
     }
-    async guardar(user, datos) {
+    async guardar(user, datos, empresa) {
         const ambito = this.validarAmbito(datos.scope);
         const nombre = (datos.name ?? '').trim().slice(0, 60);
         if (!nombre)
             throw new common_1.BadRequestException('La vista necesita un nombre');
         const filtros = limpiarFiltros(datos.filters);
-        const existente = await this.vistas.findOne({ where: { ownerUserId: user.id, scope: ambito, name: nombre } });
+        const existente = await this.vistas.findOne({ where: { ownerUserId: user.id, scope: ambito, name: nombre, clientId: empresa ?? (0, typeorm_2.IsNull)() } });
         if (!existente) {
             const cuantas = await this.vistas.count({ where: { ownerUserId: user.id, scope: ambito } });
             if (cuantas >= exports.MAXIMO_VISTAS_POR_LISTA)
@@ -80,7 +76,7 @@ let SavedViewsService = class SavedViewsService {
         const guardada = await this.vistas.save(this.vistas.create({
             ...(existente ?? {}),
             organizationId: user.organizationId,
-            clientId: this.empresaDe(user),
+            clientId: empresa,
             ownerUserId: user.id,
             scope: ambito,
             name: nombre,

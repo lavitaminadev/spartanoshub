@@ -61,7 +61,7 @@ export function CaptacionPage() {
     }),
   });
 
-  if (isLoading) return <main className="captacion"><LoadingSpinner /></main>;
+  if (isLoading) return <main className="captacion"><LoadingSpinner text="Cargando…" /></main>;
   if (error || !data) {
     return (
       <main className="captacion">
@@ -120,16 +120,16 @@ export function CaptacionPage() {
       <form onSubmit={(evento) => { evento.preventDefault(); suscribir.mutate(); }}>
         <label>
           Correo <span className="required-star">*</span>
-          <input className="input" type="email" required value={email} onChange={(evento) => setEmail(evento.target.value)} placeholder="tu@correo.cl" />
+          <input className="input" type="email" inputMode="email" autoComplete="email" required value={email} onChange={(evento) => setEmail(evento.target.value)} placeholder="tu@correo.cl" />
         </label>
         <label>
           Nombre <small>(opcional)</small>
-          <input className="input" value={nombre} onChange={(evento) => setNombre(evento.target.value)} placeholder="Cómo te llamamos" />
+          <input className="input" autoComplete="name" value={nombre} onChange={(evento) => setNombre(evento.target.value)} placeholder="Cómo te llamamos" />
         </label>
         {/* El cumpleaños sólo sirve si el local manda el beneficio; por eso se pide y no se exige. */}
         <label>
           Tu cumpleaños <small>(opcional)</small>
-          <input className="input" type="date" value={cumple} onChange={(evento) => setCumple(evento.target.value)} />
+          <input className="input" type="date" autoComplete="bday" value={cumple} onChange={(evento) => setCumple(evento.target.value)} />
         </label>
 
         {/* El campo trampa: oculto a la vista y al lector de pantalla, sin autocompletado. */}
@@ -153,7 +153,7 @@ export function CaptacionPage() {
           </label>
         </div>
 
-        {suscribir.isError && <p className="error-text">No se pudo completar. Inténtalo de nuevo en un momento.</p>}
+        {suscribir.isError && <p className="error-text" role="alert">No se pudo completar. Inténtalo de nuevo en un momento.</p>}
 
         <button type="submit" className="btn btn-primary" disabled={!puedeEnviar}>
           {suscribir.isPending ? 'Enviando…' : 'Quiero recibirlas'}

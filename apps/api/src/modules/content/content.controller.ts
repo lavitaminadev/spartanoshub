@@ -15,6 +15,8 @@ import { Roles } from '../../core/authorization/roles.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
+import { Empresa } from '../../core/client-scope/empresa.decorator';
+import { esUnaEmpresa, type AmbitoDeEmpresa } from '../../core/client-scope/empresa-resuelta';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 
 @ApiTags('Parrillas de Contenido')
@@ -49,10 +51,9 @@ export class ContentController {
   @Get('content/grids')
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.CREATIVE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar parrillas de contenido' })
-  async list(@Query('clientId') clientId: string, @Query('month') month: string, @Req() req: AuthenticatedRequest) {
-    const effectiveClientId = req.user?.role === UserRole.CLIENT ? req.user.clientId : clientId;
+  async list(@Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa, @Query('month') month: string, @Req() req: AuthenticatedRequest) {
+    const effectiveClientId = esUnaEmpresa(ambito) ? ambito : undefined;
     if (req.user?.role === UserRole.CLIENT && !effectiveClientId) throw new ForbiddenException('Client account is not associated');
-    await this.accountAccess.assertClient(req.organizationId, req.user, effectiveClientId);
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.listGrids.execute(req.organizationId, effectiveClientId, month, req.user?.role === UserRole.CLIENT, clientIds);
   }

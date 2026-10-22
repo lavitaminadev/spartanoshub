@@ -11,6 +11,8 @@ import { ACTIVE_PIECE_STATUS_SQL, isActivePieceStatus } from './active-pieces';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { MonthlyReportsService } from './monthly-reports.service';
 import { GenerateMonthlyReportDto, UpdateMonthlyReportDto } from './dto/monthly-report.dto';
+import { Empresa } from '../../core/client-scope/empresa.decorator';
+import { esUnaEmpresa, type AmbitoDeEmpresa } from '../../core/client-scope/empresa-resuelta';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 
@@ -41,12 +43,17 @@ export class ReportingController {
     private readonly monthlyReports: MonthlyReportsService,
   ) {}
 
-  private resolveClientScope(req: AuthenticatedRequest): string | null {
-    if (req.user?.role !== UserRole.CLIENT) return null;
-    if (!req.user.clientId) {
+  /**
+   * La empresa concreta de la petición, o `null` si abarca la agencia entera.
+   *
+   * Una cuenta de portal nunca recibe `null`: sin empresa resuelta no hay nada que mostrarle.
+   */
+  private resolveClientScope(req: AuthenticatedRequest, ambito: AmbitoDeEmpresa): string | null {
+    const clientId = esUnaEmpresa(ambito) ? ambito : null;
+    if (req.user?.role === UserRole.CLIENT && !clientId) {
       throw new ForbiddenException('El usuario cliente no tiene una cuenta asociada');
     }
-    return req.user.clientId;
+    return clientId;
   }
 
   @Get('pulse')
@@ -56,8 +63,8 @@ export class ReportingController {
     UserRole.AI_LEAD, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT,
   )
   @ApiOperation({ summary: 'Pulso Vitamina explicable de la operación y la marca' })
-  async pulse(@Req() req: AuthenticatedRequest) {
-    const clientId = this.resolveClientScope(req) ?? undefined;
+  async pulse(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+    const clientId = this.resolveClientScope(req, ambito) ?? undefined;
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
     return this.pulseService.getPulse(req.organizationId!, clientId, clientIds);
   }
@@ -154,9 +161,9 @@ export class ReportingController {
     UserRole.AI_LEAD, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT,
   )
   @ApiOperation({ summary: 'Reportes generales' })
-  async reports(@Req() req: AuthenticatedRequest) {
+  async reports(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
     const orgId = req.organizationId;
-    const clientId = this.resolveClientScope(req);
+    const clientId = this.resolveClientScope(req, ambito);
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
     const invoiceConditions = ['organization_id = ?'];
     const invoiceParams: string[] = [orgId];
@@ -322,8 +329,8 @@ export class ReportingController {
     UserRole.AI_LEAD, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT,
   )
   @ApiOperation({ summary: 'Rendimiento consolidado de Meta Ads, Google Ads y Analytics' })
-  async performance(@Req() req: AuthenticatedRequest) {
-    const clientId = this.resolveClientScope(req);
+  async performance(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+    const clientId = this.resolveClientScope(req, ambito);
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
     const conditions = ['organization_id = ?', 'metric_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)'];
     const params: string[] = [req.organizationId!];
@@ -362,9 +369,8 @@ export class ReportingController {
 
   @Get('monthly-reports')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async listMonthlyReports(@Req() req: AuthenticatedRequest, @Query('year') year?: string, @Query('month') month?: string, @Query('clientId') requestedClientId?: string) {
-    const clientId = this.resolveClientScope(req) ?? requestedClientId;
-    if (clientId) await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
+  async listMonthlyReports(@Req() req: AuthenticatedRequest, @Query('year') year?: string, @Query('month') month?: string, @Empresa({ oAgencia: true }) ambito?: AmbitoDeEmpresa) {
+    const clientId = this.resolveClientScope(req, ambito as AmbitoDeEmpresa);
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
     return this.monthlyReports.list(req.organizationId!, { clientId: clientId ?? undefined, clientIds, clientView: req.user.role === UserRole.CLIENT, year: year ? Number(year) : undefined, month: month ? Number(month) : undefined });
   }

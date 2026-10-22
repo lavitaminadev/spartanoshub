@@ -18,6 +18,8 @@ const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const roles_decorator_1 = require("../authorization/roles.decorator");
 const throttler_1 = require("@nestjs/throttler");
+const empresa_decorator_1 = require("../client-scope/empresa.decorator");
+const empresa_resuelta_1 = require("../client-scope/empresa-resuelta");
 const account_access_service_1 = require("../client-scope/account-access.service");
 const email_service_1 = require("../notifications/email.service");
 const typeorm_1 = require("@nestjs/typeorm");
@@ -52,6 +54,7 @@ function modulosDeCorreo(clave) {
 }
 const organization_features_1 = require("../../modules/organizations/organization-features");
 const shared_1 = require("@espartanos/shared");
+const empresaConcreta = (ambito) => ((0, empresa_resuelta_1.esUnaEmpresa)(ambito) ? ambito : undefined);
 let OrganizationSettingsController = class OrganizationSettingsController {
     constructor(settings, permisos, accountAccess, capacidades, correo, usuarios, corridas) {
         this.settings = settings;
@@ -86,8 +89,8 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         return this.settings.update(organizationId, request.user.id, dto.values, clientId ?? null, dto.formId ?? null);
     }
-    async correos(request, clientId, formId) {
-        clientId = await this.empresaDeLaSesion(request, clientId);
+    async correos(request, ambito, formId) {
+        const clientId = empresaConcreta(ambito);
         const organizationId = request.organizationId || request.user.organizationId;
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         const puede = await this.modulosQuePuedeEditar(request, clientId);
@@ -108,9 +111,8 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             ? { reservations: await this.capacidades.tiene(organizationId, clientId, 'reservations'), surveys: await this.capacidades.tiene(organizationId, clientId, 'surveys'), crm: await this.capacidades.tiene(organizationId, clientId, 'crm') }
             : null;
         if (request.user.role === user_role_enum_1.UserRole.CLIENT) {
-            const empresa = clientId ?? request.user.clientId;
-            const administra = empresa
-                ? await this.permisos.can(organizationId, request.user.id, user_role_enum_1.UserRole.CLIENT, 'users', 'manage', empresa)
+            const administra = clientId
+                ? await this.permisos.can(organizationId, request.user.id, user_role_enum_1.UserRole.CLIENT, 'users', 'manage', clientId)
                 : false;
             if (!administra)
                 return new Set();
@@ -126,8 +128,8 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             puede.add('agencia');
         return puede;
     }
-    async guardarCorreos(request, dto, clientId) {
-        clientId = await this.empresaDeLaSesion(request, clientId);
+    async guardarCorreos(request, dto, ambito) {
+        const clientId = empresaConcreta(ambito);
         const valores = dto.values ?? {};
         const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
         if (ajenas.length)
@@ -145,15 +147,15 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         await this.accountAccess.assertClient(organizationId, request.user, clientId);
         return this.settings.update(organizationId, request.user.id, valores, clientId ?? null, dto.formId ?? null);
     }
-    async estadoDelCorreo(request, clientId) {
-        await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
+    async estadoDelCorreo(request, ambito) {
+        await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
         const estado = this.correo.estado();
         if (request.user.role !== user_role_enum_1.UserRole.DEV)
             return { ...estado, faltan: [] };
         return { ...estado, firma: await (0, firma_del_dominio_1.revisarFirmaDelDominio)(estado.remitente) };
     }
-    async requisitosDeCorreo(request, clientId) {
-        await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
+    async requisitosDeCorreo(request, ambito) {
+        await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
         const corridas = new Map((await this.corridas.find()).map((fila) => [fila.task, fila]));
         const limite = Date.now() - requisitos_de_correo_1.HORAS_SIN_CORRER_PARA_ALARMA * 3_600_000;
         const casilla = this.correo.estado().habilitado;
@@ -166,10 +168,10 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         }));
         return { casilla, tareas, avisos: requisitos_de_correo_1.REQUISITOS_POR_AVISO };
     }
-    async destinatariosDePrueba(request, clientId) {
+    async destinatariosDePrueba(request, ambito) {
         const organizationId = request.organizationId || request.user.organizationId;
-        await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
-        const empresa = await this.empresaDeLaSesion(request, clientId);
+        await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
+        const empresa = empresaConcreta(ambito);
         if (empresa)
             await this.accountAccess.assertClient(organizationId, request.user, empresa);
         const equipo = await this.usuarios.find({
@@ -181,12 +183,12 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         });
         return equipo.filter((persona) => persona.email?.trim());
     }
-    async vistaPreviaDeCorreo(dto, request, clientId) {
-        await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
+    async vistaPreviaDeCorreo(dto, request, ambito) {
+        await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
         return (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
     }
-    async probar(request, dto, clientId) {
-        const empresa = await this.empresaDeLaSesion(request, clientId);
+    async probar(request, dto, ambito) {
+        const empresa = empresaConcreta(ambito);
         await this.asegurarQuePuedeCorreos(request, empresa);
         const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId, empresa);
         const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? 'Prueba'), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
@@ -220,16 +222,6 @@ let OrganizationSettingsController = class OrganizationSettingsController {
             throw new common_1.BadRequestException('Esa persona no tiene correo registrado');
         return persona.email;
     }
-    async empresaDeLaSesion(request, pedido) {
-        if (request.user.role !== user_role_enum_1.UserRole.CLIENT)
-            return pedido;
-        const propia = request.user.clientId ?? undefined;
-        if (!pedido || pedido === propia)
-            return propia;
-        const organizationId = request.organizationId || request.user.organizationId;
-        const alcanzables = await this.accountAccess.allowedClientIds(organizationId, request.user).catch(() => undefined);
-        return alcanzables?.includes(pedido) ? pedido : propia;
-    }
 };
 exports.OrganizationSettingsController = OrganizationSettingsController;
 __decorate([
@@ -258,7 +250,7 @@ __decorate([
     (0, common_1.Get)('correos'),
     (0, swagger_1.ApiOperation)({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('clientId')),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __param(2, (0, common_1.Query)('formId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String]),
@@ -271,7 +263,7 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Guardar plantillas de correo' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.Query)('clientId')),
+    __param(2, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, update_organization_settings_dto_1.UpdateOrganizationSettingsDto, String]),
     __metadata("design:returntype", Promise)
@@ -282,7 +274,7 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Estado del envío de correos' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('clientId')),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
@@ -293,7 +285,7 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Condiciones que necesita cada aviso además de su interruptor' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('clientId')),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
@@ -304,7 +296,7 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Personas del equipo a las que se puede enviar una prueba' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('clientId')),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
@@ -316,7 +308,7 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Componer una plantilla para verla, sin enviarla' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
-    __param(2, (0, common_1.Query)('clientId')),
+    __param(2, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", Promise)
@@ -329,7 +321,7 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Enviar una plantilla de correo a alguien del equipo' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.Query)('clientId')),
+    __param(2, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", Promise)

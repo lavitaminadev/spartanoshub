@@ -15,6 +15,18 @@ const NOMBRE: Record<string, string> = {
   metaConversions: 'conversiones de Meta',
   googleConversions: 'conversiones de Google',
   budgetVisibility: 'visibilidad de presupuesto',
+  production: 'producción',
+  audiovisual: 'audiovisual',
+  content: 'contenido',
+  approvals: 'aprobaciones',
+  meetings: 'reuniones',
+  documents: 'documentos',
+  briefs: 'briefs',
+  billing: 'facturación',
+  contracts: 'contratos',
+  intake: 'intake',
+  reports: 'informes',
+  commercialPipeline: 'embudo comercial',
 };
 
 /**

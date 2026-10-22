@@ -3,6 +3,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Notification } from '../../notifications/notification.entity';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
+import { plazoDeAviso } from '../../../modules/vulneraciones/plazo-de-aviso';
 import { plazoDeSolicitud } from '@espartanos/shared';
 
 interface RecipientRow { id: string }
@@ -31,6 +32,7 @@ export class OperationalAlertsJob {
         created += await this.actionItemAlerts(organization.id);
         created += await this.budgetAlerts(organization.id);
         created += await this.cycleAlerts(organization.id);
+        created += await this.vulneracionAlerts(organization.id);
         created += await this.solicitudesDeDerechos(organization.id);
         created += await this.prestamosPorVencer(organization.id);
       } catch (error) {
@@ -187,6 +189,37 @@ export class OperationalAlertsJob {
       if (!pending.length) continue;
       const recipients = cycle.communityManagerId ? [cycle.communityManagerId, ...fallback] : fallback;
       total += await this.notifyOnce(organizationId, [...new Set(recipients)], 'cycle.pending', `${cycle.id}:${pending.join('|')}`, 'Ciclo mensual con pendientes', `${cycle.clientName}: falta completar ${pending.join(', ')}.`, { cycleId: cycle.id, clientId: cycle.clientId, pending });
+    }
+    return total;
+  }
+
+  /**
+   * Vulneraciones cuyo aviso al local está por vencer o ya venció.
+   *
+   * El contrato promete avisar dentro de `PLAZO_AVISO_VULNERACION_HORAS` desde la detección. Se
+   * avisa a Dirección desde `ANTICIPO_ALERTA_HORAS` antes del vencimiento y se sigue avisando,
+   * ya como vencida, cada día hasta que alguien registre la fecha del aviso.
+   */
+  async vulneracionAlerts(organizationId: string): Promise<number> {
+    const incidentes = await this.dataSource.query<Array<{ id: string; descripcion: string; detectedAt: Date }>>(
+      'SELECT id, descripcion, detected_at detectedAt FROM security_incidents WHERE organization_id = ? AND aviso_local_at IS NULL',
+      [organizationId],
+    );
+    let total = 0;
+    const destinatarios = await this.directors(organizationId);
+    for (const incidente of incidentes) {
+      const plazo = plazoDeAviso(new Date(incidente.detectedAt), null);
+      if (plazo.estado !== 'por vencer' && plazo.estado !== 'vencido') continue;
+      const vencido = plazo.estado === 'vencido';
+      const resumen = incidente.descripcion.length > 120 ? `${incidente.descripcion.slice(0, 117)}...` : incidente.descripcion;
+      total += await this.notifyOnce(
+        organizationId, destinatarios, vencido ? 'security.incident_notice_overdue' : 'security.incident_notice_due', `${incidente.id}:${vencido ? 'overdue' : 'due'}`,
+        vencido ? 'Aviso de vulneración vencido' : 'Aviso de vulneración por vencer',
+        vencido
+          ? `Venció el plazo para avisar al local de la vulneración «${resumen}». Avisa y registra la fecha.`
+          : `Quedan ${Math.max(0, Math.floor(plazo.horasRestantes))} horas para avisar al local de la vulneración «${resumen}».`,
+        { incidentId: incidente.id, vence: plazo.vence },
+      );
     }
     return total;
   }

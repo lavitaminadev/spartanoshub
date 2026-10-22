@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { asegurarQueNoConcedePorEncima, validarJuegos } from '../../../src/modules/users/perfiles/concesion';
 import { InvitacionesService } from '../../../src/modules/users/perfiles/invitaciones.service';
 import { PerfilesService, type ContextoDePerfiles } from '../../../src/modules/users/perfiles/perfiles.service';
+import { AdministradoresDeEmpresaService } from '../../../src/modules/users/administradores-de-empresa.service';
 import { UserRole } from '../../../src/modules/organizations/user-role.enum';
 
 /*
@@ -289,7 +290,7 @@ describe('quitar del equipo', () => {
     expect(cuenta.clientId).toBe(OTRA);
     expect(cuenta.isActive).toBe(true);
     expect(m.t.asignaciones.filas.some((fila) => fila.userId === persona.id)).toBe(false);
-    expect(m.administradores.definir).toHaveBeenCalledWith(ORG, persona.id, PICADA, false, ADMIN.id);
+    expect(m.administradores.definir).toHaveBeenCalledWith(ORG, persona.id, PICADA, false, ADMIN.id, { esAgencia: false, motivo: 'Término de contrato', ip: '10.0.0.1' });
   });
 
   it('si era la última empresa la cuenta se desactiva y no se borra', async () => {
@@ -414,5 +415,47 @@ describe('perfiles sugeridos', () => {
     expect(copiados).toBe(5);
     expect(m.t.perfiles.filas.find((fila) => fila.nombre === 'Garzón')?.areas).toEqual({ 'reservations.turno': 'ver' });
     expect(await m.perfiles.sembrarSugeridos(ORG, PICADA)).toBe(0);
+  });
+});
+
+describe('el último administrador de una empresa', () => {
+  const persona = { id: 'u-p', email: 'p@x.cl', role: UserRole.CLIENT, clientId: PICADA, isActive: true };
+
+  /** El servicio real de administradores sobre una tabla en memoria, para probar la regla donde vive. */
+  function conServicioReal(administran: string[]) {
+    const m = mundo({ usuarios: [persona], asignaciones: [{ organizationId: ORG, clientId: PICADA, userId: persona.id, perfilId: PERFIL_BAJO.id }] });
+    const overrides = new Tabla(administran.map((userId) => ({ organizationId: ORG, userId, module: 'users', level: 'manage', clientId: PICADA })));
+    const real = new AdministradoresDeEmpresaService(overrides as never, { invalidateUser: vi.fn() } as never, m.auditoria as never);
+    const perfiles = new PerfilesService(m.t.perfiles as never, m.t.asignaciones as never, m.t.clientes as never, m.t.usuarios as never, m.t.accesos as never, m.t.textos as never, m.t.consentimientos as never, m.auditoria as never, { invalidateUser: vi.fn() } as never, real as never, m.t.invitaciones as never);
+    return { m, overrides, real, perfiles };
+  }
+
+  it('no se puede retirar al último y el mensaje dice qué hacer', async () => {
+    const { overrides, real } = conServicioReal([persona.id]);
+    await expect(real.definir(ORG, persona.id, PICADA, false, 'u-x')).rejects.toThrow(/Nombra primero a otra/);
+    expect(overrides.filas).toHaveLength(1);
+  });
+
+  it('con dos administradores sí se puede retirar a uno', async () => {
+    const { overrides, real } = conServicioReal([persona.id, 'u-otro']);
+    await real.definir(ORG, persona.id, PICADA, false, 'u-x');
+    expect(overrides.filas.map((f) => f.userId)).toEqual(['u-otro']);
+  });
+
+  it('la agencia puede retirar al último sólo con motivo, y queda en auditoría', async () => {
+    const { m, overrides, real } = conServicioReal([persona.id]);
+    await expect(real.definir(ORG, persona.id, PICADA, false, 'u-ag', { esAgencia: true })).rejects.toThrow(BadRequestException);
+    expect(overrides.filas).toHaveLength(1);
+    await real.definir(ORG, persona.id, PICADA, false, 'u-ag', { esAgencia: true, motivo: 'La cuenta ya no existe', ip: '10.0.0.2' });
+    expect(overrides.filas).toHaveLength(0);
+    expect(m.auditoria.log).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'u-ag', action: 'retirar_ultimo_administrador', after: expect.objectContaining({ motivo: 'La cuenta ya no existe' }) }));
+  });
+
+  it('quitar del equipo queda cubierto por la misma comprobación y no toca nada si la rechaza', async () => {
+    const { m, perfiles } = conServicioReal([persona.id]);
+    await expect(perfiles.quitarDelEquipo(comoAdmin, persona.id, 'Término de contrato')).rejects.toThrow(ConflictException);
+    expect(m.t.asignaciones.filas.some((f) => f.userId === persona.id)).toBe(true);
+    await expect(perfiles.quitarDelEquipo(comoAgencia, persona.id, 'Empresa sin nadie')).resolves.toBeTruthy();
+    expect(m.t.asignaciones.filas.some((f) => f.userId === persona.id)).toBe(false);
   });
 });

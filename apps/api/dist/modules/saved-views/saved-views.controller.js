@@ -18,6 +18,9 @@ const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const empresa_resuelta_1 = require("../../core/client-scope/empresa-resuelta");
+const empresa_interceptor_1 = require("../../core/client-scope/empresa.interceptor");
+const user_role_enum_1 = require("../organizations/user-role.enum");
 const saved_views_service_1 = require("./saved-views.service");
 class GuardarVistaDto {
 }
@@ -52,11 +55,19 @@ let SavedViewsController = class SavedViewsController {
     constructor(vistas) {
         this.vistas = vistas;
     }
+    empresaDeLasVistas(req) {
+        if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
+            return null;
+        const ambito = (0, empresa_interceptor_1.ambitoDeLaPeticion)(req);
+        if (ambito instanceof Error)
+            throw ambito;
+        return ambito === undefined || ambito === empresa_resuelta_1.AGENCIA ? null : ambito;
+    }
     listar(req, scope) {
-        return this.vistas.listar(req.user, scope);
+        return this.vistas.listar(req.user, scope, this.empresaDeLasVistas(req));
     }
     guardar(req, dto) {
-        return this.vistas.guardar(req.user, dto);
+        return this.vistas.guardar(req.user, dto, this.empresaDeLasVistas(req));
     }
     compartir(req, id, dto) {
         return this.vistas.compartir(req.user, id, dto.shared);

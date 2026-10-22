@@ -380,7 +380,7 @@ export class LeadController {
     await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
     // Para el portal, la empresa del lead —que ya alcanza— y no la de su cuenta: con dos locales,
     // mover una tarjeta en el segundo no se reconocía como trabajo propio.
-    const actualizado = await this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.role === UserRole.CLIENT ? lead.clientId ?? null : req.user.clientId ?? null);
+    const actualizado = await this.updateLead.execute(id, dto, req.organizationId, req.user.id);
     return (await this.protegidos(req, [actualizado]))[0];
   }
 

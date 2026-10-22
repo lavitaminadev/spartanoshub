@@ -25,6 +25,8 @@ const active_pieces_1 = require("./active-pieces");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const monthly_reports_service_1 = require("./monthly-reports.service");
 const monthly_report_dto_1 = require("./dto/monthly-report.dto");
+const empresa_decorator_1 = require("../../core/client-scope/empresa.decorator");
+const empresa_resuelta_1 = require("../../core/client-scope/empresa-resuelta");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 let ReportingController = class ReportingController {
@@ -34,16 +36,15 @@ let ReportingController = class ReportingController {
         this.accountAccess = accountAccess;
         this.monthlyReports = monthlyReports;
     }
-    resolveClientScope(req) {
-        if (req.user?.role !== user_role_enum_1.UserRole.CLIENT)
-            return null;
-        if (!req.user.clientId) {
+    resolveClientScope(req, ambito) {
+        const clientId = (0, empresa_resuelta_1.esUnaEmpresa)(ambito) ? ambito : null;
+        if (req.user?.role === user_role_enum_1.UserRole.CLIENT && !clientId) {
             throw new common_1.ForbiddenException('El usuario cliente no tiene una cuenta asociada');
         }
-        return req.user.clientId;
+        return clientId;
     }
-    async pulse(req) {
-        const clientId = this.resolveClientScope(req) ?? undefined;
+    async pulse(req, ambito) {
+        const clientId = this.resolveClientScope(req, ambito) ?? undefined;
         const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.pulseService.getPulse(req.organizationId, clientId, clientIds);
     }
@@ -87,9 +88,9 @@ let ReportingController = class ReportingController {
             pieces,
         };
     }
-    async reports(req) {
+    async reports(req, ambito) {
         const orgId = req.organizationId;
-        const clientId = this.resolveClientScope(req);
+        const clientId = this.resolveClientScope(req, ambito);
         const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         const invoiceConditions = ['organization_id = ?'];
         const invoiceParams = [orgId];
@@ -200,8 +201,8 @@ let ReportingController = class ReportingController {
             growthRate: null,
         };
     }
-    async performance(req) {
-        const clientId = this.resolveClientScope(req);
+    async performance(req, ambito) {
+        const clientId = this.resolveClientScope(req, ambito);
         const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         const conditions = ['organization_id = ?', 'metric_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)'];
         const params = [req.organizationId];
@@ -237,10 +238,8 @@ let ReportingController = class ReportingController {
             hasData: providers.length > 0,
         };
     }
-    async listMonthlyReports(req, year, month, requestedClientId) {
-        const clientId = this.resolveClientScope(req) ?? requestedClientId;
-        if (clientId)
-            await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    async listMonthlyReports(req, year, month, ambito) {
+        const clientId = this.resolveClientScope(req, ambito);
         const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.monthlyReports.list(req.organizationId, { clientId: clientId ?? undefined, clientIds, clientView: req.user.role === user_role_enum_1.UserRole.CLIENT, year: year ? Number(year) : undefined, month: month ? Number(month) : undefined });
     }
@@ -261,8 +260,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Pulso Vitamina explicable de la operación y la marca' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReportingController.prototype, "pulse", null);
 __decorate([
@@ -281,8 +281,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Reportes generales' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReportingController.prototype, "reports", null);
 __decorate([
@@ -299,8 +300,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Rendimiento consolidado de Meta Ads, Google Ads y Analytics' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReportingController.prototype, "performance", null);
 __decorate([
@@ -309,7 +311,7 @@ __decorate([
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('year')),
     __param(2, (0, common_1.Query)('month')),
-    __param(3, (0, common_1.Query)('clientId')),
+    __param(3, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)

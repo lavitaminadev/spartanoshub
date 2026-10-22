@@ -273,8 +273,8 @@
 }
 
 .public-survey-scale button {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border: 1px solid color-mix(in srgb, var(--survey-primary, #0fb9b1) 28%, #d1d5db);
   border-radius: 50%;
   background: #fff;
@@ -315,7 +315,7 @@
   .survey-type-options { grid-template-columns: 1fr; }
   .review-summary { grid-template-columns: 1fr; }
   .public-survey-card { border-radius: 20px; }
-  .public-survey-scale button { width: 38px; height: 38px; }
+  .public-survey-scale button { width: 44px; height: 44px; }
 }
 
 .survey-design-grid {
@@ -389,7 +389,7 @@
 .public-survey-question small { color: var(--danger); font-weight: 700; }
 .public-survey-scale,
 .public-survey-nps { display: flex; gap: 7px; flex-wrap: wrap; }
-.public-survey-nps button { width: 38px; height: 38px; border: 1px solid color-mix(in srgb, var(--survey-primary, #0fb9b1) 30%, #d1d5db); border-radius: 8px; background: #fff; color: var(--survey-text, var(--ink)); font-weight: 800; cursor: pointer; }
+.public-survey-nps button { width: 44px; height: 44px; border: 1px solid color-mix(in srgb, var(--survey-primary, #0fb9b1) 30%, #d1d5db); border-radius: 8px; background: #fff; color: var(--survey-text, var(--ink)); font-weight: 800; cursor: pointer; }
 .public-survey-nps button.active { border-color: var(--survey-primary, #0fb9b1); background: var(--survey-primary, #0fb9b1); color: var(--survey-primary-contrast, #fff); }
 .public-survey-choice { display: grid; gap: 8px; }
 .public-survey-choice label { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--survey-primary, #0fb9b1) 30%, #ffffff); border-radius: 8px; background: #ffffff; cursor: pointer; }

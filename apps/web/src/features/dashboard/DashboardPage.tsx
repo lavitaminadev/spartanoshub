@@ -1,3 +1,4 @@
+import { DialogoModal } from '../../shared/DialogoModal';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../core/api';
@@ -296,7 +297,7 @@ export function DashboardPage() {
         </div>
       </div>}
 
-      {configureOpen && <div className="dashboard-config-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfigureOpen(false); }}><aside className="dashboard-config" role="dialog" aria-modal="true"><header><div><span className="page-eyebrow">VISTA POR ROL</span><h2>Configura tu centro de control</h2></div><button onClick={() => setConfigureOpen(false)} aria-label="Cerrar">x</button></header><div>{availableWidgets.map((widget) => <label key={widget}><span><strong>{WIDGET_LABELS[widget]}</strong></span><input type="checkbox" checked={widgetVisible(widget)} onChange={() => setWidgets(widgetVisible(widget) ? visibleWidgets.filter((item) => item !== widget) : [...visibleWidgets, widget])} /></label>)}</div><footer><button className="btn btn-outline" onClick={() => setWidgets(rolePreset)}>Restaurar preset</button><button className="btn btn-primary" onClick={() => setConfigureOpen(false)}>Aplicar vista</button></footer></aside></div>}
+      {configureOpen && <DialogoModal etiqueta="Configura tu centro de control" onCerrar={() => setConfigureOpen(false)} className="dashboard-config-backdrop"><aside className="dashboard-config" data-retiene-toque><header><div><span className="page-eyebrow">VISTA POR ROL</span><h2>Configura tu centro de control</h2></div><button onClick={() => setConfigureOpen(false)} aria-label="Cerrar configuración">×</button></header><div>{availableWidgets.map((widget) => <label key={widget}><span><strong>{WIDGET_LABELS[widget]}</strong></span><input type="checkbox" checked={widgetVisible(widget)} onChange={() => setWidgets(widgetVisible(widget) ? visibleWidgets.filter((item) => item !== widget) : [...visibleWidgets, widget])} /></label>)}</div><footer><button className="btn btn-outline" onClick={() => setWidgets(rolePreset)}>Restaurar preset</button><button className="btn btn-primary" onClick={() => setConfigureOpen(false)}>Aplicar vista</button></footer></aside></DialogoModal>}
     </div>
   );
 }

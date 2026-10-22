@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { DataTable } from '../../shared/DataTable';
 import { Modal } from '../../shared/Modal';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
-import { matchesSearch } from '../../shared/search';
+import { VersionesDeCotizacion } from './VersionesDeCotizacion';
 
 interface QuoteItem { serviceId?: string; description: string; quantity: number; unitPrice: number; total?: number }
 interface QuoteRow {
@@ -20,27 +20,40 @@ interface QuoteForm { targetType: 'lead' | 'client'; targetId: string; title: st
 const emptyItem = () => ({ _key: crypto.randomUUID(), serviceId: '', description: '', quantity: '1', unitPrice: '0' });
 
 const emptyForm = (): QuoteForm => ({ targetType: 'lead', targetId: '', title: '', currency: 'CLP', validUntil: '', notes: '', items: [emptyItem()] });
+const POR_PAGINA = 50;
 const money = (value: number, currency = 'CLP') => new Intl.NumberFormat('es-CL', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value || 0);
 
 export function CatalogQuotesTab() {
   const qc = useQueryClient();
-  const [search, setSearch] = useState('');
+  const [empresa, setEmpresa] = useState('');
   const [status, setStatus] = useState('');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [pagina, setPagina] = useState(0);
+  const [verVersiones, setVerVersiones] = useState<QuoteRow | null>(null);
+  const [buscar, setBuscar] = useState('');
+  useEffect(() => { const t = setTimeout(() => { setBuscar(empresa.trim()); setPagina(0); }, 300); return () => clearTimeout(t); }, [empresa]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ action: 'send' | 'accept' | 'version'; quote: QuoteRow } | null>(null);
   const [form, setForm] = useState<QuoteForm>(emptyForm());
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
-  const quotesQuery = useQuery<QuoteRow[]>({ queryKey: ['catalog-quotes'], queryFn: () => api.get('/catalog/quotes') });
+  const params = new URLSearchParams({ limit: String(POR_PAGINA), offset: String(pagina * POR_PAGINA) });
+  if (buscar) params.set('empresa', buscar);
+  if (status) params.set('status', status);
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  const quotesQuery = useQuery<{ data: QuoteRow[]; total: number }>({ queryKey: ['catalog-quotes', params.toString()], queryFn: () => api.get(`/catalog/quotes?${params}`) });
   const { data: leadsResp, error: leadsError } = useQuery<{ data: Target[] }>({ queryKey: ['crm-leads'], queryFn: () => api.get('/crm/leads') });
   const leads = leadsResp?.data ?? [];
   const { data: clientsResp, error: clientsError } = useQuery<{ data: Target[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = clientsResp?.data ?? [];
   const { data: services = [], error: servicesError } = useQuery<ServiceOption[]>({ queryKey: ['catalog-services'], queryFn: () => api.get('/catalog/services') });
-  const rows = (quotesQuery.data ?? []).filter((quote) => (!status || quote.status === status) && matchesSearch(search, [quote.number, quote.title, quote.client?.name, quote.lead?.name]));
+  const rows = quotesQuery.data?.data ?? [];
+  const totalFilas = quotesQuery.data?.total ?? 0;
   const total = form.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
   const close = () => { setOpen(false); setEditingId(null); setForm(emptyForm()); };
-  const refresh = async (text: string) => { await qc.invalidateQueries({ queryKey: ['catalog-quotes'] }); close(); setConfirm(null); setFeedback({ tone: 'success', text }); };
+  const refresh = async (text: string) => { await Promise.all(['catalog-quotes', 'catalog-quotes-total', 'catalog-quote-versions', 'catalog-quotes-lead'].map((queryKey) => qc.invalidateQueries({ queryKey: [queryKey] }))); close(); setConfirm(null); setFeedback({ tone: 'success', text }); };
   const saveMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => editingId ? api.put(`/catalog/quotes/${editingId}`, body) : api.post('/catalog/quotes', body),
     onSuccess: () => refresh(editingId ? 'Cotización actualizada.' : 'Cotización creada en borrador.'),
@@ -85,7 +98,7 @@ export function CatalogQuotesTab() {
     <div className="quote-flow"><span><b>1</b> Borrador editable</span><span><b>2</b> Envío controlado</span><span><b>3</b> Aceptación</span><span><b>4</b> Contrato + onboarding</span></div>
     {(quotesQuery.error || leadsError || clientsError || servicesError) && <div className="alert alert-error">No fue posible cargar por completo cotizaciones, leads, clientes o servicios. La vista puede estar incompleta.</div>}
     {feedback && <div className={`alert alert-${feedback.tone}`} role="status">{feedback.text}</div>}
-    <div className="filters"><input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar número, propuesta o empresa..." /><select className="input" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todos los estados</option><option value="draft">Borrador</option><option value="sent">Enviada</option><option value="accepted">Aceptada</option><option value="rejected">Rechazada</option><option value="expired">Vencida</option></select></div>
+    <div className="filters"><input className="input" type="search" aria-label="Buscar por empresa" value={empresa} onChange={(event) => setEmpresa(event.target.value)} placeholder="Buscar por empresa..." /><select className="input" aria-label="Estado" value={status} onChange={(event) => { setStatus(event.target.value); setPagina(0); }}><option value="">Todos los estados</option><option value="draft">Borrador</option><option value="sent">Enviada</option><option value="accepted">Aceptada</option><option value="rejected">Rechazada</option><option value="expired">Vencida</option></select><input className="input" type="date" aria-label="Desde" value={desde} onChange={(event) => { setDesde(event.target.value); setPagina(0); }} /><input className="input" type="date" aria-label="Hasta" value={hasta} onChange={(event) => { setHasta(event.target.value); setPagina(0); }} /></div>
     <DataTable<QuoteRow> loading={quotesQuery.isLoading} data={rows} keyExtractor={(row) => row.id} emptyMessage="Aún no hay cotizaciones. Crea una para iniciar el circuito comercial." columns={[
       { key: 'number', label: 'Cotización', render: (row) => <span className="quote-number"><strong>{row.number}</strong><small>Versión {row.version}</small></span> },
       { key: 'title', label: 'Propuesta', sortable: true },
@@ -93,8 +106,10 @@ export function CatalogQuotesTab() {
       { key: 'amount', label: 'Total', sortable: true, render: (row) => money(Number(row.amount), row.currency) },
       { key: 'validUntil', label: 'Vigencia', render: (row) => row.validUntil ? new Date(row.validUntil).toLocaleDateString('es-CL') : 'Sin límite' },
       { key: 'status', label: 'Estado', render: (row) => <StatusBadge status={row.status} /> },
-      { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions">{row.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => openEdit(row)}>Editar</button>}{row.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => setConfirm({ action: 'send', quote: row })}>Enviar</button>}{['draft', 'sent'].includes(row.status) && <button className="btn btn-sm btn-primary" onClick={() => setConfirm({ action: 'accept', quote: row })}>Aceptar</button>}{row.status !== 'draft' && <button className="btn btn-sm btn-outline" onClick={() => setConfirm({ action: 'version', quote: row })}>Nueva versión</button>}</div> },
+      { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button className="btn btn-sm btn-outline" onClick={() => setVerVersiones(row)}>Versiones</button>{row.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => openEdit(row)}>Editar</button>}{row.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => setConfirm({ action: 'send', quote: row })}>Enviar</button>}{['draft', 'sent'].includes(row.status) && <button className="btn btn-sm btn-primary" onClick={() => setConfirm({ action: 'accept', quote: row })}>Aceptar</button>}{row.status !== 'draft' && <button className="btn btn-sm btn-outline" onClick={() => setConfirm({ action: 'version', quote: row })}>Nueva versión</button>}</div> },
     ]} />
+    <div className="table-pagination"><span>{totalFilas} cotizaciones</span><button className="btn btn-sm btn-outline" disabled={pagina === 0} onClick={() => setPagina(pagina - 1)}>Anterior</button><button className="btn btn-sm btn-outline" disabled={(pagina + 1) * POR_PAGINA >= totalFilas} onClick={() => setPagina(pagina + 1)}>Siguiente</button></div>
+    <Modal open={Boolean(verVersiones)} onClose={() => setVerVersiones(null)} title={`Versiones de ${verVersiones?.number ?? ''}`}>{verVersiones && <VersionesDeCotizacion quoteId={verVersiones.id} />}</Modal>
     <Modal open={open} onClose={close} title={editingId ? 'Editar cotización' : 'Nueva cotización'}><form className="modal-form quote-form" onSubmit={submit}>
       <div className="form-row"><label>Tipo de destinatario<select className="input" value={form.targetType} onChange={(event) => setForm({ ...form, targetType: event.target.value as QuoteForm['targetType'], targetId: '' })}><option value="lead">Lead en negociación</option><option value="client">Cliente existente</option></select></label><label>{form.targetType === 'lead' ? 'Lead' : 'Cliente'}<select required className="input" value={form.targetId} onChange={(event) => setForm({ ...form, targetId: event.target.value })}><option value="">Selecciona una opción</option>{targetOptions.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}</select></label></div>
       <label>Título de la propuesta<input className="input" required maxLength={255} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Ej. Plan de crecimiento digital" /></label>

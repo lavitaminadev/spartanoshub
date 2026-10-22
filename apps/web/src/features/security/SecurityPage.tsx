@@ -18,6 +18,7 @@ import { EmptyState } from '../../shared/EmptyState';
 import { PageHero } from '../../shared/PageHero';
 import { AuditPanel } from '../governance/AuditPanel';
 import { ServiceRequestsPanel } from './ServiceRequestsPanel';
+import { VulneracionesPanel } from './VulneracionesPanel';
 
 interface HealthCheckResult {
   status: string;
@@ -193,6 +194,7 @@ export function SecurityPage() {
     </section>
 
     <ServiceRequestsPanel />
+    <VulneracionesPanel />
 
     <AuditPanel />
   </div>;

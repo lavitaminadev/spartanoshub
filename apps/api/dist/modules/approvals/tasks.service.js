@@ -52,12 +52,14 @@ let TasksService = class TasksService {
         }));
     }
     listAgenda(organizationId, desde, hasta, clientIds) {
+        if (clientIds?.length === 0)
+            return Promise.resolve([]);
         return this.repo.find({
             where: {
                 organizationId,
                 kind: approval_request_status_enum_1.PendingKind.TASK,
                 dueAt: (0, typeorm_2.Between)(desde, hasta),
-                ...(clientIds?.length ? { clientId: (0, typeorm_2.In)(clientIds) } : {}),
+                ...(clientIds ? { clientId: (0, typeorm_2.In)(clientIds) } : {}),
             },
             order: { dueAt: 'ASC' },
             take: 500,

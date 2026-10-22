@@ -46,6 +46,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HealthService = void 0;
+exports.readBuildInfo = readBuildInfo;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -61,6 +62,19 @@ function readApiVersion() {
     return parsed.version;
 }
 const API_VERSION = readApiVersion();
+function readBuildInfo(file = path.resolve(__dirname, '../../build-info.json')) {
+    const desconocido = { commit: 'desconocido', builtAt: 'desconocido' };
+    try {
+        const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+        const commit = typeof parsed.commit === 'string' && /^[0-9a-f]{7,40}$/i.test(parsed.commit.trim()) ? parsed.commit.trim() : null;
+        const builtAt = typeof parsed.builtAt === 'string' && !Number.isNaN(Date.parse(parsed.builtAt)) ? parsed.builtAt : null;
+        return { commit: commit ?? desconocido.commit, builtAt: builtAt ?? desconocido.builtAt };
+    }
+    catch {
+        return desconocido;
+    }
+}
+const BUILD = readBuildInfo();
 let HealthService = class HealthService {
     constructor(dataSource) {
         this.dataSource = dataSource;
@@ -78,6 +92,8 @@ let HealthService = class HealthService {
             uptime: process.uptime(),
             timestamp: new Date().toISOString(),
             version: API_VERSION,
+            commit: BUILD.commit,
+            builtAt: BUILD.builtAt,
             database: db,
             memory,
             disk,

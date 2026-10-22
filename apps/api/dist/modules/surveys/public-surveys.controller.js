@@ -28,6 +28,7 @@ const survey_dto_1 = require("./dto/survey.dto");
 const public_survey_flow_service_1 = require("./public-survey-flow.service");
 const shared_1 = require("@espartanos/shared");
 const consentimiento_de_encuesta_1 = require("./consentimiento-de-encuesta");
+const validar_respuestas_publicas_1 = require("./validar-respuestas-publicas");
 function publicSurveyUrl(id) {
     const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
@@ -91,10 +92,13 @@ let PublicSurveysController = class PublicSurveysController {
         if (!survey || survey.status !== 'active')
             throw new common_1.NotFoundException('La encuesta no está disponible');
         await (0, encuestas_de_la_empresa_1.encuestaPublicaDisponible)(this.surveys, survey.clientId);
-        const known = new Set((survey.questions ?? []).map((question) => question.id));
+        const known = new Set((0, validar_respuestas_publicas_1.preguntasContestables)(survey.questions ?? []).map((question) => question.id));
         const unknown = Object.keys(dto.answers ?? {}).filter((key) => !known.has(key));
         if (unknown.length > 0)
             throw new common_1.BadRequestException(`La encuesta no tiene las preguntas: ${unknown.join(', ')}`);
+        const fueraDeRango = (0, validar_respuestas_publicas_1.respuestasFueraDeRango)(survey.questions ?? [], dto.answers ?? {});
+        if (fueraDeRango.length > 0)
+            throw new common_1.BadRequestException(fueraDeRango.join(' · '));
         const problemas = (0, shared_1.problemasDeRespuesta)(survey.questions ?? [], dto.answers ?? {});
         if (problemas.length > 0)
             throw new common_1.BadRequestException(problemas.join(' · '));

@@ -193,7 +193,7 @@ let LeadController = class LeadController {
         const clientIdDestino = dto.clientId !== undefined ? (dto.clientId ?? undefined) : (lead.clientId ?? undefined);
         await this.accountAccess.assertClient(req.organizationId, req.user, clientIdDestino);
         await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
-        const actualizado = await this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? lead.clientId ?? null : req.user.clientId ?? null);
+        const actualizado = await this.updateLead.execute(id, dto, req.organizationId, req.user.id);
         return (await this.protegidos(req, [actualizado]))[0];
     }
     async assertLeadAccess(req, lead) {
