@@ -8,6 +8,8 @@ import { Contract } from '../contracts/contract.entity';
 import { Lead } from '../crm/leads/lead.entity';
 import { LeadStatus } from '../crm/leads/lead-status.enum';
 import { CreateQuoteDto, UpdateQuoteDto } from './dto/quote.dto';
+import { ListQuotesQueryDto } from './dto/list-quotes.dto';
+import { arbolDeVersiones, patronDeBusqueda, raizDeLaFamilia, resumenDeCotizaciones, type ResumenDeCotizacionesDelLead, type VersionDeCotizacion } from './cotizaciones-historial';
 import { Quote } from './quote.entity';
 import { QuoteStatus } from './quote-status.enum';
 import { Service } from './service.entity';
@@ -23,7 +25,55 @@ export class QuotesService {
     private readonly events: EventEmitter2,
   ) {}
 
-  list(organizationId: string) { return this.quotes.find({ where: { organizationId }, relations: ['client', 'lead'], order: { createdAt: 'DESC' }, take: 300 }); }
+  /**
+   * Lista las cotizaciones de la organización, de la más reciente a la más antigua, con total.
+   *
+   * `empresa` busca por fragmento en el `company` del lead y en el nombre del cliente. La
+   * comparación lleva la colación `utf8mb4_unicode_ci` explícita, de modo que «vitamina» encuentra
+   * «La Vitamina SpA» y «cafe» encuentra «Café» sin depender de la colación de la columna. `desde`
+   * y `hasta` acotan por fecha de creación, ambos extremos incluidos.
+   */
+  async list(organizationId: string, filtros: ListQuotesQueryDto = {}): Promise<{ data: Quote[]; total: number; limit: number; offset: number }> {
+    const limit = filtros.limit ?? 50;
+    const offset = filtros.offset ?? 0;
+    const qb = this.quotes.createQueryBuilder('q')
+      .leftJoinAndSelect('q.client', 'client')
+      .leftJoinAndSelect('q.lead', 'lead')
+      .where('q.organizationId = :organizationId', { organizationId });
+    const patron = patronDeBusqueda(filtros.empresa);
+    if (patron) {
+      qb.andWhere('(lead.company COLLATE utf8mb4_unicode_ci LIKE :patron OR client.name COLLATE utf8mb4_unicode_ci LIKE :patron)', { patron });
+    }
+    if (filtros.status) qb.andWhere('q.status = :status', { status: filtros.status });
+    if (filtros.desde) qb.andWhere('q.createdAt >= :desde', { desde: new Date(`${filtros.desde}T00:00:00`) });
+    if (filtros.hasta) qb.andWhere('q.createdAt <= :hasta', { hasta: new Date(`${filtros.hasta}T23:59:59.999`) });
+    const [data, total] = await qb.orderBy('q.createdAt', 'DESC').skip(offset).take(limit).getManyAndCount();
+    return { data, total, limit, offset };
+  }
+
+  /**
+   * Las versiones de la familia de una cotización, de la primera a la última.
+   *
+   * Sirve igual desde cualquier versión: parte de la raíz de la familia, no de la consultada.
+   */
+  async versiones(id: string, organizationId: string): Promise<VersionDeCotizacion[]> {
+    const origen = await this.find(id, organizationId);
+    const raiz = raizDeLaFamilia(origen);
+    const familia = await this.quotes.find({ where: [{ id: raiz, organizationId }, { parentQuoteId: raiz, organizationId }] });
+    return arbolDeVersiones(familia, id);
+  }
+
+  /**
+   * Cuántas veces se cotizó a un prospecto y cuándo fue la última.
+   *
+   * Sólo el embudo comercial cotiza: para un lead de audiencia, o uno que no es de la
+   * organización, devuelve `veces: 0`, igual que un prospecto que nunca recibió una propuesta.
+   */
+  async resumenDelLead(leadId: string, organizationId: string): Promise<ResumenDeCotizacionesDelLead> {
+    const lead = await this.leads.findOne({ where: { id: leadId, organizationId } });
+    if (!lead || lead.domain !== 'commercial') return { veces: 0, ultimaEn: null };
+    return resumenDeCotizaciones(await this.quotes.find({ where: { leadId, organizationId } }));
+  }
 
   async create(organizationId: string, userId: string, dto: CreateQuoteDto): Promise<Quote> {
     await this.validateTarget(organizationId, dto.clientId, dto.leadId);

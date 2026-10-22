@@ -171,6 +171,7 @@ export const AREAS: readonly DefinicionDeArea[] = [
   { clave: 'crm.importar', modulo: 'crm', nombre: 'Importar', ayuda: 'Alta masiva de prospectos desde un archivo.', niveles: SI_O_NO },
   { clave: 'crm.contactos', modulo: 'crm', nombre: 'Contactos y actividades', ayuda: 'Registrar llamadas, correos y reuniones con un prospecto.', niveles: VER_O_HACER, tocaDatosDeTerceros: true },
   { clave: 'crm.embudo', modulo: 'crm', nombre: 'Embudo', ayuda: 'Mover tratos de etapa y cerrarlos como ganados o perdidos.', niveles: VER_O_HACER },
+  { clave: 'crm.cotizaciones', modulo: 'crm', nombre: 'Cotizaciones', ayuda: 'Buscar las cotizaciones hechas a una empresa y ver sus versiones; con «hacer», además crear versiones nuevas.', niveles: VER_O_HACER },
   { clave: 'crm.reglas', modulo: 'crm', nombre: 'Reglas de calificación', ayuda: 'Crear y ordenar las reglas, y aplicarlas: aplicar reescribe el semáforo, la etapa y el responsable de los prospectos elegidos.', niveles: VER_O_HACER },
   { clave: 'crm.campos', modulo: 'crm', nombre: 'Campos propios', ayuda: 'La estructura de la ficha: qué se le pregunta a cada prospecto.', niveles: VER_O_HACER },
   { clave: 'crm.origenes', modulo: 'crm', nombre: 'Orígenes de entrada', ayuda: 'Los formularios externos que dejan prospectos, y sus llaves.', niveles: VER_O_HACER },
@@ -335,7 +336,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
     modulo: 'crm',
     nombre: 'Asistente comercial',
     descripcion: 'Registra el contacto del día a día sin mover el embudo.',
-    areas: { 'crm.prospectos': 'ver', 'crm.contactos': 'hacer', 'crm.embudo': 'ver' },
+    areas: { 'crm.prospectos': 'ver', 'crm.contactos': 'hacer', 'crm.embudo': 'ver', 'crm.cotizaciones': 'ver' },
     datosProtegidos: { crm: 'bajo_registro' },
   },
   {
@@ -344,7 +345,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
     descripcion: 'Trabaja sus prospectos de punta a punta.',
     areas: {
       'crm.prospectos': 'hacer', 'crm.descartar': 'hacer', 'crm.contactos': 'hacer',
-      'crm.embudo': 'hacer', 'crm.reglas': 'ver', 'crm.medicion': 'ver',
+      'crm.embudo': 'hacer', 'crm.cotizaciones': 'hacer', 'crm.reglas': 'ver', 'crm.medicion': 'ver',
     },
     datosProtegidos: { crm: 'directo' },
   },
@@ -355,7 +356,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
     areas: {
       'crm.prospectos': 'hacer', 'crm.descartar': 'hacer', 'crm.convertir': 'hacer', 'crm.importar': 'hacer',
       'crm.contactos': 'hacer', 'crm.embudo': 'hacer', 'crm.reglas': 'hacer', 'crm.campos': 'hacer',
-      'crm.origenes': 'hacer', 'crm.medicion': 'ver', 'crm.exportar': 'hacer',
+      'crm.origenes': 'hacer', 'crm.cotizaciones': 'hacer', 'crm.medicion': 'ver', 'crm.exportar': 'hacer',
     },
     datosProtegidos: { crm: 'directo' },
   },
