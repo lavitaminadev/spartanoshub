@@ -63,6 +63,18 @@ const LEVEL_LABELS: Record<PermissionLevel, string> = { none: 'Sin acceso', view
 const LEVEL_COLORS: Record<PermissionLevel, string> = { none: '#706a73', view: '#1f6fb2', edit: '#9a5a00', manage: '#096f6b' };
 const MODULE_CATALOG = ORGANIZATION_MODULE_CATALOG;
 const ROLE_KEYS = Object.keys(ROLE_LABELS);
+/** Qué hace cada cargo en la agencia, en palabras corrientes. Sólo los cargos con descripción en `role-permissions.ts`. */
+const ROLE_DESCRIPTIONS: Partial<Record<string, string>> = {
+  admin: 'Uso cotidiano del sistema: usuarios, clientes y configuración. No configura el producto.',
+  dev: 'Opera y libera los módulos en desarrollo. Una sola persona por organización.',
+  commercial_director: 'Pipeline, precios, contratos y visión global del negocio.',
+  creative_director: 'Estrategia de cuentas, aprobación creativa y moodboards.',
+  art_director: 'Estándar gráfico y asignación de diseño.',
+  av_director: 'Sesiones, equipo y edición de video y foto.',
+  ai_lead: 'Flujos de inteligencia artificial transversales y su validación.',
+  community_manager: 'Grillas, reuniones de seguimiento y validación con el cliente.',
+  client: 'Entra por su portal: consulta lo suyo y valida piezas.',
+};
 const ROLE_DEFAULTS: Record<string, PermissionLevel> = {
   admin: 'manage', commercial_director: 'edit', creative_director: 'edit',
   operations_director: 'edit', art_director: 'edit', av_director: 'edit',
@@ -435,7 +447,7 @@ export function AdminPage() {
       </div>
       {permView === 'role' ? (
         <div className="permission-role-view">
-          <div className="permission-role-picker" role="group" aria-label="Elegir cargo">{ROLE_KEYS.map((role) => <button key={role} className={roleFocus === role ? 'active' : ''} onClick={() => setRoleFocus(role)}>{ROLE_LABELS[role]}</button>)}</div>
+          <div className="permission-role-picker" role="group" aria-label="Elegir cargo">{ROLE_KEYS.map((role) => <button key={role} className={roleFocus === role ? 'active' : ''} onClick={() => setRoleFocus(role)}><span>{ROLE_LABELS[role]}</span>{ROLE_DESCRIPTIONS[role] && <small>{ROLE_DESCRIPTIONS[role]}</small>}</button>)}</div>
           <div className="permission-role-modules">{MODULE_CATALOG.map((mod) => { const level = currentMatrix[mod.key]?.[roleFocus] ?? 'none'; const enabled = level !== 'none'; return <div className="permission-role-row" key={mod.key}><div className="permission-role-module"><strong>{mod.key}</strong><small>{MODULE_LIFECYCLE_LABELS[mod.lifecycle]}</small></div><div className="permission-role-controls"><label className="central-switch"><input type="checkbox" checked={enabled} onChange={(e) => setCell(mod.key, roleFocus, e.target.checked ? (currentMatrix[mod.key]?.[roleFocus] !== 'none' ? currentMatrix[mod.key]?.[roleFocus] as PermissionLevel : 'view') : 'none')} /><span></span><strong>{enabled ? 'Con acceso' : 'Sin acceso'}</strong></label>{enabled && <select className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, roleFocus, e.target.value as PermissionLevel)}>{LEVELS.filter((l) => l !== 'none').map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select>}</div></div>; })}</div>
         </div>
       ) : (
