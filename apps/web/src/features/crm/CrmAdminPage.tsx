@@ -156,6 +156,27 @@ interface Campania {
   metaCapiEnabled: boolean;
 }
 
+/**
+ * Dónde se guardan el Pixel y su token, nombrado según quién lee.
+ *
+ * Conexiones es un módulo de la agencia. Administración del CRM, en cambio, la abre también quien
+ * administra su propia empresa desde el portal, y para esa cuenta el enlace no lleva a ninguna
+ * parte: la ruta la rebota al portal sin decir nada, así que ofrecerlo es prometer una pantalla
+ * que no va a ver.
+ *
+ * Se le nombra el sitio igual, porque saber por qué sus conversiones no se reportan le sirve
+ * aunque no pueda arreglarlo ella; lo que cambia es que no se le ofrece la puerta.
+ */
+function Conexiones({ esPortalCliente }: { esPortalCliente: boolean }): JSX.Element {
+  return esPortalCliente ? <strong>Conexiones</strong> : <Link to="/integrations">Conexiones</Link>;
+}
+
+/** Quién hace el cambio, cuando quien lee no puede hacerlo. */
+function LoConfiguraEspartanos({ esPortalCliente }: { esPortalCliente: boolean }): JSX.Element | null {
+  if (!esPortalCliente) return null;
+  return <small className="crm-admin-ayuda">Conexiones la lleva Espartanos: pídeselo a tu contacto y queda hecho desde ahí.</small>;
+}
+
 export function CrmAdminPage(): JSX.Element {
   const queryClient = useQueryClient();
   // La empresa cuyas campañas se administran; la elige la barra del CRM.
@@ -504,22 +525,23 @@ export function CrmAdminPage(): JSX.Element {
             {!estadoMeta.pixelId ? (
               <p className="crm-admin-ayuda">
                 <strong>{scope.empresa} no tiene Pixel configurado.</strong> Sus campañas no
-                reportarán etapas a Meta hasta que se le asigne uno en <Link to="/integrations">Conexiones</Link>.
+                reportarán etapas a Meta hasta que se le asigne uno en <Conexiones esPortalCliente={esPortalCliente} />.
               </p>
             ) : null}
             {estadoMeta.pixelId && estadoMeta.tokenHeredado ? (
               <p className="crm-admin-ayuda">
                 <strong>Usando el token general.</strong> Ese token pertenece a otra cuenta
                 publicitaria y normalmente no tiene permiso sobre el Pixel {estadoMeta.pixelId}:
-                Meta rechazará las conversiones. Ponle a {scope.empresa} su propio token en{' '}<Link to="/integrations">Conexiones</Link>.
+                Meta rechazará las conversiones. Ponle a {scope.empresa} su propio token en{' '}<Conexiones esPortalCliente={esPortalCliente} />.
               </p>
             ) : null}
             {estadoMeta.pixelId && !estadoMeta.tokenPropio && !estadoMeta.tokenHeredado ? (
               <p className="crm-admin-ayuda">
                 <strong>Falta el token de {scope.empresa}.</strong> Tiene Pixel pero no hay
-                credencial con qué escribir en él: pega su token CAPI en{' '}<Link to="/integrations">Conexiones</Link>. Se genera en Events Manager, en la pestaña Configuración del Pixel.
+                credencial con qué escribir en él: pega su token CAPI en{' '}<Conexiones esPortalCliente={esPortalCliente} />. Se genera en Events Manager, en la pestaña Configuración del Pixel.
               </p>
             ) : null}
+            <LoConfiguraEspartanos esPortalCliente={esPortalCliente} />
           </>
         ) : null}
         {campanias.data?.length ? (
@@ -763,7 +785,7 @@ export function CrmAdminPage(): JSX.Element {
                 muere en el envío, que es lo que llena la cola de errores sin que nadie lo note.
               */}
               {pixelSinCredencial ? (
-                <small className="campo-alerta">Ese Pixel no tiene token de Conversions API: regístralo en <Link to="/integrations">Conexiones</Link> antes de guardar.</small>
+                <small className="campo-alerta">Ese Pixel no tiene token de Conversions API: regístralo en <Conexiones esPortalCliente={esPortalCliente} /> antes de guardar.</small>
               ) : <small>El token con el que se escribe en el Pixel se guarda una sola vez en Conexiones, junto al Pixel. Acá sólo se elige a cuál reporta esta campaña.</small>}
             </label>
             {/*
@@ -785,7 +807,7 @@ export function CrmAdminPage(): JSX.Element {
                   />
                 </label>
                 <p className="crm-admin-ayuda">
-                  Un Pixel que no está en <Link to="/integrations">Conexiones</Link> no tiene
+                  Un Pixel que no está en <Conexiones esPortalCliente={esPortalCliente} /> no tiene
                   credencial con qué escribir en él: la campaña reportará y Meta lo rechazará.
                   Regístralo ahí con su token y vuelve a elegirlo de la lista.
                 </p>

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { ROLE_LABELS } from '../../core/role-labels';
+import { getAllowedRolesForPath, isRoleAllowedForPath } from '../../core/navigation.registry';
 import {
   MODULE_LIFECYCLE_LABELS,
   MODULE_LIFECYCLE_STATUSES,
@@ -106,6 +107,14 @@ export function AdminPage() {
    * nadie. Estaba fijada a `dev`, así que la pestaña existía y no se dibujaba nunca para él.
    */
   const esDesarrollo = user?.role === 'dev';
+  /*
+   * Los accesos rápidos no ofrecen pantallas que el cargo no alcanza.
+   *
+   * Se pregunta al mismo registro que decide el acceso en vez de repetir el cargo aquí: si el
+   * manifiesto de una pantalla cambia, la tarjeta cambia con él. Escribir el cargo a mano es lo
+   * que dejó «Seguridad» ofrecida a administración, que al entrar recibe un «sin acceso».
+   */
+  const puedeEntrarA = (ruta: string) => isRoleAllowedForPath(getAllowedRolesForPath(ruta), user?.role);
   const canManagePermissions = esDesarrollo || user?.role === 'admin';
 
   /**
@@ -398,7 +407,7 @@ export function AdminPage() {
       <span className="page-eyebrow">ACCESO RÁPIDO</span>
       <div className="admin-quick-grid">
         <Link to="/users" className="admin-quick-card"><strong>Usuarios</strong><small>Gestionar personas y cargos</small></Link>
-        <Link to="/security" className="admin-quick-card"><strong>Seguridad</strong><small>Salud y auditoría</small></Link>
+        {puedeEntrarA('/security') && <Link to="/security" className="admin-quick-card"><strong>Seguridad</strong><small>Salud y auditoría</small></Link>}
         <Link to="/integrations" className="admin-quick-card"><strong>Integraciones</strong><small>Meta, Cloudinary, GA4</small></Link>
         {esDesarrollo && <Link to="/governance" className="admin-quick-card"><strong>Gobierno del producto</strong><small>Flujos, pods y módulos</small></Link>}
         {esDesarrollo && <Link to="/settings" className="admin-quick-card"><strong>Configuración técnica</strong><small>Parámetros del producto</small></Link>}
