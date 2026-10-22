@@ -413,9 +413,10 @@ export class PerfilesService {
     if (asignacion) {
       const perfil = await this.perfiles.findOne({ where: { id: asignacion.perfilId } });
       if (perfil) asegurarQueNoConcedePorEncima(await this.topeDe(ctx), perfil.areas, perfil.datosProtegidos);
-      await this.asignaciones.remove(asignacion);
     }
-    await this.administradores.definir(ctx.organizationId, userId, ctx.clientId, false, ctx.actorId);
+    // Primero la administración: si era la última, se rechaza aquí y no se ha tocado nada todavía.
+    await this.administradores.definir(ctx.organizationId, userId, ctx.clientId, false, ctx.actorId, { esAgencia: ctx.esAgencia, motivo: razon, ip: ctx.ip });
+    if (asignacion) await this.asignaciones.remove(asignacion);
     // Una invitación pendiente no puede devolverle el acceso a quien se acaba de retirar.
     await this.invitaciones.update({ clientId: ctx.clientId, email: usuario.email, aceptadaEl: IsNull(), revocadaEl: IsNull() }, { revocadaEl: new Date() });
 

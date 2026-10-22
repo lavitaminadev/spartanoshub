@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { AuditService } from '../../core/audit/audit.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserPermissionOverride } from '../../core/authorization/user-permission-override.entity';
@@ -7,6 +8,13 @@ import { PermissionResolverService } from '../../core/authorization/permission-r
 /** El permiso que convierte a alguien en administrador del equipo de su empresa. */
 const MODULO = 'users';
 const NIVEL = 'manage';
+
+/** Quién retira y por qué cuando lo hace la agencia: lo único que permite quitar a la última persona. */
+export interface IntervencionDeAgencia {
+  esAgencia: boolean;
+  motivo?: string;
+  ip?: string;
+}
 
 /**
  * Quién administra el equipo de una empresa.
@@ -21,6 +29,7 @@ export class AdministradoresDeEmpresaService {
   constructor(
     @InjectRepository(UserPermissionOverride) private readonly overrides: Repository<UserPermissionOverride>,
     private readonly permisos: PermissionResolverService,
+    private readonly auditoria: AuditService,
   ) {}
 
   /** Ids de quienes administran el equipo de esa empresa. */
@@ -60,10 +69,14 @@ export class AdministradoresDeEmpresaService {
     clientId: string,
     puede: boolean,
     grantedBy: string,
+    intervencion?: IntervencionDeAgencia,
   ): Promise<void> {
     const existente = await this.overrides.findOne({ where: { organizationId, userId, module: MODULO, clientId } });
     if (!puede) {
-      if (existente) await this.overrides.remove(existente);
+      if (existente) {
+        await this.asegurarQueQuedeAlguien(organizationId, userId, clientId, grantedBy, intervencion);
+        await this.overrides.remove(existente);
+      }
       this.permisos.invalidateUser(userId);
       return;
     }
@@ -79,6 +92,42 @@ export class AdministradoresDeEmpresaService {
       grantedBy,
     });
     this.permisos.invalidateUser(userId);
+  }
+
+  /**
+   * Impide dejar a una empresa sin quien administre su equipo.
+   *
+   * Es la única puerta: todo retiro de administración pasa por `definir`. Si esa persona es la
+   * última se rechaza y se dice qué hacer (nombrar primero a otro). La agencia puede saltarse la
+   * regla sólo con motivo escrito, y el acto queda en auditoría; una empresa cuyo único
+   * administrador desapareció no puede quedar bloqueada para siempre.
+   */
+  private async asegurarQueQuedeAlguien(
+    organizationId: string,
+    userId: string,
+    clientId: string,
+    actorId: string,
+    intervencion?: IntervencionDeAgencia,
+  ): Promise<void> {
+    const quedan = (await this.quienesAdministran(organizationId, clientId)).filter((id) => id !== userId);
+    if (quedan.length > 0) return;
+    const motivo = (intervencion?.motivo ?? '').trim().slice(0, 300);
+    if (!intervencion?.esAgencia) {
+      throw new ConflictException('Es la última persona que administra el equipo de esta empresa. Nombra primero a otra y después retira a esta.');
+    }
+    if (motivo.length < 3) {
+      throw new BadRequestException('Es la última persona que administra el equipo de esta empresa. Escribe el motivo para retirarla: queda en auditoría.');
+    }
+    await this.auditoria.log({
+      organizationId,
+      actorId,
+      entityType: 'AdministradorDeEmpresa',
+      entityId: userId,
+      action: 'retirar_ultimo_administrador',
+      before: { clientId, administradores: [userId] },
+      after: { clientId, administradores: [], motivo },
+      ipAddress: intervencion.ip,
+    });
   }
 
   /** Si esa empresa se quedó sin nadie que administre su equipo. */

@@ -99,8 +99,8 @@ export class UsersController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @RequiresRecentAuth('retirar la administración del equipo de una empresa')
   @ApiOperation({ summary: 'Retirar la administración del equipo de una empresa' })
-  async retirarAdministracion(@Param('id') id: string, @Param('clientId') clientId: string, @Req() req: AuthenticatedRequest) {
-    await this.definirAdministracion(id, clientId, false, req);
+  async retirarAdministracion(@Param('id') id: string, @Param('clientId') clientId: string, @Req() req: AuthenticatedRequest, @Query('motivo') motivo?: string) {
+    await this.definirAdministracion(id, clientId, false, req, motivo);
     return { clientId, administra: false };
   }
 
@@ -110,7 +110,7 @@ export class UsersController {
    * La empresa pedida pasa por `alcance()`, que rechaza la que queda fuera: sin eso, quien
    * administra un local podría nombrarse administrador de otro cambiando el id de la dirección.
    */
-  private async definirAdministracion(id: string, clientId: string, puede: boolean, req: AuthenticatedRequest): Promise<void> {
+  private async definirAdministracion(id: string, clientId: string, puede: boolean, req: AuthenticatedRequest, motivo?: string): Promise<void> {
     const alcance = await this.administracion.alcance(req, clientId);
     this.administracion.asegurarDentro(alcance, { clientId, role: UserRole.CLIENT });
     await this.administradores.definir(
@@ -119,6 +119,8 @@ export class UsersController {
       clientId,
       puede,
       req.user.id,
+      // Sin límite de alcance es la agencia: la única que puede retirar a la última persona, con motivo.
+      { esAgencia: !alcance.soloEmpresa, motivo, ip: req.ip },
     );
   }
 

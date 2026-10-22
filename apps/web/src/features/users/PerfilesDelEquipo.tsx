@@ -63,10 +63,12 @@ interface Props {
   clientId: string;
   empresa: string;
   capacidades?: Partial<Record<string, boolean>> | null;
+  /** La agencia puede retirar a la última persona que administra, con motivo; la empresa no. */
+  esAgencia?: boolean;
   onCerrar: () => void;
 }
 
-export function PerfilesDelEquipo({ clientId, empresa, capacidades, onCerrar }: Props): JSX.Element {
+export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = false, onCerrar }: Props): JSX.Element {
   const q = `?clientId=${encodeURIComponent(clientId)}`;
   const qc = useQueryClient();
   const [editando, setEditando] = useState<PerfilFila | 'nuevo' | null>(null);
@@ -82,6 +84,9 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, onCerrar }: 
   const equipo = useQuery<Persona[]>({ queryKey: ['users', 'equipo-de', clientId], queryFn: () => api.get(`/users?clientId=${encodeURIComponent(clientId)}`) });
   const reingresos = useQuery<{ data: Array<{ userId: string; reingresoEl: string; motivo: string | null; reinvitadoPor: string | null; antesHasta: string | null }> }>({ queryKey: ['perfiles-reingresos', clientId], queryFn: () => api.get(`/perfiles/reingresos${q}`) });
   const pendientes = useQuery<{ data: Array<{ id: string; email: string; perfilId: string; venceEl: string }> }>({ queryKey: ['perfiles-invitaciones', clientId], queryFn: () => api.get(`/perfiles/invitaciones${q}`) });
+
+  const administran = useQuery<{ userIds: string[] }>({ queryKey: ['administran-equipo', clientId], queryFn: () => api.get(`/users/administran-equipo${q}`) });
+  const esUltima = (userId: string) => administran.data?.userIds.length === 1 && administran.data.userIds[0] === userId;
 
   const lista = perfiles.data?.data ?? [];
   const perfilDe = useMemo(() => new Map((asignaciones.data?.data ?? []).map((fila) => [fila.userId, fila.perfilId])), [asignaciones.data]);
@@ -108,7 +113,7 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, onCerrar }: 
   const quitar = useMutation({
     mutationFn: (userId: string) => api.delete<{ desactivada: boolean }>(`/perfiles/equipo/${userId}${q}&motivo=${encodeURIComponent(motivo.trim())}${vetar ? '&vetar=1' : ''}`),
     onSuccess: (r) => {
-      refrescar(); setQuitando(null); setMotivo(''); setVetar(false);
+      refrescar(); void qc.invalidateQueries({ queryKey: ['administran-equipo'] }); setQuitando(null); setMotivo(''); setVetar(false);
       setMensaje({ tono: 'success', texto: r.desactivada ? 'Se quitó del equipo. Era su única empresa: la cuenta queda desactivada y su historial se conserva.' : 'Se quitó del equipo de esta empresa. Sigue con sus otras empresas.' });
     },
     onError: fallo,
@@ -170,7 +175,14 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, onCerrar }: 
                 {lista.map((perfil) => <option key={perfil.id} value={perfil.id}>{perfil.nombre}</option>)}
               </select>{' '}
               <button type="button" className="btn btn-outline btn-sm" onClick={() => setMirando(persona)}>Qué ve</button>{' '}
-              <button type="button" className="btn btn-outline btn-sm" onClick={() => setQuitando(persona)}>Quitar del equipo</button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={esUltima(persona.id) && !esAgencia}
+                title={esUltima(persona.id) ? (esAgencia ? 'Es la única que administra el equipo: retirarla exige motivo y queda en auditoría.' : 'Es la única persona que administra el equipo. Nombra primero a otra.') : undefined}
+                onClick={() => setQuitando(persona)}
+              >Quitar del equipo</button>
+              {esUltima(persona.id) && !esAgencia && <small className="field-hint"> Es la única que administra el equipo: nombra primero a otra.</small>}
             </li>
           ))}
         </ul>
