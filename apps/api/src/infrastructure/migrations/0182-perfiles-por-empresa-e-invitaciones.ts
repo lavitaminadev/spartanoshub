@@ -22,11 +22,11 @@ export class PerfilesPorEmpresaEInvitaciones1790000000182 implements MigrationIn
     if (await queryRunner.hasTable('user_client_access')) {
       const columnas: Array<[string, string]> = [
         ['retired_at', 'TIMESTAMP NULL'],
-        ['retired_by', 'CHAR(36) NULL'],
+        ['retired_by', 'VARCHAR(36) NULL'],
         ['retired_reason', 'VARCHAR(300) NULL'],
         ['retired_outcome', 'VARCHAR(10) NULL'],
         ['reentered_at', 'TIMESTAMP NULL'],
-        ['reentered_by', 'CHAR(36) NULL'],
+        ['reentered_by', 'VARCHAR(36) NULL'],
         ['reentry_reason', 'VARCHAR(300) NULL'],
         ['previous_retired_at', 'TIMESTAMP NULL'],
       ];
@@ -38,14 +38,14 @@ export class PerfilesPorEmpresaEInvitaciones1790000000182 implements MigrationIn
     }
     if (!(await queryRunner.hasTable('perfiles'))) {
       await queryRunner.query(`CREATE TABLE perfiles (
-        id CHAR(36) NOT NULL PRIMARY KEY,
-        organization_id CHAR(36) NOT NULL,
-        client_id CHAR(36) NOT NULL,
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        organization_id VARCHAR(36) NOT NULL,
+        client_id VARCHAR(36) NOT NULL,
         name VARCHAR(80) NOT NULL,
         description VARCHAR(300) NULL,
         areas JSON NOT NULL,
         protected_data JSON NOT NULL,
-        created_by CHAR(36) NULL,
+        created_by VARCHAR(36) NULL,
         created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
         updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
         UNIQUE KEY UQ_perfil_empresa_nombre (client_id, name),
@@ -54,12 +54,12 @@ export class PerfilesPorEmpresaEInvitaciones1790000000182 implements MigrationIn
     }
     if (!(await queryRunner.hasTable('perfil_asignaciones'))) {
       await queryRunner.query(`CREATE TABLE perfil_asignaciones (
-        id CHAR(36) NOT NULL PRIMARY KEY,
-        organization_id CHAR(36) NOT NULL,
-        client_id CHAR(36) NOT NULL,
-        user_id CHAR(36) NOT NULL,
-        perfil_id CHAR(36) NOT NULL,
-        assigned_by CHAR(36) NULL,
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        organization_id VARCHAR(36) NOT NULL,
+        client_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        perfil_id VARCHAR(36) NOT NULL,
+        assigned_by VARCHAR(36) NULL,
         created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
         updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
         UNIQUE KEY UQ_perfil_asignacion (client_id, user_id),
@@ -70,13 +70,13 @@ export class PerfilesPorEmpresaEInvitaciones1790000000182 implements MigrationIn
     }
     if (!(await queryRunner.hasTable('invitaciones_equipo'))) {
       await queryRunner.query(`CREATE TABLE invitaciones_equipo (
-        id CHAR(36) NOT NULL PRIMARY KEY,
-        organization_id CHAR(36) NOT NULL,
-        client_id CHAR(36) NOT NULL,
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        organization_id VARCHAR(36) NOT NULL,
+        client_id VARCHAR(36) NOT NULL,
         email VARCHAR(255) NOT NULL,
-        perfil_id CHAR(36) NOT NULL,
+        perfil_id VARCHAR(36) NOT NULL,
         token_hash VARCHAR(64) NOT NULL,
-        invited_by CHAR(36) NOT NULL,
+        invited_by VARCHAR(36) NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         accepted_at TIMESTAMP NULL,
         revoked_at TIMESTAMP NULL,

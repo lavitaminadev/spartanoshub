@@ -15,8 +15,8 @@ export class RegistroDeVulneraciones1790000000185 implements MigrationInterface 
     if (await queryRunner.hasTable('security_incidents')) return;
     await queryRunner.query(`
       CREATE TABLE security_incidents (
-        id CHAR(36) NOT NULL,
-        organization_id CHAR(36) NOT NULL,
+        id VARCHAR(36) NOT NULL,
+        organization_id VARCHAR(36) NOT NULL,
         descripcion TEXT NOT NULL,
         detected_at DATETIME NOT NULL,
         datos_afectados TEXT NOT NULL,
@@ -25,7 +25,7 @@ export class RegistroDeVulneraciones1790000000185 implements MigrationInterface 
         medidas TEXT NULL,
         aviso_local_at DATETIME NULL,
         aviso_agencia_at DATETIME NULL,
-        created_by CHAR(36) NULL,
+        created_by VARCHAR(36) NULL,
         created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
         updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
         PRIMARY KEY (id),
