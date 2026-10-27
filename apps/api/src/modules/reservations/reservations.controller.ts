@@ -814,6 +814,9 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async getReservation(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
     const scope = await this.scope(req);
-    return this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
+    const reserva = await this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
+    // Recortada, como al crearla y al editarla: es la misma reserva mirada por la misma persona,
+    // y la ficha es justo donde el teléfono, el documento y las alergias están a la vista.
+    return this.recortada(req, reserva);
   }
 }
