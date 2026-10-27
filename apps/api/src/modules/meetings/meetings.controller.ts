@@ -58,7 +58,7 @@ export class MeetingsController {
   @Get()
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar reuniones' })
-  async list(@Query('type') type: string, @Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+  async list(@Query('type') type: string, @Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true, oTodasLasQueAlcanza: true }) ambito: AmbitoDeEmpresa) {
     const clientId = esUnaEmpresa(ambito) ? ambito : undefined;
     if (req.user?.role === UserRole.CLIENT && !clientId) throw new ForbiddenException('Client account is not associated');
     let assignedClientIds = req.user.role === UserRole.COMMUNITY_MANAGER

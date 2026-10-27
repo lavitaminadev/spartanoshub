@@ -113,7 +113,7 @@ __decorate([
     (0, common_1.Get)('content/grids'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar parrillas de contenido' }),
-    __param(0, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
+    __param(0, (0, empresa_decorator_1.Empresa)({ oAgencia: true, oTodasLasQueAlcanza: true })),
     __param(1, (0, common_1.Query)('month')),
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),

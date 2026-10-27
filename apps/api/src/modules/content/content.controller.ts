@@ -51,7 +51,7 @@ export class ContentController {
   @Get('content/grids')
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.CREATIVE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar parrillas de contenido' })
-  async list(@Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa, @Query('month') month: string, @Req() req: AuthenticatedRequest) {
+  async list(@Empresa({ oAgencia: true, oTodasLasQueAlcanza: true }) ambito: AmbitoDeEmpresa, @Query('month') month: string, @Req() req: AuthenticatedRequest) {
     const effectiveClientId = esUnaEmpresa(ambito) ? ambito : undefined;
     if (req.user?.role === UserRole.CLIENT && !effectiveClientId) throw new ForbiddenException('Client account is not associated');
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
