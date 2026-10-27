@@ -19,6 +19,7 @@ import {
   type OrganizationModuleKey,
 } from '@espartanos/shared';
 import { api } from '../../core/api';
+import { ROLE_LABELS } from '../../core/role-labels';
 import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueVeUnaPersona } from './QueVeUnaPersona';
@@ -149,9 +150,20 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = 
       <section aria-labelledby="perfiles-equipo">
         <h3 id="perfiles-equipo">Quién tiene qué perfil</h3>
         <ul className="lista-simple">
-          {(equipo.data ?? []).filter((persona) => persona.role === 'client').map((persona) => (
+          {/*
+            * Sin filtrar por cargo: en esta empresa trabaja su propia gente y la de la agencia
+            * cedida a ella, y las dos necesitan perfil. El filtro `role === 'client'` dejaba
+            * fuera a la segunda, así que un anfitrión de la agencia que atiende el local no podía
+            * recibir el nivel de datos protegidos que su trabajo pide.
+            *
+            * El alcance ya lo puso el servidor: `GET /users?clientId=` devuelve a quien pertenece
+            * a la empresa y a quien la atiende por asignación, y a quien administra sólo su propia
+            * empresa le sigue devolviendo nada más que las cuentas de ella.
+            */}
+          {(equipo.data ?? []).map((persona) => (
             <li key={persona.id}>
               <strong>{persona.name}</strong> <small>{persona.email}</small>
+              {persona.role !== 'client' && <small className="etiqueta-de-agencia"> · {ROLE_LABELS[persona.role] ?? 'agencia'}</small>}
               {(() => {
                 const vuelta = (reingresos.data?.data ?? []).find((fila) => fila.userId === persona.id);
                 if (!vuelta) return null;

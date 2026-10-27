@@ -52,7 +52,7 @@ describe('User management security', () => {
       name: 'Admin Nuevo', email: 'admin2@empresa.cl', password: 'secure123',
     })).rejects.toThrow(ForbiddenException);
 
-    const updateUseCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never);
+    const updateUseCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never, { revokeAll: vi.fn(async () => 0) } as never);
     usersRepo.findOne.mockResolvedValue({ id: 'director-1', organizationId: 'org-1', role: UserRole.COMMERCIAL_DIRECTOR, isActive: true });
     await expect(updateUseCase.execute({
       id: 'director-1', organizationId: 'org-1', actorId: 'commercial-1',
@@ -61,7 +61,7 @@ describe('User management security', () => {
   });
 
   it('prevents administrators from disabling their own account', async () => {
-    const useCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never);
+    const useCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never, { revokeAll: vi.fn(async () => 0) } as never);
     usersRepo.findOne.mockResolvedValue({ id: 'user-1', organizationId: 'org-1', role: UserRole.ADMIN, isActive: true });
 
     await expect(useCase.execute({
@@ -70,7 +70,7 @@ describe('User management security', () => {
   });
 
   it('does not report a successful activation that was not persisted', async () => {
-    const useCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never);
+    const useCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never, { revokeAll: vi.fn(async () => 0) } as never);
     usersRepo.findOne
       .mockResolvedValueOnce({ id: 'user-2', organizationId: 'org-1', role: UserRole.DESIGNER, isActive: false })
       .mockResolvedValueOnce({ id: 'user-2', isActive: false });

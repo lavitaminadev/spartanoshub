@@ -384,9 +384,19 @@ export function UsersPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <span className="page-eyebrow">SEGURIDAD Y ALCANCE</span>
-          <h1>Usuarios y accesos</h1>
-          <p className="page-subtitle">Gestión de cuentas y permisos.</p>
+          {/*
+            * La misma pantalla se llama distinto según quién la abre.
+            *
+            * Para la agencia es «Usuarios y accesos» y abarca a todo el equipo. Para quien
+            * administra una empresa atendida abarca su local y nada más, y leer «Usuarios y
+            * accesos · Gestión de cuentas y permisos» ahí sugiere un alcance que no tiene: el
+            * portal ya llama «Equipo» a esta entrada, y el encabezado decía otra cosa.
+            */}
+          <span className="page-eyebrow">{administraSuEmpresa ? 'TU LOCAL' : 'SEGURIDAD Y ALCANCE'}</span>
+          <h1>{administraSuEmpresa ? 'Mi equipo' : 'Usuarios y accesos'}</h1>
+          <p className="page-subtitle">{administraSuEmpresa
+            ? 'Las personas de tu local, su perfil y qué datos ve cada una.'
+            : 'Gestión de cuentas y permisos.'}</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={openCreateModal}>+ Crear cuenta</button>
       </div>

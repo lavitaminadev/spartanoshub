@@ -1,4 +1,7 @@
 import { AuthorizationModule } from '../../core/authorization/authorization.module';
+// Por `SessionsService`: desactivar una cuenta o resetear su clave cierra sus sesiones abiertas.
+// `AuthModule` no importa `UsersModule`, así que no hay ciclo.
+import { AuthModule } from '../../core/auth/auth.module';
 import { UserPermissionOverride } from '../../core/authorization/user-permission-override.entity';
 import { AdministradoresDeEmpresaService } from './administradores-de-empresa.service';
 import { AccountAccessModule } from '../../core/client-scope/account-access.module';
@@ -27,7 +30,7 @@ import { InvitacionesPublicasController } from './perfiles/invitaciones-publicas
 import { EmailModule } from '../../core/notifications/email.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Client, UserPermissionOverride, UserClientAccess, ConsentVersion, DataConsent, PerfilDeEmpresa, PerfilAsignacion, InvitacionDeEquipo]), EmailModule, NotificationsModule, AuditModule, AuthorizationModule, AccountAccessModule],
+  imports: [TypeOrmModule.forFeature([User, Client, UserPermissionOverride, UserClientAccess, ConsentVersion, DataConsent, PerfilDeEmpresa, PerfilAsignacion, InvitacionDeEquipo]), EmailModule, NotificationsModule, AuditModule, AuthorizationModule, AccountAccessModule, AuthModule],
   controllers: [UsersController, PerfilesController, InvitacionesPublicasController],
   providers: [CreateUserUseCase, ListUsersUseCase, UpdateUserUseCase, ResetUserPasswordUseCase, AdministracionDelEquipoService, AdministradoresDeEmpresaService, PerfilesService, InvitacionesService],
   exports: [TypeOrmModule, AdministradoresDeEmpresaService, PerfilesService],
