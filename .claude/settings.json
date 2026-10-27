@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/diagnostico/no-comprometer-0179.sh\"",
+            "timeout": 15,
+            "statusMessage": "Comprobando que la 0179 no entre"
+          }
+        ]
+      }
+    ]
+  }
+}

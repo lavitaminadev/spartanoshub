@@ -150,11 +150,16 @@ que nadie invoca no sirve de nada, y esperar a que el modelo la vea es dejarlo a
 | Copiar, instalar o clonar código de un repositorio de fuera | `oss-forensics` | Un `install.sh` ajeno escribe en `~/.claude`. Se lee antes de correrlo, siempre |
 | Notar que la conversación se alargó y el contexto empieza a apretar | `hermes-compress` | Resume y guarda las decisiones antes de perderlas, en vez de volver a averiguarlas |
 | Revisar los cambios de una rama buscando defectos | `/code-review` | Ya instalada |
-| Un despliegue | `engineering:deploy-checklist` | Ya instalada. Acá además: recompilar `dist`, quitar el `.js` de `0179`, respaldo si corren migraciones |
+| Desplegar, publicar, o recompilar `dist` tras tocar código | `desplegar` | De este repositorio (`.claude/skills/desplegar`): los diez pasos, del `tsc` al sha en `/api/health`. Hecho a mano cinco veces en una semana, y cada vez se olvidó algo distinto |
 | Una pantalla nueva o una que cambie de forma | `design:accessibility-review` | Ya instalada |
 
 Las de este repositorio se cargan con `Skill`. Si una no existe, se dice y se sigue a mano: no se
 inventa el nombre.
+
+**Y una que no depende de que nadie se acuerde:** el gancho `PreToolUse` de `.claude/settings.json`
+rechaza un `git commit` cuando el índice contiene la `0179` o un `.env`, y dice con qué línea
+sacarlos. Está porque `git add -A apps/api/src` agrega la `0179` aunque esté sin seguir, y a partir
+de ahí sólo lo nota quien mire la lista de archivos de un commit de `dist`.
 
 ---
 
