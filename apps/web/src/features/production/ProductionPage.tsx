@@ -52,6 +52,13 @@ interface UserOption {
   weeklyCapacityUd?: number;
 }
 
+interface BriefOption {
+  id: string;
+  clientId: string;
+  title: string;
+  status: string;
+}
+
 interface ClientOption {
   id: string;
   name: string;
@@ -66,6 +73,7 @@ interface PieceFormState {
   deadlineAt: string;
   description: string;
   dependencyIds: string[];
+  briefId: string;
 }
 
 const EMPTY_FORM: PieceFormState = {
@@ -77,6 +85,7 @@ const EMPTY_FORM: PieceFormState = {
   deadlineAt: '',
   description: '',
   dependencyIds: [],
+  briefId: '',
 };
 
 function getErrorMessage(error: Error): string {
@@ -151,6 +160,7 @@ export function ProductionPage() {
 
   const { data: pieces, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery<Piece[]>({
     queryKey: ['pieces', statusFilter, clientFilter],
+    placeholderData: (previa) => previa,
     queryFn: () => api.get(`/production/pieces${querySuffix}`),
     refetchInterval: refetchWhenIdle(60_000),
   });
@@ -167,6 +177,14 @@ export function ProductionPage() {
     enabled: canCreate,
   });
   const clients = (clientsResp as { data?: ClientOption[] } | undefined)?.data ?? [];
+
+  const { data: briefsResp } = useQuery<{ data: BriefOption[] }>({
+    queryKey: ['briefs'],
+    queryFn: () => api.get('/briefs'),
+    enabled: canCreate && createModalOpen,
+  });
+  // Sólo se ofrecen los briefs de la empresa elegida: el servidor rechaza uno de otra.
+  const clientBriefs = (briefsResp?.data ?? []).filter((brief) => brief.clientId === form.clientId && brief.status !== 'archived');
 
   const assignableUsers = useMemo(
     () => (users ?? []).filter((user) => ['designer', 'audiovisual', 'art_director'].includes(user.role)),
@@ -338,8 +356,8 @@ export function ProductionPage() {
     onError: (mutationError: Error) => setFeedbackMessage(`Error: ${getErrorMessage(mutationError)}`),
   });
 
-  if (isLoading) return <LoadingSpinner text="Cargando piezas..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar el plan de produccion" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (isLoading && !pieces) return <LoadingSpinner text="Cargando piezas..." />;
+  if (error) return <QueryErrorState title="No pudimos cargar el plan de produccion" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page">
@@ -635,6 +653,7 @@ export function ProductionPage() {
             event.preventDefault();
             createMutation.mutate({
               clientId: form.clientId,
+              ...(form.briefId ? { briefId: form.briefId } : {}),
               title: form.title.trim(),
               type: form.type,
               difficultyLevel: Number(form.difficultyLevel),
@@ -647,14 +666,22 @@ export function ProductionPage() {
         >
           <label>
             Cliente
-            <select className="input" value={form.clientId} onChange={(event) => setForm({ ...form, clientId: event.target.value })} required>
+            <select className="input" value={form.clientId} onChange={(event) => setForm({ ...form, clientId: event.target.value, briefId: '' })} required>
               <option value="">Selecciona un cliente</option>
               {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
             </select>
           </label>
           <label>
+            Brief de origen (opcional)
+            <select className="input" value={form.briefId} disabled={!form.clientId} onChange={(event) => setForm({ ...form, briefId: event.target.value })}>
+              <option value="">{form.clientId ? 'Sin brief' : 'Elige primero un cliente'}</option>
+              {clientBriefs.map((brief) => <option key={brief.id} value={brief.id}>{brief.title}</option>)}
+            </select>
+            {form.briefId && <small>Si dejas el título o la descripción vacíos, se toman del brief.</small>}
+          </label>
+          <label>
             Titulo
-            <input className="input" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
+            <input className="input" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required={!form.briefId} />
           </label>
           <label>
             Tipo

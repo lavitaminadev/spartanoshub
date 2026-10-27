@@ -131,7 +131,7 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         if (!limpio)
             return { alcance: null, empresas: [] };
         const filas = await this.exclusiones.find({
-            where: { organizationId, huella: this.huellaDe(organizationId, limpio) },
+            where: { organizationId, huella: this.huellaDe(organizationId, limpio), activa: true },
             order: { createdAt: 'DESC' },
         });
         return {
@@ -173,8 +173,8 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
     }
     async cuantasExclusiones(organizationId) {
         const [total, deTodas] = await Promise.all([
-            this.exclusiones.count({ where: { organizationId } }),
-            this.exclusiones.count({ where: { organizationId, clientId: (0, typeorm_2.IsNull)() } }),
+            this.exclusiones.count({ where: { organizationId, activa: true } }),
+            this.exclusiones.count({ where: { organizationId, clientId: (0, typeorm_2.IsNull)(), activa: true } }),
         ]);
         return { total, deTodas };
     }
@@ -189,6 +189,14 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
     }
     async anotarExclusion(organizationId, huella, clientId, alcance, origen, pedidaEl) {
         const yaEsta = await this.exclusiones.findOne({ where: { organizationId, huella, clientId: clientId ?? (0, typeorm_2.IsNull)() } });
+        if (yaEsta && !yaEsta.activa) {
+            yaEsta.activa = true;
+            yaEsta.alcance = alcance;
+            yaEsta.origen = origen?.slice(0, 80) ?? yaEsta.origen ?? null;
+            yaEsta.pedidaEl = pedidaEl ?? new Date();
+            await this.exclusiones.save(yaEsta);
+            return;
+        }
         if (yaEsta) {
             if (pedidaEl && (!yaEsta.pedidaEl || pedidaEl < yaEsta.pedidaEl)) {
                 yaEsta.pedidaEl = pedidaEl;
@@ -200,17 +208,25 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
     }
     async exclusionDe(organizationId, email, clientId) {
         const huella = this.huellaDe(organizationId, email);
-        const filas = await this.exclusiones.find({ where: { organizationId, huella } });
+        const filas = await this.exclusiones.find({ where: { organizationId, huella, activa: true } });
         if (filas.some((fila) => fila.clientId === null))
             return 'todas';
         return filas.some((fila) => fila.clientId === clientId) ? 'local' : null;
     }
-    async levantarExclusion(organizationId, email, clientId) {
+    async levantarExclusion(organizationId, email, clientId, origen = 'consentimiento nuevo') {
         const huella = this.huellaDe(organizationId, email);
-        const filas = await this.exclusiones.find({ where: { organizationId, huella } });
-        const quitar = filas.filter((fila) => fila.clientId === clientId || fila.clientId === null);
-        if (quitar.length)
-            await this.exclusiones.remove(quitar);
+        const filas = await this.exclusiones.find({ where: { organizationId, huella, activa: true } });
+        const levantar = filas.filter((fila) => fila.clientId === clientId || fila.clientId === null);
+        if (!levantar.length)
+            return;
+        const ahora = new Date();
+        for (const fila of levantar) {
+            fila.activa = false;
+            fila.levantadaEl = ahora;
+            fila.levantadaOrigen = origen.slice(0, 80);
+            fila.vecesLevantada = (fila.vecesLevantada ?? 0) + 1;
+        }
+        await this.exclusiones.save(levantar);
     }
     async suscritos(organizationId, clientId) {
         const where = { organizationId, status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO };
@@ -282,6 +298,12 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
             resumen.set(clave, actual);
         }
         return { data, total, resumen: [...resumen.values()], origenes };
+    }
+    async buscarParaRevelar(organizationId, id, encerradoEn) {
+        const suscriptor = await this.repo.findOne({ where: { id, organizationId } });
+        if (!suscriptor || (encerradoEn && suscriptor.clientId !== encerradoEn))
+            throw new common_1.NotFoundException('El suscriptor no existe');
+        return suscriptor;
     }
     async paraDescargar(organizationId, empresa) {
         return this.repo.find({

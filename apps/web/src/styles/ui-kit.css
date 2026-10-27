@@ -498,6 +498,9 @@ select.input {
 
 
 /* Aviso de lo irreversible dentro de una confirmación: se lee antes de decidir, no después. */
+.confirmar-empresa { font-size: 14px; }
+.elegir-empresa { max-width: 520px; margin: 48px auto; display: grid; gap: 12px; }
+.elegir-empresa-lista { display: grid; gap: 8px; }
 .confirmar-irreversible { color: var(--pink-dark); font-weight: 600; font-size: 13px; }
 
 /* Aviso de versión nueva: visible sin tapar el trabajo, y por encima de los modales no. */

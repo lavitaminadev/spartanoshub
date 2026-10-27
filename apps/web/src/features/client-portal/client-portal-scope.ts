@@ -19,6 +19,9 @@ export const CLIENT_NAV: ClientPortalEntry[] = [
   { label: 'Inicio', path: '/portal', icon: 'IN' },
   { label: 'CRM', path: '/crm', icon: 'CR', module: 'crm', capability: 'crm' },
   { label: 'Reservas', path: '/portal/reservations', icon: 'RS', module: 'reservations', capability: 'reservations' },
+  // La ruta del portal existía y no tenía enlace: el único vivía en el layout de la agencia, que
+  // el portal no monta. Quien atiende el local es justo quien bloquea un día o abre un horario.
+  { label: 'Disponibilidad', path: '/portal/reservations/calendar', icon: 'DP', module: 'reservations', capability: 'reservations' },
   { label: 'Encuestas', path: '/portal/surveys', icon: 'EN', module: 'surveys', capability: 'surveys' },
   // Sin servicio asociado: administrar el propio equipo no es algo que se contrate, es un
   // permiso que la agencia entrega empresa por empresa.

@@ -104,7 +104,7 @@
 html { background: var(--bg); }
 body { overflow-x: hidden; background: radial-gradient(circle at 91% 0%, rgba(234, 15, 99, .08), transparent 28rem), radial-gradient(circle at 72% 18%, rgba(112, 196, 182, .08), transparent 24rem), var(--bg); }
 button, input, select, textarea { font: inherit; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(234, 15, 99, .24); outline-offset: 2px; }.sidebar{
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #ea0f63; outline-offset: 2px; }.sidebar{
   width: var(--sidebar-width);background: radial-gradient(circle at 12% -3%, rgba(234,15,99,.2), transparent 13rem), #171417;color: var(--white);display: flex;flex-direction: column;position: fixed;top: 0;left: 0;bottom: 0;z-index: 100;transition: transform 0.3s;
 }.sidebar-header{
   padding: 22px 20px;border-bottom: 1px solid rgba(255,255,255,0.1);display: flex;align-items: center;gap: 12px;

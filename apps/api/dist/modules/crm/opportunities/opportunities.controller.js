@@ -29,6 +29,7 @@ const process_templates_service_1 = require("../../process-templates/process-tem
 const opportunity_stage_history_service_1 = require("./opportunity-stage-history.service");
 const process_template_defaults_1 = require("../../process-templates/process-template-defaults");
 const requiere_accion_1 = require("../../../core/authorization/requiere-accion");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 let OpportunitiesController = class OpportunitiesController {
     constructor(createOpportunity, listOpportunities, getOpportunity, updateOpportunity, removeOpportunity, accountAccess, processTemplates, stageHistory) {
         this.createOpportunity = createOpportunity;
@@ -44,12 +45,15 @@ let OpportunitiesController = class OpportunitiesController {
         const steps = await this.processTemplates.getSteps(req.organizationId, process_template_defaults_1.COMMERCIAL_PIPELINE_TEMPLATE);
         return steps.map((step) => ({ key: step.key, label: step.label }));
     }
-    create(dto, req) {
-        return this.createOpportunity.execute(dto, req.organizationId, req.user.id);
+    async create(dto, req) {
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.createOpportunity.execute(dto, req.organizationId, req.user.id, allowed);
     }
     async findAll(query, req) {
+        if (query.clientId)
+            await this.accountAccess.assertClient(req.organizationId, req.user, query.clientId);
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed);
+        return this.listOpportunities.execute(req.organizationId, query.limit, query.offset, query.leadId, allowed, query.clientId);
     }
     async findOne(id, req) {
         const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -60,16 +64,19 @@ let OpportunitiesController = class OpportunitiesController {
         await this.getOpportunity.execute(id, req.organizationId, allowed);
         return { recorrido: await this.stageHistory.recorridoDe(req.organizationId, id) };
     }
-    update(id, dto, req) {
-        return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id);
+    async update(id, dto, req) {
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.updateOpportunity.execute(id, dto, req.organizationId, req.user.id, allowed);
     }
-    remove(id, req) {
-        return this.removeOpportunity.execute(id, req.organizationId);
+    async remove(id, req) {
+        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.removeOpportunity.execute(id, req.organizationId, allowed);
     }
 };
 exports.OpportunitiesController = OpportunitiesController;
 __decorate([
     (0, common_1.Get)('stages'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -77,14 +84,16 @@ __decorate([
 ], OpportunitiesController.prototype, "stages", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'hacer'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_opportunity_dto_1.CreateOpportunityDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], OpportunitiesController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     __param(0, (0, common_1.Query)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -93,6 +102,7 @@ __decorate([
 ], OpportunitiesController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -101,6 +111,7 @@ __decorate([
 ], OpportunitiesController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Get)(':id/recorrido'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -109,21 +120,23 @@ __decorate([
 ], OpportunitiesController.prototype, "recorrido", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'hacer'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, update_opportunity_dto_1.UpdateOpportunityDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], OpportunitiesController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'hacer'),
     (0, requiere_accion_1.RequiereAccion)('crm.borrar'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], OpportunitiesController.prototype, "remove", null);
 exports.OpportunitiesController = OpportunitiesController = __decorate([
     (0, common_1.Controller)('crm/opportunities'),

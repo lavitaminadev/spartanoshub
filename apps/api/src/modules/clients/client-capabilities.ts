@@ -1,3 +1,29 @@
+/**
+ * Módulos cuyo sujeto es una empresa atendida por la agencia, y que por eso se contratan por
+ * empresa: Producción, Audiovisual, Contenido, Aprobaciones, Reuniones, Documentos, Briefs,
+ * Facturación, Contratos, Intake, Informes y Embudo comercial.
+ *
+ * Cada clave coincide con la clave del módulo en el catálogo de la organización, porque el
+ * guard de permisos comprueba la capacidad con el mismo nombre del módulo que protege la ruta.
+ * Los módulos de la agencia misma —Ajustes, Gamificación, Catálogo, Conocimiento, Onboarding,
+ * Dirección, Operaciones, Gobierno, Automatizaciones— no figuran: no hay «empresa» de la que
+ * contratarlos y se gobiernan sólo con cargo y permiso.
+ */
+export const CAPACIDADES_DE_MODULO = [
+  'production',
+  'audiovisual',
+  'content',
+  'approvals',
+  'meetings',
+  'documents',
+  'briefs',
+  'billing',
+  'contracts',
+  'intake',
+  'reports',
+  'commercialPipeline',
+] as const;
+
 export const CLIENT_CAPABILITY_KEYS = [
   'reservations',
   'crm',
@@ -6,6 +32,8 @@ export const CLIENT_CAPABILITY_KEYS = [
   'metaConversions',
   'googleConversions',
   'budgetVisibility',
+  'detalleDeContactoEnAvisos',
+  ...CAPACIDADES_DE_MODULO,
 ] as const;
 
 export type ClientCapabilityKey = (typeof CLIENT_CAPABILITY_KEYS)[number];
@@ -44,6 +72,36 @@ export const DEFAULT_CLIENT_CAPABILITIES: ClientCapabilities = {
    * ser un acto explícito sobre una cuenta concreta y no un efecto secundario de crearla.
    */
   budgetVisibility: false,
+  /**
+   * Si el aviso de solicitud de grupo de esta empresa lleva el teléfono y el correo de quien
+   * pidió el evento, para los destinatarios que son cuentas con nivel `directo`.
+   *
+   * Nace apagada, con el mismo criterio que `marketing` y `budgetVisibility`: encenderla es una
+   * decisión comercial sobre una cuenta concreta y no el efecto de un despliegue. La enciende
+   * la agencia y no la empresa, porque es la agencia quien responde como encargada del
+   * tratamiento; queda auditada y ligada a la aceptación de un texto con versión.
+   *
+   * Sólo mueve teléfono y correo, y sólo en ese aviso. Las alergias y las respuestas del
+   * formulario no salen por correo estén encendidas o no.
+   */
+  detalleDeContactoEnAvisos: false,
+  /*
+   * Los doce módulos por empresa nacen apagados. No hay nada que conservar —hoy ninguna cuenta
+   * los abre—, y encender uno es una decisión comercial sobre una empresa concreta, no el efecto
+   * de crearla ni de un despliegue. Una empresa guardada sin estas claves cuenta como apagada.
+   */
+  production: false,
+  audiovisual: false,
+  content: false,
+  approvals: false,
+  meetings: false,
+  documents: false,
+  briefs: false,
+  billing: false,
+  contracts: false,
+  intake: false,
+  reports: false,
+  commercialPipeline: false,
 };
 
 export function normalizeClientCapabilities(value?: Partial<ClientCapabilities> | null): ClientCapabilities {

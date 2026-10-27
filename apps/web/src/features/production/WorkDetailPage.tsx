@@ -33,6 +33,18 @@ import type { WorkflowStage } from '../../shared/components/WorkflowTimeline';
 import { SourceChain } from '../../shared/components/SourceChain';
 import { ReadinessBar } from '../../shared/components/ReadinessBar';
 import { ProcessCommentThread } from '../../shared/ProcessCommentThread';
+import { Modal } from '../../shared/Modal';
+
+/** Origen de la cancelación, tal como lo exige el servidor (`CancelOrigin`). */
+const CANCEL_ORIGINS = [
+  { value: 'client', label: 'Lo pidió el cliente' },
+  { value: 'production', label: 'Error de la agencia' },
+  { value: 'commercial', label: 'Decisión comercial o de planificación' },
+] as const;
+type CancelOriginValue = (typeof CANCEL_ORIGINS)[number]['value'];
+
+/** Quién puede cancelar: lleva la cuenta o dirige; el cliente y el equipo creativo no. */
+const CANCEL_ROLES = ['admin', 'community_manager', 'art_director', 'av_director', 'operations_director'];
 
 interface Piece {
   id: string; title: string; type: string; status: string; udAmount: number;
@@ -118,6 +130,9 @@ export function WorkDetailPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('summary');
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelOrigin, setCancelOrigin] = useState<CancelOriginValue | ''>('');
 
   const piecesQuery = useQuery<Piece[]>({ queryKey: ['pieces'], queryFn: () => api.get('/production/pieces') });
   const pieces = piecesQuery.data ?? [];
@@ -171,6 +186,19 @@ export function WorkDetailPage() {
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: (body: { reason: string; origin: CancelOriginValue }) => api.post(`/production/pieces/${id}/cancel`, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['pieces'] });
+      void qc.invalidateQueries({ queryKey: ['piece-audit', id] });
+      setCancelOpen(false);
+      setCancelReason('');
+      setCancelOrigin('');
+      setFeedback({ tone: 'success', text: 'La pieza fue cancelada y sus UD se devolvieron según la regla configurada.' });
+    },
+  });
+  const closeCancel = () => { setCancelOpen(false); cancelMutation.reset(); };
+
   const isLoading = !found && piecesQuery.isLoading;
   const loadError = piecesQuery.error;
 
@@ -178,6 +206,8 @@ export function WorkDetailPage() {
   if (loadError && !found) return <div className="page"><div className="alert alert-error">No se pudo cargar el detalle: {loadError.message}</div><Link to="/production" className="back-link">Volver a producción</Link></div>;
   if (!piece) return <EmptyState icon="search" title="Trabajo no encontrado" description="La pieza que buscas no existe o fue eliminada." action={<Link to="/production" className="btn btn-outline">Volver a producción</Link>} />;
 
+  const canCancel = hasRoleAccess(user?.role ?? '', CANCEL_ROLES) && !['cancelled', 'delivered'].includes(piece.status);
+  const cancelReady = cancelReason.trim().length >= 3 && cancelOrigin !== '';
   const advance = () => { if (transition) transitionMutation.mutate(transition.action); };
 
   return <div className="page">
@@ -191,6 +221,7 @@ export function WorkDetailPage() {
       tone="entity"
       badge={<StatusBadge status={piece.status} />}
       actions={<>
+        {canCancel && <button className="btn btn-outline btn-sm" onClick={() => { setFeedback(null); setCancelOpen(true); }}>Cancelar pieza</button>}
         {transition && <button className="btn btn-primary btn-sm" disabled={transitionMutation.isPending} onClick={advance}>{transitionMutation.isPending ? 'Avanzando...' : transition.label}</button>}
       </>}
       footer={<SourceChain links={sourceChain.map((s) => ({ label: s.label, value: s.name }))} />}
@@ -222,6 +253,18 @@ export function WorkDetailPage() {
         <ContextSidebar piece={piece} readiness={readiness} nextStage={DEFAULT_WORKFLOW[currentStageIndex + 1]} />
       </aside>
     </div>
+    <Modal open={cancelOpen} onClose={() => !cancelMutation.isPending && closeCancel()} title="Cancelar pieza">
+      <form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (cancelReady) cancelMutation.mutate({ reason: cancelReason.trim(), origin: cancelOrigin as CancelOriginValue }); }}>
+        <p>Se cancelará “{piece.title}” y se devolverán sus {piece.udAmount} UD según la regla configurada. No se puede deshacer.</p>
+        <label>Motivo<textarea className="input" rows={3} required minLength={3} maxLength={500} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Por qué no se va a hacer" /></label>
+        <label>De quién fue la decisión<select className="input" required value={cancelOrigin} onChange={(event) => setCancelOrigin(event.target.value as CancelOriginValue)}><option value="">Selecciona el origen</option>{CANCEL_ORIGINS.map((origin) => <option key={origin.value} value={origin.value}>{origin.label}</option>)}</select></label>
+        {cancelMutation.error && <div className="alert alert-error">{cancelMutation.error.message}</div>}
+        <div className="modal-actions">
+          <button className="btn btn-outline" type="button" onClick={closeCancel} disabled={cancelMutation.isPending}>Volver</button>
+          <button className="btn btn-danger" disabled={!cancelReady || cancelMutation.isPending}>{cancelMutation.isPending ? 'Cancelando...' : 'Confirmar cancelación'}</button>
+        </div>
+      </form>
+    </Modal>
   </div>;
 }
 

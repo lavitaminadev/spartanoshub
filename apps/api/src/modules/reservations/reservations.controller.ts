@@ -1,6 +1,6 @@
 import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDeLosDatosLegales, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { DataSource } from 'typeorm';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -11,14 +11,17 @@ import { once } from 'node:events';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { AuditService } from '../../core/audit/audit.service';
+import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../core/client-scope/nivel-de-datos.service';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { UserRole } from '../organizations/user-role.enum';
 import { ReservationsService } from './application/reservations.service';
 import { ReservationsBulkImportService } from './application/bulk-import.service';
-import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportFormReservationsDto, ImportReservationsDto, ListCanjesDto, ListCouponsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
+import { columnasDelCsv } from './application/exportaciones';
+import { ActualizarOperacionDto, CanjeDeCuponDto, CloseReservationDayDto, ConvertGroupRequestDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ExportCsvQueryDto, ExportFormReservationsDto, HojaDelTurnoDto, ImportReservationsDto, ListCanjesDto, ListCouponsDto, ListReservationsDto, OccupancyQueryDto, ReservationScopeDto, UpdateContactRequestDto, UpdateCouponDto, UpdateGroupRequestDto, PauseReservationFormDto, RegistrarSalidaDto, UpdateReservationDto, UpdateReservationFormDto } from './dto/reservation.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 @ApiTags('Reservas')
 @ApiBearerAuth()
@@ -34,6 +37,7 @@ export class ReservationsController {
     private readonly audit: AuditService,
     private readonly dataSource: DataSource,
     private readonly permisos: PermissionResolverService,
+    private readonly niveles: NivelDeDatosService,
   ) {}
 
   private publicOrigin(): string | undefined {
@@ -46,23 +50,41 @@ export class ReservationsController {
     return { ...form, ...context, publicUrl: publicOrigin ? `${publicOrigin}/book/${form.publicSlug}` : undefined };
   }
 
-  private client(req: AuthenticatedRequest): string | undefined {
+  /**
+   * La empresa sobre la que trabaja una cuenta de portal: la que declare y alcance, o la suya.
+   *
+   * Declararla no concede nada —`scope` comprueba a continuación que tenga Reservas contratado—,
+   * y una que no se alcanza da 404. Lo que arregla es el caso de quien atiende dos locales: la
+   * empresa salía siempre de la sesión, así que mirar el segundo mostraba y escribía en el
+   * primero. Devuelve `undefined` para el equipo interno, que se acota por `clientIds`; las rutas
+   * que además admiten elegir una empresa concreta usan `requestedScope`.
+   */
+  private async empresaDelPortalEnLaPeticion(req: AuthenticatedRequest): Promise<string | undefined> {
     if (req.user.role !== UserRole.CLIENT) return undefined;
+    const declarada = (req.query as { clientId?: string } | undefined)?.clientId?.trim();
+    if (declarada && declarada !== req.user.clientId) {
+      await this.accountAccess.assertClient(req.organizationId, req.user, declarada);
+      return declarada;
+    }
     if (!req.user.clientId) throw new ForbiddenException('La cuenta cliente no está asociada a una empresa');
     return req.user.clientId;
   }
 
   private async scope(req: AuthenticatedRequest) {
-    // El identificador de empresa del portal viene exclusivamente de la sesión. Ningún
-    // parámetro de la URL puede convertir una cuenta sin Reservas en una con acceso.
-    if (req.user.role === UserRole.CLIENT) {
-      const clientId = this.client(req)!;
-      await this.capabilities.assert(req.organizationId, clientId, 'reservations');
-    }
+    const clientId = await this.empresaDelPortalEnLaPeticion(req);
+    // Ningún parámetro de la URL convierte una cuenta sin Reservas en una con acceso: la empresa
+    // ya pasó por el alcance, y aquí se comprueba que tenga el servicio contratado.
+    if (clientId) await this.capabilities.assert(req.organizationId, clientId, 'reservations');
     return {
-      clientId: this.client(req),
+      clientId,
       clientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
     };
+  }
+
+  /** Una reserva recortada según lo que esta persona ve de la empresa a la que pertenece. */
+  private async recortada<T extends { clientId?: string | null }>(req: AuthenticatedRequest, reserva: T) {
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    return recortarFilasPorEmpresa([reserva], 'reservations', niveles)[0];
   }
 
   private async requestedScope(req: AuthenticatedRequest, requestedClientId?: string) {
@@ -89,22 +111,30 @@ export class ReservationsController {
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
     const empresa = await this.empresaLegal(req, query.clientId);
     await asegurarQueAdministraLaEmpresa(this.permisos, req.organizationId, req.user, empresa);
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+    // El contrato de encargo lo acepta la empresa, no la agencia en su nombre: sólo una cuenta de
+    // portal puede marcarlo. Estaba escrito como «si la cuenta tiene empresa», que daba lo mismo
+    // mientras la empresa de la sesión fuera la única posible, y ahora ya no lo es.
+    const laAceptaLaEmpresa = req.user.role === UserRole.CLIENT;
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
   }
 
+  /**
+   * La empresa cuyos datos legales se tocan, y que tiene Reservas contratado.
+   *
+   * La resolución es la misma que en Encuestas y vive en `empresaDeLosDatosLegales`; aquí sólo se
+   * añade la reja propia del módulo. Una cuenta de portal que declara una empresa que alcanza
+   * trabaja sobre ella, que es lo que permite a quien atiende dos locales mantener los datos del
+   * segundo en vez de escribirlos en el primero.
+   */
   private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {
-    if (req.user.role === UserRole.CLIENT) {
-      const propia = empresaDelPortal(req.user.clientId);
-      await this.capabilities.assert(req.organizationId, propia, 'reservations');
-      return propia;
-    }
-    if (!pedida) throw new BadRequestException('Indica la empresa');
-    await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
-    return pedida;
+    const empresa = await empresaDeLosDatosLegales(this.accountAccess, req.organizationId, req.user, pedida);
+    await this.capabilities.assert(req.organizationId, empresa, 'reservations');
+    return empresa;
   }
 
   /** Envíos a Meta de una sucursal en los últimos 30 días: enviados, pendientes, fallidos y último error. */
   @Get('forms/:id/meta-health')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async metaHealth(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -113,6 +143,7 @@ export class ReservationsController {
 
   /** Pixels que este local puede elegir. Antes del `:id`, o la ruta la tomaría el detalle. */
   @Get('forms/meta-pixels')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async pixelesDisponibles(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -132,6 +163,7 @@ export class ReservationsController {
   }
 
   @Post('forms')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateReservationFormDto) {
     await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
@@ -140,6 +172,7 @@ export class ReservationsController {
   }
 
   @Get('forms/:id')
+  @RequiereArea('reservations.configurar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async form(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -148,6 +181,7 @@ export class ReservationsController {
   }
 
   @Patch('forms/:id/pause')
+  @RequiereArea('reservations.publicar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async pause(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PauseReservationFormDto) {
     const scope = await this.scope(req);
@@ -157,6 +191,7 @@ export class ReservationsController {
 
   @Patch('forms/:id')
   @RequiereAccion('reservations.configurar')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReservationFormDto) {
     const scope = await this.scope(req);
@@ -196,12 +231,14 @@ export class ReservationsController {
   /**
    * Los ajustes del día a día, sin pasar por el constructor.
    *
-   * No lleva `reservations.configurar`: es justamente la puerta que queda abierta para quien
-   * opera el local y no debe tocar campos, textos legales, medición ni publicación. La lista de
+   * No lleva la acción `reservations.configurar`: es la puerta que queda abierta para quien opera
+   * el local sin tocar campos, textos legales, medición ni publicación. Sí exige el área
+   * `reservations.configurar`, porque cupo, tolerancia y zonas son configuración del local. La lista de
    * lo que acepta la fija el DTO, y lo que no esté en ella se descarta aquí, no en la pantalla.
    */
   @Patch('forms/:id/operacion')
   @RequiresPermission('reservations', 'edit')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async actualizarOperacion(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ActualizarOperacionDto) {
     const scope = await this.scope(req);
@@ -210,6 +247,7 @@ export class ReservationsController {
   }
 
   @Post('forms/:id/duplicate')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async duplicate(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -219,6 +257,7 @@ export class ReservationsController {
 
   /** Quién cambió qué en esta reserva, para el hub: la auditoría completa sigue en Gobernanza. */
   @Get('forms/:id/ultimos-cambios')
+  @RequiereArea('reservations.configurar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async ultimosCambios(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -226,6 +265,7 @@ export class ReservationsController {
   }
 
   @Get('forms/:id/blocks')
+  @RequiereArea('reservations.configurar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async blocks(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -233,6 +273,7 @@ export class ReservationsController {
   }
 
   @Post('forms/:id/blocks')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async block(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: CreateBlockDto) {
     const scope = await this.scope(req);
@@ -240,6 +281,7 @@ export class ReservationsController {
   }
 
   @Post('forms/:id/blocks/batch')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async batchBlock(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body(new ParseArrayPipe({ items: CreateBlockDto, whitelist: true, forbidNonWhitelisted: true })) dtos: CreateBlockDto[]) {
     if (dtos.length > 365) throw new BadRequestException('No puedes crear mas de 365 bloqueos por lote');
@@ -255,6 +297,7 @@ export class ReservationsController {
   // administración: el cliente abre y cierra franjas a diario. Se declara `edit` en vez de
   // heredar el `manage` que el verbo asigna por omisión.
   @RequiresPermission('reservations', 'edit')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async deleteBlock(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -270,15 +313,17 @@ export class ReservationsController {
    * una decisión que se reserva al equipo de operaciones.
    */
   @Post('manual')
+  @RequiereArea('reservations.tomar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async createManual(@Req() req: AuthenticatedRequest, @Body() dto: CreateManualReservationDto) {
     const scope = await this.scope(req);
     if (req.user.role === UserRole.CLIENT) dto.skipAvailability = false;
-    return this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds);
+    return this.recortada(req, await this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds));
   }
 
   @Post('import')
   @RequiereAccion('reservations.importar')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async importReservations(@Req() req: AuthenticatedRequest, @Body() dto: ImportReservationsDto) {
@@ -299,13 +344,17 @@ export class ReservationsController {
   }
 
   @Get()
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async list(@Req() req: AuthenticatedRequest, @Query() query: ListReservationsDto) {
     const scope = await this.requestedScope(req, query.clientId);
-    return this.service.listReservations(req.organizationId, query, scope.clientId, scope.clientIds, req.user.role !== UserRole.CLIENT);
+    const respuesta = await this.service.listReservations(req.organizationId, query, scope.clientId, scope.clientIds, req.user.role !== UserRole.CLIENT);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    return { ...respuesta, data: recortarFilasPorEmpresa(respuesta.data, 'reservations', niveles) };
   }
 
   @Patch(':id')
+  @RequiereArea('reservations.reservas', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateReservation(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReservationDto) {
     const scope = await this.scope(req);
@@ -314,7 +363,7 @@ export class ReservationsController {
     if (req.user.role === UserRole.CLIENT && dto.workflowState !== undefined) {
       throw new ForbiddenException('La etapa de producción la gestiona el equipo de Espartanos');
     }
-    return this.service.updateReservation(
+    return this.recortada(req, await this.service.updateReservation(
       req.organizationId,
       id,
       dto,
@@ -322,10 +371,11 @@ export class ReservationsController {
       req.user.role === UserRole.CLIENT ? 'client' : 'team',
       scope.clientId,
       scope.clientIds,
-    );
+    ));
   }
 
   @Get('group-requests')
+  @RequiereArea('reservations.espera_y_grupos', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async allGroupRequests(@Req() req: AuthenticatedRequest, @Query('formId') formId?: string, @Query('clientId') clientId?: string) {
     // La empresa elegida en el filtro acota de verdad; antes se ignoraba y la lista no cambiaba.
@@ -334,6 +384,7 @@ export class ReservationsController {
   }
 
   @Get('forms/:id/group-requests')
+  @RequiereArea('reservations.espera_y_grupos', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async groupRequests(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -342,6 +393,7 @@ export class ReservationsController {
 
   /** Convierte una solicitud de grupo en reserva real, con la fecha que se acordó. */
   @Post('group-requests/:id/convert')
+  @RequiereArea('reservations.espera_y_grupos', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async convertGroupRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ConvertGroupRequestDto) {
     const scope = await this.scope(req);
@@ -349,6 +401,7 @@ export class ReservationsController {
   }
 
   @Patch('group-requests/:id')
+  @RequiereArea('reservations.espera_y_grupos', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateGroupRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateGroupRequestDto) {
     const scope = await this.scope(req);
@@ -356,6 +409,7 @@ export class ReservationsController {
   }
 
   @Post('close-day')
+  @RequiereArea('reservations.configurar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   async closeDay(@Req() req: AuthenticatedRequest, @Body() dto: CloseReservationDayDto) {
     const scope = await this.scope(req);
@@ -364,14 +418,48 @@ export class ReservationsController {
 
   /** Si esta persona ya reservó antes en la misma empresa. Solo lectura. */
   @Get(':id/guest-history')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async guestHistory(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
-    return this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+    const historial = await this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    // Las preferencias salen de las respuestas del formulario, donde viven las alergias: siguen
+    // la misma regla que ellas y no viajan a quien no las ve.
+    if (niveles.de(historial.clientId) === 'directo') return historial;
+    const { preferencias: _preferencias, ...sinPreferencias } = historial;
+    return sinPreferencias;
+  }
+
+  /**
+   * Los datos protegidos de una reserva, para quien los pidió desde su ficha.
+   *
+   * Con `bajo_registro` deja constancia de quién los vio y cuándo antes de responder: si la
+   * constancia no se puede escribir, la respuesta falla y el dato no sale. Con `oculto` no hay
+   * forma de pedirlos. Con `directo` ya los recibía en la ficha y no hay nada que anotar.
+   */
+  @Get(':id/datos-protegidos')
+  @RequiereArea('reservations.reservas', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async datosProtegidos(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
+    const scope = await this.scope(req);
+    const reserva = await this.service.datosProtegidosDeReserva(req.organizationId, id, scope.clientId, scope.clientIds);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    const nivel = niveles.de(reserva.clientId);
+    if (nivel === 'oculto') throw new ForbiddenException('Tu perfil no permite ver estos datos');
+    if (nivel === 'bajo_registro') {
+      await this.audit.log({
+        organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservations', entityId: id,
+        action: 'reveal_protected_data', reason: `campos=${Object.keys(reserva.datos).join(',')}`,
+        ipAddress: req.ip,
+      });
+    }
+    return { id, datos: reserva.datos };
   }
 
   /** Quien ya llegó se fue, o sigue en la mesa: mueve el fin de la reserva y con él su cupo. */
   @Post(':id/salida')
+  @RequiereArea('reservations.turno', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async registrarSalida(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: RegistrarSalidaDto) {
     const scope = await this.scope(req);
@@ -379,10 +467,29 @@ export class ReservationsController {
   }
 
   @Get(':id/history')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async history(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
     return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
+  }
+
+  /**
+   * Cuántas veces este comensal se presentó y cuántas no, dentro de la misma empresa.
+   *
+   * El teléfono y el correo sirven para agrupar, pero lo que sale pasa por el recorte de la
+   * persona que mira: con `oculto` o `bajo_registro` la respuesta trae el recuento y no el dato
+   * de contacto. Quien lo necesita lo pide desde la ficha, que deja la constancia.
+   */
+  @Get(':id/historial-del-comensal')
+  @RequiereArea('reservations.historial', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async historialDelComensal(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
+    const scope = await this.scope(req);
+    const historial = await this.service.historialDelComensal(req.organizationId, id, scope.clientId, scope.clientIds);
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    const [comensal] = recortarFilasPorEmpresa([historial.comensal], 'reservations', niveles);
+    return { ...historial, comensal };
   }
 
   /**
@@ -393,6 +500,7 @@ export class ReservationsController {
    */
   @Get(':id/historial')
   @RequiresPermission('reservations', 'view')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async historialDeReserva(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -400,6 +508,7 @@ export class ReservationsController {
   }
 
   @Get('coupons')
+  @RequiereArea('reservations.cupones', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async listCoupons(@Req() req: AuthenticatedRequest, @Query() query: ListCouponsDto) {
     /*
@@ -444,10 +553,11 @@ export class ReservationsController {
    */
   @Post('coupons')
   @RequiresPermission('reservations', 'manage')
+  @RequiereArea('reservations.cupones', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async createCoupon(@Req() req: AuthenticatedRequest, @Body() dto: CreateCouponDto) {
     // Una cuenta de empresa crea cupones sólo para sí misma, diga lo que diga el cuerpo.
-    if (req.user.role === UserRole.CLIENT) dto.clientId = this.client(req)!;
+    if (req.user.role === UserRole.CLIENT) dto.clientId = (await this.empresaDelPortalEnLaPeticion(req))!;
     // Todo cupón tiene empresa. Uno sin dueño se aceptaba en los locales de todos los clientes, y
     // un descuento pensado para un negocio terminaba aplicándose en otro.
     if (!dto.clientId) throw new BadRequestException('Elige la empresa del cupón: cada cupón vale sólo en los locales de su empresa.');
@@ -461,6 +571,7 @@ export class ReservationsController {
   /** Cambiar un cupón es cambiar la oferta: el mismo `manage` que crearlo. */
   @Patch('coupons/:id')
   @RequiresPermission('reservations', 'manage')
+  @RequiereArea('reservations.cupones', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async updateCoupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateCouponDto) {
     const scope = await this.scope(req);
@@ -481,6 +592,7 @@ export class ReservationsController {
    */
   @Get('coupons/buscar')
   @RequiresPermission('reservations', 'edit')
+  @RequiereArea('reservations.canjear_cupon', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async buscarCupon(@Req() req: AuthenticatedRequest, @Query('codigo') codigo: string) {
     if (!codigo?.trim()) throw new BadRequestException('Escribe el código del cupón');
@@ -491,6 +603,7 @@ export class ReservationsController {
   /** Qué pasó con un cupón: cuándo se usó, por qué camino y cuánto costó. */
   @Get('coupons/:id/metricas')
   @RequiresPermission('reservations', 'view')
+  @RequiereArea('reservations.cupones', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async metricasDeCupon(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const scope = await this.scope(req);
@@ -506,6 +619,7 @@ export class ReservationsController {
    */
   @Get('coupons/:id/canjes')
   @RequiresPermission('reservations', 'view')
+  @RequiereArea('reservations.cupones', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async canjesDeCupon(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: ListCanjesDto) {
     const scope = await this.scope(req);
@@ -515,6 +629,7 @@ export class ReservationsController {
   /** Los mismos canjes, para abrir en una planilla y cuadrar con la caja. */
   @Get('coupons/:id/canjes.csv')
   @RequiereAccion('reservations.exportar')
+  @RequiereArea('reservations.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async canjesCsv(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: ListCanjesDto, @Res() res: Response) {
     const scope = await this.scope(req);
@@ -533,38 +648,52 @@ export class ReservationsController {
 
   @Post('coupons/:id/canjes')
   @RequiresPermission('reservations', 'edit')
+  @RequiereArea('reservations.canjear_cupon', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async canjearCuponEnLocal(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: CanjeDeCuponDto) {
     const scope = await this.scope(req);
     return this.service.canjearCuponEnLocal(req.organizationId, id, req.user.id, dto, scope.clientIds);
   }
 
+  /**
+   * CSV para que otra herramienta lo procese. Para que lo lea una persona está la planilla.
+   *
+   * Va etiquetado en el nombre y en la cabecera `X-Uso`: una línea de marca dentro del archivo
+   * rompería a los lectores. Se anota antes de entregarlo y exige motivo si lleva datos protegidos
+   * o es voluminoso.
+   */
   @Get('export/csv')
   @RequiereAccion('reservations.exportar')
+  @RequiereArea('reservations.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async exportCsv(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto, @Res() res: Response) {
+  async exportCsv(@Req() req: AuthenticatedRequest, @Query() query: ExportCsvQueryDto, @Res() res: Response) {
     const scope = await this.requestedScope(req, query.clientId);
-    // GET no pasa por AuditInterceptor (solo intercepta verbos mutantes) y esto mueve PII en
-    // bloque fuera del sistema, así que se audita explícitamente en vez de quedar sin rastro.
-    void this.audit.log({
-      organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservations',
-      action: 'export_csv', reason: `clientId=${scope.clientId ?? 'all'} from=${query.from ?? ''} to=${query.to ?? ''}`,
-      ipAddress: req.ip,
-    }).catch(() => {});
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    const { columnas, conProtegidos } = columnasDelCsv(niveles, scope.clientId, scope.clientIds);
+    const filas = await this.service.contarParaExportar(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit);
+    await this.service.registrarExportacion({
+      organizationId: req.organizationId, actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
+      finalidad: 'procesable', formato: 'csv',
+      filtro: { clientId: scope.clientId ?? null, desde: query.from ?? null, hasta: query.to ?? null, limite: query.limit ?? null },
+      filas, columnas, conProtegidos, desde: query.from, hasta: query.to, motivo: query.motivo,
+    });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="reservas-para-procesar-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.setHeader('X-Uso', 'interno; contiene datos personales');
     // Se escribe por lotes en vez de armar el archivo completo y enviarlo de una sola vez: lo
     // que ocupa en memoria deja de depender de cu\u00E1ntas reservas se exporten. El `drain` evita
     // que los trozos se acumulen si el cliente descarga m\u00E1s lento de lo que se generan.
     res.write('\uFEFF');
-    for await (const chunk of this.service.streamCsv(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
+    for await (const chunk of this.service.streamCsv(req.organizationId, niveles, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
       if (!res.write(chunk)) await once(res, 'drain');
     }
     res.end();
   }
 
+  /** Planilla `.xlsx` (por defecto) o CSV de proceso de un local. Se arma y se anota en el servidor. */
   @Post('forms/:formId/export')
   @RequiereAccion('reservations.exportar')
+  @RequiereArea('reservations.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async exportForm(
     @Req() req: AuthenticatedRequest,
@@ -573,36 +702,61 @@ export class ReservationsController {
     @Res() res: Response
   ) {
     const scope = await this.scope(req);
-    const result = await this.service.exportFormReservations(
-      req.organizationId,
+    const { cuerpo } = await this.service.exportFormReservations({
+      organizationId: req.organizationId,
+      niveles: await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations'),
       formId,
-      scope.clientId,
-      scope.clientIds,
-      body.format,
-      body.dateFrom,
-      body.dateTo,
-      body.fields,
-      req.user.role !== UserRole.CLIENT,
-    );
+      clientId: scope.clientId,
+      clientIds: scope.clientIds,
+      formato: body.format,
+      dateFrom: body.dateFrom,
+      dateTo: body.dateTo,
+      fields: body.fields,
+      includeInternalNotes: req.user.role !== UserRole.CLIENT,
+      actor: { id: req.user.id, nombre: req.user.name },
+      motivo: body.motivo,
+      ip: req.ip,
+    });
 
-    if (body.format === 'json') {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.json"`);
-      res.send(JSON.stringify(result, null, 2));
-    } else if (body.format === 'csv') {
+    const dia = new Date().toISOString().slice(0, 10);
+    res.setHeader('X-Uso', 'interno; contiene datos personales');
+    if (body.format === 'csv') {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="reservas-para-procesar-${dia}.csv"`);
       // La marca de orden de bytes la pone quien arma el texto: aqu\u00ED se env\u00EDa tal cual.
-      res.send(result);
-    } else if (body.format === 'xlsx') {
+      res.send(cuerpo);
+    } else {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.xlsx"`);
-      res.end(result as Buffer);
+      res.setHeader('Content-Disposition', `attachment; filename="reservas-${dia}.xlsx"`);
+      res.end(cuerpo as Buffer);
     }
+  }
+
+  /** Hoja del turno: un día en PDF para imprimir, sin campos protegidos. */
+  @Get('forms/:formId/hoja-del-turno')
+  @RequiereAccion('reservations.exportar')
+  @RequiereArea('reservations.exportar', 'hacer')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async hojaDelTurno(
+    @Req() req: AuthenticatedRequest,
+    @Param('formId') formId: string,
+    @Query() query: HojaDelTurnoDto,
+    @Res() res: Response,
+  ) {
+    const scope = await this.scope(req);
+    const hoja = await this.service.hojaDelTurno({
+      organizationId: req.organizationId, formId, fecha: query.fecha,
+      clientId: scope.clientId, clientIds: scope.clientIds,
+      actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${hoja.nombre}"`);
+    res.end(hoja.cuerpo);
   }
 
   /** Resumen del día para la portada operativa: cómo viene la jornada y si la señal llega. */
   @Get('analytics/operational-home')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async operationalHome(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -610,13 +764,24 @@ export class ReservationsController {
   }
 
   @Get('analytics/metrics')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async metrics(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
     return this.service.metrics(req.organizationId, scope.clientId, scope.clientIds, query.days ? String(query.days) : '30');
   }
 
+  /** Qué porcentaje de las reservas no se presenta, por local y por día de la semana. */
+  @Get('analytics/no-show')
+  @RequiereArea('reservations.historial', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async noShow(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
+    const scope = await this.requestedScope(req, query.clientId);
+    return this.service.noShowPorLocalYDia(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
+  }
+
   @Get('analytics/occupancy')
+  @RequiereArea('reservations.medicion', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async occupancy(@Req() req: AuthenticatedRequest, @Query() query: OccupancyQueryDto) {
     const scope = await this.requestedScope(req, query.clientId);
@@ -645,9 +810,13 @@ export class ReservationsController {
 
   /** Una reserva concreta: es a donde lleva tocar un aviso de reserva nueva, cancelada o reagendada. */
   @Get(':id')
+  @RequiereArea('reservations.reservas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async getReservation(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
     const scope = await this.scope(req);
-    return this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
+    const reserva = await this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
+    // Recortada, como al crearla y al editarla: es la misma reserva mirada por la misma persona,
+    // y la ficha es justo donde el teléfono, el documento y las alergias están a la vista.
+    return this.recortada(req, reserva);
   }
 }

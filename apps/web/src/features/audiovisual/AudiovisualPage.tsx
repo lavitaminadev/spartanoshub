@@ -1,4 +1,5 @@
-﻿import { useMemo, useState } from 'react';
+﻿import { QueryErrorState } from '../../shared/QueryErrorState';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
@@ -45,7 +46,7 @@ export function AudiovisualPage() {
   const canManageSessions = hasRoleAccess(user?.role, ['admin', 'operations_director', 'av_director']);
   const canSeeMoodboards = user?.role !== 'audiovisual';
 
-  const { data: sessionResult, isLoading: sessionsLoading, error: sessionsError } = useQuery<PageResult<Session>>({
+  const { data: sessionResult, isLoading: sessionsLoading, error: sessionsError, refetch: refetchSessions, isFetching: sessionsFetching } = useQuery<PageResult<Session>>({
     queryKey: ['av-sessions'],
     queryFn: () => api.get('/sessions?limit=100'),
   });
@@ -116,7 +117,7 @@ export function AudiovisualPage() {
   );
 
   if (sessionsLoading) return <LoadingSpinner text="Cargando operación audiovisual..." />;
-  if (sessionsError) return <div className="alert alert-error">No fue posible cargar las sesiones audiovisuales.</div>;
+  if (sessionsError) return <QueryErrorState title="No pudimos cargar las sesiones audiovisuales" message={sessionsError.message} error={sessionsError} onRetry={() => void refetchSessions()} retrying={sessionsFetching} />;
 
   return (
     <div className="page">

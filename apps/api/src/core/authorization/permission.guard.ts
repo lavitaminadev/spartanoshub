@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger, Optional } from '@nestjs/common';
+import { BadRequestException, CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger, Optional } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
 import { REQUIRES_PERMISSION_KEY, RequiredPermission } from './requires-permission.decorator';
@@ -9,10 +9,22 @@ import { PermissionResolverService } from './permission-resolver.service';
 import { PermissionLevel } from './permission-level';
 import { isModuleInInitialOperationScope } from '@espartanos/shared';
 import { ClientCapabilityService } from '../client-scope/client-capability.service';
-import type { ClientCapabilityKey } from '../../modules/clients/client-capabilities';
+import { NivelDeAreaService } from '../client-scope/nivel-de-area.service';
+import { REQUIERE_AREA_KEY, type AreaExigida } from './requiere-area.decorator';
+import { CAPACIDADES_DE_MODULO, type ClientCapabilityKey } from '../../modules/clients/client-capabilities';
 
 /** Módulos que son un servicio contratado por empresa: sin el servicio, la empresa no entra. */
-const MODULOS_CONTRATADOS = new Set<string>(['crm', 'reservations', 'surveys']);
+const MODULOS_CONTRATADOS = new Set<string>(['crm', 'reservations', 'surveys', ...CAPACIDADES_DE_MODULO]);
+
+/**
+ * Módulos cuyo sujeto es siempre una empresa atendida, y que por eso no admiten una petición
+ * que no diga cuál.
+ *
+ * Los doce son los que se contratan por empresa: una pieza de producción, una aprobación o una
+ * reunión son de alguien. Sin esto, omitir la empresa en la dirección salta la comprobación de
+ * capacidad, que es la reja que decide si esa empresa tiene el módulo.
+ */
+const ES_DE_UNA_EMPRESA = new Set<string>(CAPACIDADES_DE_MODULO);
 
 /**
  * Nivel que exige cada verbo cuando el endpoint no declara uno propio.
@@ -48,6 +60,9 @@ export class PermissionGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly permissions: PermissionResolverService,
     @Optional() private readonly capacidades?: ClientCapabilityService,
+    // Opcional y al final: las pruebas construyen este guard por posición, y sin perfiles
+    // repartidos el área no bloquea nada, así que su ausencia deja el comportamiento de antes.
+    @Optional() private readonly areas?: NivelDeAreaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -102,9 +117,42 @@ export class PermissionGuard implements CanActivate {
      * oportunidades—: una empresa sin CRM se podía elegir y configurar igual. Aquí queda una sola
      * vez para todas. La empresa sale de la consulta, del cuerpo o, en el portal, de la cuenta.
      */
-    if (this.capacidades && MODULOS_CONTRATADOS.has(required.module) && empresa) {
-      await this.capacidades.assert(organizationId, empresa, required.module as ClientCapabilityKey);
+    if (this.capacidades && MODULOS_CONTRATADOS.has(required.module)) {
+      /*
+       * Sin empresa no hay capacidad que comprobar, y entonces la reja se salta por omisión:
+       * quitar `?clientId=` de la dirección dejaba la petición sin ninguna de las dos. Para los
+       * doce módulos cuyo sujeto **es** una empresa atendida eso vacía la capacidad de sentido,
+       * así que no declararla es un 400 y no un paso libre.
+       *
+       * CRM, Reservas y Encuestas no entran en la exigencia: tienen rutas que de verdad son
+       * agregadas —el panel de dirección, los listados de la agencia—, y pedirles empresa las
+       * rompería. Se cerrarán cuando declaren `@Empresa()` o `@SinEmpresa()` una por una.
+       */
+      if (!empresa) {
+        if (ES_DE_UNA_EMPRESA.has(required.module)) {
+          throw new BadRequestException('Indica la empresa sobre la que trabajas');
+        }
+      } else {
+        await this.capacidades.assert(organizationId, empresa, required.module as ClientCapabilityKey);
+      }
     }
+
+    /*
+     * Y el área, que es la tercera reja y la más fina.
+     *
+     * El módulo dice si entra a Reservas; el área dice si además puede configurar el local. Sin
+     * esto, el perfil que la empresa reparte decide qué datos ve cada persona y no qué puede
+     * hacer, que es la mitad de lo que el administrador cree estar concediendo.
+     *
+     * Una ruta sin área declarada pasa: se están declarando una por una y exigirla de golpe
+     * dejaría sin servicio todo lo que aún no la tenga. Lo mismo quien no tiene perfil asignado.
+     */
+    const area = this.reflector.getAllAndOverride<AreaExigida>(REQUIERE_AREA_KEY, targets);
+    if (area && this.areas) {
+      const alcanza = await this.areas.alcanzaArea(organizationId, user.id, empresa, area.clave, area.nivel);
+      if (!alcanza) throw new ForbiddenException('Tu perfil no incluye esta parte del módulo');
+    }
+
     return true;
   }
 

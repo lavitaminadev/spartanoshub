@@ -146,7 +146,7 @@ export function CrmHomePage(): JSX.Element {
     return (
       <QueryErrorState
         title="No pudimos abrir el inicio del CRM"
-        message={(error as Error).message}
+        message={(error as Error).message} error={error}
         onRetry={() => void refetch()}
         retrying={isFetching}
       />

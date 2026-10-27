@@ -16,40 +16,81 @@ exports.SuscriptoresController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const throttler_1 = require("@nestjs/throttler");
+const shared_1 = require("@espartanos/shared");
+const audit_service_1 = require("../../core/audit/audit.service");
+const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
+const revelar_protegidos_1 = require("../../core/client-scope/revelar-protegidos");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const client_capability_service_1 = require("../../core/client-scope/client-capability.service");
 const public_decorator_1 = require("../../core/auth/decorators/public.decorator");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const alta_desde_reserva_1 = require("./alta-desde-reserva");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const suscriptores_service_1 = require("./suscriptores.service");
 const suscriptor_entity_1 = require("./suscriptor.entity");
 const pagina_de_baja_1 = require("./pagina-de-baja");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 class ImportarSuscriptoresDto {
 }
 class PeticionExternaDto {
 }
 let SuscriptoresController = class SuscriptoresController {
-    constructor(suscriptores, capacidades) {
+    constructor(suscriptores, capacidades, acceso, niveles, audit) {
         this.suscriptores = suscriptores;
         this.capacidades = capacidades;
+        this.acceso = acceso;
+        this.niveles = niveles;
+        this.audit = audit;
     }
-    async encierroDe(req) {
+    async encierroDe(req, elegida) {
+        return this.encierroConCapacidad(req, 'marketing', elegida);
+    }
+    async encierroConCapacidad(req, capacidad, elegida) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
             return undefined;
-        if (!req.user.clientId)
+        const organizationId = req.organizationId || req.user.organizationId;
+        const clientId = await this.acceso.empresaElegida(organizationId, req.user, elegida);
+        if (!clientId)
             throw new common_1.ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
-        await this.capacidades.assert(req.organizationId || req.user.organizationId, req.user.clientId, 'marketing');
-        return req.user.clientId;
+        await this.capacidades.assert(organizationId, clientId, capacidad);
+        return clientId;
     }
     async listar(req, limit, empresa, estado, origen, busqueda) {
-        return this.suscriptores.listar(req.organizationId || req.user.organizationId, {
+        const organizationId = req.organizationId || req.user.organizationId;
+        const lista = await this.suscriptores.listar(organizationId, {
             limite: limit ? Number(limit) : undefined,
             empresa,
-            encerradoEn: await this.encierroDe(req),
+            encerradoEn: await this.encierroDe(req, empresa),
             estado: Object.values(suscriptor_entity_1.EstadoDeSuscripcion).includes(estado) ? estado : undefined,
             origen,
             busqueda,
         });
+        const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+        return { ...lista, data: (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(lista.data, 'marketing', niveles) };
+    }
+    async captadosPorReservas(req, limit, empresa, busqueda) {
+        const organizationId = req.organizationId || req.user.organizationId;
+        const lista = await this.suscriptores.listar(organizationId, {
+            limite: limit ? Number(limit) : undefined,
+            empresa,
+            encerradoEn: await this.encierroConCapacidad(req, 'reservations', empresa),
+            origen: alta_desde_reserva_1.ORIGEN_RESERVA,
+            busqueda,
+        });
+        const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'reservations');
+        return { ...lista, data: (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(lista.data, 'marketing', niveles) };
+    }
+    async datosProtegidos(req, id) {
+        const organizationId = req.organizationId || req.user.organizationId;
+        const suscriptor = await this.suscriptores.buscarParaRevelar(organizationId, id, await this.encierroDe(req));
+        const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+        const ficha = suscriptor;
+        const datos = Object.fromEntries((0, shared_1.camposProtegidosDe)('marketing').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, ficha[campo] ?? null]));
+        await (0, revelar_protegidos_1.exigirConstanciaDeRevelacion)(this.audit, niveles.de(suscriptor.clientId), {
+            organizationId, actorId: req.user.id, entityType: 'email_subscribers', entityId: id, campos: Object.keys(datos), ipAddress: req.ip,
+        });
+        return { id, datos };
     }
     async exclusiones(req, correo) {
         const organizationId = req.organizationId || req.user.organizationId;
@@ -63,18 +104,23 @@ let SuscriptoresController = class SuscriptoresController {
     }
     async descargar(req, empresa) {
         const organizationId = req.organizationId || req.user.organizationId;
-        const alcance = (await this.encierroDe(req)) || empresa || 'agencia';
+        const alcance = (await this.encierroDe(req, empresa)) || empresa || 'agencia';
         const filas = await this.suscriptores.paraDescargar(organizationId, alcance);
+        const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+        const quitar = new Set((0, shared_1.columnasAQuitar)('marketing', niveles.de(alcance === 'agencia' ? null : alcance)));
         return {
             empresa: alcance,
             total: filas.length,
-            data: filas.map((fila) => ({
-                email: fila.email,
-                nombre: fila.name,
-                aceptoEl: fila.consentAt,
-                origen: fila.source,
-                detalle: fila.sourceDetail,
-            })),
+            data: filas.map((fila) => {
+                const completa = {
+                    email: fila.email,
+                    nombre: fila.name,
+                    aceptoEl: fila.consentAt,
+                    origen: fila.source,
+                    detalle: fila.sourceDetail,
+                };
+                return Object.fromEntries(Object.entries(completa).filter(([columna]) => !quitar.has(columna)));
+            }),
         };
     }
     importar(req, dto) {
@@ -94,6 +140,7 @@ let SuscriptoresController = class SuscriptoresController {
 exports.SuscriptoresController = SuscriptoresController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.suscriptores', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Lista de suscriptores con su procedencia y estado' }),
     __param(0, (0, common_1.Req)()),
@@ -107,7 +154,33 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], SuscriptoresController.prototype, "listar", null);
 __decorate([
+    (0, common_1.Get)('captados-por-reservas'),
+    (0, module_scope_decorator_1.ModuleScope)('reservations'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Quiénes consintieron recibir correos al reservar en esta empresa' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('empresa')),
+    __param(3, (0, common_1.Query)('q')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], SuscriptoresController.prototype, "captadosPorReservas", null);
+__decorate([
+    (0, common_1.Get)(':id/datos-protegidos'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.suscriptores', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Ver los datos protegidos de un suscriptor' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], SuscriptoresController.prototype, "datosProtegidos", null);
+__decorate([
     (0, common_1.Get)('exclusiones'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.bajas', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Si a una dirección se le pidió no escribir más' }),
     __param(0, (0, common_1.Req)()),
@@ -118,6 +191,7 @@ __decorate([
 ], SuscriptoresController.prototype, "exclusiones", null);
 __decorate([
     (0, common_1.Post)('exclusiones'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.suscriptores', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Anotar una petición de baja recibida por fuera (SERNAC, teléfono, correo)' }),
     __param(0, (0, common_1.Req)()),
@@ -128,6 +202,7 @@ __decorate([
 ], SuscriptoresController.prototype, "anotarPeticion", null);
 __decorate([
     (0, common_1.Get)('descargar'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.exportar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Descargar los suscritos de una empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -138,6 +213,7 @@ __decorate([
 ], SuscriptoresController.prototype, "descargar", null);
 __decorate([
     (0, common_1.Post)('importar'),
+    (0, requiere_area_decorator_1.RequiereArea)('marketing.importar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Importar una lista de correos declarando su origen' }),
     __param(0, (0, common_1.Req)()),
@@ -177,5 +253,8 @@ exports.SuscriptoresController = SuscriptoresController = __decorate([
     (0, common_1.Controller)('marketing/suscriptores'),
     (0, module_scope_decorator_1.ModuleScope)('marketing'),
     __metadata("design:paramtypes", [suscriptores_service_1.SuscriptoresService,
-        client_capability_service_1.ClientCapabilityService])
+        client_capability_service_1.ClientCapabilityService,
+        account_access_service_1.AccountAccessService,
+        nivel_de_datos_service_1.NivelDeDatosService,
+        audit_service_1.AuditService])
 ], SuscriptoresController);

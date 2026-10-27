@@ -30,6 +30,12 @@ const UNRESTRICTED_ROLES = new Set([
     user_role_enum_1.UserRole.ART_DIRECTOR,
     user_role_enum_1.UserRole.AV_DIRECTOR,
 ]);
+function vigentes(base, ahora = new Date()) {
+    return [
+        { ...base, retiredAt: (0, typeorm_2.IsNull)(), expiresAt: (0, typeorm_2.IsNull)() },
+        { ...base, retiredAt: (0, typeorm_2.IsNull)(), expiresAt: (0, typeorm_2.MoreThan)(ahora) },
+    ];
+}
 let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
     constructor(clients, podMembers, assignments) {
         this.clients = clients;
@@ -42,7 +48,7 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
             return undefined;
         if (user.role === user_role_enum_1.UserRole.CLIENT) {
             const propias = user.clientId ? [user.clientId] : [];
-            const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
+            const asignadas = (await this.assignments.find({ where: vigentes({ userId: user.id }), select: { clientId: true } }))
                 .map((fila) => fila.clientId)
                 .filter((id) => id !== user.clientId);
             return this.soloEnServicio([...propias, ...asignadas]);
@@ -65,6 +71,20 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
         const alcanzables = await this.allowedClientIds(organizationId, user);
         return alcanzables?.includes(pedida) ? pedida : propia;
     }
+    async empresaElegida(organizationId, user, pedida) {
+        if (user.role !== user_role_enum_1.UserRole.CLIENT) {
+            await this.assertClient(organizationId, user, pedida || undefined);
+            return pedida || undefined;
+        }
+        if (pedida) {
+            await this.assertClient(organizationId, user, pedida);
+            return pedida;
+        }
+        const alcanzables = (await this.allowedClientIds(organizationId, user)) ?? [];
+        if (alcanzables.length > 1)
+            throw new common_1.BadRequestException('Elige la empresa sobre la que trabajas');
+        return user.clientId || alcanzables[0] || undefined;
+    }
     async assertClient(organizationId, user, clientId) {
         if (!clientId)
             return;
@@ -82,7 +102,7 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
             return 'unrestricted';
         if (user.role === user_role_enum_1.UserRole.CLIENT) {
             const propia = user.clientId ? [{ clientId: user.clientId, source: 'own' }] : [];
-            const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
+            const asignadas = (await this.assignments.find({ where: vigentes({ userId: user.id }), select: { clientId: true } }))
                 .filter((fila) => fila.clientId !== user.clientId)
                 .map((fila) => ({ clientId: fila.clientId, source: 'assignment' }));
             return [...propia, ...asignadas];
@@ -109,7 +129,7 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
         const ids = acotadas.map((persona) => persona.id);
         const internas = acotadas.filter((persona) => persona.role !== user_role_enum_1.UserRole.CLIENT).map((persona) => persona.id);
         const [asignaciones, membresias, manejadas] = await Promise.all([
-            this.assignments.find({ where: { organizationId, userId: (0, typeorm_2.In)(ids) }, select: { userId: true, clientId: true } }),
+            this.assignments.find({ where: vigentes({ organizationId, userId: (0, typeorm_2.In)(ids) }), select: { userId: true, clientId: true } }),
             internas.length ? this.podMembers.find({ where: { userId: (0, typeorm_2.In)(internas) }, select: { userId: true, podId: true } }) : Promise.resolve([]),
             internas.length ? this.clients.find({ where: { organizationId, communityManagerId: (0, typeorm_2.In)(internas) }, select: { id: true, communityManagerId: true } }) : Promise.resolve([]),
         ]);
@@ -146,7 +166,7 @@ let AccountAccessService = AccountAccessService_1 = class AccountAccessService {
             podIds.length
                 ? this.clients.find({ where: { organizationId, podId: (0, typeorm_2.In)(podIds) }, select: { id: true } })
                 : Promise.resolve([]),
-            this.assignments.find({ where: { organizationId, userId }, select: { clientId: true } }),
+            this.assignments.find({ where: vigentes({ organizationId, userId }), select: { clientId: true } }),
             this.clients.find({ where: { organizationId, communityManagerId: userId }, select: { id: true } }),
         ]);
         return [

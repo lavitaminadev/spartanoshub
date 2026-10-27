@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +10,7 @@ import { ModuleScope } from '../../../core/authorization/module-scope.decorator'
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { LeadIngestSource } from './ingest-source.entity';
 import { LeadIngestService } from './lead-ingest.service';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 export class CreateIngestSourceDto {
   /** Nombre visible: «Portal inmobiliario», «Zapier — formulario del sitio». */
@@ -67,6 +68,7 @@ export class IngestSourcesController {
    * capturas, en el historial del navegador y en la memoria de quien mire por encima del hombro.
    */
   @Get()
+  @RequiereArea('crm.origenes', 'ver')
   @ApiOperation({ summary: 'Orígenes de entrada con su contador y último error' })
   async list(@Req() req: AuthenticatedRequest) {
     /*
@@ -114,11 +116,30 @@ export class IngestSourcesController {
    * otro lado también necesita saber que no habrá una segunda oportunidad.
    */
   @Post()
+  @RequiereArea('crm.origenes', 'hacer')
   @ApiOperation({ summary: 'Crear un origen y emitir su llave' })
   async create(@Body() dto: CreateIngestSourceDto, @Req() req: AuthenticatedRequest) {
+    /*
+     * La empresa del origen se comprueba antes de emitir nada.
+     *
+     * Una llave de entrada **escribe** leads sin sesión, así que emitirla para una empresa que no
+     * se lleva es peor que poder leerla: deja entrar datos en el CRM de otra cuenta, y rotarla o
+     * apagarla queda del lado de quien sí la lleva. Rotar, apagar y revocar ya lo comprobaban en
+     * `find`; emitir era la única puerta que aceptaba cualquier identificador.
+     *
+     * Un origen sin empresa es de la agencia y sólo lo pueden crear los cargos sin límite de
+     * alcance: quien lleva cuentas concretas lo crearía sin poder volver a verlo en su listado.
+     */
+    const empresa = dto.clientId?.trim() || null;
+    if (empresa) {
+      await this.accountAccess.assertClient(req.organizationId!, req.user, empresa);
+    } else if ((await this.accountAccess.allowedClientIds(req.organizationId!, req.user)) !== undefined) {
+      throw new BadRequestException('Indica la empresa a la que entran estos leads');
+    }
+
     const { source, token } = await this.ingest.issueToken(this.sources.create({
       organizationId: req.organizationId!,
-      clientId: dto.clientId ?? null,
+      clientId: empresa,
       name: dto.name.trim(),
       source: dto.source,
       isActive: true,
@@ -144,6 +165,7 @@ export class IngestSourcesController {
    * cortarla con `revoke-previous`.
    */
   @Post(':id/rotate')
+  @RequiereArea('crm.origenes', 'hacer')
   @ApiOperation({ summary: 'Reemplazar la llave de un origen' })
   async rotate(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const source = await this.find(id, req.organizationId!, req);
@@ -172,6 +194,7 @@ export class IngestSourcesController {
    * **porque la llave se filtró**, esperar dos días es exactamente lo que no se quiere.
    */
   @Post(':id/revoke-previous')
+  @RequiereArea('crm.origenes', 'hacer')
   @ApiOperation({ summary: 'Cortar ya la llave anterior' })
   async revokePrevious(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const source = await this.find(id, req.organizationId!, req);
@@ -186,6 +209,7 @@ export class IngestSourcesController {
    * y borrar el origen perdería el contador que dice cuántos leads entraron por ahí.
    */
   @Post(':id/active')
+  @RequiereArea('crm.origenes', 'hacer')
   @ApiOperation({ summary: 'Encender o apagar un origen' })
   async toggle(@Param('id') id: string, @Body() dto: ToggleIngestSourceDto, @Req() req: AuthenticatedRequest) {
     const source = await this.find(id, req.organizationId!, req);

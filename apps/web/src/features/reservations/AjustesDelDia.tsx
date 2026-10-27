@@ -1,3 +1,4 @@
+import { telefonoDe } from './datos-protegidos';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -5,7 +6,10 @@ import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { puedeAccion } from '../../core/acciones';
 import { Modal } from '../../shared/Modal';
+import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
+import { useEmpresaParaConfirmar } from '../../shared/empresa-activa';
 import type { Reservation, ReservationForm } from './types';
+import { localDateBoundsUtc, localInputToUtc, plainDateInZone } from './local-time';
 
 /**
  * @fileoverview Lo que se cambia el mismo día, sin entrar al constructor.
@@ -35,20 +39,34 @@ interface Cierre { id: string; startsAt: string; endsAt: string; reason?: string
 /** Lo que cuenta contra el tope del día, igual que en el servidor: las activas y quienes ya llegaron. */
 const ACTIVAS = ['pending', 'confirmed', 'rescheduled', 'attended'];
 
-/** Un día local, en los límites que entiende el listado: de 00:00 a 23:59 en la hora del navegador. */
-function rangoDelDia(dia: string, desde = '00:00', hasta = '23:59'): { from: string; to: string } {
-  return { from: new Date(`${dia}T${desde}`).toISOString(), to: new Date(`${dia}T${hasta}`).toISOString() };
+/** El tramo de un día en la zona horaria del local, en los límites UTC que entiende el listado. */
+function rangoDelDia(dia: string, zona: string, desde = '00:00', hasta = '23:59'): { from: string; to: string } {
+  if (desde === '00:00' && hasta === '23:59') return localDateBoundsUtc(dia, zona);
+  return { from: localInputToUtc(`${dia}T${desde}`, zona), to: localInputToUtc(`${dia}T${hasta}`, zona) };
 }
 
-function hoyLocal(): string {
-  const ahora = new Date();
-  const dos = (n: number) => String(n).padStart(2, '0');
-  return `${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}`;
+/** Tamaño de página máximo que acepta el listado de reservas. */
+const PAGINA = 100;
+
+/**
+ * Todas las reservas de un rango, página a página.
+ *
+ * El listado topa en 100 por página; pedir más hace fallar la consulta. Se recorren las páginas
+ * en vez de suponer que cabe todo, y cualquier fallo se propaga para que la pantalla lo muestre.
+ */
+async function reservasDelRango(formId: string, rango: { from: string; to: string }): Promise<Reservation[]> {
+  const todas: Reservation[] = [];
+  for (let pagina = 1; pagina <= 20; pagina += 1) {
+    const respuesta = await api.get<{ data: Reservation[]; pages: number }>(`/reservations?${new URLSearchParams({ formId, ...rango, page: String(pagina), pageSize: String(PAGINA) })}`);
+    todas.push(...respuesta.data);
+    if (pagina >= respuesta.pages) break;
+  }
+  return todas;
 }
 
 /** WhatsApp con el aviso ya escrito, editable antes de enviarlo. */
 function whatsappDeAviso(reserva: Reservation): string | null {
-  const digitos = (reserva.guestPhone ?? '').replace(/\D/g, '');
+  const digitos = (telefonoDe(reserva) ?? '').replace(/\D/g, '');
   if (digitos.length < 8) return null;
   const numero = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
   const cuando = new Date(reserva.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' });
@@ -57,35 +75,35 @@ function whatsappDeAviso(reserva: Reservation): string | null {
 }
 
 /**
- * El momento en que vuelve a abrir mañana, en la hora del navegador.
+ * El momento en que vuelve a abrir mañana a las 06:00, en la zona del local, como instante UTC.
  *
  * Pausar «hasta mañana» es lo que de verdad se pide cuando se corta el agua o el local se llenó,
  * y obligar a entender un selector de fecha y hora para eso convertía un gesto en un trámite.
  */
-function hastaManana(): string {
-  const manana = new Date();
-  manana.setDate(manana.getDate() + 1);
-  manana.setHours(6, 0, 0, 0);
-  const dosDigitos = (valor: number) => String(valor).padStart(2, '0');
-  return `${manana.getFullYear()}-${dosDigitos(manana.getMonth() + 1)}-${dosDigitos(manana.getDate())}T06:00`;
+function hastaManana(zona: string): string {
+  const [anio, mes, dia] = plainDateInZone(new Date(), zona).split('-').map(Number);
+  const manana = new Date(Date.UTC(anio, mes - 1, dia + 1));
+  return localInputToUtc(`${manana.toISOString().slice(0, 10)}T06:00`, zona);
 }
 
 /** Un cierre de día entero se escribió como 00:00–23:59; decirlo así se lee mejor que dos horas. */
-function comoSeLee(cierre: Cierre): string {
+function comoSeLee(cierre: Cierre, zona: string): string {
   const desde = new Date(cierre.startsAt);
   const hasta = new Date(cierre.endsAt);
-  const dia = desde.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short' });
-  const todoElDia = desde.getHours() === 0 && desde.getMinutes() === 0 && hasta.getHours() === 23;
-  if (todoElDia) return `${dia} · todo el día`;
-  const hora = (fecha: Date) => fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  const dia = desde.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', timeZone: zona });
+  const hora = (fecha: Date) => fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zona });
+  if (hora(desde) === '00:00' && hora(hasta) >= '23:59') return `${dia} · todo el día`;
   return `${dia} · ${hora(desde)} a ${hora(hasta)}`;
 }
 
 export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations' }: Props) {
   const queryClient = useQueryClient();
   const design = (local.designConfig ?? {}) as Record<string, string | undefined>;
+  const zona = local.timezone || 'America/Santiago';
   const zonas = ((local.resourcesConfig ?? []) as Zona[]).filter((zona) => zona.id);
 
+  const [reservaPorCancelar, setReservaPorCancelar] = useState<Reservation | null>(null);
+  const empresaParaConfirmar = useEmpresaParaConfirmar();
   const [cupoPorFranja, setCupoPorFranja] = useState('');
   const [topeDelDia, setTopeDelDia] = useState('');
   const [tolerancia, setTolerancia] = useState('');
@@ -153,8 +171,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
 
   const cerrarDia = useMutation({
     mutationFn: ({ dia, desde, hasta }: { dia: string; desde: string; hasta: string }) => api.post(`/reservations/forms/${local.id}/blocks`, {
-      startsAt: `${dia}T${desde || '00:00'}`,
-      endsAt: `${dia}T${hasta || '23:59'}`,
+      startsAt: localInputToUtc(`${dia}T${desde || '00:00'}`, zona),
+      endsAt: localInputToUtc(`${dia}T${hasta || '23:59'}`, zona),
       reason: desde || hasta ? 'Cierre por tramo' : 'Cierre de día completo',
     }),
     onSuccess: () => { refrescar(); void recargarCierres(); setDiaCerrado(''); setDesdeLaHora(''); setHastaLaHora(''); },
@@ -171,13 +189,13 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
    * Bajar el cupo a 18 cuando ya hay 22 confirmadas no las echa, pero quien opera el turno no tiene
    * ese número en la cabeza como el dueño. Decirlo junto al campo evita decidir a ciegas.
    */
-  const hoy = hoyLocal();
-  const { data: reservasDeHoy } = useQuery<{ data: Reservation[] }>({
+  const hoy = plainDateInZone(new Date(), zona);
+  const { data: reservasDeHoy, error: errorDeHoy } = useQuery<Reservation[]>({
     queryKey: ['reservas-del-dia', local.id, hoy],
-    queryFn: () => api.get(`/reservations?${new URLSearchParams({ formId: local.id, ...rangoDelDia(hoy), pageSize: '200' })}`),
+    queryFn: () => reservasDelRango(local.id, rangoDelDia(hoy, zona)),
     enabled: abierto,
   });
-  const personasHoy = (reservasDeHoy?.data ?? []).filter((item) => ACTIVAS.includes(item.status)).reduce((total, item) => total + item.partySize, 0);
+  const personasHoy = (reservasDeHoy ?? []).filter((item) => ACTIVAS.includes(item.status)).reduce((total, item) => total + item.partySize, 0);
   const topeNuevo = Number(topeDelDia);
 
   /*
@@ -187,12 +205,12 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
    * puerta—, pero la ventana sólo mostraba el error después de intentarlo, sin decir quiénes eran
    * ni cómo resolverlo. Ahora se ven antes, con cómo avisarles y cómo cancelarlas.
    */
-  const { data: reservasDelCierre, refetch: recargarAfectadas } = useQuery<{ data: Reservation[] }>({
+  const { data: reservasDelCierre, error: errorDelCierre, isLoading: miraCierre, refetch: recargarAfectadas } = useQuery<Reservation[]>({
     queryKey: ['reservas-del-cierre', local.id, diaCerrado, desdeLaHora, hastaLaHora],
-    queryFn: () => api.get(`/reservations?${new URLSearchParams({ formId: local.id, ...rangoDelDia(diaCerrado, desdeLaHora || '00:00', hastaLaHora || '23:59'), pageSize: '200' })}`),
+    queryFn: () => reservasDelRango(local.id, rangoDelDia(diaCerrado, zona, desdeLaHora || '00:00', hastaLaHora || '23:59')),
     enabled: abierto && Boolean(diaCerrado),
   });
-  const afectadas = (reservasDelCierre?.data ?? []).filter((item) => ACTIVAS.includes(item.status));
+  const afectadas = (reservasDelCierre ?? []).filter((item) => ACTIVAS.includes(item.status));
 
   const cancelarReserva = useMutation({
     mutationFn: (reserva: Reservation) => api.patch(`/reservations/${reserva.id}`, { status: 'cancelled_business', cancellationReason: motivoDelCierre.trim() }),
@@ -237,8 +255,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
             <button type="button" className="btn btn-outline btn-sm" disabled={pausa.isPending} onClick={() => pausa.mutate('')}>Reanudar</button></p>
           : <p className="ajustes-pausa">Recibiendo reservas
             {/* El caso real es «no más por hoy»: entenderlo no debería costar un calendario. */}
-            <button type="button" className="btn btn-outline btn-sm" disabled={pausa.isPending} onClick={() => pausa.mutate(hastaManana())}>No más por hoy</button>
-            <input className="input" type="datetime-local" aria-label="Pausar hasta" onChange={(evento) => evento.target.value && pausa.mutate(evento.target.value)} />
+            <button type="button" className="btn btn-outline btn-sm" disabled={pausa.isPending} onClick={() => pausa.mutate(hastaManana(zona))}>No más por hoy</button>
+            <input className="input" type="datetime-local" aria-label="Pausar hasta" onChange={(evento) => evento.target.value && pausa.mutate(localInputToUtc(evento.target.value, zona))} />
             <small>O elige hasta cuándo.</small></p>}
         {pausa.error && <p className="error-text">{pausa.error.message}</p>}
       </section>
@@ -254,7 +272,8 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
             <input className="input" type="number" min="0" max="5000" value={topeDelDia} onChange={(evento) => setTopeDelDia(evento.target.value)} />
           </label>
         </div>
-        <p className="ajustes-hoy">Hoy vienen <strong>{personasHoy}</strong> {personasHoy === 1 ? 'persona' : 'personas'}{topeNuevo > 0 ? ` de un tope de ${topeNuevo}` : ''}.</p>
+        {errorDeHoy && <p className="error-text">No se pudo contar las reservas de hoy: {errorDeHoy.message}</p>}
+        {!errorDeHoy && <p className="ajustes-hoy">Hoy vienen <strong>{personasHoy}</strong> {personasHoy === 1 ? 'persona' : 'personas'}{topeNuevo > 0 ? ` de un tope de ${topeNuevo}` : ''}.</p>}
         {topeNuevo > 0 && personasHoy > topeNuevo && <p className="ajustes-alerta">El tope queda por debajo de lo que ya está reservado hoy: no se cancela a nadie, pero no entran reservas nuevas.</p>}
       </section>
 
@@ -327,6 +346,7 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
         </label>
         <div className="ajustes-grid">
           <label>Tolerancia de llegada (min)
+            <small>Se informa a quien reserva; no libera la mesa sola.</small>
             <input className="input" type="number" min="0" max="120" step="5" value={tolerancia} onChange={(evento) => setTolerancia(evento.target.value)} />
           </label>
           <label>WhatsApp del local
@@ -348,10 +368,12 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
             <input className="input" type="time" value={hastaLaHora} onChange={(evento) => setHastaLaHora(evento.target.value)} />
           </label>
         </div>
-        <button type="button" className="btn btn-outline" disabled={!diaCerrado || cerrarDia.isPending || afectadas.length > 0} onClick={() => cerrarDia.mutate({ dia: diaCerrado, desde: desdeLaHora, hasta: hastaLaHora })}>
+        <button type="button" className="btn btn-outline" disabled={!diaCerrado || cerrarDia.isPending || miraCierre || Boolean(errorDelCierre) || afectadas.length > 0} onClick={() => cerrarDia.mutate({ dia: diaCerrado, desde: desdeLaHora, hasta: hastaLaHora })}>
           {cerrarDia.isPending ? 'Cerrando...' : desdeLaHora || hastaLaHora ? 'Cerrar ese tramo' : 'Cerrar el día completo'}
         </button>
-        {diaCerrado && afectadas.length === 0 && <small>No hay reservas en ese rato: se puede cerrar.</small>}
+        {diaCerrado && errorDelCierre && <p className="error-text">No se pudo comprobar si hay reservas en ese rato: {errorDelCierre.message}. No cierres hasta resolverlo.</p>}
+        {diaCerrado && miraCierre && <small>Buscando reservas en ese rato...</small>}
+        {diaCerrado && !errorDelCierre && !miraCierre && afectadas.length === 0 && <small>No hay reservas en ese rato: se puede cerrar.</small>}
         {afectadas.length > 0 && <div className="ajustes-afectadas">
           <strong>{afectadas.length} {afectadas.length === 1 ? 'reserva tiene' : 'reservas tienen'} hora en ese rato</strong>
           <small>Para cerrarlo, primero avísales y cancélalas —o reagéndalas desde su ficha—. Si no, llegarían a la puerta.</small>
@@ -363,17 +385,26 @@ export function AjustesDelDia({ abierto, onCerrar, local, base = '/reservations'
               <span>{new Date(reserva.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} · {reserva.guestName} · {reserva.partySize} {reserva.partySize === 1 ? 'persona' : 'personas'}</span>
               <span className="ajustes-afectadas-acciones">
                 {(() => { const wsp = whatsappDeAviso(reserva); return wsp ? <a className="btn btn-outline btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Avisar</a> : null; })()}
-                <button type="button" className="btn btn-outline btn-sm" disabled={!motivoDelCierre.trim() || cancelarReserva.isPending} onClick={() => cancelarReserva.mutate(reserva)}>Cancelar</button>
+                <button type="button" className="btn btn-outline btn-sm" disabled={!motivoDelCierre.trim() || cancelarReserva.isPending} onClick={() => setReservaPorCancelar(reserva)}>Cancelar</button>
               </span>
             </li>)}
           </ul>
           {cancelarReserva.error && <p className="error-text">{cancelarReserva.error.message}</p>}
+          {reservaPorCancelar && <ConfirmarAccion
+            titulo={`Cancelar la reserva de ${reservaPorCancelar.guestName}`}
+            empresa={empresaParaConfirmar}
+            consecuencia="La reserva queda cancelada por el local, el cupo se libera y se registra el motivo del cierre."
+            confirmar="Cancelar la reserva"
+            enCurso={cancelarReserva.isPending}
+            onCancelar={() => setReservaPorCancelar(null)}
+            onConfirmar={() => cancelarReserva.mutate(reservaPorCancelar, { onSettled: () => setReservaPorCancelar(null) })}
+          />}
         </div>}
         {cerrarDia.error && <p className="error-text">{cerrarDia.error.message}</p>}
 
         {cierres.length > 0 && <ul className="ajustes-cierres">
           {cierres.map((cierre) => <li key={cierre.id}>
-            <span>{comoSeLee(cierre)}{cierre.reason ? ` · ${cierre.reason}` : ''}</span>
+            <span>{comoSeLee(cierre, zona)}{cierre.reason ? ` · ${cierre.reason}` : ''}</span>
             <button type="button" className="btn btn-outline btn-sm" disabled={quitarCierre.isPending} onClick={() => quitarCierre.mutate(cierre.id)}>Quitar</button>
           </li>)}
         </ul>}

@@ -3,6 +3,9 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { ModuleExempt } from '../../core/authorization/module-scope.decorator';
+import { AGENCIA, type EmpresaResuelta } from '../../core/client-scope/empresa-resuelta';
+import { ambitoDeLaPeticion } from '../../core/client-scope/empresa.interceptor';
+import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { SavedViewsService } from './saved-views.service';
 
@@ -30,14 +33,29 @@ class CompartirVistaDto {
 export class SavedViewsController {
   constructor(private readonly vistas: SavedViewsService) {}
 
+  /**
+   * La empresa a la que pertenecen las vistas de esta petición.
+   *
+   * Las del portal van atadas a la empresa con la que trabaja, ya comprobada contra su alcance: si
+   * la cuenta alcanza varias y no dice cuál, la petición falla en vez de anotarlas en una
+   * cualquiera. Las del equipo no pertenecen a ninguna empresa, así que esta ruta no le exige
+   * empresa a quien trabaja desde la agencia aunque alcance varias.
+   */
+  private empresaDeLasVistas(req: AuthenticatedRequest): EmpresaResuelta | null {
+    if (req.user.role !== UserRole.CLIENT) return null;
+    const ambito = ambitoDeLaPeticion(req as unknown as Record<PropertyKey, unknown>);
+    if (ambito instanceof Error) throw ambito;
+    return ambito === undefined || ambito === AGENCIA ? null : ambito;
+  }
+
   @Get()
   listar(@Req() req: AuthenticatedRequest, @Query('scope') scope: string) {
-    return this.vistas.listar(req.user, scope);
+    return this.vistas.listar(req.user, scope, this.empresaDeLasVistas(req));
   }
 
   @Post()
   guardar(@Req() req: AuthenticatedRequest, @Body() dto: GuardarVistaDto) {
-    return this.vistas.guardar(req.user, dto);
+    return this.vistas.guardar(req.user, dto, this.empresaDeLasVistas(req));
   }
 
   @Patch(':id')

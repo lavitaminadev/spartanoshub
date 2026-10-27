@@ -19,12 +19,12 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const client_entity_1 = require("../../../modules/clients/client.entity");
 const client_status_enum_1 = require("../../../modules/clients/client-status.enum");
-const ud_budget_entity_1 = require("../../../modules/design-budget/ud-budget.entity");
+const design_budget_service_1 = require("../../../modules/design-budget/design-budget.service");
 const account_cycles_service_1 = require("../../../modules/account-cycles/account-cycles.service");
 let CreateMonthlyCyclesJob = CreateMonthlyCyclesJob_1 = class CreateMonthlyCyclesJob {
-    constructor(clientRepo, budgetRepo, cycles) {
+    constructor(clientRepo, budgets, cycles) {
         this.clientRepo = clientRepo;
-        this.budgetRepo = budgetRepo;
+        this.budgets = budgets;
         this.cycles = cycles;
         this.logger = new common_1.Logger(CreateMonthlyCyclesJob_1.name);
     }
@@ -40,21 +40,10 @@ let CreateMonthlyCyclesJob = CreateMonthlyCyclesJob_1 = class CreateMonthlyCycle
         for (const client of activeClients) {
             try {
                 await this.cycles.ensure(client.organizationId, client.id, year, month);
-                const existing = await this.budgetRepo.findOne({
-                    where: { clientId: client.id, year, month },
-                });
-                if (existing)
+                const before = await this.budgets.findMonthlyBudget(client.id, year, month);
+                if (before)
                     continue;
-                const budget = this.budgetRepo.create({
-                    clientId: client.id,
-                    year,
-                    month,
-                    contracted: client.defaultUdBudget ?? 20,
-                    reserved: 0,
-                    consumed: 0,
-                    status: 'open',
-                });
-                await this.budgetRepo.save(budget);
+                await this.budgets.ensureMonthlyBudget(client.id, year, month);
                 created++;
             }
             catch (error) {
@@ -68,8 +57,7 @@ exports.CreateMonthlyCyclesJob = CreateMonthlyCyclesJob;
 exports.CreateMonthlyCyclesJob = CreateMonthlyCyclesJob = CreateMonthlyCyclesJob_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
-    __param(1, (0, typeorm_1.InjectRepository)(ud_budget_entity_1.UDBudget)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository,
+        design_budget_service_1.DesignBudgetService,
         account_cycles_service_1.AccountCyclesService])
 ], CreateMonthlyCyclesJob);

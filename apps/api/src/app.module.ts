@@ -55,6 +55,7 @@ import { PortalModule } from './modules/client-portal/portal.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { SurveysModule } from './modules/surveys/surveys.module';
 import { ServiceRequestsModule } from './modules/service-requests/service-requests.module';
+import { VulneracionesModule } from './modules/vulneraciones/vulneraciones.module';
 import { AccountAccessModule } from './core/client-scope/account-access.module';
 import { CronModule } from './core/cron/cron.module';
 import { ProcessTemplatesModule } from './modules/process-templates/process-templates.module';
@@ -161,6 +162,7 @@ const DB_CONNECTION_LIMIT = Math.max(1, parseInt(process.env.DB_CONNECTION_LIMIT
     PortalModule,
     SurveysModule,
     ServiceRequestsModule,
+    VulneracionesModule,
     ProcessTemplatesModule,
     AutomationsModule,
     PodsModule,

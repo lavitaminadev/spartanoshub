@@ -58,7 +58,7 @@ function armar(permitidas: string[] | undefined, capacidades: Record<string, boo
   const responses = { find: vi.fn().mockResolvedValue([]) };
   const dataSource = { query: vi.fn().mockResolvedValue([{ capabilities: capacidades }]) };
   const accountAccess = { allowedClientIds: vi.fn().mockResolvedValue(permitidas), assertClient: vi.fn() };
-  const controlador = new SurveysController(surveys as never, responses as never, dataSource as never, accountAccess as never, {} as never);
+  const controlador = new SurveysController(surveys as never, responses as never, dataSource as never, accountAccess as never, {} as never, {} as never, {} as never, {} as never, { nivelesDe: async () => ({ de: () => 'directo', deTodas: () => 'directo' }) } as never);
   const req = { organizationId: 'org', user: { id: 'u1', role: 'community_manager' } } as never;
   return { controlador, surveys, req, qb };
 }

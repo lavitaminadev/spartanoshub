@@ -280,7 +280,7 @@ function PasoInicio({ state, setState, clients, conRespuestas, isEdit }: {
           <span><strong>{state.anonymous ? 'No se guarda quién responde' : 'Se guarda quién responde'}</strong></span>
         </label>
         <small>{state.anonymous
-          ? 'No se guarda la cuenta, el nombre ni el correo de quien contesta. Los resultados muestran sólo los totales y no se puede saber después quién dijo qué.'
+          ? 'Los resultados no muestran quién contestó: sólo totales, sin nombre, correo ni cuenta. Si la encuesta se contesta por enlace o invitación, el sistema puede guardar internamente el nombre o el correo que la persona escriba, o los de su reserva, aunque nunca aparezcan en los resultados.'
           : state.type === 'internal'
             ? 'Cada respuesta queda con el nombre de la persona. En una encuesta al equipo eso cambia lo que se atreven a contestar: piénsalo antes de dejarlo así.'
             : 'Se guarda quien responde cuando deja su nombre o correo, o cuando llega por la invitación de una reserva.'}</small>

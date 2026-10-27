@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -76,7 +77,7 @@ export function DocumentsPage() {
   const canManage = hasRoleAccess(user?.role, ['admin', 'operations_director']);
   const canDelete = user?.role === 'admin';
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['documents'],
     queryFn: () => api.get<{ data: DocumentRecord[] }>('/documents'),
   });
@@ -240,7 +241,7 @@ export function DocumentsPage() {
   };
 
   if (isLoading) return <LoadingSpinner text="Cargando documentos..." />;
-  if (error) return <div className="alert alert-error">Error al cargar documentos</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar los documentos" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page">

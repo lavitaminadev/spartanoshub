@@ -21,8 +21,18 @@ export class UpdateOpportunityUseCase {
   /**
    * @param actorId - Persona que realiza el cambio, para el historial de etapas.
    */
-  async execute(id: string, dto: UpdateOpportunityDto, organizationId: string, actorId?: string): Promise<Opportunity> {
-    const opportunity = await this.getOpportunity.execute(id, organizationId);
+  /**
+   * Edita un trato de una de las empresas que la cuenta alcanza.
+   *
+   * `allowedClientIds` se pasa a la lectura y además acota a dónde se puede mover el trato: sin
+   * lo segundo, una edición podía cederlo a una empresa que la cuenta no alcanza, y perderlo de
+   * vista en el mismo acto.
+   */
+  async execute(id: string, dto: UpdateOpportunityDto, organizationId: string, actorId?: string, allowedClientIds?: string[]): Promise<Opportunity> {
+    const opportunity = await this.getOpportunity.execute(id, organizationId, allowedClientIds);
+    if (dto.clientId && allowedClientIds !== undefined && !allowedClientIds.includes(dto.clientId)) {
+      throw new BadRequestException('No puedes mover el trato a esa empresa');
+    }
     // Se lee antes de aplicar el DTO: después, `opportunity.stage` ya trae el valor nuevo y
     // la transición sería indistinguible de una edición que no movió el trato.
     const previousStage = opportunity.stage;

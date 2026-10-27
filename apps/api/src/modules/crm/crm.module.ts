@@ -61,9 +61,12 @@ import { NotificationsModule } from '../../core/notifications/notifications.modu
 import { CrmFieldDefinition } from './fields/crm-field-definition.entity';
 import { CrmFieldsService } from './fields/crm-fields.service';
 import { CrmFieldsController } from './fields/crm-fields.controller';
+import { AuthorizationModule } from '../../core/authorization/authorization.module';
+import { NivelDeDatosModule } from '../../core/client-scope/nivel-de-datos.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CrmFieldDefinition, ReglaDeCalificacion, Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule, MetaPixelsModule],
+  imports: [NivelDeDatosModule, AuthorizationModule, TypeOrmModule.forFeature([CrmFieldDefinition, ReglaDeCalificacion, Lead, Contact, Opportunity, OpportunityStageChange, Interaction, User, Client, Reservation, LeadIngestSource, Campaign, ApprovalRequest, ParameterDefinition, ParameterValue]), AccountAccessModule, AuditModule, ProcessTemplatesModule, NotificationsModule, ParametersModule, MetaPixelsModule, UsersModule],
   controllers: [LeadController, ContactsController, OpportunitiesController, InteractionsController, PublicAgencyLeadsController, LeadIngestController, CrmHomeController, IngestSourcesController, CampaignsController, StageLabelsController, CrmFieldsController, ReglasController],
   providers: [
     ReglasService,

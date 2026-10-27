@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
@@ -24,7 +25,7 @@ interface ClientMeetingItem {
 
 export function ClientMeetings() {
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery<ClientMeetingItem[]>({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<ClientMeetingItem[]>({
     queryKey: ['client-meetings'],
     queryFn: () => api.get('/meetings'),
   });
@@ -34,7 +35,7 @@ export function ClientMeetings() {
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando reuniones..." />;
-  if (error) return <div className="alert alert-error">Error al cargar reuniones</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar las reuniones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const meetings = Array.isArray(data) ? data : [];
 

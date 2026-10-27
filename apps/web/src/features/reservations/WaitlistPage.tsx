@@ -10,6 +10,7 @@ import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import type { Reservation, ReservationForm } from './types';
 import { respuestasLegibles } from './answer-labels';
+import { contactoDe, telefonoDe } from './datos-protegidos';
 import { browserDateBoundaryUtc } from './local-time';
 import { useUrlFilters } from '../../shared/use-url-filters';
 import { empresasConServicio } from '../../shared/empresas-con-servicio';
@@ -82,7 +83,7 @@ export function WaitlistPage() {
     onSuccess: (_resultado, item) => {
       void queryClient.invalidateQueries({ queryKey: ['reservations-waitlist'] });
       triggerToast(`${item.guestName} pasó a reserva confirmada.`);
-      const digitos = (item.guestPhone ?? '').replace(/\D/g, '');
+      const digitos = (telefonoDe(item) ?? '').replace(/\D/g, '');
       if (!digitos) return;
       const numero = digitos.length === 9 ? `56${digitos}` : digitos.length === 8 ? `569${digitos}` : digitos;
       const cuando = new Date(item.startsAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' });
@@ -146,7 +147,7 @@ export function WaitlistPage() {
       <button type="button" className="btn btn-outline btn-sm" disabled={!filtros.hasAny} onClick={filtros.clear}>Limpiar</button>
     </div>
 
-    {error ? (isForbiddenError(error) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar la lista de espera" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />)
+    {error ? (isForbiddenError(error) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar la lista de espera" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />)
       : isFetching && !waitlistPage ? <LoadingSpinner text="Buscando reservas en espera..." />
       : items.length === 0 ? <EmptyState icon="clock" title="Sin reservas en espera" description="Las solicitudes que queden en lista de espera aparecerán aquí." />
       : <div className="crm-table-container">
@@ -163,7 +164,7 @@ export function WaitlistPage() {
           <tbody>
             {items.map((item, index) => <tr key={item.id}>
               <td data-label="#">{index + 1}</td>
-              <td data-label="Quién espera"><strong>{item.guestName}</strong><br /><small>{item.guestPhone || item.guestEmail || 'Sin contacto'}</small>
+              <td data-label="Quién espera"><strong>{item.guestName}</strong><br /><small>{contactoDe(item)}</small>
                 <br /><small className="waitlist-local">{forms.find((form) => form.id === item.formId)?.name || 'Reserva no disponible'}</small>
                 {/* Quien devuelve la llamada necesita la alergia y la ocasión, no sólo la nota interna. */}
                 {(() => {
@@ -187,7 +188,7 @@ export function WaitlistPage() {
                     disabled={pasarAReserva.isPending}
                     onClick={() => pasarAReserva.mutate(item)}
                   >{pasarAReserva.isPending && pasarAReserva.variables?.id === item.id ? 'Pasando...' : 'Pasar a reserva'}</button>
-                  {item.guestPhone && <a className="btn btn-outline btn-sm" href={`tel:${item.guestPhone}`}>Llamar</a>}
+                  {telefonoDe(item) && <a className="btn btn-outline btn-sm" href={`tel:${telefonoDe(item)}`}>Llamar</a>}
                   <Link className="btn btn-outline btn-sm" to={detailLink(item)}>Ver detalle</Link>
                 </div>
               </td>

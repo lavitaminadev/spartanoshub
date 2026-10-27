@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -70,16 +71,18 @@ export function MeetingsPage() {
   const [meetingStatus, setMeetingStatus] = useState('scheduled');
   const queryClient = useQueryClient();
 
-  const { data: meetings, isLoading, error } = useQuery<Meeting[]>({
+  const { data: meetings, isLoading, error, refetch, isFetching } = useQuery<Meeting[]>({
     queryKey: ['meetings'],
     queryFn: () => api.get('/meetings'),
   });
 
-  const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({
-    queryKey: ['clients'],
-    queryFn: () => api.get('/clients'),
+  // El servidor entrega como máximo 100 por página; `total` dice si la lista quedó corta.
+  const { data: clientsResp } = useQuery<{ data: ClientOption[]; total?: number }>({
+    queryKey: ['clients', 'selector', 100],
+    queryFn: () => api.get('/clients?limit=100'),
   });
-  const clients = useMemo<ClientOption[]>(() => (clientsResp as { data: ClientOption[] } | undefined)?.data ?? [], [clientsResp]);
+  const clientesOmitidos = Math.max(0, (clientsResp?.total ?? 0) - (clientsResp?.data?.length ?? 0));
+  const clients = useMemo<ClientOption[]>(() => clientsResp?.data ?? [], [clientsResp]);
 
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.post('/meetings', body),
@@ -118,7 +121,7 @@ export function MeetingsPage() {
   );
 
   if (isLoading) return <LoadingSpinner text="Cargando reuniones..." />;
-  if (error) return <div className="alert alert-error">Error al cargar reuniones</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar las reuniones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const sorted = [...(meetings ?? [])].filter((meeting) => !clientFilter || meeting.clientId === clientFilter).sort(
     (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime(),
@@ -151,6 +154,7 @@ export function MeetingsPage() {
         </button>
       </div>
       <div className="filters"><select className="input" aria-label="Filtrar reuniones por cliente" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">Todos los clientes</option>{(clients ?? []).map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select><span className="filter-result-count">{sorted.length} reuniones</span></div>
+      {clientesOmitidos > 0 && <p className="page-subtitle" role="status">La lista de clientes muestra los primeros {clients.length} de {clientsResp?.total}: faltan {clientesOmitidos}, que no se pueden elegir aquí.</p>}
       {sorted.length === 0 ? (
         <EmptyState icon="calendar" title="Sin reuniones" description="Agenda tu primera reunión." action={<button className="btn btn-primary" onClick={() => { setForm((current) => ({ ...current, clientId: clientFilter })); setModalOpen(true); }}>+ Nueva Reunión</button>} />
       ) : (

@@ -3,9 +3,13 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Notification } from '../../notifications/notification.entity';
 import { ParameterResolver } from '../../parameters/parameter-resolver.service';
+import { plazoDeAviso } from '../../../modules/vulneraciones/plazo-de-aviso';
 import { plazoDeSolicitud } from '@espartanos/shared';
 
 interface RecipientRow { id: string }
+
+/** Con cuántos días de anticipación se avisa de un préstamo que vence. */
+export const DIAS_DE_AVISO_ANTES_DE_VENCER = 3;
 
 @Injectable()
 export class OperationalAlertsJob {
@@ -28,7 +32,9 @@ export class OperationalAlertsJob {
         created += await this.actionItemAlerts(organization.id);
         created += await this.budgetAlerts(organization.id);
         created += await this.cycleAlerts(organization.id);
+        created += await this.vulneracionAlerts(organization.id);
         created += await this.solicitudesDeDerechos(organization.id);
+        created += await this.prestamosPorVencer(organization.id);
       } catch (error) {
         this.logger.error(`Failed to scan alerts for organization ${organization.id}: ${error instanceof Error ? error.message : error}`);
       }
@@ -95,6 +101,54 @@ export class OperationalAlertsJob {
     return total;
   }
 
+  /**
+   * Las cuentas y acciones prestadas que vencen en los próximos días.
+   *
+   * Lo prestado caduca solo; el aviso existe para que quien lo concedió decida antes: renovar si la
+   * persona todavía lo necesita, o dejarlo caer. Va a quien lo concedió y no a la dirección, porque
+   * es quien sabe para qué era; si esa persona ya no está activa, a la dirección.
+   *
+   * Cada fila se avisa una sola vez: `expiry_notified_at` se limpia cuando se renueva o se cambia la
+   * fecha, de modo que una cesión renovada vuelve a avisar antes de su nuevo término.
+   */
+  private async prestamosPorVencer(organizationId: string): Promise<number> {
+    const dias = DIAS_DE_AVISO_ANTES_DE_VENCER;
+    const cuentas = await this.dataSource.query<Array<{ id: string; grantedBy: string | null; expiresAt: Date; persona: string; empresa: string }>>(
+      'SELECT a.id, a.granted_by grantedBy, a.expires_at expiresAt, u.name persona, c.name empresa FROM user_client_access a JOIN users u ON u.id = a.user_id JOIN clients c ON c.id = a.client_id WHERE a.organization_id = ? AND a.retired_at IS NULL AND a.expiry_notified_at IS NULL AND a.expires_at > NOW() AND a.expires_at <= DATE_ADD(NOW(), INTERVAL ? DAY) LIMIT 200',
+      [organizationId, dias],
+    );
+    const acciones = await this.dataSource.query<Array<{ id: string; grantedBy: string | null; expiresAt: Date; persona: string; accion: string }>>(
+      'SELECT a.id, a.granted_by grantedBy, a.expires_at expiresAt, u.name persona, a.action accion FROM user_action_overrides a JOIN users u ON u.id = a.user_id WHERE a.organization_id = ? AND a.expiry_notified_at IS NULL AND a.expires_at > NOW() AND a.expires_at <= DATE_ADD(NOW(), INTERVAL ? DAY) LIMIT 200',
+      [organizationId, dias],
+    );
+    if (!cuentas.length && !acciones.length) return 0;
+
+    const direccion = await this.directors(organizationId);
+    const activos = new Set((await this.dataSource.query<RecipientRow[]>('SELECT id FROM users WHERE organization_id = ? AND is_active = 1', [organizationId])).map((fila) => fila.id));
+    const destinatarios = (grantedBy: string | null) => (grantedBy && activos.has(grantedBy) ? [grantedBy] : direccion);
+
+    let total = 0;
+    for (const fila of cuentas) {
+      total += await this.notifyOnce(
+        organizationId, destinatarios(fila.grantedBy), 'acceso.por_vencer', `${fila.id}:${new Date(fila.expiresAt).getTime()}`,
+        'Acceso prestado por vencer',
+        `${fila.persona} deja de ver la cuenta ${fila.empresa} el ${new Date(fila.expiresAt).toLocaleDateString('es-CL')}. Renuévalo si todavía lo necesita; si no, se cierra solo.`,
+        { userClientAccessId: fila.id },
+      );
+      await this.dataSource.query('UPDATE user_client_access SET expiry_notified_at = NOW() WHERE id = ?', [fila.id]);
+    }
+    for (const fila of acciones) {
+      total += await this.notifyOnce(
+        organizationId, destinatarios(fila.grantedBy), 'accion.por_vencer', `${fila.id}:${new Date(fila.expiresAt).getTime()}`,
+        'Ajuste de acción por vencer',
+        `El ajuste de «${fila.accion}» para ${fila.persona} vence el ${new Date(fila.expiresAt).toLocaleDateString('es-CL')}. Renuévalo si todavía lo necesita; si no, la acción vuelve al nivel de su módulo.`,
+        { userActionOverrideId: fila.id },
+      );
+      await this.dataSource.query('UPDATE user_action_overrides SET expiry_notified_at = NOW() WHERE id = ?', [fila.id]);
+    }
+    return total;
+  }
+
   private async actionItemAlerts(organizationId: string): Promise<number> {
     const items = await this.dataSource.query<Array<{ id: string; description: string; assignedTo?: string; meetingId: string }>>(
       "SELECT ai.id, ai.description, ai.assigned_to assignedTo, ai.meeting_id meetingId FROM action_items ai JOIN meetings m ON m.id = ai.meeting_id WHERE m.organization_id = ? AND ai.status <> 'completed' AND ai.due_at IS NOT NULL AND ai.due_at < NOW()",
@@ -135,6 +189,37 @@ export class OperationalAlertsJob {
       if (!pending.length) continue;
       const recipients = cycle.communityManagerId ? [cycle.communityManagerId, ...fallback] : fallback;
       total += await this.notifyOnce(organizationId, [...new Set(recipients)], 'cycle.pending', `${cycle.id}:${pending.join('|')}`, 'Ciclo mensual con pendientes', `${cycle.clientName}: falta completar ${pending.join(', ')}.`, { cycleId: cycle.id, clientId: cycle.clientId, pending });
+    }
+    return total;
+  }
+
+  /**
+   * Vulneraciones cuyo aviso al local está por vencer o ya venció.
+   *
+   * El contrato promete avisar dentro de `PLAZO_AVISO_VULNERACION_HORAS` desde la detección. Se
+   * avisa a Dirección desde `ANTICIPO_ALERTA_HORAS` antes del vencimiento y se sigue avisando,
+   * ya como vencida, cada día hasta que alguien registre la fecha del aviso.
+   */
+  async vulneracionAlerts(organizationId: string): Promise<number> {
+    const incidentes = await this.dataSource.query<Array<{ id: string; descripcion: string; detectedAt: Date }>>(
+      'SELECT id, descripcion, detected_at detectedAt FROM security_incidents WHERE organization_id = ? AND aviso_local_at IS NULL',
+      [organizationId],
+    );
+    let total = 0;
+    const destinatarios = await this.directors(organizationId);
+    for (const incidente of incidentes) {
+      const plazo = plazoDeAviso(new Date(incidente.detectedAt), null);
+      if (plazo.estado !== 'por vencer' && plazo.estado !== 'vencido') continue;
+      const vencido = plazo.estado === 'vencido';
+      const resumen = incidente.descripcion.length > 120 ? `${incidente.descripcion.slice(0, 117)}...` : incidente.descripcion;
+      total += await this.notifyOnce(
+        organizationId, destinatarios, vencido ? 'security.incident_notice_overdue' : 'security.incident_notice_due', `${incidente.id}:${vencido ? 'overdue' : 'due'}`,
+        vencido ? 'Aviso de vulneración vencido' : 'Aviso de vulneración por vencer',
+        vencido
+          ? `Venció el plazo para avisar al local de la vulneración «${resumen}». Avisa y registra la fecha.`
+          : `Quedan ${Math.max(0, Math.floor(plazo.horasRestantes))} horas para avisar al local de la vulneración «${resumen}».`,
+        { incidentId: incidente.id, vence: plazo.vence },
+      );
     }
     return total;
   }

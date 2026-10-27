@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { ContactoDelLead } from './ContactoDelLead';
 import { CamposPropiosEnFicha, hayValoresInvalidos, useDefinicionesDeCampos, type ValoresEnEdicion } from './CamposPropiosEnFicha';
+import { CotizacionesDelLead } from './CotizacionesDelLead';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { api } from '../../core/api';
@@ -28,6 +29,9 @@ import { proximaFechaSugerida } from './agenda-sugerida';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { mensajeDePrimerContacto, whatsapp } from './contacto';
 import { registrarWhatsapp } from './registrar-whatsapp';
+import { estaProtegido } from '@espartanos/shared';
+import { ValorProtegido } from '../../shared/CampoProtegido';
+import { useRevelarProtegidos, valorLlegado, type AvisoDeDatosProtegidos } from '../../shared/datos-protegidos';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
 import { CALIFICACIONES, CALIFICACION_TITULO } from './calificacion';
@@ -40,6 +44,8 @@ interface Lead {
   name: string;
   email?: string | null;
   phone?: string | null;
+  /** Qué datos de contacto el servidor no mandó y si quien mira puede pedirlos. */
+  datosProtegidos?: AvisoDeDatosProtegidos;
   company?: string | null;
   status: string;
   /** Embudo al que pertenece: decide qué estados admite. Lo manda el servidor con el lead. */
@@ -217,8 +223,23 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const RESPUESTAS_VISIBLES = 5;
 
   const [nombre, setNombre] = useState(lead.name);
-  const [telefono, setTelefono] = useState(lead.phone ?? '');
-  const [correo, setCorreo] = useState(lead.email ?? '');
+  const [telefono, setTelefono] = useState(valorLlegado(lead.phone) ?? '');
+  const [correo, setCorreo] = useState(valorLlegado(lead.email) ?? '');
+  /*
+   * Teléfono y correo, según lo que el servidor entregó.
+   *
+   * Protegidos llegan como marca: no se editan ni se guardan hasta que se pidan con «Ver», que deja
+   * anotado quién los miró. Guardar la ficha sin haberlos visto no los envía, para no pisarlos.
+   */
+  const revelado = useRevelarProtegidos(`/crm/leads/${lead.id}/datos-protegidos`);
+  const telefonoGuardado = revelado.datos ? String(revelado.datos.phone ?? '') : valorLlegado(lead.phone) ?? '';
+  const correoGuardado = revelado.datos ? String(revelado.datos.email ?? '') : valorLlegado(lead.email) ?? '';
+  const contactoProtegido = !revelado.datos && (estaProtegido(lead.phone) || estaProtegido(lead.email));
+  useEffect(() => {
+    if (!revelado.datos) return;
+    setTelefono(String(revelado.datos.phone ?? ''));
+    setCorreo(String(revelado.datos.email ?? ''));
+  }, [revelado.datos]);
   const [nota, setNota] = useState(lead.notes ?? '');
   const [etapa, setEtapa] = useState(lead.status);
   const motivoRef = useRef<HTMLSelectElement>(null);
@@ -291,8 +312,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   useEffect(() => {
     if (cambiosLocales.current) return;
     setNombre(lead.name);
-    setTelefono(lead.phone ?? '');
-    setCorreo(lead.email ?? '');
+    setTelefono(telefonoGuardado);
+    setCorreo(correoGuardado);
     setNota(lead.notes ?? '');
     setEtapa(lead.status);
     setResponsable(lead.assignedTo ?? '');
@@ -309,7 +330,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
     setFuente(lead.source ?? '');
     setEmpresa(lead.clientId ?? '');
   }, [
-    lead.id, lead.name, lead.phone, lead.email, lead.notes, lead.status, lead.assignedTo,
+    lead.id, lead.name, telefonoGuardado, correoGuardado, lead.notes, lead.status, lead.assignedTo,
     lead.company, lead.campaignName,
     lead.estimatedAmount, lead.fitStatus, lead.trafficLight, lead.tags, lead.discardReason, lead.source, lead.clientId,
     lead.excludedFromMeta, lead.customFields,
@@ -407,8 +428,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
       // teléfono con un dígito de más es el único camino para llamar, y hasta ahora no había
       // dónde corregirlo: se editaba en la base o no se editaba.
       name: nombre.trim(),
-      phone: telefono.trim(),
-      email: correo.trim(),
+      ...(contactoProtegido ? {} : { phone: telefono.trim(), email: correo.trim() }),
       notes: nota,
       status: etapa,
       // Cadena vacía significa devolverlo a la bandeja común; el servidor distingue `null` de
@@ -583,7 +603,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
 
   // El interés sale de la campaña que lo trajo y, si no la hay, de su empresa: es lo que la
   // persona reconoce como el motivo por el que dejó sus datos.
-  const enlaceWhatsapp = whatsapp(lead.phone, mensajeDePrimerContacto({
+  const enlaceWhatsapp = whatsapp(telefonoGuardado, mensajeDePrimerContacto({
     nombre: lead.name,
     empresa: scope.empresa,
     interes: lead.campaignName || lead.company,
@@ -605,8 +625,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
   const sinCambios =
     // Los campos nuevos entran acá o «Guardar» se quedaría apagado justo al corregir un nombre.
     nombre === lead.name &&
-    telefono === (lead.phone ?? '') &&
-    correo === (lead.email ?? '') &&
+    (contactoProtegido || (telefono === telefonoGuardado && correo === correoGuardado)) &&
     nota === (lead.notes ?? '') &&
     etapa === lead.status &&
     responsable === (lead.assignedTo ?? '') &&
@@ -680,7 +699,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
           Lo que escribe —registrar gestión, mover de etapa, editar— es del equipo.
         */}
         <div className="lead-detail-acciones">
-          {lead.phone ? <a className="btn btn-outline btn-sm" href={`tel:${lead.phone}`}>Llamar</a> : null}
+          {telefonoGuardado ? <a className="btn btn-outline btn-sm" href={`tel:${telefonoGuardado}`}>Llamar</a> : null}
           {enlaceWhatsapp ? (
             <a
               className="btn btn-outline btn-sm"
@@ -697,7 +716,7 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
               }}
             >WhatsApp</a>
           ) : null}
-          {lead.email ? <a className="btn btn-outline btn-sm" href={`mailto:${lead.email}`}>Correo</a> : null}
+          {correoGuardado ? <a className="btn btn-outline btn-sm" href={`mailto:${correoGuardado}`}>Correo</a> : null}
           {scope.puedeEditar ? (
             <>
               <button
@@ -737,28 +756,38 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             <input className="input" value={nombre} onChange={(event) => editar(setNombre, event.target.value)} disabled={!scope.puedeEditar} />
           </label>
 
-          <label>
-            <span>Teléfono</span>
-            <input
-              className="input"
-              value={telefono}
-              onChange={(event) => editar(setTelefono, event.target.value)}
-              disabled={!scope.puedeEditar}
-              placeholder="Sin teléfono"
-            />
-          </label>
+          {contactoProtegido ? (
+            <div className="campo-protegido-ficha">
+              <span>Teléfono y correo</span>
+              <ValorProtegido sePuedePedir={lead.datosProtegidos?.sePuedePedir === true} pendiente={revelado.pendiente} onVer={revelado.ver} />
+              {revelado.error ? <small className="error-text">No se pudieron abrir los datos: {revelado.error.message}</small> : null}
+            </div>
+          ) : (
+            <>
+              <label>
+                <span>Teléfono</span>
+                <input
+                  className="input"
+                  value={telefono}
+                  onChange={(event) => editar(setTelefono, event.target.value)}
+                  disabled={!scope.puedeEditar}
+                  placeholder="Sin teléfono"
+                />
+              </label>
 
-          <label>
-            <span>Correo</span>
-            <input
-              className="input"
-              type="email"
-              value={correo}
-              onChange={(event) => editar(setCorreo, event.target.value)}
-              disabled={!scope.puedeEditar}
-              placeholder="Sin correo"
-            />
-          </label>
+              <label>
+                <span>Correo</span>
+                <input
+                  className="input"
+                  type="email"
+                  value={correo}
+                  onChange={(event) => editar(setCorreo, event.target.value)}
+                  disabled={!scope.puedeEditar}
+                  placeholder="Sin correo"
+                />
+              </label>
+            </>
+          )}
 
           <label>
             <span>Empresa</span>
@@ -842,6 +871,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             La columna se conserva y lo guardado no se toca: si vuelven, será con un catálogo
             cerrado y con filtro, que es lo que las haría servir para algo.
           */}
+
+          {(lead.domain ?? leadInicial.domain ?? 'commercial') === 'commercial' && <CotizacionesDelLead leadId={lead.id} />}
 
           {/* Datos propios que el CRM no trae, definidos en Administración. */}
           <CamposPropiosEnFicha

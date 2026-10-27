@@ -16,6 +16,7 @@ import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { AdministracionDelEquipoService } from './administracion-del-equipo.service';
 import { AdministradoresDeEmpresaService } from './administradores-de-empresa.service';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 /**
  * Endpoints de administración de usuarios.
@@ -43,6 +44,7 @@ export class UsersController {
    * cuentas, y hasta ahora eso solo se descubría cuando alguien llamaba a preguntar.
    */
   @Get('administran-equipo')
+  @RequiereArea('users.equipo', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Quiénes administran el equipo de una empresa' })
   async administranEquipo(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -62,6 +64,7 @@ export class UsersController {
    * exactamente cuáles sin preguntar una por una.
    */
   @Get(':id/administra')
+  @RequiereArea('users.equipo', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Empresas cuyo equipo administra esta persona' })
   async empresasQueAdministra(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -82,6 +85,7 @@ export class UsersController {
    * todos o ninguno, que es justo lo que no se quiere.
    */
   @Put(':id/administra/:clientId')
+  @RequiereArea('users.perfiles', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @RequiresRecentAuth('conceder la administración del equipo de una empresa')
   @ApiOperation({ summary: 'Conceder la administración del equipo de una empresa' })
@@ -91,11 +95,12 @@ export class UsersController {
   }
 
   @Delete(':id/administra/:clientId')
+  @RequiereArea('users.perfiles', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @RequiresRecentAuth('retirar la administración del equipo de una empresa')
   @ApiOperation({ summary: 'Retirar la administración del equipo de una empresa' })
-  async retirarAdministracion(@Param('id') id: string, @Param('clientId') clientId: string, @Req() req: AuthenticatedRequest) {
-    await this.definirAdministracion(id, clientId, false, req);
+  async retirarAdministracion(@Param('id') id: string, @Param('clientId') clientId: string, @Req() req: AuthenticatedRequest, @Query('motivo') motivo?: string) {
+    await this.definirAdministracion(id, clientId, false, req, motivo);
     return { clientId, administra: false };
   }
 
@@ -105,7 +110,7 @@ export class UsersController {
    * La empresa pedida pasa por `alcance()`, que rechaza la que queda fuera: sin eso, quien
    * administra un local podría nombrarse administrador de otro cambiando el id de la dirección.
    */
-  private async definirAdministracion(id: string, clientId: string, puede: boolean, req: AuthenticatedRequest): Promise<void> {
+  private async definirAdministracion(id: string, clientId: string, puede: boolean, req: AuthenticatedRequest, motivo?: string): Promise<void> {
     const alcance = await this.administracion.alcance(req, clientId);
     this.administracion.asegurarDentro(alcance, { clientId, role: UserRole.CLIENT });
     await this.administradores.definir(
@@ -114,6 +119,8 @@ export class UsersController {
       clientId,
       puede,
       req.user.id,
+      // Sin límite de alcance es la agencia: la única que puede retirar a la última persona, con motivo.
+      { esAgencia: !alcance.soloEmpresa, motivo, ip: req.ip },
     );
   }
 
@@ -129,6 +136,7 @@ export class UsersController {
     compara con el menú, y porque un cargo fuera de ella se rechaza antes de tocar nada.
   */
   @Post()
+  @RequiereArea('users.invitar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Crear un nuevo usuario' })
   async create(@Body() dto: CreateUserDto, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
@@ -159,6 +167,7 @@ export class UsersController {
    * Lista los usuarios acotados a la organización del solicitante.
    */
   @Get()
+  @RequiereArea('users.equipo', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar usuarios' })
   async list(
@@ -206,6 +215,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @RequiereArea('users.invitar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   // Cambiar el cargo de alguien cambia qué cuentas ve y qué puede hacer con ellas. Un
   // computador desbloqueado y desatendido alcanza para hacerlo si solo se pide sesión abierta.
@@ -239,6 +249,7 @@ export class UsersController {
   }
 
   @Post(':id/reset-password')
+  @RequiereArea('users.clave', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.DEV)
   // Entrega una contraseña temporal de otra cuenta: es tomar el control de esa cuenta.
   @RequiresRecentAuth('restablecer la contraseña de otra persona')
@@ -253,6 +264,7 @@ export class UsersController {
   }
 
   @Post(':id/resend-access')
+  @RequiereArea('users.clave', 'hacer')
   @Roles(UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR)
   @RequiresRecentAuth('reenviar el acceso de otra persona')
   @ApiOperation({ summary: 'Reenviar el correo de acceso a quien aún no eligió su contraseña' })

@@ -14,6 +14,7 @@ import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 @ApiTags('Presupuesto UD')
 @Controller('design-budget')
@@ -30,6 +31,7 @@ export class DesignBudgetController {
   ) {}
 
   @Post('budget')
+  @RequiereArea('production.presupuesto', 'ver')
   @Roles(UserRole.OPERATIONS_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Obtener o crear presupuesto UD del mes' })
   async getOrCreateBudget(@Body() dto: GetOrCreateBudgetDto, @Req() req: AuthenticatedRequest) {
@@ -46,6 +48,7 @@ export class DesignBudgetController {
    * pieza.
    */
   @Patch('budget')
+  @RequiereArea('production.ajustar_presupuesto', 'hacer')
   @Roles(UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Ajustar las UD contratadas de un mes' })
   async ajustarPresupuesto(@Body() dto: AjustarPresupuestoDto, @Req() req: AuthenticatedRequest) {
@@ -56,6 +59,7 @@ export class DesignBudgetController {
   }
 
   @Post('reserve')
+  @RequiereArea('production.asignar', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Reservar UDs para una pieza' })
   async reserveUd(@Body() dto: ReserveUdDto, @Req() req: AuthenticatedRequest) {
@@ -64,6 +68,7 @@ export class DesignBudgetController {
   }
 
   @Post('confirm')
+  @RequiereArea('production.entregar', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Confirmar consumo de UDs' })
   async confirmUd(@Body() dto: ConfirmUdDto, @Req() req: AuthenticatedRequest) {

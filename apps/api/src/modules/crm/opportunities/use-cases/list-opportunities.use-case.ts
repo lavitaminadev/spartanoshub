@@ -24,16 +24,24 @@ export class ListOpportunitiesUseCase {
     offset = 0,
     leadId?: string,
     allowedClientIds?: string[],
+    clientId?: string,
   ): Promise<{ data: Opportunity[]; total: number; limit: number; offset: number }> {
     const base: Record<string, unknown> = { organizationId };
     if (leadId) base.leadId = leadId;
 
-    const where = allowedClientIds === undefined
-      ? base
-      : [
-        { ...base, clientId: IsNull() },
-        ...(allowedClientIds.length ? [{ ...base, clientId: In(allowedClientIds) }] : []),
-      ];
+    /*
+     * Con una empresa elegida se mira sólo su embudo. Quien la pide ya la comprobó contra el
+     * alcance, así que no hace falta cruzarla con la lista: lo que hacía falta era poder
+     * acotarla, porque sin eso la pantalla mostraba varias carteras bajo un mismo encabezado.
+     */
+    const where = clientId
+      ? { ...base, clientId }
+      : allowedClientIds === undefined
+        ? base
+        : [
+          { ...base, clientId: IsNull() },
+          ...(allowedClientIds.length ? [{ ...base, clientId: In(allowedClientIds) }] : []),
+        ];
 
     const [data, total] = await this.repo.findAndCount({
       where,

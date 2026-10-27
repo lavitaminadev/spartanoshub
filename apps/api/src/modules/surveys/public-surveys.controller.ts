@@ -14,6 +14,7 @@ import { CompleteSurveyResponseDto, StartSurveyResponseDto, SubmitSurveyResponse
 import { PublicSurveyFlowService } from './public-survey-flow.service';
 import { problemasDeRespuesta } from '@espartanos/shared';
 import { aceptacionAGuardar, consentimientoDeEncuesta, contactoEscrito } from './consentimiento-de-encuesta';
+import { preguntasContestables, respuestasFueraDeRango } from './validar-respuestas-publicas';
 
 function publicSurveyUrl(id: string): string | undefined {
   const publicOrigin = (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
@@ -120,9 +121,12 @@ export class PublicSurveysController {
     if (!survey || survey.status !== 'active') throw new NotFoundException('La encuesta no está disponible');
     await encuestaPublicaDisponible(this.surveys, survey.clientId);
 
-    const known = new Set((survey.questions ?? []).map((question) => question.id));
+    const known = new Set(preguntasContestables(survey.questions ?? []).map((question) => question.id));
     const unknown = Object.keys(dto.answers ?? {}).filter((key) => !known.has(key));
     if (unknown.length > 0) throw new BadRequestException(`La encuesta no tiene las preguntas: ${unknown.join(', ')}`);
+
+    const fueraDeRango = respuestasFueraDeRango(survey.questions ?? [], dto.answers ?? {});
+    if (fueraDeRango.length > 0) throw new BadRequestException(fueraDeRango.join(' · '));
 
     // Obligatorias según lo que la persona vio, y datos de contacto con formato válido.
     const problemas = problemasDeRespuesta(survey.questions ?? [], dto.answers ?? {});

@@ -30,6 +30,7 @@ const module_scope_decorator_1 = require("../../core/authorization/module-scope.
 const administracion_del_equipo_service_1 = require("./administracion-del-equipo.service");
 const administradores_de_empresa_service_1 = require("./administradores-de-empresa.service");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 let UsersController = class UsersController {
     constructor(createUser, listUsers, updateUser, resetUserPassword, administracion, administradores, accesos) {
         this.createUser = createUser;
@@ -59,14 +60,14 @@ let UsersController = class UsersController {
         await this.definirAdministracion(id, clientId, true, req);
         return { clientId, administra: true };
     }
-    async retirarAdministracion(id, clientId, req) {
-        await this.definirAdministracion(id, clientId, false, req);
+    async retirarAdministracion(id, clientId, req, motivo) {
+        await this.definirAdministracion(id, clientId, false, req, motivo);
         return { clientId, administra: false };
     }
-    async definirAdministracion(id, clientId, puede, req) {
+    async definirAdministracion(id, clientId, puede, req, motivo) {
         const alcance = await this.administracion.alcance(req, clientId);
         this.administracion.asegurarDentro(alcance, { clientId, role: user_role_enum_1.UserRole.CLIENT });
-        await this.administradores.definir(req.organizationId || req.user.organizationId, id, clientId, puede, req.user.id);
+        await this.administradores.definir(req.organizationId || req.user.organizationId, id, clientId, puede, req.user.id, { esAgencia: !alcance.soloEmpresa, motivo, ip: req.ip });
     }
     async create(dto, req, clientId) {
         const alcance = await this.administracion.alcance(req, clientId);
@@ -146,6 +147,7 @@ let UsersController = class UsersController {
 exports.UsersController = UsersController;
 __decorate([
     (0, common_1.Get)('administran-equipo'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Quiénes administran el equipo de una empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -156,6 +158,7 @@ __decorate([
 ], UsersController.prototype, "administranEquipo", null);
 __decorate([
     (0, common_1.Get)(':id/administra'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Empresas cuyo equipo administra esta persona' }),
     __param(0, (0, common_1.Param)('id')),
@@ -167,6 +170,7 @@ __decorate([
 ], UsersController.prototype, "empresasQueAdministra", null);
 __decorate([
     (0, common_1.Put)(':id/administra/:clientId'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.perfiles', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('conceder la administración del equipo de una empresa'),
     (0, swagger_1.ApiOperation)({ summary: 'Conceder la administración del equipo de una empresa' }),
@@ -179,18 +183,21 @@ __decorate([
 ], UsersController.prototype, "concederAdministracion", null);
 __decorate([
     (0, common_1.Delete)(':id/administra/:clientId'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.perfiles', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('retirar la administración del equipo de una empresa'),
     (0, swagger_1.ApiOperation)({ summary: 'Retirar la administración del equipo de una empresa' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('clientId')),
     __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_1.Query)('motivo')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:paramtypes", [String, String, Object, String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "retirarAdministracion", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('users.invitar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Crear un nuevo usuario' }),
     __param(0, (0, common_1.Body)()),
@@ -202,6 +209,7 @@ __decorate([
 ], UsersController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar usuarios' }),
     __param(0, (0, common_1.Query)('role')),
@@ -215,6 +223,7 @@ __decorate([
 ], UsersController.prototype, "list", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.invitar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('cambiar los datos o el cargo de una persona'),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar usuario' }),
@@ -228,6 +237,7 @@ __decorate([
 ], UsersController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/reset-password'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.clave', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('restablecer la contraseña de otra persona'),
     (0, swagger_1.ApiOperation)({ summary: 'Generar una contraseña temporal y revocar sesiones activas' }),
@@ -240,6 +250,7 @@ __decorate([
 ], UsersController.prototype, "resetPassword", null);
 __decorate([
     (0, common_1.Post)(':id/resend-access'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.clave', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('reenviar el acceso de otra persona'),
     (0, swagger_1.ApiOperation)({ summary: 'Reenviar el correo de acceso a quien aún no eligió su contraseña' }),

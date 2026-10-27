@@ -16,9 +16,9 @@ además se oculta la existencia.
 | Usuarios | 200 | 200 | 403 | 403 | 403 |
 | Reservas | 200 | 200 | 200 | 403 | 200 |
 | Reservas · formularios | 200 | 200 | 200 | 403 | 200 |
-| Aprobaciones | 200 | 403 | 403 | 403 | 403 |
-| Reuniones | 200 | 403 | 403 | 403 | 403 |
-| Contenido · grillas | 200 | 403 | 403 | 403 | 403 |
+| Aprobaciones | 400 | 403 | 403 | 403 | 403 |
+| Reuniones | 400 | 403 | 403 | 403 | 403 |
+| Contenido · grillas | 400 | 403 | 403 | 403 | 403 |
 | Informes · panel | 200 | 200 | 200 | 403 | 403 |
 | Tareas · mías | 200 | 200 | 200 | 200 | 200 |
 

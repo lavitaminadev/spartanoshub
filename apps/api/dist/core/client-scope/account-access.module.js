@@ -8,7 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AccountAccessModule = void 0;
 const common_1 = require("@nestjs/common");
+const core_1 = require("@nestjs/core");
 const typeorm_1 = require("@nestjs/typeorm");
+const empresa_interceptor_1 = require("./empresa.interceptor");
 const client_entity_1 = require("../../modules/clients/client.entity");
 const pod_member_entity_1 = require("../../modules/pods/pod-member.entity");
 const account_access_service_1 = require("./account-access.service");
@@ -21,7 +23,11 @@ exports.AccountAccessModule = AccountAccessModule = __decorate([
     (0, common_1.Global)(),
     (0, common_1.Module)({
         imports: [typeorm_1.TypeOrmModule.forFeature([client_entity_1.Client, pod_member_entity_1.PodMember, user_client_access_entity_1.UserClientAccess])],
-        providers: [account_access_service_1.AccountAccessService, client_capability_service_1.ClientCapabilityService],
+        providers: [
+            account_access_service_1.AccountAccessService,
+            client_capability_service_1.ClientCapabilityService,
+            { provide: core_1.APP_INTERCEPTOR, useClass: empresa_interceptor_1.EmpresaInterceptor },
+        ],
         exports: [account_access_service_1.AccountAccessService, client_capability_service_1.ClientCapabilityService],
     })
 ], AccountAccessModule);

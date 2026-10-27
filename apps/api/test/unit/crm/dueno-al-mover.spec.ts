@@ -35,39 +35,46 @@ const conEquipo = [{ id: 'usr-1', name: 'Una' }, { id: 'usr-2', name: 'Otra' }];
 describe('el dueño de un lead al moverlo de etapa', () => {
   it('lo toma quien lo mueve, si es la única persona que puede atenderlo', async () => {
     const { uso } = caso(leadDeLaEmpresa(), solaEnLaEmpresa);
-    const resultado = await uso.execute('l1', { status: LeadStatus.CONTACTED }, 'org-1', 'usr-1', 'cli-1');
+    const resultado = await uso.execute('l1', { status: LeadStatus.CONTACTED }, 'org-1', 'usr-1');
     expect(resultado.assignedTo).toBe('usr-1');
   });
 
   it('no reparte nada cuando la empresa tiene equipo', async () => {
     const { uso } = caso(leadDeLaEmpresa(), conEquipo);
-    const resultado = await uso.execute('l1', { status: LeadStatus.CONTACTED }, 'org-1', 'usr-1', 'cli-1');
+    const resultado = await uso.execute('l1', { status: LeadStatus.CONTACTED }, 'org-1', 'usr-1');
     expect(resultado.assignedTo).toBeFalsy();
   });
 
+  /*
+   * Lo que lo garantiza es la propia lista de responsables: son las cuentas cuya empresa es la
+   * del lead, así que una cuenta de la agencia no figura en ella y no puede ser «la única».
+   * Había además una comprobación aparte de pertenencia, y resultaba ser otra cosa según el
+   * papel: para una cuenta de empresa se le pasaba la empresa del lead, de modo que se comparaba
+   * consigo misma; para el equipo interno, algo que nunca existe. No añadía ninguna reja.
+   */
   it('no lo toma quien supervisa desde la agencia', async () => {
     const { uso } = caso(leadDeLaEmpresa(), solaEnLaEmpresa);
-    const resultado = await uso.execute('l1', { status: LeadStatus.CONTACTED }, 'org-1', 'usr-agencia', null);
+    const resultado = await uso.execute('l1', { status: LeadStatus.CONTACTED }, 'org-1', 'usr-agencia');
     expect(resultado.assignedTo).toBeFalsy();
   });
 
   it('respeta al responsable que ya tenía', async () => {
     const { uso } = caso({ ...leadDeLaEmpresa(), assignedTo: 'usr-otro' }, solaEnLaEmpresa);
-    const resultado = await uso.execute('l1', { status: LeadStatus.CONTACTED }, 'org-1', 'usr-1', 'cli-1');
+    const resultado = await uso.execute('l1', { status: LeadStatus.CONTACTED }, 'org-1', 'usr-1');
     expect(resultado.assignedTo).toBe('usr-otro');
   });
 
   it('respeta al responsable elegido a mano en la misma petición', async () => {
     const { uso } = caso(leadDeLaEmpresa(), conEquipo);
     const resultado = await uso.execute(
-      'l1', { status: LeadStatus.CONTACTED, assignedTo: 'usr-elegido' }, 'org-1', 'usr-1', 'cli-1',
+      'l1', { status: LeadStatus.CONTACTED, assignedTo: 'usr-elegido' }, 'org-1', 'usr-1',
     );
     expect(resultado.assignedTo).toBe('usr-elegido');
   });
 
   it('guardar sin cambiar de etapa no reparte responsables', async () => {
     const { uso } = caso(leadDeLaEmpresa(), solaEnLaEmpresa);
-    const resultado = await uso.execute('l1', { notes: 'Llamada sin respuesta' }, 'org-1', 'usr-1', 'cli-1');
+    const resultado = await uso.execute('l1', { notes: 'Llamada sin respuesta' }, 'org-1', 'usr-1');
     expect(resultado.assignedTo).toBeFalsy();
   });
 });

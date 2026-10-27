@@ -34,6 +34,7 @@ import { IntegrationAccount } from '../../modules/integrations/integration-accou
 import { DataProtectionModule } from '../data-protection/data-protection.module';
 import { MetaModule } from '../../modules/integrations/meta/meta.module';
 import { AccountCyclesModule } from '../../modules/account-cycles/account-cycles.module';
+import { DesignBudgetModule } from '../../modules/design-budget/design-budget.module';
 import { JobSchedulerService } from './job-scheduler.service';
 import { ParametersModule } from '../parameters/parameters.module';
 import { OperationalAlertsJob } from './cron/operational-alerts.job';
@@ -49,7 +50,7 @@ import { CrmModule } from '../../modules/crm/crm.module';
 import { AutomationsModule } from '../../modules/automations/automations.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([XPPeriod, XPEvent, Client, UDBudget, Piece, Notification, Invoice, Lead, IntegrationAccount, Reservation, ReservationForm, Survey, ReservationManagementToken, ReservationEvent, ReservationHold, ReservationCoupon, ApprovalRequest, User, Suscriptor, CronRun]), EmailModule, DataProtectionModule, MetaModule, AccountCyclesModule, ParametersModule, GoogleModule, CrmModule, AutomationsModule, MarketingModule, CollaborationModule],
+  imports: [TypeOrmModule.forFeature([XPPeriod, XPEvent, Client, UDBudget, Piece, Notification, Invoice, Lead, IntegrationAccount, Reservation, ReservationForm, Survey, ReservationManagementToken, ReservationEvent, ReservationHold, ReservationCoupon, ApprovalRequest, User, Suscriptor, CronRun]), EmailModule, DataProtectionModule, MetaModule, AccountCyclesModule, ParametersModule, GoogleModule, CrmModule, AutomationsModule, MarketingModule, CollaborationModule, DesignBudgetModule],
   providers: [CloseXpPeriodsJob, CreateMonthlyCyclesJob, DetectStalePiecesJob, LeadsParadosJob, RecordatorioDeTareasJob, ResumenDiarioJob, SaludoDeCumpleanosJob, RecordatorioDeReservasJob, EncuestaPostVisitaJob, CuponPostVisitaJob, AutoCloseReservationsJob, CollectionEmailsJob, PurgeExpiredLeadsJob, MetaLeadRecoveryJob, OperationalAlertsJob, RecoverReservationIntegrationsJob, JobSchedulerService],
   exports: [CloseXpPeriodsJob, CreateMonthlyCyclesJob, DetectStalePiecesJob, LeadsParadosJob, RecordatorioDeTareasJob, ResumenDiarioJob, SaludoDeCumpleanosJob, RecordatorioDeReservasJob, EncuestaPostVisitaJob, CuponPostVisitaJob, AutoCloseReservationsJob, CollectionEmailsJob, PurgeExpiredLeadsJob, MetaLeadRecoveryJob, OperationalAlertsJob, RecoverReservationIntegrationsJob],
 })

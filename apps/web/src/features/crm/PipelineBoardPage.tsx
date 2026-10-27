@@ -156,7 +156,7 @@ export function PipelineBoardPage() {
   };
 
   if (isLoading) return <LoadingSpinner />;
-  if (error) return <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} />;
+  if (error) return <QueryErrorState message={(error as Error).message} error={error} onRetry={() => void refetch()} />;
 
   return (
     <div className="page">

@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -77,7 +78,7 @@ export function ContractsPage() {
     else createMutation.mutate({ ...common, clientId: form.clientId, startDate: form.startDate });
   };
   if (contractsQuery.isLoading) return <LoadingSpinner text="Cargando contratos..." />;
-  if (contractsQuery.error) return <div className="alert alert-error">Error al cargar contratos: {contractsQuery.error.message}</div>;
+  if (contractsQuery.error) return <QueryErrorState title="No pudimos cargar los contratos" message={contractsQuery.error.message} error={contractsQuery.error} onRetry={() => void contractsQuery.refetch()} retrying={contractsQuery.isFetching} />;
   return <div className="page">
     <PageHero
       eyebrow="GOBIERNO COMERCIAL"

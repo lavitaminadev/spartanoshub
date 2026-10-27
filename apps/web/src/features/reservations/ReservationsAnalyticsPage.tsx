@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 import { ReservationResults } from '../dashboard/ReservationResults';
 import { MotivosDePerdida } from './MotivosDePerdida';
+import { NoShowPorDia } from './NoShowPorDia';
 import { useEmpresaActiva } from '../../shared/empresa-activa';
 
 /**
@@ -38,5 +39,6 @@ export function ReservationsAnalyticsPage({ clientId }: { clientId?: string } = 
     ) : null}
     <ReservationResults clientId={elegida || undefined} headingLevel={1} detalle />
     <MotivosDePerdida clientId={elegida || undefined} />
+    <NoShowPorDia clientId={elegida || undefined} />
   </>;
 }

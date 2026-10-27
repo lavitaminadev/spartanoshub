@@ -1,3 +1,4 @@
+import { DialogoModal } from '../../shared/DialogoModal';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -5,18 +6,29 @@ import './ExportModal.css';
 import { VitaIcons } from '../../shared/Icons';
 import { triggerToast } from '../../shared/toast-events';
 
+/** Para qué se exporta: decide el formato, qué lleva y qué se exige. */
+type Finalidad = 'planilla' | 'hoja' | 'csv';
+
 interface ExportOptions {
-  format: 'xlsx' | 'csv' | 'imprimir';
+  finalidad: Finalidad;
   dateFrom: string;
   dateTo: string;
   fields: string[];
+  /** El día de la hoja del turno. */
+  fecha: string;
+  motivo: string;
 }
+
+const MOTIVO_MINIMO = 10;
+const DIAS_QUE_EXIGEN_MOTIVO = 31;
 
 interface ExportModalProps {
   open: boolean;
   onClose: () => void;
   /** Formulario a exportar. Sin él no hay nada que descargar y el botón queda inhabilitado. */
   formId?: string;
+  /** Locales entre los que elegir cuando no llega un `formId`: la exportación es de un local a la vez. */
+  locales?: Array<{ id: string; name: string }>;
   /** Oculta los campos de uso interno cuando la vista corresponde al cliente. */
   clientView?: boolean;
 }
@@ -39,132 +51,104 @@ const AVAILABLE_FIELDS: Array<{ id: string; label: string; internal?: boolean }>
   { id: 'party_size', label: 'Personas' },
 ];
 
-/** Escapa lo que entra en la hoja: los datos los escribe quien reserva, no el equipo. */
-function escaparHtml(valor: unknown): string {
-  return String(valor ?? '').replace(/[&<>"']/g, (caracter) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[caracter]!);
-}
-
 /**
- * Hoja imprimible de las reservas.
+ * El mensaje del servidor cuando la respuesta se pidió como archivo.
  *
- * El navegador ya sabe convertir una página a PDF, así que en vez de sumar una librería de 300 KB
- * al paquete se abre una ventana con la tabla lista y se pide imprimir. Se ve igual en pantalla y
- * en papel, y en el teléfono la tabla se adapta en vez de salirse de la hoja.
+ * Con `responseType: 'blob'` hasta el error llega como Blob; sin leerlo, el motivo por el que se
+ * rechazó una exportación se perdía detrás de un mensaje genérico.
  */
-function abrirHojaImprimible(titulo: string, registros: Array<Record<string, unknown>>, etiquetaDe: (clave: string) => string): boolean {
-  const columnas = [...new Set(registros.flatMap((registro) => Object.keys(registro)))];
-  const ventana = window.open('', '_blank', 'noopener');
-  if (!ventana) return false;
-  const filas = registros.map((registro) => `<tr>${columnas.map((columna) => `<td data-col="${escaparHtml(etiquetaDe(columna))}">${escaparHtml(registro[columna])}</td>`).join('')}</tr>`).join('');
-  ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escaparHtml(titulo)}</title><style>
-  :root { color-scheme: light; }
-  body { margin:0; padding:24px; background:#fff; color:#1c1a1d; font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; border-bottom:2px solid #0e8c82; padding-bottom:10px; }
-  h1 { margin:0; font-size:20px; }
-  header small { color:#706a73; }
-  table { width:100%; border-collapse:collapse; font-size:12px; }
-  th, td { padding:7px 9px; text-align:left; vertical-align:top; border-bottom:1px solid #e7e1e5; }
-  th { background:#0e8c82; color:#fff; font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
-  /* La primera columna es el nombre: en una hoja que se lee de reojo, conviene que pese. */
-  tbody td:first-child { font-weight:600; }
-  tbody tr:nth-child(even) td { background:#f7faf9; }
-  tfoot { color:#706a73; font-size:11px; }
-  @media print {
-    body { padding:0; }
-    /* La cabecera se repite en cada hoja: sin esto, a partir de la segunda no se sabe qué es cada columna. */
-    thead { display:table-header-group; }
-    tr { break-inside:avoid; }
-    /* Los navegadores quitan los fondos al imprimir, y con ellos se va la cabecera verde. */
-    th, tbody tr:nth-child(even) td { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    .no-imprimir { display:none; }
-    @page { margin:14mm 10mm; }
+async function mensajeDeError(error: unknown, porDefecto: string): Promise<string> {
+  const datos = (error as { response?: { data?: unknown } })?.response?.data;
+  if (datos instanceof Blob) {
+    try {
+      const cuerpo = JSON.parse(await datos.text()) as { message?: string | string[] };
+      return Array.isArray(cuerpo.message) ? cuerpo.message.join(' · ') : cuerpo.message || porDefecto;
+    } catch {
+      return porDefecto;
+    }
   }
-  @media (max-width:640px) {
-    thead { display:none; }
-    tbody tr { display:block; margin-bottom:10px; border:1px solid #e7e1e5; border-radius:8px; padding:6px; }
-    tbody td { display:flex; justify-content:space-between; gap:12px; border:0; padding:4px 6px; }
-    tbody td::before { content:attr(data-col); color:#706a73; font-size:11px; text-transform:uppercase; }
-  }
-</style></head><body>
-<header><h1>${escaparHtml(titulo)}</h1><small>${registros.length} reserva${registros.length === 1 ? '' : 's'} · ${escaparHtml(new Date().toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short' }))}</small></header>
-<table><thead><tr>${columnas.map((columna) => `<th>${escaparHtml(etiquetaDe(columna))}</th>`).join('')}</tr></thead><tbody>${filas}</tbody></table>
-</body></html>`);
-  ventana.document.close();
-  ventana.focus();
-  // Deja pintar antes de abrir el diálogo: sin esto algunos navegadores imprimen la hoja vacía.
-  ventana.setTimeout(() => ventana.print(), 300);
-  return true;
+  return error instanceof Error && error.message ? error.message : porDefecto;
 }
 
-export function ExportModal({ open, onClose, formId, clientView = false }: ExportModalProps) {
+function descargar(blob: Blob, nombre: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Cuántos días abarca el rango; `null` si le falta alguno de los dos extremos. */
+function diasDelRango(desde: string, hasta: string): number | null {
+  if (!desde || !hasta) return null;
+  return (new Date(hasta).getTime() - new Date(desde).getTime()) / 86_400_000;
+}
+
+export function ExportModal({ open, onClose, formId: formIdRecibido, locales = [], clientView = false }: ExportModalProps) {
+  const [formIdElegido, setFormIdElegido] = useState('');
+  const formId = formIdRecibido || formIdElegido || (locales.length === 1 ? locales[0].id : undefined);
   const [options, setOptions] = useState<ExportOptions>({
-    format: 'xlsx',
+    finalidad: 'planilla',
     dateFrom: '',
     dateTo: '',
     fields: ['name', 'phone', 'email', 'date', 'status', 'attendance'],
+    fecha: new Date().toLocaleDateString('en-CA'),
+    motivo: '',
   });
 
   const availableFields = AVAILABLE_FIELDS.filter((field) => !field.internal || !clientView);
+  const esHoja = options.finalidad === 'hoja';
 
-  /**
-   * Hoja lista para imprimir o guardar como PDF, con los mismos datos y filtros del archivo.
+  /*
+   * Si pedir este archivo exigirá un motivo, para avisarlo antes de enviar.
    *
-   * Pide el JSON de siempre: la tabla se arma en el navegador. Si el navegador bloquea la ventana
-   * emergente se avisa, porque el fallo es silencioso y parece que el botón no hizo nada.
+   * Es una estimación para no rebotar a la persona: la decisión es del servidor, que además
+   * considera cuántas filas salen y si el archivo lleva las respuestas del formulario.
    */
-  const imprimirMutation = useMutation({
-    mutationFn: async () => {
-      if (!formId) throw new Error('Selecciona una página de reserva antes de exportar');
-      const { dateFrom, dateTo, fields } = options;
-      return api.post<Array<Record<string, unknown>>>(`/reservations/forms/${formId}/export`, {
-        format: 'json',
-        fields: clientView ? fields.filter((field) => field !== 'notes') : fields,
-        ...(dateFrom ? { dateFrom } : {}),
-        ...(dateTo ? { dateTo } : {}),
-      });
-    },
-    onSuccess: (registros) => {
-      const lista = Array.isArray(registros) ? registros : [];
-      if (lista.length === 0) { triggerToast('No hay reservas en ese rango', 'error'); return; }
-      const etiquetaDe = (clave: string) => AVAILABLE_FIELDS.find((campo) => campo.id === clave)?.label ?? clave;
-      const abierta = abrirHojaImprimible(`Reservas · ${new Date().toLocaleDateString('es-CL', { dateStyle: 'long' })}`, lista, etiquetaDe);
-      if (!abierta) { triggerToast('Tu navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio.', 'error'); return; }
-      onClose();
-    },
-    onError: (error: Error) => triggerToast(error.message || 'No se pudo preparar la hoja', 'error'),
-  });
+  const dias = diasDelRango(options.dateFrom, options.dateTo);
+  const llevaContacto = options.fields.includes('phone') || options.fields.includes('email');
+  const motivoProbable = !esHoja && (llevaContacto || dias === null || dias > DIAS_QUE_EXIGEN_MOTIVO);
+  const motivoLimpio = options.motivo.replace(/\s+/g, ' ').trim();
+  const faltaMotivo = motivoProbable && motivoLimpio.length < MOTIVO_MINIMO;
 
   const exportMutation = useMutation({
     mutationFn: async () => {
-      if (!formId) throw new Error('Selecciona un formulario antes de exportar');
-      // El cliente de API adjunta la sesión y renueva el token; una llamada directa a axios
-      // no lleva la cabecera de autorización.
-      const { dateFrom, dateTo, ...exportOptions } = options;
-      const payload = {
-        ...exportOptions,
-        ...(dateFrom ? { dateFrom } : {}),
-        ...(dateTo ? { dateTo } : {}),
-      };
-      return api.post<Blob>(
-        `/reservations/forms/${formId}/export`,
-        clientView ? { ...payload, fields: options.fields.filter((field) => field !== 'notes') } : payload,
-        { responseType: 'blob' },
-      );
+      if (!formId) throw new Error('Selecciona un local antes de exportar');
+      try {
+        // El cliente de API adjunta la sesión y renueva el token; una llamada directa a axios
+        // no lleva la cabecera de autorización. Todo se arma en el servidor, que además deja
+        // constancia de quién lo sacó.
+        if (esHoja) {
+          const blob = await api.get<Blob>(`/reservations/forms/${formId}/hoja-del-turno?fecha=${encodeURIComponent(options.fecha)}`, { responseType: 'blob' });
+          return { blob, nombre: `hoja-del-turno-${options.fecha}.pdf` };
+        }
+        const formato = options.finalidad === 'csv' ? 'csv' : 'xlsx';
+        const blob = await api.post<Blob>(
+          `/reservations/forms/${formId}/export`,
+          {
+            format: formato,
+            fields: clientView ? options.fields.filter((field) => field !== 'notes') : options.fields,
+            ...(options.dateFrom ? { dateFrom: options.dateFrom } : {}),
+            ...(options.dateTo ? { dateTo: options.dateTo } : {}),
+            ...(motivoLimpio ? { motivo: motivoLimpio } : {}),
+          },
+          { responseType: 'blob' },
+        );
+        const dia = new Date().toISOString().slice(0, 10);
+        return { blob, nombre: formato === 'csv' ? `reservas-para-procesar-${dia}.csv` : `reservas-${dia}.xlsx` };
+      } catch (error) {
+        throw new Error(await mensajeDeError(error, 'No se pudo preparar el archivo'));
+      }
     },
-    onSuccess: (blob: Blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `reservas-${new Date().toISOString().slice(0, 10)}.${options.format}`;
-      a.click();
-      URL.revokeObjectURL(url);
-      triggerToast(options.format === 'xlsx' ? 'Planilla descargada.' : 'Archivo descargado.', 'success');
+    onSuccess: ({ blob, nombre }) => {
+      descargar(blob, nombre);
+      triggerToast(esHoja ? 'Hoja del turno descargada.' : options.finalidad === 'csv' ? 'CSV descargado.' : 'Planilla descargada.', 'success');
       onClose();
     },
     onError: (error: Error) => {
       triggerToast(error.message || 'No se pudo descargar el archivo', 'error');
-    }
+    },
   });
 
   const handleFieldToggle = (fieldId: string, checked: boolean) => {
@@ -178,9 +162,8 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
   if (!open) return null;
 
   return (
-    <>
-      <div className="modal-overlay" onClick={onClose} />
-      <div className="modal export-modal">
+    <DialogoModal etiqueta="Exportar reservas" onCerrar={onClose} className="modal-overlay">
+      <div className="modal export-modal" data-retiene-toque>
         <div className="modal-header">
           <h2>Exportar reservas</h2>
           <button className="close-btn" onClick={onClose} title="Cerrar">
@@ -189,58 +172,85 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
         </div>
 
         <div className="modal-content">
-          <label>
-            <span>Rango de fechas</span>
-            <div className="date-range">
-              <input
-                type="date"
-                value={options.dateFrom}
-                onChange={(e) => setOptions({ ...options, dateFrom: e.target.value })}
-              />
-              <span>a</span>
-              <input
-                type="date"
-                value={options.dateTo}
-                onChange={(e) => setOptions({ ...options, dateTo: e.target.value })}
-              />
-            </div>
-          </label>
-
-          <label>
-            <span>Formato</span>
-            <select
-              value={options.format}
-              onChange={(e) => setOptions({ ...options, format: e.target.value as ExportOptions['format'] })}
-            >
-              <option value="xlsx">Excel (.xlsx)</option>
-              <option value="csv">CSV</option>
-              <option value="imprimir">Hoja imprimible (PDF)</option>
+          {!formIdRecibido && locales.length > 1 && <label>
+            <span>Local a exportar</span>
+            <select value={formIdElegido} onChange={(e) => setFormIdElegido(e.target.value)}>
+              <option value="">Elige un local</option>
+              {locales.map((local) => <option key={local.id} value={local.id}>{local.name}</option>)}
             </select>
-            {/*
-              JSON se quitó de la lista: nadie del local abre un JSON, y quien lo necesita de
-              verdad —la hoja imprimible— lo pide por dentro sin pasar por aquí. Una opción que
-              sólo sirve para equivocarse es una opción de menos.
-            */}
-            {options.format === 'xlsx' && <small>Se abre en Excel tal cual: cabecera fija, columnas al ancho de su contenido y todo como texto, así que un teléfono con «+» no se convierte en fórmula.</small>}
-            {options.format === 'csv' && <small>Texto separado por comas, para subirlo a otra herramienta. Excel también lo abre, pero la planilla de arriba se ve mejor.</small>}
-            {options.format === 'imprimir' && <small>Se abre una hoja lista para imprimir. En el diálogo del navegador elige «Guardar como PDF».</small>}
+            <small>Se exporta un local a la vez.</small>
+          </label>}
+
+          <label>
+            <span>¿Para qué la necesitas?</span>
+            <select
+              value={options.finalidad}
+              onChange={(e) => setOptions({ ...options, finalidad: e.target.value as Finalidad })}
+            >
+              <option value="hoja">Hoja del turno (PDF para imprimir)</option>
+              <option value="planilla">Planilla con contacto (Excel)</option>
+              <option value="csv">CSV para otra herramienta</option>
+            </select>
+            {esHoja && <small>Un día, listo para imprimir. No lleva teléfonos, correos ni respuestas del formulario: donde una reserva tiene restricciones dice «ver en pantalla», porque el papel no deja constancia de quién lo leyó.</small>}
+            {options.finalidad === 'planilla' && <small>Se abre en Excel tal cual: cabecera fija, columnas al ancho de su contenido y todo como texto, así que un teléfono con «+» no se convierte en fórmula. Lleva una primera fila que dice quién la sacó y cuándo.</small>}
+            {options.finalidad === 'csv' && <small>Texto separado por comas, solo para subirlo a otra herramienta. Para leerlo tú, la planilla se ve mejor.</small>}
           </label>
 
-          <fieldset>
-            <legend>Campos a incluir</legend>
-            <div className="fields-grid">
-              {availableFields.map(field => (
-                <label key={field.id} className="field-checkbox">
+          {esHoja ? (
+            <label>
+              <span>Día del turno</span>
+              <input type="date" value={options.fecha} onChange={(e) => setOptions({ ...options, fecha: e.target.value })} />
+            </label>
+          ) : (
+            <>
+              <label>
+                <span>Rango de fechas</span>
+                <div className="date-range">
                   <input
-                    type="checkbox"
-                    checked={options.fields.includes(field.id)}
-                    onChange={(e) => handleFieldToggle(field.id, e.target.checked)}
+                    type="date"
+                    value={options.dateFrom}
+                    onChange={(e) => setOptions({ ...options, dateFrom: e.target.value })}
                   />
-                  <span>{field.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+                  <span>a</span>
+                  <input
+                    type="date"
+                    value={options.dateTo}
+                    onChange={(e) => setOptions({ ...options, dateTo: e.target.value })}
+                  />
+                </div>
+                <small>Sacar un mes o más, o sin fechas, queda anotado y pide un motivo.</small>
+              </label>
+
+              <fieldset>
+                <legend>Campos a incluir</legend>
+                <div className="fields-grid">
+                  {availableFields.map(field => (
+                    <label key={field.id} className="field-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={options.fields.includes(field.id)}
+                        onChange={(e) => handleFieldToggle(field.id, e.target.checked)}
+                      />
+                      <span>{field.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <small>Quien no tiene acceso directo a los datos de contacto recibe el archivo sin esas columnas.</small>
+              </fieldset>
+
+              <label>
+                <span>Motivo{motivoProbable ? ' (obligatorio)' : ''}</span>
+                <textarea
+                  rows={2}
+                  maxLength={500}
+                  value={options.motivo}
+                  onChange={(e) => setOptions({ ...options, motivo: e.target.value })}
+                  placeholder="Ej.: confirmar las mesas del fin de semana"
+                />
+                <small>Queda anotado junto a tu nombre, la fecha y las columnas que salieron.</small>
+              </label>
+            </>
+          )}
         </div>
 
         <div className="modal-actions">
@@ -249,16 +259,14 @@ export function ExportModal({ open, onClose, formId, clientView = false }: Expor
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => (options.format === 'imprimir' ? imprimirMutation.mutate() : exportMutation.mutate())}
-            disabled={exportMutation.isPending || imprimirMutation.isPending || !formId || options.fields.length === 0}
-            title={!formId ? 'Elige una página de reserva para poder exportar' : undefined}
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending || !formId || (esHoja ? !options.fecha : options.fields.length === 0 || faltaMotivo)}
+            title={!formId ? 'Elige un local para poder exportar' : faltaMotivo ? 'Escribe el motivo para poder exportar' : undefined}
           >
-            {options.format === 'imprimir'
-              ? (imprimirMutation.isPending ? 'Preparando...' : 'Abrir hoja imprimible')
-              : (exportMutation.isPending ? 'Descargando...' : 'Descargar')}
+            {exportMutation.isPending ? 'Preparando...' : esHoja ? 'Descargar la hoja' : 'Descargar'}
           </button>
         </div>
       </div>
-    </>
+    </DialogoModal>
   );
 }

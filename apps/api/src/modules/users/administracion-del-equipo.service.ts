@@ -64,15 +64,32 @@ export class AdministracionDelEquipoService {
      */
     const organizacion = request.organizationId || request.user.organizationId;
     if (!organizacion) throw new ForbiddenException('Tu cuenta no administra personas');
-    const alcanzables = await this.alcanceDeCuentas.allowedClientIds(organizacion, request.user);
-    const empresa = empresaPedida && alcanzables?.includes(empresaPedida)
-      ? empresaPedida
+    /*
+     * Una empresa declarada que no se alcanza es un 404, no la propia.
+     *
+     * Caer en la suya convertía «administrar el equipo del local que escribí» en «administrar el
+     * de mi local» con un 200 encima: se crean cuentas y se reparten accesos en el local
+     * equivocado creyendo que la dirección no se tomó en cuenta.
+     */
+    const empresa = empresaPedida?.trim()
+      ? await this.empresaAlcanzada(organizacion, request.user, empresaPedida.trim())
       : request.user.clientId;
     if (!empresa) throw new ForbiddenException('Tu cuenta no administra personas');
 
     const puede = await this.permisos.can(organizacion, request.user.id, rol, 'users', 'manage', empresa);
     if (!puede) throw new ForbiddenException('Tu cuenta no administra personas');
     return { soloEmpresa: empresa };
+  }
+
+  /**
+   * La empresa declarada, comprobada contra el alcance de la cuenta.
+   *
+   * Responde 404 y no 403: decir «existe pero no la alcanzas» ya confirma que la agencia la
+   * atiende, que es lo que el resto del sistema evita decir.
+   */
+  private async empresaAlcanzada(organizacion: string, user: AuthenticatedRequest['user'], pedida: string): Promise<string> {
+    await this.alcanceDeCuentas.assertClient(organizacion, user, pedida);
+    return pedida;
   }
 
   /**

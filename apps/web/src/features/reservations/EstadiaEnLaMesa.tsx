@@ -57,8 +57,8 @@ export function EstadiaEnLaMesa({ reserva, zonaHoraria, onCambio }: Props) {
     <p>
       <strong>Mesa ocupada.</strong>{' '}
       {yaPaso
-        ? <>Se liberó sola a las {hora(fin, zonaHoraria)}. Si siguen sentados, alárgala para que no se vuelva a ofrecer.</>
-        : <>Cuando se retiren, libérala para volver a ofrecer el cupo. Si nadie lo marca, se libera sola a las {hora(fin, zonaHoraria)}.</>}
+        ? <>Pasó la hora prevista ({hora(fin, zonaHoraria)}), pero la mesa sigue ocupada hasta que marques la salida o el local cierre.</>
+        : <>Cuando se retiren, libérala para volver a ofrecer el cupo. Si nadie lo marca, sigue ocupada pasada la hora prevista ({hora(fin, zonaHoraria)}) hasta que el local cierre.</>}
     </p>
     <div className="estadia-acciones">
       <button type="button" className="btn btn-primary btn-sm" disabled={marcar.isPending} onClick={() => marcar.mutate('se_fue')}>Se retiró · liberar mesa</button>

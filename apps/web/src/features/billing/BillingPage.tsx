@@ -1,4 +1,5 @@
-﻿import { useState } from 'react';
+﻿import { QueryErrorState } from '../../shared/QueryErrorState';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { DataTable } from '../../shared/DataTable';
@@ -28,7 +29,7 @@ export function BillingPage() {
   const queryClient = useQueryClient();
   const filtros = useUrlFilters(['estado']);
   const [prices, setPrices] = useState<Record<string, string>>({});
-  const { data: invoicesResp, isLoading, error } = useQuery<{ data: Invoice[] }>({ queryKey: ['invoices'], queryFn: () => api.get('/billing/invoices') });
+  const { data: invoicesResp, isLoading, error, refetch, isFetching } = useQuery<{ data: Invoice[] }>({ queryKey: ['invoices'], queryFn: () => api.get('/billing/invoices') });
   const todas = (invoicesResp?.data ?? []) as Invoice[];
   // Filtro básico: número y estado. Los estados salen de lo que hay cargado y no de una lista
   // escrita acá, así que un estado nuevo en el servidor aparece sin tocar esta pantalla.
@@ -45,7 +46,7 @@ export function BillingPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['charge-notes'] }),
   });
   if (isLoading) return <LoadingSpinner />;
-  if (error) return <div className="alert alert-error">Error al cargar facturas</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar las facturas" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   const chargeNotes = Array.isArray(chargeData) ? chargeData : [];
   return (
     <div className="page">

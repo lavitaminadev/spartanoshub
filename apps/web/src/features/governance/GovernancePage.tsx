@@ -115,7 +115,7 @@ export function GovernancePage() {
     return <LoadingSpinner text="Preparando gobernanza operativa..." />;
   }
   const loadError = workflowsQuery.error || podsQuery.error || usersQuery.error || clientsQuery.error;
-  if (loadError) return <QueryErrorState title="No pudimos abrir la gobernanza" message={loadError.message} />;
+  if (loadError) return <QueryErrorState title="No pudimos abrir la gobernanza" message={loadError.message} error={loadError} />;
 
   return <div className="page governance-page">
     <PageHero

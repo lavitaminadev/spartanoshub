@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import {
   DestinatarioDeAvisos, TIPOS_DE_AVISO_VALIDOS, type TipoDeAviso,
 } from './destinatario-de-avisos.entity';
@@ -26,6 +26,7 @@ export class DestinatariosDeAvisosService {
   constructor(
     @InjectRepository(DestinatarioDeAvisos)
     private readonly repo: Repository<DestinatarioDeAvisos>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -57,6 +58,46 @@ export class DestinatariosDeAvisosService {
     }
 
     return [...correos];
+  }
+
+  /**
+   * De estas direcciones, las que son una cuenta activa con nivel `directo` sobre los datos
+   * protegidos de un módulo en este local.
+   *
+   * Es la única comprobación de «esta dirección es alguien con nivel» que hacen los correos: una
+   * dirección escrita a mano en ajustes —un buzón compartido— no tiene perfil ni nivel y nunca
+   * entra al resultado. Lo que no se pueda resolver (sin cuenta, sin perfil, perfil ilegible, la
+   * consulta falla) queda fuera: la duda se resuelve recortando, nunca entregando.
+   */
+  async conNivelDirecto(
+    organizationId: string,
+    clientId: string,
+    modulo: string,
+    correos: string[],
+  ): Promise<Set<string>> {
+    const candidatos = [...new Set(correos.map((c) => c.trim().toLowerCase()).filter(Boolean))];
+    if (!candidatos.length) return new Set();
+    try {
+      const filas = (await this.dataSource.query(
+        `SELECT LOWER(u.email) AS email, p.protected_data AS datos
+           FROM users u
+           JOIN perfil_asignaciones a ON a.user_id = u.id AND a.client_id = ? AND a.organization_id = ?
+           JOIN perfiles p ON p.id = a.perfil_id AND p.client_id = ? AND p.organization_id = ?
+          WHERE u.organization_id = ? AND u.is_active = 1 AND LOWER(u.email) IN (?)`,
+        [clientId, organizationId, clientId, organizationId, organizationId, candidatos],
+      )) as Array<{ email: string; datos: unknown }>;
+      const directos = new Set<string>();
+      for (const fila of filas ?? []) {
+        let datos: unknown = fila.datos;
+        if (typeof datos === 'string') {
+          try { datos = JSON.parse(datos); } catch { continue; }
+        }
+        if ((datos as Record<string, unknown> | null)?.[modulo] === 'directo') directos.add(fila.email);
+      }
+      return directos;
+    } catch {
+      return new Set();
+    }
   }
 
   /** Las casillas anotadas en un local, para la pantalla que las mantiene. */

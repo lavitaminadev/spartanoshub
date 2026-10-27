@@ -5,6 +5,8 @@ import { DataTable } from '../../shared/DataTable';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { Modal } from '../../shared/Modal';
 import { triggerToast } from '../../shared/toast-events';
+import { estaProtegido } from '@espartanos/shared';
+import { TEXTO_PROTEGIDO } from '../../shared/datos-protegidos';
 
 interface Campana {
   id: string;
@@ -102,8 +104,9 @@ export function CampanasPage() {
           <span className="page-eyebrow">MARKETING</span>
           <h1>Campañas</h1>
           <p className="page-subtitle">
-            Un correo escrito a mano para quienes aceptaron recibirlo. Cada envío lleva su enlace de
-            baja, y quien se dio de baja no aparece en ninguna lista.
+            Un correo escrito a mano para quienes aceptaron recibirlo. Los envíos a la lista de
+            marketing llevan el enlace de baja de cada persona y no incluyen a quien ya se dio de
+            baja. Los avisos a quienes administran la empresa no llevan enlace de baja.
           </p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setEditando('nueva')}>Escribir una campaña</button>
@@ -156,7 +159,7 @@ export function CampanasPage() {
         <span className="filter-result-count">{total} campaña{total === 1 ? '' : 's'}</span>
       </div>
 
-      {error ? <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} /> : (
+      {error ? <QueryErrorState message={(error as Error).message} error={error} onRetry={() => void refetch()} /> : (
         <DataTable<Campana>
           storageKey="campanas"
           keyExtractor={(fila) => fila.id}
@@ -329,7 +332,7 @@ function EditorDeCampana({ campana, empresas, onCerrar, onGuardada }: {
           Ahora mismo llegaría a <strong>{aQuienes.total}</strong> {aQuienes.total === 1 ? 'persona' : 'personas'}
           {' · '}<span>{aQuienes.deQuienes}</span>
           {aQuienes.muestra.length > 0 && <small>
-            {' '}Por ejemplo: {aQuienes.muestra.map((fila) => fila.nombre || fila.email).join(', ')}…
+            {' '}Por ejemplo: {aQuienes.muestra.map((fila) => fila.nombre || (estaProtegido(fila.email) ? TEXTO_PROTEGIDO : fila.email)).join(', ')}…
           </small>}
         </p>}
 
@@ -425,7 +428,7 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
     onSuccess: (resultado) => {
       // Encolada, no enviada: decir «enviada» aquí sería mentir durante los minutos que tarda.
       triggerToast(
-        `En cola para ${resultado.destinatarios} personas. Los correos salen en los próximos minutos; verás el avance en la lista.`,
+        `${destino === 'administradores' ? 'Aviso de servicio en cola para' : 'En cola para'} ${resultado.destinatarios} ${destino === 'administradores' ? (resultado.destinatarios === 1 ? 'cuenta que administra' : 'cuentas que administran') : (resultado.destinatarios === 1 ? 'persona' : 'personas')}. Los correos salen en los próximos minutos; verás el avance en la lista.`,
         'success',
       );
       onEnviada();
@@ -449,14 +452,14 @@ function ConfirmarEnvio({ campana, nombreDeLista, onCerrar, onEnviada }: {
 
         {isLoading ? <p>Contando destinatarios…</p> : (
           <p className="envio-cifra">
-            Le llegará a <strong>{total}</strong> {total === 1 ? 'persona' : 'personas'}.
+            Le llegará a <strong>{total}</strong> {destino === 'administradores' ? (total === 1 ? 'cuenta que administra la empresa' : 'cuentas que administran la empresa') : (total === 1 ? 'persona' : 'personas')}.
           </p>
         )}
 
         {/* Unos nombres, no la lista entera: sirven para reconocerla, que es de lo que se trata. */}
         {(cuenta?.muestra?.length ?? 0) > 0 && <ul className="envio-muestra">
-          {cuenta!.muestra.map((fila) => (
-            <li key={fila.email}>{fila.nombre ? `${fila.nombre} · ${fila.email}` : fila.email}</li>
+          {cuenta!.muestra.map((fila, posicion) => (
+            <li key={`${posicion}-${fila.email}`}>{[fila.nombre, estaProtegido(fila.email) ? null : fila.email].filter(Boolean).join(' · ') || TEXTO_PROTEGIDO}</li>
           ))}
           {total > cuenta!.muestra.length && <li className="tabla-nota">y {total - cuenta!.muestra.length} más</li>}
         </ul>}
@@ -549,9 +552,9 @@ function FallidosDeLaCampana({ campanaId, cuantos }: { campanaId: string; cuanto
       <summary>{cuantos} sin entregar</summary>
       {!data ? <small className="tabla-nota">Buscando…</small> : (
         <ul>
-          {data.fallidos.map((fallo) => (
-            <li key={fallo.email}>
-              <strong>{fallo.email}</strong>
+          {data.fallidos.map((fallo, posicion) => (
+            <li key={`${posicion}-${fallo.email}`}>
+              <strong>{estaProtegido(fallo.email) ? TEXTO_PROTEGIDO : fallo.email}</strong>
               <small>{fallo.motivo ?? (fallo.estado === 'expired' ? 'Se dio de baja antes de que saliera' : 'Sin detalle')} · {fallo.intentos} {fallo.intentos === 1 ? 'intento' : 'intentos'}</small>
             </li>
           ))}

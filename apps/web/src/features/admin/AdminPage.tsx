@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { ROLE_LABELS } from '../../core/role-labels';
+import { getAllowedRolesForPath, isRoleAllowedForPath } from '../../core/navigation.registry';
 import {
   MODULE_LIFECYCLE_LABELS,
   MODULE_LIFECYCLE_STATUSES,
@@ -62,6 +63,18 @@ const LEVEL_LABELS: Record<PermissionLevel, string> = { none: 'Sin acceso', view
 const LEVEL_COLORS: Record<PermissionLevel, string> = { none: '#706a73', view: '#1f6fb2', edit: '#9a5a00', manage: '#096f6b' };
 const MODULE_CATALOG = ORGANIZATION_MODULE_CATALOG;
 const ROLE_KEYS = Object.keys(ROLE_LABELS);
+/** Qué hace cada cargo en la agencia, en palabras corrientes. Sólo los cargos con descripción en `role-permissions.ts`. */
+const ROLE_DESCRIPTIONS: Partial<Record<string, string>> = {
+  admin: 'Uso cotidiano del sistema: usuarios, clientes y configuración. No configura el producto.',
+  dev: 'Opera y libera los módulos en desarrollo. Una sola persona por organización.',
+  commercial_director: 'Pipeline, precios, contratos y visión global del negocio.',
+  creative_director: 'Estrategia de cuentas, aprobación creativa y moodboards.',
+  art_director: 'Estándar gráfico y asignación de diseño.',
+  av_director: 'Sesiones, equipo y edición de video y foto.',
+  ai_lead: 'Flujos de inteligencia artificial transversales y su validación.',
+  community_manager: 'Grillas, reuniones de seguimiento y validación con el cliente.',
+  client: 'Entra por su portal: consulta lo suyo y valida piezas.',
+};
 const ROLE_DEFAULTS: Record<string, PermissionLevel> = {
   admin: 'manage', commercial_director: 'edit', creative_director: 'edit',
   operations_director: 'edit', art_director: 'edit', av_director: 'edit',
@@ -106,6 +119,14 @@ export function AdminPage() {
    * nadie. Estaba fijada a `dev`, así que la pestaña existía y no se dibujaba nunca para él.
    */
   const esDesarrollo = user?.role === 'dev';
+  /*
+   * Los accesos rápidos no ofrecen pantallas que el cargo no alcanza.
+   *
+   * Se pregunta al mismo registro que decide el acceso en vez de repetir el cargo aquí: si el
+   * manifiesto de una pantalla cambia, la tarjeta cambia con él. Escribir el cargo a mano es lo
+   * que dejó «Seguridad» ofrecida a administración, que al entrar recibe un «sin acceso».
+   */
+  const puedeEntrarA = (ruta: string) => isRoleAllowedForPath(getAllowedRolesForPath(ruta), user?.role);
   const canManagePermissions = esDesarrollo || user?.role === 'admin';
 
   /**
@@ -137,7 +158,6 @@ export function AdminPage() {
   const [exceptionClient, setExceptionClient] = useState('');
   const [consentDraft, setConsentDraft] = useState({ title: '', text: '' });
   const [consentPublishOpen, setConsentPublishOpen] = useState(false);
-  const [pwdPolicy, setPwdPolicy] = useState({ minLength: 8, requireUppercase: true, requireNumber: true, requireSpecial: false, expiryDays: 90, preventReuse: 5 });
 
   const permsQuery = useQuery<{ matrix?: Record<string, Record<string, string>> }>({ queryKey: ['role-permissions'], queryFn: () => api.get('/roles/permissions'), enabled: canManagePermissions });
   const exceptionsQuery = useQuery<{ items?: AccessException[] }>({ queryKey: ['access-exceptions'], queryFn: () => api.get('/permission-overrides') });
@@ -279,11 +299,6 @@ export function AdminPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['consent-users'] }); setFeedback({ tone: 'success', text: 'Acceso otorgado sin aceptación. Auditoría registrada.' }); },
     onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
   });
-  const pwdPolicyMutation = useMutation({
-    mutationFn: (values: Record<string, string | number | boolean>) => api.put('/settings', { values }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['organization-settings'] }); setFeedback({ tone: 'success', text: 'Política de contraseñas actualizada.' }); },
-    onError: (e: Error) => setFeedback({ tone: 'error', text: e.message }),
-  });
 
   type VersionDeConsentimiento = { id: string; version: number; title: string; text: string; publishedAt: string; active: boolean };
   const consentVersions = (consentVersionsQuery.data as { data?: VersionDeConsentimiento[] } | undefined)?.data ?? [];
@@ -384,7 +399,7 @@ export function AdminPage() {
   };
 
   if (loading) return <LoadingSpinner text="Abriendo panel de administración..." />;
-  if (loadError) return <QueryErrorState title="No pudimos abrir el panel de administración" message={loadError.message} />;
+  if (loadError) return <QueryErrorState title="No pudimos abrir el panel de administración" message={loadError.message} error={loadError} />;
 
   return <div className="page governance-page">
     <PageHero
@@ -404,7 +419,7 @@ export function AdminPage() {
       <span className="page-eyebrow">ACCESO RÁPIDO</span>
       <div className="admin-quick-grid">
         <Link to="/users" className="admin-quick-card"><strong>Usuarios</strong><small>Gestionar personas y cargos</small></Link>
-        <Link to="/security" className="admin-quick-card"><strong>Seguridad</strong><small>Salud y auditoría</small></Link>
+        {puedeEntrarA('/security') && <Link to="/security" className="admin-quick-card"><strong>Seguridad</strong><small>Salud y auditoría</small></Link>}
         <Link to="/integrations" className="admin-quick-card"><strong>Integraciones</strong><small>Meta, Cloudinary, GA4</small></Link>
         {esDesarrollo && <Link to="/governance" className="admin-quick-card"><strong>Gobierno del producto</strong><small>Flujos, pods y módulos</small></Link>}
         {esDesarrollo && <Link to="/settings" className="admin-quick-card"><strong>Configuración técnica</strong><small>Parámetros del producto</small></Link>}
@@ -432,7 +447,7 @@ export function AdminPage() {
       </div>
       {permView === 'role' ? (
         <div className="permission-role-view">
-          <div className="permission-role-picker" role="group" aria-label="Elegir cargo">{ROLE_KEYS.map((role) => <button key={role} className={roleFocus === role ? 'active' : ''} onClick={() => setRoleFocus(role)}>{ROLE_LABELS[role]}</button>)}</div>
+          <div className="permission-role-picker" role="group" aria-label="Elegir cargo">{ROLE_KEYS.map((role) => <button key={role} className={roleFocus === role ? 'active' : ''} onClick={() => setRoleFocus(role)}><span>{ROLE_LABELS[role]}</span>{ROLE_DESCRIPTIONS[role] && <small>{ROLE_DESCRIPTIONS[role]}</small>}</button>)}</div>
           <div className="permission-role-modules">{MODULE_CATALOG.map((mod) => { const level = currentMatrix[mod.key]?.[roleFocus] ?? 'none'; const enabled = level !== 'none'; return <div className="permission-role-row" key={mod.key}><div className="permission-role-module"><strong>{mod.key}</strong><small>{MODULE_LIFECYCLE_LABELS[mod.lifecycle]}</small></div><div className="permission-role-controls"><label className="central-switch"><input type="checkbox" checked={enabled} onChange={(e) => setCell(mod.key, roleFocus, e.target.checked ? (currentMatrix[mod.key]?.[roleFocus] !== 'none' ? currentMatrix[mod.key]?.[roleFocus] as PermissionLevel : 'view') : 'none')} /><span></span><strong>{enabled ? 'Con acceso' : 'Sin acceso'}</strong></label>{enabled && <select className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, roleFocus, e.target.value as PermissionLevel)}>{LEVELS.filter((l) => l !== 'none').map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select>}</div></div>; })}</div>
         </div>
       ) : (
@@ -546,7 +561,7 @@ export function AdminPage() {
     </section>}
 
     {tab === 'consentimiento' && <section>
-      <div className="section-toolbar"><div><span className="page-eyebrow">CUMPLIMIENTO LEGAL</span><h2>Consentimiento y políticas</h2><p className="page-subtitle">Administra las versiones del consentimiento informado, audita las aceptaciones y configura la política de contraseñas. Cada nueva versión requiere que todos los usuarios vuelvan a aceptar.</p></div><button className="btn btn-primary btn-sm" onClick={() => { setConsentDraft({ title: `Versión ${(activeConsent?.version ?? 0) + 1}`, text: activeConsent?.text ?? '' }); setConsentPublishOpen(true); }}>Nueva versión</button></div>
+      <div className="section-toolbar"><div><span className="page-eyebrow">CUMPLIMIENTO LEGAL</span><h2>Consentimiento y políticas</h2><p className="page-subtitle">Administra las versiones del consentimiento informado y audita las aceptaciones. Cada nueva versión requiere que todos los usuarios vuelvan a aceptar.</p></div><button className="btn btn-primary btn-sm" onClick={() => { setConsentDraft({ title: `Versión ${(activeConsent?.version ?? 0) + 1}`, text: activeConsent?.text ?? '' }); setConsentPublishOpen(true); }}>Nueva versión</button></div>
       <div className="pod-governance-grid module-governance-grid" style={{marginBottom:16}}>
         <article className="module-governance-card"><header><div><span className="status-dot active" /><div><h3>Versión activa</h3><small>{activeConsent ? `v${activeConsent.version} · ${new Date(activeConsent.publishedAt).toLocaleDateString('es-CL')}` : 'Sin versión publicada'}</small></div></div><strong>{activeConsent ? `v${activeConsent.version}` : '—'}</strong></header><div className="pod-facts"><span><small>Aceptaron</small><strong>{consentUsers.filter(u => u.status === 'accepted').length}</strong></span><span><small>Pendientes</small><strong>{pendingConsent.length}</strong></span><span><small>Versiones</small><strong>{consentVersions.length}</strong></span></div></article>
       </div>
@@ -557,18 +572,6 @@ export function AdminPage() {
       </tbody></table></div>
       <h3>Historial de versiones</h3>
       {consentVersions.length === 0 ? <EmptyState icon="document" title="Sin versiones publicadas" description="Publica la primera versión del consentimiento informado para comenzar a registrar aceptaciones." action={<button className="btn btn-primary btn-sm" onClick={() => { setConsentDraft({ title: 'Versión 1 - Consentimiento inicial', text: '' }); setConsentPublishOpen(true); }}>Publicar primera versión</button>} /> : <div className="table-wrapper" style={{marginBottom:20}}><table className="data-table"><thead><tr><th>Versión</th><th>Título</th><th>Publicada</th><th>Estado</th></tr></thead><tbody>{consentVersions.map(v => <tr key={v.id}><td><strong>v{v.version}</strong></td><td>{v.title}</td><td>{new Date(v.publishedAt).toLocaleDateString('es-CL')}</td><td><span className={`form-status-pill ${v.active ? 'is-live' : 'is-draft'}`}>{v.active ? 'Activa' : 'Histórica'}</span></td></tr>)}</tbody></table></div>}
-      <h3>Política de contraseñas</h3>
-      <p className="page-subtitle" style={{marginBottom:12}}>Configuración que aplica a todos los usuarios. La rotación periódica reduce el riesgo de accesos no autorizados.</p>
-      <div className="pod-governance-grid module-governance-grid">
-        <article className="module-governance-card"><div><h3>Caducidad</h3><small>Días antes de exigir cambio</small></div><div className="pod-facts"><span><small>Días</small><strong><input className="input" type="number" min={30} max={365} value={pwdPolicy.expiryDays} onChange={e => { const v = Number(e.target.value); setPwdPolicy({...pwdPolicy, expiryDays: v}); pwdPolicyMutation.mutate({ 'security.password.expiryDays': String(v) }); }} /></strong></span></div></article>
-        <article className="module-governance-card"><div><h3>Longitud mínima</h3><small>Caracteres requeridos</small></div><div className="pod-facts"><span><small>Mínimo</small><strong><input className="input" type="number" min={6} max={64} value={pwdPolicy.minLength} onChange={e => { const v = Number(e.target.value); setPwdPolicy({...pwdPolicy, minLength: v}); pwdPolicyMutation.mutate({ 'security.password.minLength': String(v) }); }} /></strong></span></div></article>
-        <article className="module-governance-card"><div><h3>Reutilización</h3><small>Contraseñas previas bloqueadas</small></div><div className="pod-facts"><span><small>Cantidad</small><strong><input className="input" type="number" min={1} max={20} value={pwdPolicy.preventReuse} onChange={e => { const v = Number(e.target.value); setPwdPolicy({...pwdPolicy, preventReuse: v}); pwdPolicyMutation.mutate({ 'security.password.preventReuse': String(v) }); }} /></strong></span></div></article>
-        <article className="module-governance-card"><div><h3>Requisitos</h3><small>Complejidad exigida</small></div><div style={{display:'flex',flexDirection:'column',gap:6}}>
-          <label className="toggle-row"><input type="checkbox" checked={pwdPolicy.requireUppercase} onChange={e => { setPwdPolicy({...pwdPolicy, requireUppercase: e.target.checked}); pwdPolicyMutation.mutate({ 'security.password.requireUppercase': String(e.target.checked) }); }} /> Mayúscula obligatoria</label>
-          <label className="toggle-row"><input type="checkbox" checked={pwdPolicy.requireNumber} onChange={e => { setPwdPolicy({...pwdPolicy, requireNumber: e.target.checked}); pwdPolicyMutation.mutate({ 'security.password.requireNumber': String(e.target.checked) }); }} /> Número obligatorio</label>
-          <label className="toggle-row"><input type="checkbox" checked={pwdPolicy.requireSpecial} onChange={e => { setPwdPolicy({...pwdPolicy, requireSpecial: e.target.checked}); pwdPolicyMutation.mutate({ 'security.password.requireSpecial': String(e.target.checked) }); }} /> Carácter especial obligatorio</label>
-        </div></article>
-      </div>
     </section>}
 
     <Modal open={consentPublishOpen} onClose={() => setConsentPublishOpen(false)} title="Publicar nueva versión de consentimiento">

@@ -76,6 +76,23 @@ export class RecoverReservationIntegrationsJob {
       }
     }
 
+    /*
+     * Este bloque no se alcanza, y es a propósito.
+     *
+     * Reservas y CRM son módulos distintos: una reserva es un evento en un local y un lead es una
+     * relación comercial. Por eso una reserva ya no crea ni sincroniza un lead, y `crmEnabled`
+     * quedó en cero para siempre: la columna nace en `0` (migración 0018), ninguna migración la
+     * enciende, `createForm` no la toca y `updateForm` la fuerza a `false` en cada guardado. Se
+     * conserva para no borrar el dato histórico.
+     *
+     * El bloque se deja en pie y no se borra porque es la recuperación a usar si algún día se
+     * decide que una reserva sí alimente el CRM. Si ese día llega, hay que resolver antes lo que
+     * hoy no resuelve: comprobar que la empresa tenga contratado `crm`. Sin eso crearía datos
+     * personales de comensales en un módulo que su propia empresa no puede abrir, y entonces no
+     * podría atender una solicitud de derechos sobre ellos.
+     *
+     * `reservations-no-alimenta-el-crm.spec.ts` fija la regla para que no se encienda por descuido.
+     */
     for (const booking of await this.pending('contact_id', createdAfter, createdBefore)) {
       const form = await this.formOf(booking);
       if (!form?.crmEnabled) continue;

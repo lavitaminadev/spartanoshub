@@ -62,7 +62,7 @@ export function RegistroDeCorreosPage() {
         <button type="button" className="btn btn-outline btn-sm" disabled={!busqueda && !resultado} onClick={() => { setBusqueda(''); setResultado(''); }}>Limpiar</button>
         <span className="filter-result-count">{data?.length ?? 0} correo{data?.length === 1 ? '' : 's'}</span>
       </div>
-      {error ? <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} /> : (
+      {error ? <QueryErrorState message={(error as Error).message} error={error} onRetry={() => void refetch()} /> : (
         <DataTable<Envio>
           storageKey="registro-de-correos"
           keyExtractor={(envio) => envio.id}

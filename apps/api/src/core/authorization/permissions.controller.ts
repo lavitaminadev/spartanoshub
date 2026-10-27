@@ -19,6 +19,8 @@ import { roleLevel } from './role-permissions';
 import { AuditService } from '../audit/audit.service';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { ModuleExempt, ModuleScope } from '../authorization/module-scope.decorator';
+import { ambitoDeLaPeticion } from '../client-scope/empresa.interceptor';
+import { esUnaEmpresa } from '../client-scope/empresa-resuelta';
 import { AccountAccessService } from '../client-scope/account-access.service';
 import { UserClientAccess } from '../client-scope/user-client-access.entity';
 import { GrantClientAccessDto } from './dto/grant-client-access.dto';
@@ -70,9 +72,10 @@ export class PermissionsController {
     if (!definicion) throw new BadRequestException(`Acción desconocida: ${accion}`);
     const user = await this.findUser(id, req.organizationId);
     await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined);
+    const venceEl = this.fechaDeTermino(dto.expiresAt);
     const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
-    const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, grantedBy: req.user.id });
-    await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed } });
+    const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, expiresAt: venceEl, expiryNotifiedAt: null, grantedBy: req.user.id });
+    await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed, expiresAt: venceEl } });
     return guardado;
   }
 
@@ -268,12 +271,9 @@ export class PermissionsController {
      * Administrar el equipo se concede empresa por empresa, y al resolver sin ninguna todas esas
      * concesiones se descartaban: `users` quedaba siempre en «none», así que marcar «Administra el
      * equipo» no encendía nada —ni el menú Equipo, ni Correos, ni Datos legales— por más que la
-     * concesión estuviera guardada. Se toma la empresa que está mirando, comprobada contra su
-     * alcance, y si no manda ninguna, la de su cuenta.
+     * concesión estuviera guardada. Se toma la empresa de la petición, ya resuelta contra su alcance.
      */
-    const empresa = req.user.role === UserRole.CLIENT
-      ? await this.empresaDelPortal(req, clientId)
-      : clientId;
+    const empresa = await this.empresaDeLosPermisos(req, clientId);
     const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role as UserRole, empresa);
     // Las acciones van junto a los niveles para que la pantalla esconda lo que el servidor rechazaría.
     const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role as UserRole, empresa)).map((accion) => [accion.clave, accion.permitida]));
@@ -281,17 +281,24 @@ export class PermissionsController {
   }
 
   /**
-   * La empresa pedida si esa cuenta de portal la alcanza; si no, la de su cuenta.
+   * La empresa sobre la que se piden los permisos.
    *
-   * La pedida llega del navegador, así que se comprueba contra el alcance en vez de creerle. Se
-   * cae a la suya en silencio y no con un error: pedir los propios permisos no puede fallar por
-   * una empresa mal escrita, porque sin permisos la aplicación queda inutilizable.
+   * Una cuenta de portal la toma de la petición ya resuelta: la que declara si la alcanza, la
+   * única que tiene si no declara ninguna, y un 404 o un 400 en los demás casos. No se repliega
+   * a la de su cuenta cuando pidió otra.
+   *
+   * El equipo interno no resuelve aquí: sus permisos por defecto no dependen de una empresa, y
+   * esta es la petición con la que arranca la aplicación, así que exigirle una a quien atiende
+   * varias la dejaría sin menú. Lo que declare se comprueba contra su alcance.
    */
-  private async empresaDelPortal(req: AuthenticatedRequest, pedida?: string): Promise<string | undefined> {
-    const propia = req.user.clientId ?? undefined;
-    if (!pedida || pedida === propia) return propia;
-    const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user).catch(() => undefined);
-    return alcanzables?.includes(pedida) ? pedida : propia;
+  private async empresaDeLosPermisos(req: AuthenticatedRequest, declarada?: string): Promise<string | undefined> {
+    if (req.user.role === UserRole.CLIENT) {
+      const ambito = ambitoDeLaPeticion(req as unknown as Record<PropertyKey, unknown>);
+      if (ambito instanceof Error) throw ambito;
+      return ambito !== undefined && esUnaEmpresa(ambito) ? ambito : undefined;
+    }
+    if (declarada) await this.accountAccess.assertClient(req.organizationId, req.user, declarada);
+    return declarada || undefined;
   }
 
   /**
@@ -522,13 +529,23 @@ export class PermissionsController {
     const client = await this.clients.findOne({ where: { id: clientId, organizationId: req.organizationId }, select: { id: true } });
     if (!client) throw new NotFoundException('Cuenta no encontrada');
 
+    const venceEl = this.fechaDeTermino(dto.expiresAt);
     const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId: client.id } });
+    // Quien fue vetado en esa empresa no vuelve por una asignación corriente: se levanta invitándolo con confirmación.
+    if (existing?.retiredOutcome === 'vetado') throw new BadRequestException('Esa persona está vetada en esa empresa. Para levantar el veto hay que invitarla de nuevo, confirmándolo');
     const saved = await this.clientAccess.save({
       ...(existing ?? {}),
+      retiredAt: null,
+      retiredBy: null,
+      retiredReason: null,
+      retiredOutcome: null,
       organizationId: req.organizationId,
       userId: user.id,
       clientId: client.id,
       reason: dto.reason ?? null,
+      // Renovar o cambiar la fecha reabre el aviso previo al vencimiento.
+      expiresAt: venceEl,
+      expiryNotifiedAt: null,
       grantedBy: req.user.id,
     });
     this.accountAccess.invalidateUser(user.id);
@@ -538,8 +555,8 @@ export class PermissionsController {
       entityType: 'UserClientAccess',
       entityId: saved.id,
       action: existing ? 'updated' : 'created',
-      before: existing ? { reason: existing.reason } : undefined,
-      after: { userId: user.id, clientId: client.id, reason: dto.reason ?? null },
+      before: existing ? { reason: existing.reason, expiresAt: existing.expiresAt ?? null } : undefined,
+      after: { userId: user.id, clientId: client.id, reason: dto.reason ?? null, expiresAt: venceEl },
     });
     return saved;
   }
@@ -579,14 +596,16 @@ export class PermissionsController {
     const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
     if (!existing) throw new NotFoundException('No existe una asignación directa para esa cuenta');
 
-    await this.clientAccess.remove(existing);
+    // Se marca y no se borra: la fila es la constancia de que esa persona estuvo, desde cuándo y quién la retiró.
+    if (existing.retiredAt) throw new NotFoundException('No existe una asignación directa para esa cuenta');
+    await this.clientAccess.save({ ...existing, retiredAt: new Date(), retiredBy: req.user.id, retiredReason: 'Asignación retirada', retiredOutcome: 'retirado' });
     this.accountAccess.invalidateUser(user.id);
     await this.audit.log({
       organizationId: req.organizationId,
       actorId: req.user.id,
       entityType: 'UserClientAccess',
       entityId: existing.id,
-      action: 'deleted',
+      action: 'retired',
       before: { userId: user.id, clientId, reason: existing.reason },
     });
 
@@ -604,6 +623,21 @@ export class PermissionsController {
       clientId,
       stillVisible: remaining === undefined || remaining.includes(clientId),
     };
+  }
+
+  /**
+   * La fecha de término de una cesión o un ajuste, o `null` si se concede sin fecha.
+   *
+   * Rechaza una fecha que ya pasó: aceptarla dejaría una concesión nacida vencida, que no da nada
+   * y que a quien la concede le parece vigente.
+   */
+  private fechaDeTermino(valor?: string | null): Date | null {
+    if (!valor) return null;
+    const fecha = new Date(valor);
+    if (Number.isNaN(fecha.getTime()) || fecha.getTime() <= Date.now()) {
+      throw new BadRequestException('La fecha de término tiene que ser futura');
+    }
+    return fecha;
   }
 
   /**

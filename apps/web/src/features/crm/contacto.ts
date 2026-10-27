@@ -7,6 +7,8 @@
  * para lo que existe.
  */
 
+import { estaProtegido } from '@espartanos/shared';
+
 /**
  * Enlace de WhatsApp: `wa.me` solo acepta dígitos, sin `+` ni espacios.
  *
@@ -14,7 +16,8 @@
  * @param mensaje - Texto con el que abre la conversación. Si no se pasa, se abre el chat vacío.
  */
 export function whatsapp(telefono?: string | null, mensaje?: string): string | undefined {
-  const digitos = telefono?.replace(/\D/g, '');
+  // Un teléfono protegido llega como marca: no hay número con el que armar el enlace.
+  const digitos = estaProtegido(telefono) ? undefined : telefono?.replace(/\D/g, '');
   if (!digitos) return undefined;
   return mensaje
     ? `https://wa.me/${digitos}?text=${encodeURIComponent(mensaje)}`

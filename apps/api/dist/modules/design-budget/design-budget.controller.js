@@ -28,6 +28,7 @@ const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 let DesignBudgetController = class DesignBudgetController {
     constructor(getOrCreate, reserve, confirm, ajustar, accountAccess) {
         this.getOrCreate = getOrCreate;
@@ -56,6 +57,7 @@ let DesignBudgetController = class DesignBudgetController {
 exports.DesignBudgetController = DesignBudgetController;
 __decorate([
     (0, common_1.Post)('budget'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.presupuesto', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Obtener o crear presupuesto UD del mes' }),
     __param(0, (0, common_1.Body)()),
@@ -66,6 +68,7 @@ __decorate([
 ], DesignBudgetController.prototype, "getOrCreateBudget", null);
 __decorate([
     (0, common_1.Patch)('budget'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.ajustar_presupuesto', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Ajustar las UD contratadas de un mes' }),
     __param(0, (0, common_1.Body)()),
@@ -76,6 +79,7 @@ __decorate([
 ], DesignBudgetController.prototype, "ajustarPresupuesto", null);
 __decorate([
     (0, common_1.Post)('reserve'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.asignar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Reservar UDs para una pieza' }),
     __param(0, (0, common_1.Body)()),
@@ -86,6 +90,7 @@ __decorate([
 ], DesignBudgetController.prototype, "reserveUd", null);
 __decorate([
     (0, common_1.Post)('confirm'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.entregar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Confirmar consumo de UDs' }),
     __param(0, (0, common_1.Body)()),

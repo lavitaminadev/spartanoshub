@@ -206,7 +206,7 @@ let CampanasService = CampanasService_1 = class CampanasService {
     }
     async fallidos(id, organizationId) {
         const campana = await this.buscar(id, organizationId);
-        return { asunto: campana.asunto, fallidos: await this.envios.fallidosDe(campana.id) };
+        return { asunto: campana.asunto, clientId: campana.clientId ?? null, fallidos: await this.envios.fallidosDe(campana.id) };
     }
     async retorno(id, organizationId) {
         const campana = await this.buscar(id, organizationId);

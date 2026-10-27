@@ -1,6 +1,7 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { DataTable } from '../../shared/DataTable';
@@ -24,6 +25,11 @@ interface BriefRow {
   createdAt: string;
 }
 
+interface BriefPieces {
+  total: number;
+  piezas: Array<{ id: string; titulo: string; tipo: string; estado: string; unidades: number; creada: string }>;
+}
+
 interface ClientOption { id: string; name: string }
 const EMPTY_FORM = { clientId: '', title: '', description: '', requirements: '', status: 'draft', dueDate: '' };
 
@@ -42,6 +48,14 @@ export function BriefsPage() {
   const briefsQuery = useQuery<{ data: BriefRow[] }>({ queryKey: ['briefs'], queryFn: () => api.get('/briefs') });
   const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const clients = clientsResp?.data ?? [];
+  // Qué se produjo a partir del brief que se está viendo; sólo se pide con el brief abierto.
+  const piecesQuery = useQuery<BriefPieces>({
+    queryKey: ['briefs', editingId, 'piezas'],
+    queryFn: () => api.get(`/briefs/${editingId}/piezas`),
+    enabled: Boolean(editingId) && open,
+  });
+  const briefPieces = piecesQuery.data?.piezas ?? [];
+  const briefPiecesUd = briefPieces.filter((pieza) => pieza.estado !== 'cancelled').reduce((sum, pieza) => sum + pieza.unidades, 0);
   const close = () => { setOpen(false); setEditingId(null); setForm(EMPTY_FORM); };
   const success = async (text: string) => { await qc.invalidateQueries({ queryKey: ['briefs'] }); close(); setFeedback({ tone: 'success', text }); };
   const createMutation = useMutation({ mutationFn: (body: Record<string, unknown>) => api.post('/briefs', body), onSuccess: () => success('Brief creado correctamente.'), onError: (error: Error) => setFeedback({ tone: 'error', text: error.message }) });
@@ -65,7 +79,7 @@ export function BriefsPage() {
   };
 
   if (briefsQuery.isLoading) return <LoadingSpinner text="Cargando briefs..." />;
-  if (briefsQuery.error) return <div className="alert alert-error">Error al cargar briefs: {briefsQuery.error.message}</div>;
+  if (briefsQuery.error) return <QueryErrorState title="No pudimos cargar los briefs" message={briefsQuery.error.message} error={briefsQuery.error} onRetry={() => void briefsQuery.refetch()} retrying={briefsQuery.isFetching} />;
   return <div className="page">
     <PageHero
       eyebrow="CONTROL DE REQUERIMIENTOS"
@@ -90,6 +104,17 @@ export function BriefsPage() {
       <label>Descripción<textarea className="input" rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
       <label>Requerimientos levantados<textarea className="input" rows={5} value={form.requirements} onChange={(event) => setForm({ ...form, requirements: event.target.value })} placeholder="Objetivo, audiencia, entregables, referencias y restricciones" /></label>
       <div className="form-row"><label>Estado<select className="input" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="draft">Borrador</option><option value="sent">Enviado</option><option value="received">Recibido</option><option value="approved">Aprobado</option><option value="archived">Archivado</option></select></label><label>Vencimiento<input className="input" type="date" value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} /></label></div>
+      {editingId && <section aria-label="Piezas de este brief">
+        <h3>Piezas de este brief</h3>
+        {piecesQuery.isLoading && <p>Cargando piezas...</p>}
+        {piecesQuery.error && <div className="alert alert-error">No se pudieron cargar las piezas: {piecesQuery.error.message}</div>}
+        {piecesQuery.data && (briefPieces.length === 0
+          ? <p>Todavía no se creó ninguna pieza desde este brief.</p>
+          : <>
+            <ul>{briefPieces.map((pieza) => <li key={pieza.id}><Link to={`/production/${pieza.id}`}>{pieza.titulo || 'Sin título'}</Link> · <StatusBadge status={pieza.estado} /> · {pieza.unidades} UD</li>)}</ul>
+            <small>{piecesQuery.data.total} pieza{piecesQuery.data.total !== 1 ? 's' : ''} · {briefPiecesUd} UD sin contar canceladas</small>
+          </>)}
+      </section>}
       {feedback?.tone === 'error' && <div className="alert alert-error">{feedback.text}</div>}
       <button className="btn btn-primary btn-block" disabled={createMutation.isPending || updateMutation.isPending}>{createMutation.isPending || updateMutation.isPending ? 'Guardando...' : 'Guardar brief'}</button>
     </form></Modal>

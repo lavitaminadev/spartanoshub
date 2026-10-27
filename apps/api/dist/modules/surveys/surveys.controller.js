@@ -40,6 +40,11 @@ const plantilla_resuelta_1 = require("../../core/parameters/plantilla-resuelta")
 const encuestas_de_la_empresa_1 = require("./encuestas-de-la-empresa");
 const typeorm_3 = require("typeorm");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
+const shared_3 = require("@espartanos/shared");
+const datos_de_contacto_protegidos_1 = require("./datos-de-contacto-protegidos");
+const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
+const revelar_protegidos_1 = require("../../core/client-scope/revelar-protegidos");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 function finDelDia(fecha) {
     const momento = new Date(fecha);
     if (/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim()))
@@ -53,7 +58,7 @@ function publicSurveyUrl(id) {
     return publicOrigin ? `${publicOrigin}/survey/${encodeURIComponent(id)}` : undefined;
 }
 let SurveysController = class SurveysController {
-    constructor(surveys, responses, dataSource, accountAccess, correo, audit, parametros, permisos) {
+    constructor(surveys, responses, dataSource, accountAccess, correo, audit, parametros, permisos, niveles) {
         this.surveys = surveys;
         this.responses = responses;
         this.dataSource = dataSource;
@@ -62,6 +67,7 @@ let SurveysController = class SurveysController {
         this.audit = audit;
         this.parametros = parametros;
         this.permisos = permisos;
+        this.niveles = niveles;
     }
     toContract(survey) {
         return {
@@ -89,26 +95,30 @@ let SurveysController = class SurveysController {
         if (!survey)
             throw new common_1.NotFoundException('La encuesta no existe');
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
-            if (!survey.clientId || survey.clientId !== req.user.clientId)
+            if (!survey.clientId)
                 throw new common_1.NotFoundException('La encuesta no existe');
-            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, survey.clientId);
         }
         if (survey.clientId) {
             const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
             if (permitidas !== undefined && !permitidas.includes(survey.clientId))
                 throw new common_1.NotFoundException('La encuesta no existe');
+            if (req.user.role === user_role_enum_1.UserRole.CLIENT)
+                await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, survey.clientId);
         }
         return survey;
     }
     async list(req, filtros) {
-        const clientId = filtros.clientId;
+        const esPortal = req.user.role === user_role_enum_1.UserRole.CLIENT;
+        const clientId = esPortal
+            ? await this.accountAccess.empresaElegida(req.organizationId, req.user, filtros.clientId)
+            : filtros.clientId;
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
-            if (!req.user.clientId)
+        if (esPortal) {
+            if (!clientId)
                 return [];
-            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, req.user.clientId);
-            return this.listarAcotado({ organizationId: req.organizationId, clientId: req.user.clientId }, filtros);
+            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, clientId);
+            return this.listarAcotado({ organizationId: req.organizationId, clientId }, filtros);
         }
         return this.listarAcotado({ organizationId: req.organizationId, clientId, permitidas }, filtros);
     }
@@ -156,18 +166,13 @@ let SurveysController = class SurveysController {
     async saveCompanyLegal(req, query, dto) {
         const empresa = await this.empresaLegal(req, query.clientId);
         await (0, datos_legales_de_empresa_1.asegurarQueAdministraLaEmpresa)(this.permisos, req.organizationId, req.user, empresa);
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+        const laAceptaLaEmpresa = req.user.role === user_role_enum_1.UserRole.CLIENT;
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
     }
     async empresaLegal(req, pedida) {
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
-            const propia = (0, datos_legales_de_empresa_1.empresaDelPortal)(req.user.clientId);
-            await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, propia);
-            return propia;
-        }
-        if (!pedida)
-            throw new common_1.BadRequestException('Indica la empresa');
-        await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
-        return pedida;
+        const empresa = await (0, datos_legales_de_empresa_1.empresaDeLosDatosLegales)(this.accountAccess, req.organizationId, req.user, pedida);
+        await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, empresa);
+        return empresa;
     }
     async detail(req, id) {
         return this.toContract(await this.findOwned(id, req));
@@ -281,6 +286,7 @@ let SurveysController = class SurveysController {
     }
     async results(req, id, periodo) {
         const survey = await this.findOwned(id, req);
+        const nivel = (await this.niveles.nivelesDe(req.organizationId, req.user.id, 'surveys')).de(survey.clientId);
         const desde = periodo?.desde ? new Date(periodo.desde) : null;
         const hasta = periodo?.hasta ? finDelDia(periodo.hasta) : null;
         if (desde && hasta && desde > hasta)
@@ -327,6 +333,7 @@ let SurveysController = class SurveysController {
             rating: row.rating ?? null,
             respondentName: survey.anonymous ? null : row.respondentName ?? null,
             respondentEmail: survey.anonymous ? null : row.respondentEmail ?? null,
+            respondentPhone: survey.anonymous ? null : (0, datos_de_contacto_protegidos_1.contestadoEn)(row.answers, survey.questions, 'telefono'),
             reservationId: survey.anonymous ? null : row.reservationId ?? null,
             teamMessage: row.teamMessage ?? null,
             completedAt: row.completedAt ? row.completedAt.toISOString() : null,
@@ -334,12 +341,14 @@ let SurveysController = class SurveysController {
             attendedAt: row.attendedAt ? row.attendedAt.toISOString() : null,
             attendedByName: row.attendedBy ? nombres.get(row.attendedBy) ?? null : null,
             origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
-            answers: row.answers ?? {},
+            answers: nivel === 'directo' ? row.answers ?? {} : (0, datos_de_contacto_protegidos_1.sinDatosDeContacto)(row.answers, survey.questions),
         }));
+        const protegido = (0, shared_3.recortarListaProtegidos)(detalle, 'surveys', nivel);
         const notasDelPeriodo = rows.map((row) => row.rating).filter((nota) => typeof nota === 'number');
         return {
             ...(0, shared_1.computeSurveyResults)(this.toContract(survey), responses),
-            respuestas: detalle,
+            respuestas: protegido.datos,
+            datosProtegidos: protegido.recortados.length ? { campos: protegido.recortados, sePuedePedir: (0, shared_3.sePuedePedir)(nivel) } : null,
             visitasPorDia,
             campanas,
             campanasTruncadas,
@@ -352,6 +361,21 @@ let SurveysController = class SurveysController {
             },
             periodo: { desde: desde ? desde.toISOString() : null, hasta: hasta ? hasta.toISOString() : null },
         };
+    }
+    async datosProtegidos(req, id, responseId) {
+        const survey = await this.findOwned(id, req);
+        const respuesta = await this.responses.findOne({ where: { id: responseId, surveyId: survey.id } });
+        if (!respuesta)
+            throw new common_1.NotFoundException('La respuesta no existe');
+        const nivel = (await this.niveles.nivelesDe(req.organizationId, req.user.id, 'surveys')).de(survey.clientId);
+        const ficha = respuesta;
+        const datos = Object.fromEntries((0, shared_3.camposProtegidosDe)('surveys').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, survey.anonymous ? null : ficha[campo] ?? null]));
+        datos.respondentPhone = survey.anonymous ? null : (0, datos_de_contacto_protegidos_1.contestadoEn)(respuesta.answers, survey.questions, 'telefono');
+        datos.respuestasDeContacto = survey.anonymous ? {} : (0, datos_de_contacto_protegidos_1.soloDatosDeContacto)(respuesta.answers, survey.questions);
+        await (0, revelar_protegidos_1.exigirConstanciaDeRevelacion)(this.audit, nivel, {
+            organizationId: req.organizationId, actorId: req.user.id, entityType: 'survey_responses', entityId: respuesta.id, campos: Object.keys(datos), ipAddress: req.ip,
+        });
+        return { id: respuesta.id, datos };
     }
     async attend(req, id, responseId, dto) {
         const survey = await this.findOwned(id, req);
@@ -465,6 +489,7 @@ let SurveysController = class SurveysController {
 exports.SurveysController = SurveysController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar encuestas' }),
     __param(0, (0, common_1.Req)()),
@@ -475,6 +500,7 @@ __decorate([
 ], SurveysController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)('company-legal'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -484,6 +510,7 @@ __decorate([
 ], SurveysController.prototype, "companyLegal", null);
 __decorate([
     (0, common_1.Put)('company-legal'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
@@ -495,6 +522,7 @@ __decorate([
 ], SurveysController.prototype, "saveCompanyLegal", null);
 __decorate([
     (0, common_1.Get)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Leer una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -505,6 +533,7 @@ __decorate([
 ], SurveysController.prototype, "detail", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Crear una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -515,6 +544,7 @@ __decorate([
 ], SurveysController.prototype, "create", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -526,6 +556,7 @@ __decorate([
 ], SurveysController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.publicar', 'hacer'),
     (0, requiere_accion_1.RequiereAccion)('surveys.borrar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar una encuesta' }),
@@ -537,6 +568,7 @@ __decorate([
 ], SurveysController.prototype, "remove", null);
 __decorate([
     (0, common_1.Get)(':id/results'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.resultados', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Resultados agregados de una encuesta' }),
     __param(0, (0, common_1.Req)()),
@@ -547,7 +579,21 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], SurveysController.prototype, "results", null);
 __decorate([
+    (0, common_1.Get)(':id/responses/:responseId/datos-protegidos'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.resultados', 'ver'),
+    (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Ver quién respondió' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Param)('responseId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], SurveysController.prototype, "datosProtegidos", null);
+__decorate([
     (0, common_1.Patch)(':id/responses/:responseId/attention'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
@@ -571,6 +617,7 @@ __decorate([
 ], SurveysController.prototype, "submit", null);
 __decorate([
     (0, common_1.Post)(':id/send-email'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.enviar', 'hacer'),
     (0, requiere_accion_1.RequiereAccion)('surveys.enviar'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, swagger_1.ApiOperation)({ summary: 'Enviar la encuesta por correo a sus destinatarios' }),
@@ -595,5 +642,6 @@ exports.SurveysController = SurveysController = __decorate([
         email_service_1.EmailService,
         audit_service_1.AuditService,
         parameter_resolver_service_1.ParameterResolver,
-        permission_resolver_service_1.PermissionResolverService])
+        permission_resolver_service_1.PermissionResolverService,
+        nivel_de_datos_service_1.NivelDeDatosService])
 ], SurveysController);

@@ -3,9 +3,11 @@ import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, VERSION_BENEFICIOS_RED, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { camposProtegidosDe, columnasAQuitar, estaProtegido } from '@espartanos/shared';
+import type { NivelesDeDatos } from '../../../core/client-scope/nivel-de-datos.service';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, EntityManager, Between, In, MoreThan, Repository, SelectQueryBuilder } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
 import { promises as dns } from 'dns';
 import { ReservationForm } from '../domain/reservation-form.entity';
@@ -27,6 +29,7 @@ import { randomUUID } from 'node:crypto';
 import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { evaluarCambioDeZona, type ZonaDelLocal } from './cambio-de-zona';
 import { describirCambio } from './describir-cambio';
+import { MUESTRA_MINIMA_POR_DIA, noShowPorLocalYDia, resumirAsistenciaDelComensal } from './historial-de-asistencia';
 import { FORM_FIELD_TYPES, ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
@@ -48,6 +51,10 @@ import { inferLocationFromPhone } from '../../../shared/geo-inference';
 import { GoogleConversionOutboxService } from '../../integrations/google/google-conversion-outbox.service';
 import { normalizeClientCapabilities } from '../../clients/client-capabilities';
 import { planillaXlsx } from '../../../shared/planilla-xlsx';
+import { AVISO_DE_RESTRICCIONES, MOTIVO_MINIMO, marcaDeExportacion, motivoEscrito, razonesParaExigirMotivo, tieneRestricciones } from './exportaciones';
+import { pdfDeTabla } from './pdf-de-tabla';
+import { respuestaPublicaDeReserva } from './respuesta-publica';
+import { huellaDeOrigen, TOPE_RETENCIONES_POR_ORIGEN } from './retenciones';
 
 /**
  * Recomendaciones que el local muestra al confirmar una reserva.
@@ -1861,18 +1868,23 @@ export class ReservationsService {
     datos: { id: string; guestName: string; guestEmail?: string | null; partySize: number; cuando: string; ocasion?: string; telefono?: string | null; notas?: string | null },
   ): Promise<void> {
     /*
-     * El aviso al equipo lleva con qué decidir sin abrir la aplicación.
+     * El aviso al equipo avisa y enlaza; no transporta datos de contacto.
      *
-     * Con el nombre y la cantidad no se puede responder nada: para acordar un evento hacen falta
-     * la ocasión, cuándo lo quiere, por dónde llamarle y lo que haya contado. El equipo tenía que
-     * entrar a buscarlo, y mientras tanto la solicitud esperaba.
+     * Lleva con qué decidir si abrir la ficha —quién, qué ocasión, cuántas personas, cuándo— y el
+     * teléfono, el correo y lo que contó quien pidió el evento se miran en Reservas → Grupos y
+     * eventos, que es donde el acceso está protegido y deja registro. Un correo no deja constancia
+     * de quién lo leyó. Lo que el código no entrega, ninguna plantilla puede imprimirlo.
      */
-    const variables = {
+    const variablesDelEquipo = {
       nombre: datos.guestName,
       local: form.name,
       fecha: datos.cuando,
       personas: datos.partySize,
       ocasion: datos.ocasion ?? '',
+    };
+    // El acuse vuelve a quien escribió sus propios datos: es el titular, no un tercero.
+    const variablesDelAcuse = {
+      ...variablesDelEquipo,
       telefono: datos.telefono ?? '',
       correo: datos.guestEmail ?? '',
       notas: datos.notas ?? '',
@@ -1885,8 +1897,21 @@ export class ReservationsService {
       if (equipo.correos.length) {
         const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.team_group_request' : 'email.team_waitlist');
         if (plantilla.encendido) {
-          const { subject, html } = this.componerConMarca(plantilla, variables);
-          void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
+          const recortado = this.componerConMarca(plantilla, variablesDelEquipo);
+          const conContacto = tipo === 'grupo' ? await this.destinatariosConContacto(form, equipo.correos) : new Set<string>();
+          // Sólo se compone el cuerpo con contacto si alguien lo va a recibir.
+          const completo = conContacto.size
+            ? this.componerConMarca(plantilla, {
+              ...variablesDelEquipo,
+              telefono: datos.telefono ?? '',
+              correo: datos.guestEmail ?? '',
+              contacto: [datos.telefono && `Teléfono: ${datos.telefono}`, datos.guestEmail && `Correo: ${datos.guestEmail}`].filter(Boolean).join('\n'),
+            })
+            : recortado;
+          void Promise.all(equipo.correos.map((email) => {
+            const { subject, html } = conContacto.has(email.trim().toLowerCase()) ? completo : recortado;
+            return this.emails.send(email, subject, html);
+          }))
             .catch((err) => this.logger.warn(`Aviso al equipo de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
       }
@@ -1897,11 +1922,31 @@ export class ReservationsService {
       if (!datos.guestEmail) return;
       const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.group_request_ack' : 'email.waitlist_ack');
       if (!plantilla.encendido) return;
-      const { subject, html } = this.componerConMarca(plantilla, variables);
+      const { subject, html } = this.componerConMarca(plantilla, variablesDelAcuse);
       void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
         .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
     } catch (err) {
       this.logger.warn(`No se pudo componer el acuse de ${datos.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /**
+   * Las direcciones del equipo que reciben el aviso de grupo con teléfono y correo.
+   *
+   * Exige las dos cosas: que la empresa tenga encendida `detalleDeContactoEnAvisos` y que la
+   * dirección sea una cuenta con nivel `directo` sobre los datos del comensal. Una dirección
+   * suelta de ajustes no tiene nivel que comprobar y recibe siempre la versión recortada. Cualquier
+   * duda o fallo devuelve vacío: se recorta.
+   */
+  private async destinatariosConContacto(form: ReservationForm, correos: string[]): Promise<Set<string>> {
+    try {
+      const filas = (await this.dataSource.query('SELECT capabilities FROM clients WHERE id = ? AND organization_id = ?', [form.clientId, form.organizationId])) as Array<{ capabilities: unknown }>;
+      let crudas = filas?.[0]?.capabilities;
+      if (typeof crudas === 'string') crudas = JSON.parse(crudas);
+      if (!normalizeClientCapabilities(crudas as never).detalleDeContactoEnAvisos) return new Set();
+      return await this.destinatariosDeAvisos.conNivelDirecto(form.organizationId, form.clientId, 'reservations', correos);
+    } catch {
+      return new Set();
     }
   }
 
@@ -2286,12 +2331,17 @@ export class ReservationsService {
   }
 
   /** Conserva un cupo por diez minutos mientras la persona termina el formulario. */
-  async holdPublic(slug: string, dto: PublicReservationHoldDto) {
+  async holdPublic(slug: string, dto: PublicReservationHoldDto, ipAddress?: string) {
     // Retener cupo aparta inventario real, asi que exige las mismas senales que el alta.
     if (dto.website) throw new BadRequestException('Solicitud inválida');
-    if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
+    // Sin `renderedAt` no hay forma de saber que la página llegó a pintarse: es la señal que
+    // distingue a una persona de un script que llama al endpoint directamente.
+    const renderedMs = dto.renderedAt ? new Date(dto.renderedAt).getTime() : NaN;
+    if (Number.isNaN(renderedMs)) throw new BadRequestException('Solicitud inválida');
+    if (Date.now() - renderedMs < 800) throw new BadRequestException('Completa el formulario antes de enviarlo');
     const startsAt = new Date(dto.startsAt);
     if (Number.isNaN(startsAt.getTime())) throw new BadRequestException('Fecha inválida');
+    const origen = huellaDeOrigen(ipAddress);
     return this.transaction('retener cupo público', async (manager) => {
       const form = await this.publishedForm(slug, manager);
       this.assertPublicBookingOpen(form);
@@ -2300,10 +2350,15 @@ export class ReservationsService {
       const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
       const repo = manager.getRepository(ReservationHold);
       const current = await repo.findOne({ where: { formId: form.id, holdKey: dto.holdKey } });
+      // Cambiar de horario reutiliza la retención; el tope sólo frena a quien abre retenciones nuevas.
+      if (!current && origen) {
+        const vigentes = await repo.count({ where: { formId: form.id, originKey: origen, expiresAt: MoreThan(new Date()) } });
+        if (vigentes >= TOPE_RETENCIONES_POR_ORIGEN) throw new HttpException('Tienes varios horarios reservados a la espera. Termina uno o espera unos minutos.', HttpStatus.TOO_MANY_REQUESTS);
+      }
       const configuredMinutes = Number((form.designConfig as DesignConfig).holdMinutes);
       const holdMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 30 ? configuredMinutes : 10;
       const expiresAt = new Date(Date.now() + holdMinutes * 60_000);
-      const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt });
+      const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt, originKey: origen });
       hold.startsAt = startsAt; hold.endsAt = availability.endsAt; hold.partySize = partySize; hold.serviceId = dto.serviceId; hold.resourceId = dto.resourceId; hold.expiresAt = expiresAt;
       await repo.save(hold);
       return { expiresAt: hold.expiresAt, available: availability.available };
@@ -2839,7 +2894,7 @@ export class ReservationsService {
 
     const managementToken = result.created ? result.managementToken : undefined;
     if (result.created) await this.notifyNewBooking(result.form, result.booking, managementToken);
-    return { ...result.booking, managementToken };
+    return respuestaPublicaDeReserva(result.booking, managementToken);
   }
 
   private async recordIntegrationFailure(booking: Reservation, provider: string) {
@@ -3051,7 +3106,7 @@ export class ReservationsService {
       const plantilla = await leerPlantilla(
         this.parametros,
         pendiente ? 'email.reservation_pending' : 'email.reservation_confirmation',
-        { clientId: form.clientId, organizationId: form.organizationId },
+        { clientId: form.clientId, organizationId: form.organizationId, formId: form.id },
         pendiente
           ? {
             asunto: 'Recibimos tu solicitud en {{local}}',
@@ -3061,7 +3116,7 @@ export class ReservationsService {
       );
       // Apagar la confirmación siempre apagó también el aviso de pendiente. Se conserva: una
       // empresa que lo tenía apagado no empieza a recibir correos que nunca pidió.
-      const confirmacion = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
+      const confirmacion = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId, form.id);
       if (!confirmacion || !plantilla.encendido) return;
 
       const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);
@@ -3343,12 +3398,27 @@ export class ReservationsService {
     return reserva;
   }
 
+  /**
+   * Los campos protegidos de una reserva tal como están guardados, para la ficha que los pidió.
+   * Quién los pide y si puede lo decide quien llama: aquí sólo se leen dentro del alcance.
+   */
+  async datosProtegidosDeReserva(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) {
+    const reserva = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+    if (!reserva) throw new NotFoundException('Reserva no encontrada');
+    const datos: Record<string, unknown> = {};
+    for (const { campo } of camposProtegidosDe('reservations')) {
+      const valor = (reserva as unknown as Record<string, unknown>)[campo];
+      if (valor !== null && valor !== undefined && !estaProtegido(valor)) datos[campo] = valor;
+    }
+    return { clientId: reserva.clientId, datos };
+  }
+
   async guestHistory(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[]) {
     const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
     if (!actual) throw new NotFoundException('Reserva no encontrada');
     const correo = actual.guestEmail?.trim().toLowerCase();
     const telefono = actual.guestPhone?.trim();
-    const vacio = { total: 0, attended: 0, noShow: 0, enEsteLocal: 0, alcance: 'local' as 'local' | 'red', deOtrasReservas: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
+    const vacio = { clientId: actual.clientId, total: 0, attended: 0, noShow: 0, enEsteLocal: 0, alcance: 'local' as 'local' | 'red', deOtrasReservas: 0, anteriores: [] as Array<Record<string, unknown>>, preferencias: undefined as Preferencias | undefined };
     if (!correo && !telefono) return vacio;
 
     /*
@@ -3370,6 +3440,7 @@ export class ReservationsService {
     const previas = await qb.orderBy('r.starts_at', 'DESC').take(100).getMany();
     const supuestasPrevias = await this.asistenciasSupuestas(previas.filter((item) => item.status === 'attended').map((item) => item.id));
     return {
+      clientId: actual.clientId,
       total: previas.length,
       attended: previas.filter((item) => item.status === 'attended').length,
       asistenciasSupuestas: previas.filter((item) => supuestasPrevias.has(item.id)).length,
@@ -3381,6 +3452,51 @@ export class ReservationsService {
       deOtrasReservas: previas.filter((item) => item.formId !== actual.formId).length,
       preferencias: this.preferenciasDeLaPersona(previas, actual),
       anteriores: previas.slice(0, 5).map((item) => ({ asistenciaSupuesta: supuestasPrevias.has(item.id), id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
+    };
+  }
+
+  /**
+   * Cómo ha respondido este comensal a sus reservas en esta empresa.
+   *
+   * Agrupa por el teléfono o el correo de la reserva —la misma empresa y su propio comensal— y
+   * **nunca cruza empresas**: la consulta lleva el `client_id` de la reserva, no el alcance de
+   * quien mira. Devuelve los datos de contacto con los que se agrupó dentro de `comensal` y no
+   * sueltos, para que la ruta pueda recortarlos según el nivel de la persona sin tocar los números.
+   */
+  async historialDelComensal(organizationId: string, reservationId: string, clientId?: string, clientIds?: string[], ahora = new Date()) {
+    const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+    if (!actual) throw new NotFoundException('Reserva no encontrada');
+    const correo = actual.guestEmail?.trim().toLowerCase() || undefined;
+    const telefono = actual.guestPhone?.trim() || undefined;
+    const comensal = { clientId: actual.clientId, guestName: actual.guestName, guestPhone: actual.guestPhone ?? null, guestEmail: actual.guestEmail ?? null };
+    if (!correo && !telefono) return { clientId: actual.clientId, comensal, ...resumirAsistenciaDelComensal([], ahora) };
+
+    const qb = this.reservations.createQueryBuilder('r')
+      .where('r.organization_id = :organizationId AND r.client_id = :clientId AND r.id != :id', { organizationId, clientId: actual.clientId, id: actual.id });
+    if (correo && telefono) qb.andWhere('(LOWER(r.guest_email) = :correo OR r.guest_phone = :telefono)', { correo, telefono });
+    else if (correo) qb.andWhere('LOWER(r.guest_email) = :correo', { correo });
+    else qb.andWhere('r.guest_phone = :telefono', { telefono });
+    const anteriores = await qb.orderBy('r.starts_at', 'DESC').take(200).getMany();
+    return { clientId: actual.clientId, comensal, ...resumirAsistenciaDelComensal(anteriores, ahora) };
+  }
+
+  /**
+   * La tasa de no-show de cada local de las empresas a la vista, por día de la semana.
+   *
+   * @param dias - La ventana hacia atrás; entre 7 y 365.
+   */
+  async noShowPorLocalYDia(organizationId: string, clientId?: string, clientIds?: string[], dias = 90, ahora = new Date()) {
+    const ventana = Math.min(Math.max(Math.trunc(dias) || 90, 7), 365);
+    const desde = new Date(ahora.getTime() - ventana * 86_400_000);
+    const alcance = this.scope(organizationId, clientId, clientIds);
+    const [locales, reservas] = await Promise.all([
+      this.forms.find({ where: alcance, select: ['id', 'name', 'clientId', 'timezone'] }),
+      this.reservations.find({ where: { ...alcance, status: In(['attended', 'no_show']), startsAt: Between(desde, ahora) }, select: ['id', 'formId', 'status', 'startsAt'] }),
+    ]);
+    return {
+      dias: ventana,
+      muestraMinimaPorDia: MUESTRA_MINIMA_POR_DIA,
+      locales: noShowPorLocalYDia(reservas, (locales ?? []).map((local) => ({ id: local.id, nombre: local.name, clientId: local.clientId, timezone: local.timezone || 'America/Santiago' }))),
     };
   }
 
@@ -3684,8 +3800,9 @@ export class ReservationsService {
    *
    * @param limit - Máximo de filas a exportar; sin valor se exportan todas las que coincidan.
    */
-  async *streamCsv(organizationId: string, clientId?: string, clientIds?: string[], from?: string, to?: string, limit?: number): AsyncGenerator<string> {
+  async *streamCsv(organizationId: string, niveles: NivelesDeDatos, clientId?: string, clientIds?: string[], from?: string, to?: string, limit?: number): AsyncGenerator<string> {
     const BATCH = 500;
+    const quitar = new Set(columnasAQuitar('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
     const baseQuery = () => {
       const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId });
       if (clientId) qb.andWhere('r.client_id = :clientId', { clientId });
@@ -3698,7 +3815,7 @@ export class ReservationsService {
     // Las respuestas del formulario son columnas dinámicas, así que la cabecera solo se
     // conoce tras mirarlas todas. Este primer recorrido trae únicamente esa columna.
     const answerKeys = new Set<string>();
-    for await (const rows of this.batches(() => baseQuery().select('r.answers', 'answers'), BATCH, limit, true)) {
+    if (!quitar.has('answers')) for await (const rows of this.batches(() => baseQuery().select('r.answers', 'answers'), BATCH, limit, true)) {
       for (const row of rows as Array<{ answers: unknown }>) {
         const answers = typeof row.answers === 'string' ? JSON.parse(row.answers || '{}') : row.answers;
         if (answers && typeof answers === 'object') Object.keys(answers).forEach((key) => answerKeys.add(key));
@@ -3715,12 +3832,18 @@ export class ReservationsService {
     const etiquetas = new Map<string, string>();
     for (const formulario of formularios) for (const campo of formulario.fieldSchema ?? []) if (campo?.id && campo.label && !etiquetas.has(campo.id)) etiquetas.set(campo.id, campo.label);
     const legible = (valor: unknown) => Array.isArray(valor) ? valor.join(', ') : typeof valor === 'boolean' ? (valor ? 'Sí' : 'No') : valor;
-    yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => etiquetas.get(key) || RESPUESTAS_DEL_SISTEMA[key] || key)]);
+    const columnas = [
+      { titulo: 'codigo', campo: undefined, valor: (i: Reservation) => i.referenceCode },
+      { titulo: 'nombre', campo: undefined, valor: (i: Reservation) => i.guestName },
+      { titulo: 'correo', campo: 'guestEmail', valor: (i: Reservation) => i.guestEmail },
+      { titulo: 'telefono', campo: 'guestPhone', valor: (i: Reservation) => i.guestPhone },
+    ].filter((columna) => !columna.campo || !quitar.has(columna.campo));
+    yield toLine([...columnas.map((columna) => columna.titulo), 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => etiquetas.get(key) || RESPUESTAS_DEL_SISTEMA[key] || key)]);
 
     for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
       const lines = (items as Reservation[]).map((item) => {
         const answers = (item.answers || {}) as Record<string, unknown>;
-        return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => legible(answers[key]))]);
+        return toLine([...columnas.map((columna) => columna.valor(item)), item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => legible(answers[key]))]);
       });
       if (lines.length > 0) yield `\r\n${lines.join('\r\n')}`;
     }
@@ -3740,17 +3863,62 @@ export class ReservationsService {
     }
   }
 
-  async exportFormReservations(
-    organizationId: string,
-    formId: string,
-    clientId?: string,
-    clientIds?: string[],
-    format: 'csv' | 'json' | 'xlsx' = 'csv',
-    dateFrom?: string,
-    dateTo?: string,
-    fields: string[] = ['name', 'phone', 'email', 'date', 'status', 'attendance'],
-    includeInternalNotes = true,
-  ) {
+  /**
+   * Deja constancia de una exportación antes de entregarla, y exige motivo cuando corresponde.
+   *
+   * Es lo único que contesta «quién tuvo estos datos»: quién, cuándo, con qué filtro, cuántas
+   * filas y qué columnas. Si la constancia no se puede escribir, el archivo no sale.
+   */
+  async registrarExportacion(e: {
+    organizationId: string; actor: { id: string; nombre: string }; ip?: string; entityId?: string;
+    finalidad: 'con_contacto' | 'hoja_del_turno' | 'procesable'; formato: 'xlsx' | 'csv' | 'pdf';
+    filtro: Record<string, unknown>; filas: number; columnas: string[]; conProtegidos: boolean;
+    desde?: string; hasta?: string; motivo?: string;
+  }): Promise<void> {
+    const razones = razonesParaExigirMotivo({ filas: e.filas, desde: e.desde, hasta: e.hasta }, e.conProtegidos);
+    const motivo = motivoEscrito(e.motivo);
+    if (razones.length > 0 && !motivo) {
+      throw new BadRequestException(`Esta exportación exige un motivo escrito (al menos ${MOTIVO_MINIMO} caracteres) porque ${razones.join(' y ')}.`);
+    }
+    await this.audit.log({
+      organizationId: e.organizationId,
+      actorId: e.actor.id,
+      entityType: 'reservations',
+      entityId: e.entityId ?? null,
+      action: 'export',
+      after: { finalidad: e.finalidad, formato: e.formato, filtro: e.filtro, filas: e.filas, columnas: e.columnas, motivoExigido: razones },
+      reason: motivo,
+      ipAddress: e.ip,
+    });
+  }
+
+  /** Cuántas filas entregaría `streamCsv` con estos filtros, para decidir si exige motivo. */
+  async contarParaExportar(organizationId: string, clientId?: string, clientIds?: string[], from?: string, to?: string, limit?: number): Promise<number> {
+    const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId });
+    if (clientId) qb.andWhere('r.client_id = :clientId', { clientId });
+    else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds });
+    if (from) qb.andWhere('r.starts_at >= :from', { from });
+    if (to) qb.andWhere('r.starts_at <= :to', { to });
+    const total = await qb.getCount();
+    return limit === undefined ? total : Math.min(total, limit);
+  }
+
+  /** Las columnas de `streamCsv` para un nivel, para anotarlas en la constancia. */
+  /**
+   * Exportación de un local, armada en el servidor.
+   *
+   * Devuelve la planilla `.xlsx` —con la marca en la primera fila— o el CSV de proceso. Pasa por
+   * `columnasAQuitar` según el nivel de quien pide, deja constancia y exige motivo si el archivo
+   * lleva datos protegidos o es voluminoso. No se entrega nada hasta que la constancia se escribe.
+   */
+  async exportFormReservations(p: {
+    organizationId: string; niveles: NivelesDeDatos; formId: string; clientId?: string; clientIds?: string[];
+    formato: 'csv' | 'xlsx'; dateFrom?: string; dateTo?: string; fields?: string[]; includeInternalNotes?: boolean;
+    actor: { id: string; nombre: string }; motivo?: string; ip?: string;
+  }): Promise<{ cuerpo: string | Buffer; filas: number }> {
+    const { organizationId, niveles, formId, clientId, clientIds, formato, dateFrom, dateTo } = p;
+    const fields = p.fields ?? ['name', 'phone', 'email', 'date', 'status', 'attendance'];
+    const includeInternalNotes = p.includeInternalNotes ?? true;
     const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }).andWhere('r.form_id = :formId', { formId });
     if (clientId) qb.andWhere('r.client_id = :clientId', { clientId });
     else if (clientIds !== undefined) qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds });
@@ -3768,7 +3936,8 @@ export class ReservationsService {
      */
     const form = await this.forms.findOne({ where: { id: formId, organizationId } });
     const esquema = (form?.fieldSchema as FieldConfig[] | undefined) ?? [];
-    const clavesRespuesta = [...new Set(items.flatMap((item) => Object.keys((item.answers || {}) as Record<string, unknown>)))].sort();
+    const quitar = new Set(columnasAQuitar('reservations', niveles.de(form?.clientId ?? clientId)));
+    const clavesRespuesta = quitar.has('answers') ? [] : [...new Set(items.flatMap((item) => Object.keys((item.answers || {}) as Record<string, unknown>)))].sort();
     const etiquetaDe = (clave: string) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
     const valorDe = (item: Reservation, clave: string) => {
       const valor = ((item.answers || {}) as Record<string, unknown>)[clave];
@@ -3795,7 +3964,9 @@ export class ReservationsService {
       party_size: (item) => item.partySize,
     };
 
-    const allowedFields = includeInternalNotes ? fields : fields.filter((field) => field !== 'notes');
+    const COLUMNA_PROTEGIDA: Record<string, string> = { phone: 'guestPhone', email: 'guestEmail' };
+    const allowedFields = (includeInternalNotes ? fields : fields.filter((field) => field !== 'notes'))
+      .filter((field) => fieldMap[field] && !quitar.has(COLUMNA_PROTEGIDA[field] ?? ''));
 
     /*
      * Las columnas se titulan en palabras, no con el nombre del campo.
@@ -3810,12 +3981,20 @@ export class ReservationsService {
       origin: 'Canal', medium: 'Medio', campaign: 'Campaña', content: 'Contenido',
       code: 'Código', coupon: 'Cupón', party_size: 'Personas',
     };
-    const tituloDe = (campo: string) => TITULOS[campo] ?? campo;
-    const cabeceras = [...allowedFields.map(tituloDe), ...clavesRespuesta.map(etiquetaDe)];
+    const cabeceras = [...allowedFields.map((campo) => TITULOS[campo] ?? campo), ...clavesRespuesta.map(etiquetaDe)];
     const valores = (item: Reservation) => [
       ...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'),
       ...clavesRespuesta.map((clave) => valorDe(item, clave)),
     ];
+
+    await this.registrarExportacion({
+      organizationId, actor: p.actor, ip: p.ip, entityId: formId,
+      finalidad: formato === 'xlsx' ? 'con_contacto' : 'procesable', formato,
+      filtro: { formId, desde: dateFrom ?? null, hasta: dateTo ?? null },
+      filas: items.length, columnas: cabeceras,
+      conProtegidos: allowedFields.some((campo) => COLUMNA_PROTEGIDA[campo]) || clavesRespuesta.length > 0,
+      desde: dateFrom, hasta: dateTo, motivo: p.motivo,
+    });
 
     /*
      * La planilla de Excel, que es lo que de verdad se pide.
@@ -3824,42 +4003,82 @@ export class ReservationsService {
      * y un teléfono que empieza por `+` lo interpreta como fórmula. Aquí va como texto, con la
      * cabecera fija y las columnas al ancho de su contenido.
      */
-    if (format === 'xlsx') {
+    if (formato === 'xlsx') {
       const fecha = (valor: unknown) => (valor instanceof Date ? valor.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : valor);
-      return planillaXlsx(
+      return {
+        cuerpo: planillaXlsx(cabeceras, items.map((item) => valores(item).map(fecha)), form?.name ?? 'Reservas', marcaDeExportacion(p.actor.nombre, new Date())),
+        filas: items.length,
+      };
+    }
+
+    const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+    /*
+     * Con marca de orden de bytes al principio.
+     *
+     * Sin ella, Excel en español abre el archivo en la codificación del sistema y las eñes y las
+     * tildes salen como pares de símbolos sin sentido. Son tres bytes que ahorran tener que
+     * importar el archivo a mano eligiendo UTF-8 en el asistente.
+     */
+    return { cuerpo: `﻿${[cabeceras, ...items.map((item) => valores(item))].map((row) => row.map(escape).join(',')).join('\r\n')}`, filas: items.length };
+  }
+
+  /**
+   * La hoja del turno: un día, en PDF, para imprimir.
+   *
+   * No lleva ningún campo protegido —ni contacto, ni documento, ni las respuestas del formulario—
+   * ni las notas internas. Donde la reserva declara restricciones sólo dice que las tiene: el
+   * papel no registra quién lo vio, así que no puede llevar lo que sólo se entrega con constancia.
+   */
+  async hojaDelTurno(p: {
+    organizationId: string; formId: string; fecha: string; clientId?: string; clientIds?: string[];
+    actor: { id: string; nombre: string }; ip?: string;
+  }): Promise<{ cuerpo: Buffer; filas: number; nombre: string }> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha)) throw new BadRequestException('Indica el día de la hoja');
+    const form = await this.getForm(p.organizationId, p.formId, p.clientId, p.clientIds);
+    const desde = startOfLocalDayUtc(p.fecha, form.timezone);
+    const hasta = startOfLocalDayUtc(addPlainDays(p.fecha, 1), form.timezone);
+    const items = await this.reservations.createQueryBuilder('r')
+      .where('r.organization_id = :organizationId', { organizationId: p.organizationId })
+      .andWhere('r.form_id = :formId', { formId: form.id })
+      .andWhere('r.status IN (:...estados)', { estados: ACTIVE_STATUSES })
+      .andWhere('r.starts_at >= :desde AND r.starts_at < :hasta', { desde, hasta })
+      .orderBy('r.starts_at', 'ASC')
+      .getMany();
+
+    const esquema = (form.fieldSchema as FieldConfig[] | undefined) ?? [];
+    const etiquetaDe = (clave: string) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
+    const ESTADOS: Record<string, string> = { pending: 'Pendiente', confirmed: 'Confirmada', rescheduled: 'Reagendada' };
+    const hora = (fecha: Date) => fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: form.timezone });
+    const cabeceras = ['Hora', 'Nombre', 'Personas', 'Estado', 'Código', 'Aviso'];
+    const filas = items.map((item) => [
+      hora(item.startsAt), item.guestName, String(item.partySize), ESTADOS[item.status] ?? item.status, item.referenceCode,
+      tieneRestricciones(item.answers, etiquetaDe) ? AVISO_DE_RESTRICCIONES : '',
+    ]);
+
+    await this.registrarExportacion({
+      organizationId: p.organizationId, actor: p.actor, ip: p.ip, entityId: form.id,
+      finalidad: 'hoja_del_turno', formato: 'pdf',
+      filtro: { formId: form.id, fecha: p.fecha }, filas: items.length, columnas: cabeceras, conProtegidos: false,
+      desde: p.fecha, hasta: p.fecha,
+    });
+
+    const personas = items.reduce((suma, item) => suma + item.partySize, 0);
+    const cuando = new Date().toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone });
+    return {
+      nombre: `hoja-del-turno-${p.fecha}.pdf`,
+      filas: items.length,
+      cuerpo: pdfDeTabla({
+        titulo: `Hoja del turno · ${form.name} · ${p.fecha}`,
+        lineas: [
+          `${items.length} reserva${items.length === 1 ? '' : 's'} · ${personas} persona${personas === 1 ? '' : 's'} · impresa por ${p.actor.nombre} el ${cuando}`,
+          'Uso interno. Sin teléfonos, correos ni respuestas del formulario.',
+        ],
         cabeceras,
-        items.map((item) => valores(item).map(fecha)),
-        form?.name ?? 'Reservas',
-      );
-    }
-
-    if (format === 'json') {
-      return items.map((item) => {
-        const record: Record<string, any> = {};
-        for (const field of allowedFields) {
-          record[field] = fieldMap[field]?.(item) ?? '-';
-        }
-        for (const clave of clavesRespuesta) record[etiquetaDe(clave)] = valorDe(item, clave);
-        return record;
-      });
-    } else if (format === 'csv') {
-      const escape = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
-      const filas = items.map((item) => valores(item));
-      /*
-       * Con marca de orden de bytes al principio.
-       *
-       * Sin ella, Excel en español abre el archivo en la codificación del sistema y las eñes y las
-       * tildes salen como pares de símbolos sin sentido. Son tres bytes que ahorran tener que
-       * importar el archivo a mano eligiendo UTF-8 en el asistente.
-       */
-      return `﻿${[cabeceras, ...filas].map((row) => row.map(escape).join(',')).join('\r\n')}`;
-    }
-
-    // El formato PDF se retiró: devolvía texto separado por tabuladores con cabecera de PDF,
-    // sin la firma `%PDF-`, así que ningún lector lo abría. Un archivo roto es peor que un
-    // formato ausente, porque el fallo aparece recién al abrirlo, fuera de la aplicación.
-    // Volverá cuando se genere con una librería real.
-    throw new BadRequestException('Formato no soportado');
+        filas,
+        anchos: [45, 115, 45, 65, 65, 180],
+        pie: 'Las restricciones y los datos de contacto se consultan en pantalla, donde queda anotado quién los vio.',
+      }),
+    };
   }
 
   async createCoupon(organizationId: string, userId: string, dto: CreateCouponDto, clientId?: string) {

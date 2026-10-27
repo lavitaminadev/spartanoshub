@@ -15,7 +15,10 @@ import { CreateApprovalDto } from './dto/create-approval.dto';
 import { Client } from '../clients/client.entity';
 import { Piece } from '../production/piece.entity';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
+import { Empresa } from '../../core/client-scope/empresa.decorator';
+import { esUnaEmpresa, type AmbitoDeEmpresa } from '../../core/client-scope/empresa-resuelta';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 @ApiTags('Aprobaciones')
 @Controller('approvals')
@@ -33,6 +36,7 @@ export class ApprovalsController {
   ) {}
 
   @Post()
+  @RequiereArea('production.aprobaciones', 'hacer')
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Crear solicitud de aprobación' })
   async create(@Body() dto: CreateApprovalDto, @Req() req: AuthenticatedRequest) {
@@ -52,16 +56,20 @@ export class ApprovalsController {
   }
 
   @Get()
+  @RequiereArea('production.aprobaciones', 'ver')
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar solicitudes de aprobación' })
-  async list(@Req() req: AuthenticatedRequest) {
-    const clientId = req.user?.role === 'client' ? req.user.clientId : undefined;
+  async list(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+    // Una empresa concreta, o la agencia entera para quien no tiene límite. Una cuenta de portal
+    // nunca recibe la agencia: sin empresa resuelta no hay nada que listar.
+    const clientId = esUnaEmpresa(ambito) ? ambito : undefined;
     if (req.user?.role === UserRole.CLIENT && !clientId) throw new ForbiddenException('Client account is not associated');
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     return this.listApprovals.execute(req.organizationId, clientId, clientIds);
   }
 
   @Put(':id')
+  @RequiereArea('production.aprobaciones', 'hacer')
   @Roles(UserRole.ART_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Aprobar o rechazar solicitud' })
   async update(@Param('id') id: string, @Body() dto: UpdateApprovalDto, @Req() req: AuthenticatedRequest) {
@@ -71,7 +79,9 @@ export class ApprovalsController {
     return this.updateStatus.execute(
       id,
       req.organizationId,
-      { userId: req.user.id, role: req.user.role as UserRole, clientId: req.user.clientId },
+      // La cuenta ya se comprobó contra la empresa de la solicitud: es esa la que se entrega,
+      // no la de la cuenta, que sólo es una de las que un portal puede alcanzar.
+      { userId: req.user.id, role: req.user.role as UserRole, clientId: approval.clientId },
       dto.status,
       dto.decisionNotes,
     );

@@ -75,11 +75,11 @@ function normalizeListResponse(payload: unknown): Survey[] {
  * @param recorte - Lo que se está mirando. Cambiarlo pide de nuevo; React Query guarda cada
  *   combinación, así que volver a una ya vista responde al instante.
  */
-export function useSurveys(recorte?: { buscar?: string; estado?: string; tipo?: string; page?: number }) {
+export function useSurveys(recorte?: { buscar?: string; estado?: string; tipo?: string; page?: number; clientId?: string }) {
   const buscar = recorte?.buscar?.trim() || '';
-  const { estado = '', tipo = '', page = 1 } = recorte ?? {};
+  const { estado = '', tipo = '', page = 1, clientId = '' } = recorte ?? {};
   return useQuery<{ encuestas: Survey[]; total: number; pageSize: number }>({
-    queryKey: ['surveys', buscar, estado, tipo, page],
+    queryKey: ['surveys', buscar, estado, tipo, page, clientId],
     placeholderData: (previa) => previa,
     queryFn: async () => {
       const consulta = new URLSearchParams({
@@ -87,6 +87,7 @@ export function useSurveys(recorte?: { buscar?: string; estado?: string; tipo?: 
         ...(buscar ? { buscar } : {}),
         ...(estado ? { estado } : {}),
         ...(tipo ? { tipo } : {}),
+        ...(clientId ? { clientId } : {}),
       });
       try {
         const payload = await api.get<unknown>(`/surveys?${consulta}`);

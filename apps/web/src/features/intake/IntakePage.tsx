@@ -131,6 +131,7 @@ export function IntakePage() {
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<{ data: WorkRequest[]; total: number }>({
     queryKey: ['work-requests', areaFilter, clientFilter, onlyMine],
+    placeholderData: (previa) => previa,
     queryFn: () => api.get(`/intake/requests${suffix}`),
   });
 
@@ -354,8 +355,8 @@ export function IntakePage() {
     );
   };
 
-  if (isLoading) return <LoadingSpinner text="Cargando solicitudes..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar las solicitudes" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (isLoading && !data) return <LoadingSpinner text="Cargando solicitudes..." />;
+  if (error) return <QueryErrorState title="No pudimos cargar las solicitudes" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div className="page">

@@ -4,6 +4,8 @@ interface ConfirmDialogProps {
   open: boolean;
   title: string;
   description: string;
+  /** Empresa afectada. Se pasa cuando la cuenta atiende varias, para no actuar sobre la equivocada. */
+  empresa?: string;
   confirmLabel?: string;
   pending?: boolean;
   /** Se muestra como un banner de error inline, ej. tras un intento de confirmación fallido. */
@@ -16,6 +18,7 @@ export function ConfirmDialog({
   open,
   title,
   description,
+  empresa,
   confirmLabel = 'Confirmar',
   pending = false,
   error,
@@ -27,6 +30,7 @@ export function ConfirmDialog({
       <div className="confirm-dialog">
         <span className="confirm-dialog-mark" aria-hidden="true">!</span>
         <p>{description}</p>
+        {empresa ? <p className="confirmar-empresa">Empresa: <strong>{empresa}</strong></p> : null}
         {error && <div className="alert alert-error">{error}</div>}
         <div className="modal-actions">
           <button className="btn btn-outline" type="button" onClick={onClose} disabled={pending}>Cancelar</button>

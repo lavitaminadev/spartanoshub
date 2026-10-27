@@ -131,7 +131,7 @@ describe('aviso al local por el mensaje de una encuesta', () => {
 
     expect(avisos.para).toHaveBeenCalledWith('org-1', null, 'encuestas', []);
     expect(correo.send).toHaveBeenCalledTimes(1);
-    expect(correo.send).toHaveBeenCalledWith('garzon@local.cl', expect.any(String), expect.any(String), undefined);
+    expect(correo.send).toHaveBeenCalledWith('garzon@local.cl', expect.any(String), expect.any(String));
   });
 
   /* Sin nadie anotado no se manda nada: no hay destinatario por descarte al que escribirle. */

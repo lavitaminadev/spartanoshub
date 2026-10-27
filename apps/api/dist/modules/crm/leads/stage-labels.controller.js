@@ -24,6 +24,7 @@ const roles_decorator_1 = require("../../../core/authorization/roles.decorator")
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const stage_labels_service_1 = require("./stage-labels.service");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 let StageLabelsController = class StageLabelsController {
     constructor(rotulos, accountAccess, leads) {
         this.rotulos = rotulos;
@@ -83,6 +84,7 @@ let StageLabelsController = class StageLabelsController {
 exports.StageLabelsController = StageLabelsController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Rótulos de etapa de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -92,6 +94,7 @@ __decorate([
 ], StageLabelsController.prototype, "get", null);
 __decorate([
     (0, common_1.Get)('vocabulary'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Vocabulario del CRM de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -101,6 +104,7 @@ __decorate([
 ], StageLabelsController.prototype, "vocabulario", null);
 __decorate([
     (0, common_1.Put)('vocabulary'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Renombrar las cosas del CRM de una empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -112,6 +116,7 @@ __decorate([
 ], StageLabelsController.prototype, "guardarVocabulario", null);
 __decorate([
     (0, common_1.Put)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Renombrar las etapas de una empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -123,6 +128,7 @@ __decorate([
 ], StageLabelsController.prototype, "put", null);
 __decorate([
     (0, common_1.Get)('hidden'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Etapas ocultas de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -132,6 +138,7 @@ __decorate([
 ], StageLabelsController.prototype, "ocultas", null);
 __decorate([
     (0, common_1.Put)('hidden'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Elegir qué etapas usa una empresa' }),
     __param(0, (0, common_1.Req)()),
@@ -143,6 +150,7 @@ __decorate([
 ], StageLabelsController.prototype, "guardarOcultas", null);
 __decorate([
     (0, common_1.Get)('qualify-at'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.embudo', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Etapas en las que se pregunta la calificación' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -152,6 +160,7 @@ __decorate([
 ], StageLabelsController.prototype, "preguntanCalificacion", null);
 __decorate([
     (0, common_1.Put)('qualify-at'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.reglas', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR),
     (0, swagger_1.ApiOperation)({ summary: 'Elegir en qué etapas se pregunta la calificación' }),
     __param(0, (0, common_1.Req)()),

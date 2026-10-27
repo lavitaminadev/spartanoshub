@@ -29,9 +29,10 @@ function trabajo(opciones: { ajustes: Record<string, unknown>; cupon?: Record<st
   const correo = { send: vi.fn().mockResolvedValue(true) };
   const parametros = { get: vi.fn(async (clave: string) => opciones.ajustes[clave] ?? null) };
   // Quien pidió beneficios está en la lista, así que tiene de dónde darse de baja.
-  const suscriptores = { findOne: vi.fn().mockResolvedValue({ id: 's-1', unsubscribeToken: 'tok-123' }) };
-  const job = new CuponPostVisitaJob(reservas as never, formularios as never, cupones as never, correo as never, parametros as never, suscriptores as never);
-  return { job, correo, reservas, suscriptores };
+  const suscriptores = { findOne: vi.fn().mockResolvedValue({ id: 's-1', status: 'subscribed', unsubscribeToken: 'tok-123' }) };
+  const listas = { exclusionDe: vi.fn().mockResolvedValue(null) };
+  const job = new CuponPostVisitaJob(reservas as never, formularios as never, cupones as never, correo as never, parametros as never, suscriptores as never, listas as never);
+  return { job, correo, reservas, suscriptores, listas };
 }
 
 const encendido = { 'email.coupon_enabled': true, 'email.coupon_code': 'bienvenida10', 'email.coupon_days_valid': 30 };
@@ -74,12 +75,26 @@ describe('cupón automático', () => {
     expect(opciones.bajaUrl).toContain('email.coupon');
   });
 
-  it('si su ficha no aparece, el cupón sale igual sin el enlace', async () => {
-    const { job, correo, suscriptores } = trabajo({ ajustes: encendido, porAsistencia: [reserva] });
+  it('si su ficha no aparece, no envía nada ni marca la reserva', async () => {
+    const { job, correo, suscriptores, reservas } = trabajo({ ajustes: encendido, porAsistencia: [reserva] });
     suscriptores.findOne.mockResolvedValue(null);
-    await expect(job.handle()).resolves.toMatchObject({ enviados: 1 });
-    const [, , , opciones] = correo.send.mock.calls[0] as [string, string, string, { bajaUrl?: string }];
-    expect(opciones.bajaUrl).toBeUndefined();
+    await expect(job.handle()).resolves.toMatchObject({ enviados: 0 });
+    expect(correo.send).not.toHaveBeenCalled();
+    expect(reservas.update).not.toHaveBeenCalled();
+  });
+
+  it('a quien se dio de baja no le envía el cupón', async () => {
+    const { job, correo, suscriptores } = trabajo({ ajustes: encendido, porAsistencia: [reserva] });
+    suscriptores.findOne.mockResolvedValue({ id: 's-1', status: 'unsubscribed', unsubscribeToken: 'tok-123' });
+    await expect(job.handle()).resolves.toMatchObject({ enviados: 0 });
+    expect(correo.send).not.toHaveBeenCalled();
+  });
+
+  it('a quien figura en las exclusiones no le envía el cupón', async () => {
+    const { job, correo, listas } = trabajo({ ajustes: encendido, porAsistencia: [reserva] });
+    listas.exclusionDe.mockResolvedValue('todas');
+    await expect(job.handle()).resolves.toMatchObject({ enviados: 0 });
+    expect(correo.send).not.toHaveBeenCalled();
   });
 
   it('con el interruptor apagado no lleva enlace, pero el cupón llega', async () => {

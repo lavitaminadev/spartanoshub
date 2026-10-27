@@ -145,7 +145,7 @@ export function AvailabilityCalendarPage() {
     ) : isLoading ? (
       <LoadingSpinner text="Calculando ocupación..." />
     ) : error ? (
-      isForbiddenError(error) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar la ocupación" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />
+      isForbiddenError(error) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar la ocupación" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />
     ) : <>
       <div className="availability-calendar" role="table" aria-label="Calendario mensual de ocupación">
         <div className="availability-weekday-row" role="row">

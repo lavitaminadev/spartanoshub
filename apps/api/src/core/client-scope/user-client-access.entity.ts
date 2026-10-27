@@ -31,8 +31,58 @@ export class UserClientAccess {
   @Column({ type: 'varchar', length: 255, nullable: true })
   reason?: string | null;
 
+  /**
+   * Hasta cuándo rige lo prestado. Vacío: sin fecha de término.
+   *
+   * Prestar sin fecha es válido, pero tiene que ser una decisión de quien presta y no el valor por
+   * defecto: quien cubre dos semanas de vacaciones no debe quedarse con la cuenta para siempre
+   * porque nadie se acuerde de quitársela. Vencida, la fila deja de contar para el alcance sola;
+   * se conserva como constancia de que existió.
+   */
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true })
+  expiresAt?: Date | null;
+
+  /** Cuándo se avisó a quien lo concedió que esto está por vencer. Evita repetir el aviso. */
+  @Column({ name: 'expiry_notified_at', type: 'timestamp', nullable: true })
+  expiryNotifiedAt?: Date | null;
+
   @Column({ name: 'granted_by', type: 'uuid', nullable: true })
   grantedBy?: string | null;
+
+  /**
+   * Cuándo dejó de pertenecer a esta empresa. Vacío: pertenece.
+   *
+   * Retirar marca y no borra: borrar la fila destruye la respuesta a «quién tenía acceso a estos
+   * datos en tal fecha». Una fila retirada no cuenta para el alcance, pero sigue existiendo.
+   */
+  @Column({ name: 'retired_at', type: 'timestamp', nullable: true })
+  retiredAt?: Date | null;
+
+  @Column({ name: 'retired_by', type: 'uuid', nullable: true })
+  retiredBy?: string | null;
+
+  @Column({ name: 'retired_reason', type: 'varchar', length: 300, nullable: true })
+  retiredReason?: string | null;
+
+  /** `retirado`: se fue y puede volver. `vetado`: no debe volver sin un acto deliberado de quien administra. */
+  @Column({ name: 'retired_outcome', type: 'varchar', length: 10, nullable: true })
+  retiredOutcome?: 'retirado' | 'vetado' | null;
+
+  /**
+   * El último reingreso a esta empresa, tras un retiro. Se guarda aparte del retiro para poder decir
+   * «reingresó el X por tal motivo; antes estuvo hasta el Y».
+   */
+  @Column({ name: 'reentered_at', type: 'timestamp', nullable: true })
+  reenteredAt?: Date | null;
+
+  @Column({ name: 'reentered_by', type: 'uuid', nullable: true })
+  reenteredBy?: string | null;
+
+  @Column({ name: 'reentry_reason', type: 'varchar', length: 300, nullable: true })
+  reentryReason?: string | null;
+
+  @Column({ name: 'previous_retired_at', type: 'timestamp', nullable: true })
+  previousRetiredAt?: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -2,10 +2,10 @@ import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } fr
 import { Observable, tap } from 'rxjs';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { AuditService } from './audit.service';
+import { sanearParaBitacora } from './sanear-bitacora';
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SENSITIVE = /password|token|secret|authorization|cookie|credential|temporary/i;
 
 /** Rutas que agrupan varias entidades y necesitan un segundo segmento para distinguirlas. */
 const CONTAINER_SEGMENTS = new Set(['crm', 'billing', 'production', 'integrations', 'public']);
@@ -62,10 +62,8 @@ export class AuditInterceptor implements NestInterceptor {
     return ({ POST: 'create', PUT: 'update', PATCH: 'update', DELETE: 'delete' } as Record<string, string>)[method] ?? 'change';
   }
 
-  private sanitize(value: unknown, depth = 0): unknown {
-    if (depth > 3 || value == null) return value;
-    if (Array.isArray(value)) return value.slice(0, 50).map((item) => this.sanitize(item, depth + 1));
-    if (typeof value !== 'object') return typeof value === 'string' && value.length > 2000 ? `${value.slice(0, 2000)}...` : value;
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, SENSITIVE.test(key) ? '[REDACTED]' : this.sanitize(item, depth + 1)]));
+  /** Lo que se guarda del cuerpo de la petición: sin secretos, por nombre ni por valor. */
+  private sanitize(value: unknown): unknown {
+    return sanearParaBitacora(value);
   }
 }

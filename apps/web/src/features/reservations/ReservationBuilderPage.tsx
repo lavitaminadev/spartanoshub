@@ -1,3 +1,4 @@
+import { DialogoModal } from '../../shared/DialogoModal';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { CATEGORIAS_DE_EVENTO, leerTiposDeEvento, type CategoriaDeEvento } from './tipos-de-evento';
 import { SaludDeMedicion } from './SaludDeMedicion';
@@ -518,8 +519,8 @@ export function ReservationBuilderPage() {
           <ReservationLivePreview draft={draft} fields={fields} previewDevice="mobile" style={designPreviewStyle} />
         </aside>
       </div>
-      {editingField && editingDraft && <div className="field-editor-overlay" onClick={() => closeEditor(true)}><div className="field-editor-popup" onClick={(e) => e.stopPropagation()}>
-        <div className="field-editor-header"><h3>Editar {editingDraft.label}</h3><button type="button" className="btn btn-sm btn-outline" onClick={() => closeEditor(true)}>✕</button></div>
+      {editingField && editingDraft && <DialogoModal etiqueta={`Editar ${editingDraft.label}`} onCerrar={() => closeEditor(true)} className="field-editor-overlay"><div className="field-editor-popup" data-retiene-toque>
+        <div className="field-editor-header"><h3>Editar {editingDraft.label}</h3><button type="button" className="btn btn-sm btn-outline" onClick={() => closeEditor(true)} aria-label="Cerrar el editor del campo">✕</button></div>
         <div className="field-editor-body">
           <label>Etiqueta<input className="input" value={editingDraft.label} onChange={(e) => updateEditor({ label: e.target.value })} /></label>
           <label>Texto de ayuda<input className="input" value={editingDraft.placeholder || ''} onChange={(e) => updateEditor({ placeholder: e.target.value })} /></label>
@@ -570,7 +571,7 @@ export function ReservationBuilderPage() {
           </div>
         </div>
         <div className="field-editor-footer"><button type="button" className="btn btn-outline btn-sm" onClick={() => closeEditor(false)}>Descartar cambios</button><button type="button" className="btn btn-primary btn-sm" onClick={() => closeEditor(true)}>Guardar</button></div>
-      </div></div>}
+      </div></DialogoModal>}
     </Fragment>}
 
     {step === 1 && <div className="builder-stage"><div className="stage-heading"><span className="page-eyebrow">AGENDA Y CAPACIDAD</span><h2>¿Cuándo pueden reservar?</h2><p>Define el horario habitual y bloqueos.</p></div><div className="schedule-layout">
@@ -604,7 +605,7 @@ export function ReservationBuilderPage() {
         <details className="schedule-advanced" open={ventanaImposible}>
           <summary>Ajustes avanzados</summary>
           <div className="schedule-settings schedule-settings-wide"><label>Margen entre reservas (min)<small>Tiempo para dejar lista la mesa.</small><input className="input" type="number" min="0" max="240" value={draft.bufferMinutes} onChange={(event) => change({ bufferMinutes: Number(event.target.value) })} /></label><label>Anticipación mínima (h)<input className="input" type="number" min="0" value={draft.minimumNoticeHours} onChange={(event) => change({ minimumNoticeHours: Number(event.target.value) })} /></label><label>Ventana máxima (días)<input className="input" type="number" min="1" max="365" value={draft.maximumAdvanceDays} onChange={(event) => change({ maximumAdvanceDays: Number(event.target.value) })} aria-invalid={ventanaImposible} /></label><label>Confirmación<select className="input" value={draft.confirmationMode} onChange={(event) => change({ confirmationMode: event.target.value })}><option value="automatic">Automática</option><option value="manual">Revisión manual</option></select></label>
-            <label>Una llegada cada (min)<small>Cada cuánto se ofrece un horario.</small><input className="input" type="number" min="5" max="240" value={String(draft.designConfig?.slotCadenceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, slotCadenceMinutes: event.target.value } })} /></label><label>Retener cupo (min)<input className="input" type="number" min="1" max="30" value={String(draft.designConfig?.holdMinutes || '5')} onChange={(event) => change({ designConfig: { ...draft.designConfig, holdMinutes: event.target.value } })} /></label></div>
+            <label>Una llegada cada (min)<small>Cada cuánto se ofrece un horario.</small><input className="input" type="number" min="5" max="240" value={String(draft.designConfig?.slotCadenceMinutes || '15')} onChange={(event) => change({ designConfig: { ...draft.designConfig, slotCadenceMinutes: event.target.value } })} /></label><label>Retener cupo (min)<input className="input" type="number" min="1" max="30" value={String(draft.designConfig?.holdMinutes || '10')} onChange={(event) => change({ designConfig: { ...draft.designConfig, holdMinutes: event.target.value } })} /></label></div>
         </details>
       <section className="reservation-readiness zonas-en-agenda" id="zonas"><div><span className="page-eyebrow">ZONAS Y PREFERENCIAS</span><h2>Zonas y sectores</h2><p className="page-subtitle">Terraza, salón o barra, con su cupo de personas. Quien reserva elige el sector y ve si permite fumar. Desactivar conserva la zona y su historial.</p></div>{zones.some((zona) => zona.active !== false && (zona.capacity || draft.capacityPerSlot) < umbralDeGrupo) && <div className="alert alert-warning cupo-aviso">Hay zonas con cupo menor a {umbralDeGrupo} personas: quien elija esa zona con un grupo más grande no verá horarios.</div>}{draft.designConfig?.askSmoking === 'true' && zones.length > 0 && <small className="schedule-nota">Con zonas cargadas, la preferencia de fumadores se muestra en el selector de sector («· fumadores») y no se pregunta aparte.</small>}{zones.map((zone, index) => <div className="reservation-zone-row" key={zone.id}><label>Nombre<input className="input" value={zone.name} onChange={(e) => updateZone(index, { name: e.target.value })} placeholder="Ej. Terraza" /></label><label>Cupo<input className="input" type="number" min="1" max="500" value={zone.capacity || draft.capacityPerSlot} onChange={(e) => updateZone(index, { capacity: Number(e.target.value) })} /></label><label>Descripción<input className="input" value={zone.description || ''} onChange={(e) => updateZone(index, { description: e.target.value })} /></label><label className="toggle-row"><input type="checkbox" checked={Boolean(zone.smokingAllowed)} onChange={(e) => updateZone(index, { smokingAllowed: e.target.checked })} /> Fumadores</label><label className="toggle-row"><input type="checkbox" checked={zone.active !== false} onChange={(e) => updateZone(index, { active: e.target.checked })} /> Disponible para reservar</label><button type="button" className="btn btn-outline btn-sm" onClick={() => updateZone(index, { active: zone.active === false })}>{zone.active === false ? 'Activar' : 'Desactivar'}</button></div>)}<button type="button" className="btn btn-outline btn-sm" onClick={addZone}>Agregar zona</button></section>
         <h3>Grupos grandes y eventos</h3>
@@ -892,8 +893,8 @@ export function ReservationBuilderPage() {
           */}
         <div className="form-row">
           <p className="form-hint">
-            La <strong>tolerancia de llegada</strong> —los minutos que se espera antes de liberar la
-            mesa— se cambia en <strong>Ajustes del día</strong>, que es donde se toca cuando hace
+            La <strong>tolerancia de llegada</strong> —los minutos de retraso que el local dice esperar;
+            se informan a quien reserva y no liberan la mesa solos— se cambia en <strong>Ajustes del día</strong>, que es donde se toca cuando hace
             falta. Ahora mismo:{' '}
             {draft.designConfig?.toleranciaMinutos
               ? `${draft.designConfig.toleranciaMinutos} minutos`
@@ -1249,7 +1250,7 @@ function ReservationLivePreview({
             <ul className="booking-reglas">
               <li><span>Duración</span><strong>{draft.durationMinutes} minutos</strong></li>
               <li><span>Confirmación</span><strong>{draft.confirmationMode === 'automatic' ? 'Directa' : 'Manual'}</strong></li>
-              {Number(design.toleranciaMinutos || 0) > 0 && <li><span>Tolerancia</span><strong>Te esperamos {Number(design.toleranciaMinutos)} minutos; después la mesa queda disponible</strong></li>}
+              {Number(design.toleranciaMinutos || 0) > 0 && <li><span>Tolerancia</span><strong>Te esperamos hasta {Number(design.toleranciaMinutos)} minutos de retraso</strong></li>}
               <li><span>Zona horaria</span><strong>{draft.timezone?.split('/').pop()?.replaceAll('_', ' ')}</strong></li>
             </ul>
           </div>

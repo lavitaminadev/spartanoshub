@@ -1,3 +1,4 @@
+import { DialogoModal } from '../../shared/DialogoModal';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../core/api';
@@ -22,6 +23,7 @@ interface DashboardData {
   activeClients: number;
   pendingPieces: number;
   teamXp: number;
+  xpScope?: 'personal' | 'team';
   monthUd: number;
   ud?: { contracted: number; consumed: number; reserved: number };
   pieces?: { status: string; count: number }[];
@@ -191,7 +193,7 @@ export function DashboardPage() {
     );
   }
   if (isLoading) return <LoadingSpinner text="Cargando dashboard..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar tu dashboard" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error) return <QueryErrorState title="No pudimos cargar tu dashboard" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   if (!data) return <div className="alert alert-info">No hay datos disponibles</div>;
 
   return (
@@ -239,8 +241,8 @@ export function DashboardPage() {
         </>}
         {!personalView && moduleAllowed('clients') && <Card title="Clientes Activos" value={data.activeClients ?? 0} color="#1a1a2e" />}
         {moduleAllowed('production') && <Card title="Piezas Pendientes" value={data.pendingPieces ?? 0} color="#f39c12" />}
-        {moduleAllowed('gamification') && <Card title="XP del Equipo" value={data.teamXp ?? 0} color="#9b59b6" />}
-        {!personalView && moduleAllowed('udBudget') && <Card title="UD este Mes" value={data.monthUd ?? 0} color="#087e79" />}
+        {moduleAllowed('gamification') && <Card title={data.xpScope === 'personal' ? 'Mi XP (30 días)' : 'XP del Equipo (30 días)'} value={data.teamXp ?? 0} color="#9b59b6" />}
+        {!personalView && moduleAllowed('udBudget') && <Card title="UD consumidas este mes" value={data.monthUd ?? 0} color="#087e79" />}
       </div>}
 
       {!personalView && widgetVisible('reservations') && <ReservationResults />}
@@ -274,10 +276,10 @@ export function DashboardPage() {
       {!personalView && widgetVisible('ud') && data.ud && <div className="section">
         <h2>Unidades de Diseño</h2>
         <div className="dashboard-charts-row">
-          <div className="dashboard-chart-card"><h3>Consumo UD</h3>
+          <div className="dashboard-chart-card"><h3>Consumo UD (mes en curso)</h3>
             <ResponsiveContainer width="100%" height={200}><BarChart data={[{ name: 'Contratadas', value: data.ud.contracted, fill: '#e67e22' }, { name: 'Consumidas', value: data.ud.consumed, fill: '#087e79' }, { name: 'Reservadas', value: data.ud.reserved, fill: '#3498db' }]} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}><Cell fill="#e67e22" /><Cell fill="#087e79" /><Cell fill="#3498db" /></Bar></BarChart></ResponsiveContainer>
           </div>
-          <div className="dashboard-chart-card"><h3>% Consumo</h3>
+          <div className="dashboard-chart-card"><h3>% Consumo (mes en curso)</h3>
             <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={[{ name: 'Consumido', value: data.ud.consumed }, { name: 'Disponible', value: Math.max(0, data.ud.contracted - data.ud.consumed) }]} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}><Cell fill="#087e79" /><Cell fill="#f1ecef" /></Pie><Tooltip /></PieChart></ResponsiveContainer>
           </div>
         </div>
@@ -289,13 +291,13 @@ export function DashboardPage() {
           <div className="dashboard-chart-card"><h3>Distribucion por estado</h3>
             <ResponsiveContainer width="100%" height={250}><PieChart><Pie data={data.pieces.map((p) => ({ name: statusLabel(p.status), value: p.count, color: PIECE_COLORS[p.status] || '#8e44ad' }))} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, value }: any) => `${name}: ${value}`}>{data.pieces.map((p, i) => <Cell key={p.status} fill={PIECE_COLORS[p.status] || CHART_COLORS[i % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer>
           </div>
-          <div className="dashboard-chart-card"><h3>Rendimiento por tipo</h3>
+          <div className="dashboard-chart-card"><h3>Piezas por estado</h3>
             <ResponsiveContainer width="100%" height={250}><RadarChart data={data.pieces.map((p) => ({ status: statusLabel(p.status), count: p.count, fullMark: Math.max(...data.pieces!.map((x) => x.count)) }))}><PolarGrid /><PolarAngleAxis dataKey="status" tick={{ fontSize: 10 }} /><PolarRadiusAxis tick={{ fontSize: 10 }} /><Radar dataKey="count" stroke="#0ec6b8" fill="#0ec6b8" fillOpacity={0.2} /></RadarChart></ResponsiveContainer>
           </div>
         </div>
       </div>}
 
-      {configureOpen && <div className="dashboard-config-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfigureOpen(false); }}><aside className="dashboard-config" role="dialog" aria-modal="true"><header><div><span className="page-eyebrow">VISTA POR ROL</span><h2>Configura tu centro de control</h2></div><button onClick={() => setConfigureOpen(false)} aria-label="Cerrar">x</button></header><div>{availableWidgets.map((widget) => <label key={widget}><span><strong>{WIDGET_LABELS[widget]}</strong></span><input type="checkbox" checked={widgetVisible(widget)} onChange={() => setWidgets(widgetVisible(widget) ? visibleWidgets.filter((item) => item !== widget) : [...visibleWidgets, widget])} /></label>)}</div><footer><button className="btn btn-outline" onClick={() => setWidgets(rolePreset)}>Restaurar preset</button><button className="btn btn-primary" onClick={() => setConfigureOpen(false)}>Aplicar vista</button></footer></aside></div>}
+      {configureOpen && <DialogoModal etiqueta="Configura tu centro de control" onCerrar={() => setConfigureOpen(false)} className="dashboard-config-backdrop"><aside className="dashboard-config" data-retiene-toque><header><div><span className="page-eyebrow">VISTA POR ROL</span><h2>Configura tu centro de control</h2></div><button onClick={() => setConfigureOpen(false)} aria-label="Cerrar configuración">×</button></header><div>{availableWidgets.map((widget) => <label key={widget}><span><strong>{WIDGET_LABELS[widget]}</strong></span><input type="checkbox" checked={widgetVisible(widget)} onChange={() => setWidgets(widgetVisible(widget) ? visibleWidgets.filter((item) => item !== widget) : [...visibleWidgets, widget])} /></label>)}</div><footer><button className="btn btn-outline" onClick={() => setWidgets(rolePreset)}>Restaurar preset</button><button className="btn btn-primary" onClick={() => setConfigureOpen(false)}>Aplicar vista</button></footer></aside></DialogoModal>}
     </div>
   );
 }

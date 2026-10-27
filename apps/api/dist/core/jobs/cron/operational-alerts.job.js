@@ -13,13 +13,15 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 var OperationalAlertsJob_1;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OperationalAlertsJob = void 0;
+exports.OperationalAlertsJob = exports.DIAS_DE_AVISO_ANTES_DE_VENCER = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const notification_entity_1 = require("../../notifications/notification.entity");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
+const plazo_de_aviso_1 = require("../../../modules/vulneraciones/plazo-de-aviso");
 const shared_1 = require("@espartanos/shared");
+exports.DIAS_DE_AVISO_ANTES_DE_VENCER = 3;
 let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
     constructor(dataSource, notifications, parameters) {
         this.dataSource = dataSource;
@@ -36,7 +38,9 @@ let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
                 created += await this.actionItemAlerts(organization.id);
                 created += await this.budgetAlerts(organization.id);
                 created += await this.cycleAlerts(organization.id);
+                created += await this.vulneracionAlerts(organization.id);
                 created += await this.solicitudesDeDerechos(organization.id);
+                created += await this.prestamosPorVencer(organization.id);
             }
             catch (error) {
                 this.logger.error(`Failed to scan alerts for organization ${organization.id}: ${error instanceof Error ? error.message : error}`);
@@ -75,6 +79,26 @@ let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
         }
         return total;
     }
+    async prestamosPorVencer(organizationId) {
+        const dias = exports.DIAS_DE_AVISO_ANTES_DE_VENCER;
+        const cuentas = await this.dataSource.query('SELECT a.id, a.granted_by grantedBy, a.expires_at expiresAt, u.name persona, c.name empresa FROM user_client_access a JOIN users u ON u.id = a.user_id JOIN clients c ON c.id = a.client_id WHERE a.organization_id = ? AND a.retired_at IS NULL AND a.expiry_notified_at IS NULL AND a.expires_at > NOW() AND a.expires_at <= DATE_ADD(NOW(), INTERVAL ? DAY) LIMIT 200', [organizationId, dias]);
+        const acciones = await this.dataSource.query('SELECT a.id, a.granted_by grantedBy, a.expires_at expiresAt, u.name persona, a.action accion FROM user_action_overrides a JOIN users u ON u.id = a.user_id WHERE a.organization_id = ? AND a.expiry_notified_at IS NULL AND a.expires_at > NOW() AND a.expires_at <= DATE_ADD(NOW(), INTERVAL ? DAY) LIMIT 200', [organizationId, dias]);
+        if (!cuentas.length && !acciones.length)
+            return 0;
+        const direccion = await this.directors(organizationId);
+        const activos = new Set((await this.dataSource.query('SELECT id FROM users WHERE organization_id = ? AND is_active = 1', [organizationId])).map((fila) => fila.id));
+        const destinatarios = (grantedBy) => (grantedBy && activos.has(grantedBy) ? [grantedBy] : direccion);
+        let total = 0;
+        for (const fila of cuentas) {
+            total += await this.notifyOnce(organizationId, destinatarios(fila.grantedBy), 'acceso.por_vencer', `${fila.id}:${new Date(fila.expiresAt).getTime()}`, 'Acceso prestado por vencer', `${fila.persona} deja de ver la cuenta ${fila.empresa} el ${new Date(fila.expiresAt).toLocaleDateString('es-CL')}. Renuévalo si todavía lo necesita; si no, se cierra solo.`, { userClientAccessId: fila.id });
+            await this.dataSource.query('UPDATE user_client_access SET expiry_notified_at = NOW() WHERE id = ?', [fila.id]);
+        }
+        for (const fila of acciones) {
+            total += await this.notifyOnce(organizationId, destinatarios(fila.grantedBy), 'accion.por_vencer', `${fila.id}:${new Date(fila.expiresAt).getTime()}`, 'Ajuste de acción por vencer', `El ajuste de «${fila.accion}» para ${fila.persona} vence el ${new Date(fila.expiresAt).toLocaleDateString('es-CL')}. Renuévalo si todavía lo necesita; si no, la acción vuelve al nivel de su módulo.`, { userActionOverrideId: fila.id });
+            await this.dataSource.query('UPDATE user_action_overrides SET expiry_notified_at = NOW() WHERE id = ?', [fila.id]);
+        }
+        return total;
+    }
     async actionItemAlerts(organizationId) {
         const items = await this.dataSource.query("SELECT ai.id, ai.description, ai.assigned_to assignedTo, ai.meeting_id meetingId FROM action_items ai JOIN meetings m ON m.id = ai.meeting_id WHERE m.organization_id = ? AND ai.status <> 'completed' AND ai.due_at IS NOT NULL AND ai.due_at < NOW()", [organizationId]);
         let total = 0;
@@ -107,6 +131,22 @@ let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
                 continue;
             const recipients = cycle.communityManagerId ? [cycle.communityManagerId, ...fallback] : fallback;
             total += await this.notifyOnce(organizationId, [...new Set(recipients)], 'cycle.pending', `${cycle.id}:${pending.join('|')}`, 'Ciclo mensual con pendientes', `${cycle.clientName}: falta completar ${pending.join(', ')}.`, { cycleId: cycle.id, clientId: cycle.clientId, pending });
+        }
+        return total;
+    }
+    async vulneracionAlerts(organizationId) {
+        const incidentes = await this.dataSource.query('SELECT id, descripcion, detected_at detectedAt FROM security_incidents WHERE organization_id = ? AND aviso_local_at IS NULL', [organizationId]);
+        let total = 0;
+        const destinatarios = await this.directors(organizationId);
+        for (const incidente of incidentes) {
+            const plazo = (0, plazo_de_aviso_1.plazoDeAviso)(new Date(incidente.detectedAt), null);
+            if (plazo.estado !== 'por vencer' && plazo.estado !== 'vencido')
+                continue;
+            const vencido = plazo.estado === 'vencido';
+            const resumen = incidente.descripcion.length > 120 ? `${incidente.descripcion.slice(0, 117)}...` : incidente.descripcion;
+            total += await this.notifyOnce(organizationId, destinatarios, vencido ? 'security.incident_notice_overdue' : 'security.incident_notice_due', `${incidente.id}:${vencido ? 'overdue' : 'due'}`, vencido ? 'Aviso de vulneración vencido' : 'Aviso de vulneración por vencer', vencido
+                ? `Venció el plazo para avisar al local de la vulneración «${resumen}». Avisa y registra la fecha.`
+                : `Quedan ${Math.max(0, Math.floor(plazo.horasRestantes))} horas para avisar al local de la vulneración «${resumen}».`, { incidentId: incidente.id, vence: plazo.vence });
         }
         return total;
     }

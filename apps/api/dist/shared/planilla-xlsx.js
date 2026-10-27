@@ -55,7 +55,8 @@ function letra(indice) {
     }
     return salida;
 }
-function planillaXlsx(cabeceras, filas, hoja = 'Datos') {
+function planillaXlsx(cabeceras, filas, hoja = 'Datos', marca) {
+    const base = marca ? 2 : 1;
     const nombreHoja = escapar(hoja).replace(/[:\\/?*[\]]/g, ' ').slice(0, 31) || 'Datos';
     const anchos = cabeceras.map((cabecera, columna) => {
         const largos = [String(cabecera).length, ...filas.map((fila) => String(fila[columna] ?? '').length)];
@@ -63,15 +64,16 @@ function planillaXlsx(cabeceras, filas, hoja = 'Datos') {
     });
     const celda = (texto, columna, fila, estilo) => `<c r="${letra(columna + 1)}${fila}" t="inlineStr" s="${estilo}"><is><t xml:space="preserve">${escapar(texto)}</t></is></c>`;
     const xmlFilas = [
-        `<row r="1">${cabeceras.map((c, i) => celda(c, i, 1, 1)).join('')}</row>`,
-        ...filas.map((fila, indice) => `<row r="${indice + 2}">${cabeceras.map((_c, i) => celda(fila[i], i, indice + 2, 0)).join('')}</row>`),
+        ...(marca ? [`<row r="1">${celda(marca, 0, 1, 0)}</row>`] : []),
+        `<row r="${base}">${cabeceras.map((c, i) => celda(c, i, base, 1)).join('')}</row>`,
+        ...filas.map((fila, indice) => `<row r="${indice + base + 1}">${cabeceras.map((_c, i) => celda(fila[i], i, indice + base + 1, 0)).join('')}</row>`),
     ].join('');
     const hojaXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="${base}" topLeftCell="A${base + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
 <cols>${anchos.map((ancho, i) => `<col min="${i + 1}" max="${i + 1}" width="${ancho}" customWidth="1"/>`).join('')}</cols>
 <sheetData>${xmlFilas}</sheetData>
-<autoFilter ref="A1:${letra(cabeceras.length)}${filas.length + 1}"/>
+<autoFilter ref="A${base}:${letra(cabeceras.length)}${filas.length + base}"/>
 </worksheet>`;
     const estilos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">

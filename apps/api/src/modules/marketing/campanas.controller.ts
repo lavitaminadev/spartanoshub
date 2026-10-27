@@ -8,6 +8,9 @@ import { RequiresPermission } from '../../core/authorization/requires-permission
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { CampanasService } from './campanas.service';
+import { recortarListaProtegidos } from '@espartanos/shared';
+import { NivelDeDatosService } from '../../core/client-scope/nivel-de-datos.service';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 /**
  * Filtros de la lista de campañas.
@@ -65,26 +68,32 @@ class EditarCampanaDto {
 @ModuleScope('marketing')
 @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
 export class CampanasController {
-  constructor(private readonly campanas: CampanasService) {}
+  constructor(
+    private readonly campanas: CampanasService,
+    private readonly niveles: NivelDeDatosService,
+  ) {}
 
   @Get()
+  @RequiereArea('marketing.campanas', 'ver')
   @ApiOperation({ summary: 'Campañas escritas, enviadas y en borrador' })
   listar(@Req() req: AuthenticatedRequest, @Query() filtros: ListarCampanasDto) {
     return this.campanas.listar(req.organizationId || req.user.organizationId, undefined, filtros);
   }
 
   @Get('destinatarios')
+  @RequiereArea('marketing.campanas', 'ver')
   @ApiOperation({ summary: 'A cuántos llegaría la campaña si se enviara ahora' })
   async destinatarios(
     @Req() req: AuthenticatedRequest,
     @Query('empresa') empresa?: string,
     @Query('destino') destino?: string,
   ) {
-    return this.campanas.destinatarios(
-      req.organizationId || req.user.organizationId,
-      empresa,
-      destino === 'administradores' ? 'administradores' : 'lista',
-    );
+    const organizationId = req.organizationId || req.user.organizationId;
+    const resultado = await this.campanas.destinatarios(organizationId, empresa, destino === 'administradores' ? 'administradores' : 'lista');
+    // La muestra enseña direcciones: sale recortada según el nivel de esta persona en la empresa elegida.
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    const nivel = niveles.de(empresa && empresa !== 'agencia' ? empresa : null);
+    return { ...resultado, muestra: recortarListaProtegidos(resultado.muestra, 'marketing', nivel).datos };
   }
 
   /**
@@ -94,12 +103,14 @@ export class CampanasController {
    * guardarlo, que es justo cuando hace falta.
    */
   @Post('vista-previa')
+  @RequiereArea('marketing.campanas', 'ver')
   @ApiOperation({ summary: 'Ver cómo queda la campaña, sin enviarla' })
   vistaPrevia(@Body() dto: EditarCampanaDto) {
     return this.campanas.vistaPrevia(dto.asunto ?? '', dto.cuerpo ?? '');
   }
 
   @Post()
+  @RequiereArea('marketing.campanas', 'hacer')
   @ApiOperation({ summary: 'Escribir una campaña, en borrador' })
   crear(@Req() req: AuthenticatedRequest, @Body() dto: CrearCampanaDto) {
     return this.campanas.crear({
@@ -114,12 +125,14 @@ export class CampanasController {
   }
 
   @Patch(':id')
+  @RequiereArea('marketing.campanas', 'hacer')
   @ApiOperation({ summary: 'Corregir una campaña que todavía no se ha enviado' })
   editar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: EditarCampanaDto) {
     return this.campanas.editar(id, req.organizationId || req.user.organizationId, dto);
   }
 
   @Delete(':id')
+  @RequiereArea('marketing.campanas', 'hacer')
   @ApiOperation({ summary: 'Descartar un borrador' })
   async borrar(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     await this.campanas.borrar(id, req.organizationId || req.user.organizationId);
@@ -133,6 +146,7 @@ export class CampanasController {
    * se deshace, y no es lo mismo que escribir el borrador. Quien puede redactar no manda por eso.
    */
   @Post(':id/enviar')
+  @RequiereArea('marketing.enviar', 'hacer')
   @RequiresPermission('marketing', 'manage')
   @ApiOperation({ summary: 'Poner la campaña en cola para salir' })
   enviar(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -141,6 +155,7 @@ export class CampanasController {
 
   /** Cómo va una campaña que está saliendo. La pantalla lo pregunta mientras dura. */
   @Get(':id/avance')
+  @RequiereArea('marketing.campanas', 'ver')
   @ApiOperation({ summary: 'Avance del envío de una campaña' })
   avance(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.campanas.avance(id, req.organizationId || req.user.organizationId);
@@ -154,13 +169,18 @@ export class CampanasController {
    * mismo silencio.
    */
   @Get(':id/fallidos')
+  @RequiereArea('marketing.campanas', 'ver')
   @ApiOperation({ summary: 'Destinatarios a los que no les llegó, con el motivo' })
-  fallidos(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.campanas.fallidos(id, req.organizationId || req.user.organizationId);
+  async fallidos(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const { clientId, ...resultado } = await this.campanas.fallidos(id, organizationId);
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    return { ...resultado, fallidos: recortarListaProtegidos(resultado.fallidos, 'marketing', niveles.de(clientId)).datos };
   }
 
   /** Qué trajo la campaña: los canjes de su cupón desde que salió. */
   @Get(':id/retorno')
+  @RequiereArea('marketing.campanas', 'ver')
   @ApiOperation({ summary: 'Canjes del cupón de la campaña desde su envío' })
   retorno(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.campanas.retorno(id, req.organizationId || req.user.organizationId);

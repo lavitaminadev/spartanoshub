@@ -24,6 +24,7 @@ const account_access_service_1 = require("../../../core/client-scope/account-acc
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const ingest_source_entity_1 = require("./ingest-source.entity");
 const lead_ingest_service_1 = require("./lead-ingest.service");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 class CreateIngestSourceDto {
 }
 exports.CreateIngestSourceDto = CreateIngestSourceDto;
@@ -85,9 +86,16 @@ let IngestSourcesController = class IngestSourcesController {
         }));
     }
     async create(dto, req) {
+        const empresa = dto.clientId?.trim() || null;
+        if (empresa) {
+            await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
+        }
+        else if ((await this.accountAccess.allowedClientIds(req.organizationId, req.user)) !== undefined) {
+            throw new common_1.BadRequestException('Indica la empresa a la que entran estos leads');
+        }
         const { source, token } = await this.ingest.issueToken(this.sources.create({
             organizationId: req.organizationId,
-            clientId: dto.clientId ?? null,
+            clientId: empresa,
             name: dto.name.trim(),
             source: dto.source,
             isActive: true,
@@ -140,6 +148,7 @@ let IngestSourcesController = class IngestSourcesController {
 exports.IngestSourcesController = IngestSourcesController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.origenes', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Orígenes de entrada con su contador y último error' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -148,6 +157,7 @@ __decorate([
 ], IngestSourcesController.prototype, "list", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.origenes', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Crear un origen y emitir su llave' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -157,6 +167,7 @@ __decorate([
 ], IngestSourcesController.prototype, "create", null);
 __decorate([
     (0, common_1.Post)(':id/rotate'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.origenes', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Reemplazar la llave de un origen' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -166,6 +177,7 @@ __decorate([
 ], IngestSourcesController.prototype, "rotate", null);
 __decorate([
     (0, common_1.Post)(':id/revoke-previous'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.origenes', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Cortar ya la llave anterior' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -175,6 +187,7 @@ __decorate([
 ], IngestSourcesController.prototype, "revokePrevious", null);
 __decorate([
     (0, common_1.Post)(':id/active'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.origenes', 'hacer'),
     (0, swagger_1.ApiOperation)({ summary: 'Encender o apagar un origen' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),

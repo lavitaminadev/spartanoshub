@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -25,6 +26,7 @@ interface TeamMember {
   name: string;
   role: string;
   currentPieces: number;
+  currentLoad: number;
   capacity: number;
 }
 
@@ -64,7 +66,7 @@ export function OperationsPage() {
   const queryClient = useQueryClient();
   const [objectiveOpen, setObjectiveOpen] = useState(false);
   const [objectiveForm, setObjectiveForm] = useState(EMPTY_OBJECTIVE);
-  const { data, isLoading, error } = useQuery<OperationsData>({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<OperationsData>({
     queryKey: ['operations'],
     queryFn: () => api.get('/operations/overview'),
   });
@@ -79,12 +81,13 @@ export function OperationsPage() {
     queryFn: () => api.get('/users?isActive=true'),
     enabled: canManageObjectives,
   });
-  const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({
+  const { data: clientsResp } = useQuery<{ data: ClientOption[]; total?: number }>({
     queryKey: ['clients'],
-    queryFn: () => api.get('/clients'),
+    queryFn: () => api.get('/clients?limit=100'),
     enabled: canManageObjectives,
   });
   const clients: ClientOption[] = clientsResp?.data ?? [];
+  const clientsTruncated = (clientsResp?.total ?? clients.length) > clients.length;
   const objectiveMutation = useMutation({ mutationFn: ({ id, progress }: { id: string; progress: number }) => api.put(`/objectives/${id}`, { progress }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['objectives'] }) });
   const createObjective = useMutation({
     mutationFn: () => api.post('/objectives', {
@@ -108,7 +111,7 @@ export function OperationsPage() {
   });
 
   if (isLoading) return <LoadingSpinner text="Cargando operaciones..." />;
-  if (error) return <div className="alert alert-error">Error al cargar operaciones</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar las operaciones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   if (!data) return <EmptyState icon="chart" title="Sin datos" description="No hay información de operaciones disponible en este momento." />;
 
   const utilizationPct = data.totalCapacity > 0 ? Math.round((data.usedCapacity / data.totalCapacity) * 100) : 0;
@@ -223,7 +226,7 @@ export function OperationsPage() {
         ) : (
           <div className="workload-grid">
             {data.team.map((m) => {
-              const load = m.capacity > 0 ? Math.round((m.currentPieces / m.capacity) * 100) : 0;
+              const load = m.capacity > 0 ? Math.round((m.currentLoad / m.capacity) * 100) : 0;
               const isOverloaded = load > 90;
               return <article className={`workload-person ${isOverloaded ? 'is-over' : ''}`} key={m.id}>
                 <span className="workload-avatar">{m.name.trim().charAt(0).toUpperCase()}</span>
@@ -232,7 +235,7 @@ export function OperationsPage() {
                   <small>{roleLabel(m.role)} · {m.currentPieces} piezas</small>
                   <div className="load-bar"><i style={{ width: `${load}%`, background: load > 90 ? 'var(--danger)' : load > 70 ? 'var(--amber)' : 'var(--success)' }} /></div>
                 </div>
-                <b className={`workload-pct ${isOverloaded ? 'amber-text' : ''}`}>{m.capacity > 0 ? `${m.currentPieces}/${m.capacity} UD` : 'Pendiente'}</b>
+                <b className={`workload-pct ${isOverloaded ? 'amber-text' : ''}`}>{m.capacity > 0 ? `${m.currentLoad}/${m.capacity} UD` : 'Pendiente'}</b>
               </article>;
             })}
           </div>
@@ -266,7 +269,7 @@ export function OperationsPage() {
           <label>Descripción<textarea className="input" rows={4} maxLength={5000} value={objectiveForm.description} onChange={(event) => setObjectiveForm({ ...objectiveForm, description: event.target.value })} /></label>
           <div className="form-row">
             <label>Responsable<select className="input" value={objectiveForm.ownerId} onChange={(event) => setObjectiveForm({ ...objectiveForm, ownerId: event.target.value })}><option value="">Objetivo general</option>{users.map((member) => <option key={member.id} value={member.id}>{member.name} · {roleLabel(member.role)}</option>)}</select></label>
-            <label>Cuenta asociada<select className="input" value={objectiveForm.clientId} onChange={(event) => setObjectiveForm({ ...objectiveForm, clientId: event.target.value })}><option value="">Sin cuenta específica</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+            <label>Cuenta asociada<select className="input" value={objectiveForm.clientId} onChange={(event) => setObjectiveForm({ ...objectiveForm, clientId: event.target.value })}><option value="">Sin cuenta específica</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>{clientsTruncated && <small>Se muestran {clients.length} de {clientsResp?.total} cuentas; las demás no aparecen en esta lista.</small>}</label>
           </div>
           <label>Progreso inicial: {objectiveForm.progress}%<input type="range" min="0" max="100" step="5" value={objectiveForm.progress} onChange={(event) => setObjectiveForm({ ...objectiveForm, progress: Number(event.target.value) })} /></label>
           {createObjective.error && <div className="alert alert-error">No fue posible crear el objetivo. Revisa los campos y responsables.</div>}

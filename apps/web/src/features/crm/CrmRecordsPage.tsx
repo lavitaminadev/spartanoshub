@@ -17,6 +17,9 @@ import { StatusTrafficLight } from '../../shared/StatusTrafficLight';
 import { attendanceRateOf } from '../../shared/attendance';
 import { CONTACT_STATUS_OPTIONS } from '../../shared/status-palette';
 import { useSearchParams } from 'react-router-dom';
+import { estaProtegido } from '@espartanos/shared';
+import { CampoProtegido } from '../../shared/CampoProtegido';
+import { TEXTO_PROTEGIDO, type AvisoDeDatosProtegidos } from '../../shared/datos-protegidos';
 import { useCrmScope } from './crm-scope';
 import { useVocabulario } from './use-vocabulario';
 
@@ -50,6 +53,8 @@ interface ReservationContact {
   name: string;
   email?: string;
   phone?: string;
+  /** Qué datos de contacto el servidor no mandó y si quien mira puede pedirlos. */
+  datosProtegidos?: AvisoDeDatosProtegidos;
   company?: string;
   clientId?: string;
   status: string;
@@ -265,9 +270,9 @@ export function ContactsPage() {
   </div>
 
   {feedback && <div className={`alert alert-${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>{feedback.text}</div>}{contactsQuery.error && <div className="alert alert-error">{contactsQuery.error.message}</div>}<div className="filters crm-filter-bar"><input className="input" type="search" placeholder="Buscar persona, email, teléfono o campaña" value={search} onChange={(event) => setSearch(event.target.value)} /><select className="input" aria-label="Filtrar por estado" value={statusFilter} onChange={(event) => updateFilter('status', event.target.value)}><option value="">Todos los estados</option>{CONTACT_STATUS_ORDER.map((status) => <option key={status} value={status}>{CONTACT_STATUSES[status]}</option>)}</select><select className="input" aria-label="Filtrar por origen" value={sourceFilter} onChange={(event) => updateFilter('source', event.target.value)}><option value="">Todos los orígenes</option><option value={RESERVATION_LEAD_SOURCE}>Reservas</option>{sourceOptions.map((origen) => <option key={origen} value={origen}>{origen}</option>)}</select><button type="button" className="btn btn-outline btn-sm" disabled={!search && !clientFilter && !statusFilter && !sourceFilter} onClick={() => { setSearch(''); updateFilter('clientId', ''); updateFilter('status', ''); updateFilter('source', ''); }}>Limpiar</button><span className="filter-result-count">{loadedTotal} contacto{loadedTotal === 1 ? '' : 's'}</span></div><DataTable<ReservationContact> storageKey="reservation-contacts" exportFileName={puedeExportar ? "contactos-reservas" : undefined} keyExtractor={(contact) => contact.id} data={contacts} emptyMessage="Aún no hay contactos de reservas" columns={[
-    { key: 'name', label: 'Persona', sortable: true, render: (contact) => <div className="user-cell"><strong>{contact.name}</strong><small>{contact.email || contact.phone || 'Sin canal de contacto'}</small></div> },
+    { key: 'name', label: 'Persona', sortable: true, render: (contact) => <div className="user-cell"><strong>{contact.name}</strong><small>{estaProtegido(contact.email) || estaProtegido(contact.phone) ? TEXTO_PROTEGIDO : contact.email || contact.phone || 'Sin canal de contacto'}</small></div> },
     { key: 'clientId', label: 'Cliente', sortable: true, render: (contact) => contact.clientId ? (clientNameById.get(contact.clientId) ?? 'Cliente no encontrado') : 'Sin cliente' },
-    { key: 'phone', label: 'Teléfono', render: (contact) => contact.phone || '-' },
+    { key: 'phone', label: 'Teléfono', exportable: !contacts.some((contact) => estaProtegido(contact.phone) || estaProtegido(contact.email)), render: (contact) => <CampoProtegido valor={contact.phone} campo="phone" ruta={`/crm/leads/${contact.id}/datos-protegidos`} sePuedePedir={contact.datosProtegidos?.sePuedePedir === true} vacio="-" /> },
     { key: 'status', label: 'Estado', sortable: true, render: (contact) => <div className="contact-status-cell"><StatusTrafficLight status={contact.status} label={contact.name} options={CONTACT_STATUS_OPTIONS} disabled={statusMutation.isPending} onChange={(status) => statusMutation.mutate({ id: contact.id, status })} /></div> },
     { key: 'source', label: 'Origen', render: (contact) => <div className="crm-table-stack"><strong>{contact.sourceDetail || 'Reserva'}</strong><small>{contact.campaignName || 'Sin campaña'}</small></div> },
     { key: 'tags', label: 'Etiquetas', render: (contact) => <div className="contact-tags">{contact.tags?.map((tag) => <span key={tag} className="tag-chip">{tag}</span>) || <small>Sin etiquetas</small>}<button type="button" className="btn btn-outline btn-xs" onClick={() => { setTagging(contact); setTagInput((contact.tags || []).join(', ')); }}>Editar</button></div> },
@@ -285,6 +290,7 @@ export function ContactsPage() {
 }
 
 export function OpportunitiesPage() {
+  const scope = useCrmScope();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const user = useAuth((state) => state.user);
@@ -302,7 +308,7 @@ export function OpportunitiesPage() {
   const [stageFilter, setStageFilter] = useState('');
   const [view, setView] = useState<'board' | 'table'>('board');
   const [feedback, setFeedback] = useState('');
-  const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities'], queryFn: () => api.get('/crm/opportunities?limit=100') });
+  const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities', scope.clientId], queryFn: () => api.get(`/crm/opportunities?limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`) });
   const leadsQuery = useQuery<{ data: LeadOption[] }>({ queryKey: ['leads'], queryFn: () => api.get('/crm/leads') });
   const clientsQuery = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const oppLeads: Array<{ id: string; name: string }> = (leadsQuery.data as { data?: Array<{ id: string; name: string }> } | undefined)?.data ?? [];
@@ -371,6 +377,7 @@ export function InteractionsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuth((state) => state.user);
+  const scope = useCrmScope();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Interaction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Interaction | null>(null);
@@ -378,11 +385,21 @@ export function InteractionsPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [search, setSearch] = useState('');
   const [feedback, setFeedback] = useState('');
-  const interactionsQuery = useQuery<PageResult<Interaction>>({ queryKey: ['crm-interactions'], queryFn: () => api.get('/crm/interactions?limit=100') });
-  const contactsQuery = useQuery<PageResult<Contact>>({ queryKey: ['crm-contacts'], queryFn: () => api.get('/crm/contacts?limit=100') });
-  const leadsQuery = useQuery<{ data: LeadOption[] }>({ queryKey: ['leads'], queryFn: () => api.get('/crm/leads') });
+  /*
+   * Las cuatro consultas de esta pantalla llevan la empresa elegida, en la dirección y en la
+   * clave de caché.
+   *
+   * Sin la dirección, el servidor devolvía todo lo que la cuenta alcanza y la pantalla mostraba
+   * los registros de varias empresas bajo el encabezado de una; sin la clave, cambiar de empresa
+   * seguía enseñando las filas de la anterior hasta que la consulta volviera. Lo primero es
+   * mezclar cuentas y lo segundo lo hace parecer correcto.
+   */
+  const deLaEmpresa = scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : '';
+  const interactionsQuery = useQuery<PageResult<Interaction>>({ queryKey: ['crm-interactions', scope.clientId], queryFn: () => api.get(`/crm/interactions?limit=100${deLaEmpresa}`) });
+  const contactsQuery = useQuery<PageResult<Contact>>({ queryKey: ['crm-contacts', scope.clientId], queryFn: () => api.get(`/crm/contacts?limit=100${deLaEmpresa}`) });
+  const leadsQuery = useQuery<{ data: LeadOption[] }>({ queryKey: ['leads', scope.clientId], queryFn: () => api.get(`/crm/leads${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`) });
   const intLeads = useMemo<LeadOption[]>(() => (leadsQuery.data as { data?: LeadOption[] } | undefined)?.data ?? [], [leadsQuery.data]);
-  const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities'], queryFn: () => api.get('/crm/opportunities?limit=100') });
+  const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities', scope.clientId], queryFn: () => api.get(`/crm/opportunities?limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`) });
   const save = useMutation({
     mutationFn: () => {
       const body = { type: form.type, description: form.description.trim() || undefined, date: form.date ? new Date(form.date).toISOString() : undefined, leadId: form.leadId || (editing ? null : undefined), contactId: form.contactId || (editing ? null : undefined) };

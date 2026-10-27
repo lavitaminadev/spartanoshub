@@ -41,7 +41,7 @@ function armar(filas: unknown[]) {
   const responses = { find: vi.fn().mockResolvedValue(filas) };
   const dataSource = { query: vi.fn().mockResolvedValue([]) };
   const accountAccess = { allowedClientIds: vi.fn().mockResolvedValue(undefined), assertClient: vi.fn() };
-  const controlador = new SurveysController(surveys as never, responses as never, dataSource as never, accountAccess as never, {} as never);
+  const controlador = new SurveysController(surveys as never, responses as never, dataSource as never, accountAccess as never, {} as never, {} as never, {} as never, {} as never, { nivelesDe: async () => ({ de: () => 'directo', deTodas: () => 'directo' }) } as never);
   const req = { organizationId: 'org', user: { id: 'u1', role: 'admin' } } as never;
   return { controlador, req };
 }

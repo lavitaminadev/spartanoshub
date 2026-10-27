@@ -19,6 +19,7 @@ const fecha_de_nacimiento_1 = require("./fecha-de-nacimiento");
 const vista_previa_de_enlace_1 = require("../../../shared/vista-previa-de-enlace");
 const shared_1 = require("@espartanos/shared");
 const shared_2 = require("@espartanos/shared");
+const shared_3 = require("@espartanos/shared");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -43,8 +44,9 @@ const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
 const cambio_de_zona_1 = require("./cambio-de-zona");
 const describir_cambio_1 = require("./describir-cambio");
+const historial_de_asistencia_1 = require("./historial-de-asistencia");
 const reservation_dto_1 = require("../dto/reservation.dto");
-const shared_3 = require("@espartanos/shared");
+const shared_4 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
 const notification_service_1 = require("../../../core/notifications/notification.service");
@@ -63,6 +65,10 @@ const geo_inference_1 = require("../../../shared/geo-inference");
 const google_conversion_outbox_service_1 = require("../../integrations/google/google-conversion-outbox.service");
 const client_capabilities_1 = require("../../clients/client-capabilities");
 const planilla_xlsx_1 = require("../../../shared/planilla-xlsx");
+const exportaciones_1 = require("./exportaciones");
+const pdf_de_tabla_1 = require("./pdf-de-tabla");
+const respuesta_publica_1 = require("./respuesta-publica");
+const retenciones_1 = require("./retenciones");
 const DEFAULT_VENUE_TIPS = [
     'Te esperamos 10 minutos antes para acomodarte con calma.',
     'Estamos en la esquina; si llegas en auto, hay estacionamiento a media cuadra.',
@@ -1103,7 +1109,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}`
                 : undefined;
             await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-                eventName: shared_3.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT,
+                eventName: shared_4.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT,
                 eventTime: Math.floor(event.createdAt.getTime() / 1000),
                 actionSource: 'website',
                 eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
@@ -1115,7 +1121,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     client_user_agent: userAgent ?? undefined,
                 },
                 customData: { contentIds: [form.id], contentType: 'reservation' },
-                eventId: (0, shared_3.metaEventId)(shared_3.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
+                eventId: (0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
             }, form.clientId);
         }
         catch (err) {
@@ -1411,12 +1417,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         };
     }
     async avisarSolicitudSinCupo(form, tipo, datos) {
-        const variables = {
+        const variablesDelEquipo = {
             nombre: datos.guestName,
             local: form.name,
             fecha: datos.cuando,
             personas: datos.partySize,
             ocasion: datos.ocasion ?? '',
+        };
+        const variablesDelAcuse = {
+            ...variablesDelEquipo,
             telefono: datos.telefono ?? '',
             correo: datos.guestEmail ?? '',
             notas: datos.notas ?? '',
@@ -1429,8 +1438,20 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             if (equipo.correos.length) {
                 const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.team_group_request' : 'email.team_waitlist');
                 if (plantilla.encendido) {
-                    const { subject, html } = this.componerConMarca(plantilla, variables);
-                    void Promise.all(equipo.correos.map((email) => this.emails.send(email, subject, html)))
+                    const recortado = this.componerConMarca(plantilla, variablesDelEquipo);
+                    const conContacto = tipo === 'grupo' ? await this.destinatariosConContacto(form, equipo.correos) : new Set();
+                    const completo = conContacto.size
+                        ? this.componerConMarca(plantilla, {
+                            ...variablesDelEquipo,
+                            telefono: datos.telefono ?? '',
+                            correo: datos.guestEmail ?? '',
+                            contacto: [datos.telefono && `Teléfono: ${datos.telefono}`, datos.guestEmail && `Correo: ${datos.guestEmail}`].filter(Boolean).join('\n'),
+                        })
+                        : recortado;
+                    void Promise.all(equipo.correos.map((email) => {
+                        const { subject, html } = conContacto.has(email.trim().toLowerCase()) ? completo : recortado;
+                        return this.emails.send(email, subject, html);
+                    }))
                         .catch((err) => this.logger.warn(`Aviso al equipo de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
                 }
             }
@@ -1444,12 +1465,26 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const plantilla = await this.plantillaDeAviso(form, tipo === 'grupo' ? 'email.group_request_ack' : 'email.waitlist_ack');
             if (!plantilla.encendido)
                 return;
-            const { subject, html } = this.componerConMarca(plantilla, variables);
+            const { subject, html } = this.componerConMarca(plantilla, variablesDelAcuse);
             void this.emails.send(datos.guestEmail, subject, html, { replyTo: this.respuestaAlLocal(form) })
                 .catch((err) => this.logger.warn(`Acuse de ${datos.id} no enviado: ${err instanceof Error ? err.message : err}`));
         }
         catch (err) {
             this.logger.warn(`No se pudo componer el acuse de ${datos.id}: ${err instanceof Error ? err.message : err}`);
+        }
+    }
+    async destinatariosConContacto(form, correos) {
+        try {
+            const filas = (await this.dataSource.query('SELECT capabilities FROM clients WHERE id = ? AND organization_id = ?', [form.clientId, form.organizationId]));
+            let crudas = filas?.[0]?.capabilities;
+            if (typeof crudas === 'string')
+                crudas = JSON.parse(crudas);
+            if (!(0, client_capabilities_1.normalizeClientCapabilities)(crudas).detalleDeContactoEnAvisos)
+                return new Set();
+            return await this.destinatariosDeAvisos.conNivelDirecto(form.organizationId, form.clientId, 'reservations', correos);
+        }
+        catch {
+            return new Set();
         }
     }
     async avisarCupoLiberado(booking) {
@@ -1702,14 +1737,18 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             pausadoPorCredencial: Boolean(error[0] && /\[TOKEN\]/.test(String(error[0].last_error)) && Date.now() - new Date(error[0].updated_at).getTime() < 24 * 3600000 && !(ultimoEnvio && ultimoEnvio.getTime() > new Date(error[0].updated_at).getTime())),
         };
     }
-    async holdPublic(slug, dto) {
+    async holdPublic(slug, dto, ipAddress) {
         if (dto.website)
             throw new common_1.BadRequestException('Solicitud inválida');
-        if (dto.renderedAt && Date.now() - new Date(dto.renderedAt).getTime() < 800)
+        const renderedMs = dto.renderedAt ? new Date(dto.renderedAt).getTime() : NaN;
+        if (Number.isNaN(renderedMs))
+            throw new common_1.BadRequestException('Solicitud inválida');
+        if (Date.now() - renderedMs < 800)
             throw new common_1.BadRequestException('Completa el formulario antes de enviarlo');
         const startsAt = new Date(dto.startsAt);
         if (Number.isNaN(startsAt.getTime()))
             throw new common_1.BadRequestException('Fecha inválida');
+        const origen = (0, retenciones_1.huellaDeOrigen)(ipAddress);
         return this.transaction('retener cupo público', async (manager) => {
             const form = await this.publishedForm(slug, manager);
             this.assertPublicBookingOpen(form);
@@ -1718,10 +1757,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const availability = await this.availability(manager, form, startsAt, partySize, dto.serviceId, dto.resourceId, undefined, dto.holdKey);
             const repo = manager.getRepository(reservation_hold_entity_1.ReservationHold);
             const current = await repo.findOne({ where: { formId: form.id, holdKey: dto.holdKey } });
+            if (!current && origen) {
+                const vigentes = await repo.count({ where: { formId: form.id, originKey: origen, expiresAt: (0, typeorm_2.MoreThan)(new Date()) } });
+                if (vigentes >= retenciones_1.TOPE_RETENCIONES_POR_ORIGEN)
+                    throw new common_1.HttpException('Tienes varios horarios reservados a la espera. Termina uno o espera unos minutos.', common_1.HttpStatus.TOO_MANY_REQUESTS);
+            }
             const configuredMinutes = Number(form.designConfig.holdMinutes);
             const holdMinutes = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 30 ? configuredMinutes : 10;
             const expiresAt = new Date(Date.now() + holdMinutes * 60_000);
-            const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt });
+            const hold = current || repo.create({ formId: form.id, holdKey: dto.holdKey, startsAt, endsAt: availability.endsAt, partySize, serviceId: dto.serviceId, resourceId: dto.resourceId, expiresAt, originKey: origen });
             hold.startsAt = startsAt;
             hold.endsAt = availability.endsAt;
             hold.partySize = partySize;
@@ -1940,7 +1984,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const location = (0, geo_inference_1.inferLocationFromPhone)(request.guestPhone ?? undefined);
             const medicion = (request.details || {}).medicion;
             await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-                eventName: shared_3.META_DEDUPLICATED_EVENTS.LEAD,
+                eventName: shared_4.META_DEDUPLICATED_EVENTS.LEAD,
                 eventTime: Math.floor((request.createdAt ?? new Date()).getTime() / 1000),
                 actionSource: 'website',
                 eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
@@ -1959,7 +2003,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     client_user_agent: userAgent ?? undefined,
                 },
                 customData: { contentIds: [form.id], contentType: 'group_request', ...this.valorDeLaReserva(form, request.partySize) },
-                eventId: (0, shared_3.metaEventId)(shared_3.META_DEDUPLICATED_EVENTS.LEAD, request.id),
+                eventId: (0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.LEAD, request.id),
             }, form.clientId);
         }
         catch (err) {
@@ -2159,7 +2203,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         if (result.created && result.booking.measurementConsentAt && result.form.metaCapiEnabled && capabilities.metaConversions) {
             try {
-                await this.enqueueMetaConversion(result.booking, result.form, shared_3.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
+                await this.enqueueMetaConversion(result.booking, result.form, shared_4.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI enqueue failed for booking ${result.booking.id}: ${err instanceof Error ? err.message : err}`);
@@ -2178,7 +2222,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const managementToken = result.created ? result.managementToken : undefined;
         if (result.created)
             await this.notifyNewBooking(result.form, result.booking, managementToken);
-        return { ...result.booking, managementToken };
+        return (0, respuesta_publica_1.respuestaPublicaDeReserva)(result.booking, managementToken);
     }
     async recordIntegrationFailure(booking, provider) {
         await this.events.save(this.events.create({
@@ -2264,7 +2308,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 client_user_agent: booking.clientUserAgent ?? undefined,
             },
             customData: { contentIds: [form.id], contentType: 'reservation', ...this.valorDeLaReserva(form, booking.partySize) },
-            eventId: (0, shared_3.metaEventId)(eventName, booking.id),
+            eventId: (0, shared_4.metaEventId)(eventName, booking.id),
         }, form.clientId);
     }
     async enqueueMetaSurveyConversion(response, form, dto, ipAddress, userAgent, eventSourceUrl) {
@@ -2277,7 +2321,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const phone = dto.guestPhone?.replace(/[^\d+]/g, '');
         const location = (0, geo_inference_1.inferLocationFromPhone)(phone);
         await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-            eventName: shared_3.META_DEDUPLICATED_EVENTS.LEAD,
+            eventName: shared_4.META_DEDUPLICATED_EVENTS.LEAD,
             eventTime: Math.floor(response.createdAt.getTime() / 1000),
             actionSource: 'website',
             eventSourceUrl: eventSourceUrl || fallbackUrl || undefined,
@@ -2296,7 +2340,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 client_user_agent: userAgent ?? undefined,
             },
             customData: { contentIds: [form.id], contentType: 'survey' },
-            eventId: (0, shared_3.metaEventId)(shared_3.META_DEDUPLICATED_EVENTS.LEAD, response.id),
+            eventId: (0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.LEAD, response.id),
         }, form.clientId);
     }
     async enviarComprobante(form, booking, managementToken) {
@@ -2306,13 +2350,13 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const managementUrl = managementToken && process.env.APP_PUBLIC_URL
                 ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/manage/${managementToken}` : undefined;
             const pendiente = booking.status === 'pending';
-            const plantilla = await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, pendiente ? 'email.reservation_pending' : 'email.reservation_confirmation', { clientId: form.clientId, organizationId: form.organizationId }, pendiente
+            const plantilla = await (0, plantilla_resuelta_1.leerPlantilla)(this.parametros, pendiente ? 'email.reservation_pending' : 'email.reservation_confirmation', { clientId: form.clientId, organizationId: form.organizationId, formId: form.id }, pendiente
                 ? {
                     asunto: 'Recibimos tu solicitud en {{local}}',
                     cuerpo: 'Hola {{nombre}}:\n\nRecibimos tu solicitud para el {{fecha}} en {{local}}. Todavía no está confirmada: el local la revisará y te avisará por este mismo medio.\n\nPersonas: {{personas}}\nCódigo: {{codigo}}',
                 }
                 : { asunto: 'Tu reserva en {{local}} está confirmada', cuerpo: 'Tu reserva quedó confirmada para el {{fecha}}.' });
-            const confirmacion = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId);
+            const confirmacion = await this.parametros.get('email.reservation_confirmation_enabled', form.clientId, null, form.organizationId, form.id);
             if (!confirmacion || !plantilla.encendido)
                 return;
             const ocasiones = pendiente ? undefined : await this.ocasionesParaCorreo(form);
@@ -2405,8 +2449,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (items.length === 0)
             return result;
         const eventIds = items.flatMap((item) => [
-            (0, shared_3.metaEventId)(shared_3.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id),
-            (0, shared_3.metaEventId)(shared_3.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id),
+            (0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id),
+            (0, shared_4.metaEventId)(shared_4.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id),
         ]);
         let rows = [];
         try {
@@ -2420,8 +2464,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         for (const item of items) {
             const matchFields = [item.guestEmail, item.guestPhone, item.fbc, item.fbp, item.clientIpAddress].filter(Boolean).length;
             result.set(item.id, {
-                schedule: byEvent.get((0, shared_3.metaEventId)(shared_3.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id)) ?? null,
-                attended: byEvent.get((0, shared_3.metaEventId)(shared_3.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id)) ?? null,
+                schedule: byEvent.get((0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id)) ?? null,
+                attended: byEvent.get((0, shared_4.metaEventId)(shared_4.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id)) ?? null,
                 matchFields,
             });
         }
@@ -2515,7 +2559,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
         if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) {
             try {
-                await this.enqueueMetaConversion(saved, formForMeta, shared_3.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(Math.min(saved.startsAt.getTime(), Date.now()) / 1000));
+                await this.enqueueMetaConversion(saved, formForMeta, shared_4.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(Math.min(saved.startsAt.getTime(), Date.now()) / 1000));
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);
@@ -2546,7 +2590,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 const form = await this.forms.findOne({ where: { id: saved.formId } });
                 const capacidades = form ? await this.clientCapabilities(organizationId, form.clientId) : undefined;
                 if (form?.metaCapiEnabled && capacidades?.metaConversions)
-                    await this.enqueueMetaConversion(saved, form, shared_3.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(Date.now() / 1000));
+                    await this.enqueueMetaConversion(saved, form, shared_4.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(Date.now() / 1000));
                 if (form)
                     await this.enqueueGoogleConversion(saved, form, 'schedule', new Date());
             }
@@ -2587,13 +2631,25 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.NotFoundException('Reserva no encontrada');
         return reserva;
     }
+    async datosProtegidosDeReserva(organizationId, reservationId, clientId, clientIds) {
+        const reserva = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+        if (!reserva)
+            throw new common_1.NotFoundException('Reserva no encontrada');
+        const datos = {};
+        for (const { campo } of (0, shared_3.camposProtegidosDe)('reservations')) {
+            const valor = reserva[campo];
+            if (valor !== null && valor !== undefined && !(0, shared_3.estaProtegido)(valor))
+                datos[campo] = valor;
+        }
+        return { clientId: reserva.clientId, datos };
+    }
     async guestHistory(organizationId, reservationId, clientId, clientIds) {
         const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
         if (!actual)
             throw new common_1.NotFoundException('Reserva no encontrada');
         const correo = actual.guestEmail?.trim().toLowerCase();
         const telefono = actual.guestPhone?.trim();
-        const vacio = { total: 0, attended: 0, noShow: 0, enEsteLocal: 0, alcance: 'local', deOtrasReservas: 0, anteriores: [], preferencias: undefined };
+        const vacio = { clientId: actual.clientId, total: 0, attended: 0, noShow: 0, enEsteLocal: 0, alcance: 'local', deOtrasReservas: 0, anteriores: [], preferencias: undefined };
         if (!correo && !telefono)
             return vacio;
         const formActual = await this.forms.findOne({ where: { id: actual.formId }, select: { id: true, designConfig: true } });
@@ -2609,6 +2665,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const previas = await qb.orderBy('r.starts_at', 'DESC').take(100).getMany();
         const supuestasPrevias = await this.asistenciasSupuestas(previas.filter((item) => item.status === 'attended').map((item) => item.id));
         return {
+            clientId: actual.clientId,
             total: previas.length,
             attended: previas.filter((item) => item.status === 'attended').length,
             asistenciasSupuestas: previas.filter((item) => supuestasPrevias.has(item.id)).length,
@@ -2618,6 +2675,40 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             deOtrasReservas: previas.filter((item) => item.formId !== actual.formId).length,
             preferencias: this.preferenciasDeLaPersona(previas, actual),
             anteriores: previas.slice(0, 5).map((item) => ({ asistenciaSupuesta: supuestasPrevias.has(item.id), id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
+        };
+    }
+    async historialDelComensal(organizationId, reservationId, clientId, clientIds, ahora = new Date()) {
+        const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+        if (!actual)
+            throw new common_1.NotFoundException('Reserva no encontrada');
+        const correo = actual.guestEmail?.trim().toLowerCase() || undefined;
+        const telefono = actual.guestPhone?.trim() || undefined;
+        const comensal = { clientId: actual.clientId, guestName: actual.guestName, guestPhone: actual.guestPhone ?? null, guestEmail: actual.guestEmail ?? null };
+        if (!correo && !telefono)
+            return { clientId: actual.clientId, comensal, ...(0, historial_de_asistencia_1.resumirAsistenciaDelComensal)([], ahora) };
+        const qb = this.reservations.createQueryBuilder('r')
+            .where('r.organization_id = :organizationId AND r.client_id = :clientId AND r.id != :id', { organizationId, clientId: actual.clientId, id: actual.id });
+        if (correo && telefono)
+            qb.andWhere('(LOWER(r.guest_email) = :correo OR r.guest_phone = :telefono)', { correo, telefono });
+        else if (correo)
+            qb.andWhere('LOWER(r.guest_email) = :correo', { correo });
+        else
+            qb.andWhere('r.guest_phone = :telefono', { telefono });
+        const anteriores = await qb.orderBy('r.starts_at', 'DESC').take(200).getMany();
+        return { clientId: actual.clientId, comensal, ...(0, historial_de_asistencia_1.resumirAsistenciaDelComensal)(anteriores, ahora) };
+    }
+    async noShowPorLocalYDia(organizationId, clientId, clientIds, dias = 90, ahora = new Date()) {
+        const ventana = Math.min(Math.max(Math.trunc(dias) || 90, 7), 365);
+        const desde = new Date(ahora.getTime() - ventana * 86_400_000);
+        const alcance = this.scope(organizationId, clientId, clientIds);
+        const [locales, reservas] = await Promise.all([
+            this.forms.find({ where: alcance, select: ['id', 'name', 'clientId', 'timezone'] }),
+            this.reservations.find({ where: { ...alcance, status: (0, typeorm_2.In)(['attended', 'no_show']), startsAt: (0, typeorm_2.Between)(desde, ahora) }, select: ['id', 'formId', 'status', 'startsAt'] }),
+        ]);
+        return {
+            dias: ventana,
+            muestraMinimaPorDia: historial_de_asistencia_1.MUESTRA_MINIMA_POR_DIA,
+            locales: (0, historial_de_asistencia_1.noShowPorLocalYDia)(reservas, (locales ?? []).map((local) => ({ id: local.id, nombre: local.name, clientId: local.clientId, timezone: local.timezone || 'America/Santiago' }))),
         };
     }
     preferenciasDeLaPersona(previas, actual) {
@@ -2848,8 +2939,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             })),
         };
     }
-    async *streamCsv(organizationId, clientId, clientIds, from, to, limit) {
+    async *streamCsv(organizationId, niveles, clientId, clientIds, from, to, limit) {
         const BATCH = 500;
+        const quitar = new Set((0, shared_3.columnasAQuitar)('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
         const baseQuery = () => {
             const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId });
             if (clientId)
@@ -2863,13 +2955,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return qb.orderBy('r.starts_at', 'DESC');
         };
         const answerKeys = new Set();
-        for await (const rows of this.batches(() => baseQuery().select('r.answers', 'answers'), BATCH, limit, true)) {
-            for (const row of rows) {
-                const answers = typeof row.answers === 'string' ? JSON.parse(row.answers || '{}') : row.answers;
-                if (answers && typeof answers === 'object')
-                    Object.keys(answers).forEach((key) => answerKeys.add(key));
+        if (!quitar.has('answers'))
+            for await (const rows of this.batches(() => baseQuery().select('r.answers', 'answers'), BATCH, limit, true)) {
+                for (const row of rows) {
+                    const answers = typeof row.answers === 'string' ? JSON.parse(row.answers || '{}') : row.answers;
+                    if (answers && typeof answers === 'object')
+                        Object.keys(answers).forEach((key) => answerKeys.add(key));
+                }
             }
-        }
         const keys = [...answerKeys].sort();
         const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
         const toLine = (row) => row.map(escape).join(',');
@@ -2880,11 +2973,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 if (campo?.id && campo.label && !etiquetas.has(campo.id))
                     etiquetas.set(campo.id, campo.label);
         const legible = (valor) => Array.isArray(valor) ? valor.join(', ') : typeof valor === 'boolean' ? (valor ? 'Sí' : 'No') : valor;
-        yield toLine(['codigo', 'nombre', 'correo', 'telefono', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => etiquetas.get(key) || RESPUESTAS_DEL_SISTEMA[key] || key)]);
+        const columnas = [
+            { titulo: 'codigo', campo: undefined, valor: (i) => i.referenceCode },
+            { titulo: 'nombre', campo: undefined, valor: (i) => i.guestName },
+            { titulo: 'correo', campo: 'guestEmail', valor: (i) => i.guestEmail },
+            { titulo: 'telefono', campo: 'guestPhone', valor: (i) => i.guestPhone },
+        ].filter((columna) => !columna.campo || !quitar.has(columna.campo));
+        yield toLine([...columnas.map((columna) => columna.titulo), 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas', ...keys.map((key) => etiquetas.get(key) || RESPUESTAS_DEL_SISTEMA[key] || key)]);
         for await (const items of this.batches(baseQuery, BATCH, limit, false)) {
             const lines = items.map((item) => {
                 const answers = (item.answers || {});
-                return toLine([item.referenceCode, item.guestName, item.guestEmail, item.guestPhone, item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => legible(answers[key]))]);
+                return toLine([...columnas.map((columna) => columna.valor(item)), item.startsAt.toISOString(), item.status, item.utmSource, item.utmMedium, item.utmCampaign, item.utmContent, item.couponCode, item.partySize, item.internalNotes, ...keys.map((key) => legible(answers[key]))]);
             });
             if (lines.length > 0)
                 yield `\r\n${lines.join('\r\n')}`;
@@ -2904,7 +3003,40 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             offset += rows.length;
         }
     }
-    async exportFormReservations(organizationId, formId, clientId, clientIds, format = 'csv', dateFrom, dateTo, fields = ['name', 'phone', 'email', 'date', 'status', 'attendance'], includeInternalNotes = true) {
+    async registrarExportacion(e) {
+        const razones = (0, exportaciones_1.razonesParaExigirMotivo)({ filas: e.filas, desde: e.desde, hasta: e.hasta }, e.conProtegidos);
+        const motivo = (0, exportaciones_1.motivoEscrito)(e.motivo);
+        if (razones.length > 0 && !motivo) {
+            throw new common_1.BadRequestException(`Esta exportación exige un motivo escrito (al menos ${exportaciones_1.MOTIVO_MINIMO} caracteres) porque ${razones.join(' y ')}.`);
+        }
+        await this.audit.log({
+            organizationId: e.organizationId,
+            actorId: e.actor.id,
+            entityType: 'reservations',
+            entityId: e.entityId ?? null,
+            action: 'export',
+            after: { finalidad: e.finalidad, formato: e.formato, filtro: e.filtro, filas: e.filas, columnas: e.columnas, motivoExigido: razones },
+            reason: motivo,
+            ipAddress: e.ip,
+        });
+    }
+    async contarParaExportar(organizationId, clientId, clientIds, from, to, limit) {
+        const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId });
+        if (clientId)
+            qb.andWhere('r.client_id = :clientId', { clientId });
+        else if (clientIds !== undefined)
+            qb.andWhere(clientIds.length ? 'r.client_id IN (:...clientIds)' : '1 = 0', { clientIds });
+        if (from)
+            qb.andWhere('r.starts_at >= :from', { from });
+        if (to)
+            qb.andWhere('r.starts_at <= :to', { to });
+        const total = await qb.getCount();
+        return limit === undefined ? total : Math.min(total, limit);
+    }
+    async exportFormReservations(p) {
+        const { organizationId, niveles, formId, clientId, clientIds, formato, dateFrom, dateTo } = p;
+        const fields = p.fields ?? ['name', 'phone', 'email', 'date', 'status', 'attendance'];
+        const includeInternalNotes = p.includeInternalNotes ?? true;
         const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId }).andWhere('r.form_id = :formId', { formId });
         if (clientId)
             qb.andWhere('r.client_id = :clientId', { clientId });
@@ -2917,7 +3049,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const items = await qb.orderBy('r.starts_at', 'DESC').take(50000).getMany();
         const form = await this.forms.findOne({ where: { id: formId, organizationId } });
         const esquema = form?.fieldSchema ?? [];
-        const clavesRespuesta = [...new Set(items.flatMap((item) => Object.keys((item.answers || {}))))].sort();
+        const quitar = new Set((0, shared_3.columnasAQuitar)('reservations', niveles.de(form?.clientId ?? clientId)));
+        const clavesRespuesta = quitar.has('answers') ? [] : [...new Set(items.flatMap((item) => Object.keys((item.answers || {}))))].sort();
         const etiquetaDe = (clave) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
         const valorDe = (item, clave) => {
             const valor = (item.answers || {})[clave];
@@ -2945,40 +3078,83 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             coupon: (item) => item.couponCode || '-',
             party_size: (item) => item.partySize,
         };
-        const allowedFields = includeInternalNotes ? fields : fields.filter((field) => field !== 'notes');
+        const COLUMNA_PROTEGIDA = { phone: 'guestPhone', email: 'guestEmail' };
+        const allowedFields = (includeInternalNotes ? fields : fields.filter((field) => field !== 'notes'))
+            .filter((field) => fieldMap[field] && !quitar.has(COLUMNA_PROTEGIDA[field] ?? ''));
         const TITULOS = {
             name: 'Nombre', phone: 'Teléfono', email: 'Correo', date: 'Fecha y hora',
             status: 'Estado', attendance: 'Asistió', notes: 'Notas internas',
             origin: 'Canal', medium: 'Medio', campaign: 'Campaña', content: 'Contenido',
             code: 'Código', coupon: 'Cupón', party_size: 'Personas',
         };
-        const tituloDe = (campo) => TITULOS[campo] ?? campo;
-        const cabeceras = [...allowedFields.map(tituloDe), ...clavesRespuesta.map(etiquetaDe)];
+        const cabeceras = [...allowedFields.map((campo) => TITULOS[campo] ?? campo), ...clavesRespuesta.map(etiquetaDe)];
         const valores = (item) => [
             ...allowedFields.map((field) => fieldMap[field]?.(item) ?? '-'),
             ...clavesRespuesta.map((clave) => valorDe(item, clave)),
         ];
-        if (format === 'xlsx') {
+        await this.registrarExportacion({
+            organizationId, actor: p.actor, ip: p.ip, entityId: formId,
+            finalidad: formato === 'xlsx' ? 'con_contacto' : 'procesable', formato,
+            filtro: { formId, desde: dateFrom ?? null, hasta: dateTo ?? null },
+            filas: items.length, columnas: cabeceras,
+            conProtegidos: allowedFields.some((campo) => COLUMNA_PROTEGIDA[campo]) || clavesRespuesta.length > 0,
+            desde: dateFrom, hasta: dateTo, motivo: p.motivo,
+        });
+        if (formato === 'xlsx') {
             const fecha = (valor) => (valor instanceof Date ? valor.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : valor);
-            return (0, planilla_xlsx_1.planillaXlsx)(cabeceras, items.map((item) => valores(item).map(fecha)), form?.name ?? 'Reservas');
+            return {
+                cuerpo: (0, planilla_xlsx_1.planillaXlsx)(cabeceras, items.map((item) => valores(item).map(fecha)), form?.name ?? 'Reservas', (0, exportaciones_1.marcaDeExportacion)(p.actor.nombre, new Date())),
+                filas: items.length,
+            };
         }
-        if (format === 'json') {
-            return items.map((item) => {
-                const record = {};
-                for (const field of allowedFields) {
-                    record[field] = fieldMap[field]?.(item) ?? '-';
-                }
-                for (const clave of clavesRespuesta)
-                    record[etiquetaDe(clave)] = valorDe(item, clave);
-                return record;
-            });
-        }
-        else if (format === 'csv') {
-            const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
-            const filas = items.map((item) => valores(item));
-            return `﻿${[cabeceras, ...filas].map((row) => row.map(escape).join(',')).join('\r\n')}`;
-        }
-        throw new common_1.BadRequestException('Formato no soportado');
+        const escape = (value) => { const text = String(value ?? ''); const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"`; };
+        return { cuerpo: `﻿${[cabeceras, ...items.map((item) => valores(item))].map((row) => row.map(escape).join(',')).join('\r\n')}`, filas: items.length };
+    }
+    async hojaDelTurno(p) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha))
+            throw new common_1.BadRequestException('Indica el día de la hoja');
+        const form = await this.getForm(p.organizationId, p.formId, p.clientId, p.clientIds);
+        const desde = (0, timezone_1.startOfLocalDayUtc)(p.fecha, form.timezone);
+        const hasta = (0, timezone_1.startOfLocalDayUtc)((0, timezone_1.addPlainDays)(p.fecha, 1), form.timezone);
+        const items = await this.reservations.createQueryBuilder('r')
+            .where('r.organization_id = :organizationId', { organizationId: p.organizationId })
+            .andWhere('r.form_id = :formId', { formId: form.id })
+            .andWhere('r.status IN (:...estados)', { estados: ACTIVE_STATUSES })
+            .andWhere('r.starts_at >= :desde AND r.starts_at < :hasta', { desde, hasta })
+            .orderBy('r.starts_at', 'ASC')
+            .getMany();
+        const esquema = form.fieldSchema ?? [];
+        const etiquetaDe = (clave) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
+        const ESTADOS = { pending: 'Pendiente', confirmed: 'Confirmada', rescheduled: 'Reagendada' };
+        const hora = (fecha) => fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: form.timezone });
+        const cabeceras = ['Hora', 'Nombre', 'Personas', 'Estado', 'Código', 'Aviso'];
+        const filas = items.map((item) => [
+            hora(item.startsAt), item.guestName, String(item.partySize), ESTADOS[item.status] ?? item.status, item.referenceCode,
+            (0, exportaciones_1.tieneRestricciones)(item.answers, etiquetaDe) ? exportaciones_1.AVISO_DE_RESTRICCIONES : '',
+        ]);
+        await this.registrarExportacion({
+            organizationId: p.organizationId, actor: p.actor, ip: p.ip, entityId: form.id,
+            finalidad: 'hoja_del_turno', formato: 'pdf',
+            filtro: { formId: form.id, fecha: p.fecha }, filas: items.length, columnas: cabeceras, conProtegidos: false,
+            desde: p.fecha, hasta: p.fecha,
+        });
+        const personas = items.reduce((suma, item) => suma + item.partySize, 0);
+        const cuando = new Date().toLocaleString('es-CL', { dateStyle: 'long', timeStyle: 'short', timeZone: form.timezone });
+        return {
+            nombre: `hoja-del-turno-${p.fecha}.pdf`,
+            filas: items.length,
+            cuerpo: (0, pdf_de_tabla_1.pdfDeTabla)({
+                titulo: `Hoja del turno · ${form.name} · ${p.fecha}`,
+                lineas: [
+                    `${items.length} reserva${items.length === 1 ? '' : 's'} · ${personas} persona${personas === 1 ? '' : 's'} · impresa por ${p.actor.nombre} el ${cuando}`,
+                    'Uso interno. Sin teléfonos, correos ni respuestas del formulario.',
+                ],
+                cabeceras,
+                filas,
+                anchos: [45, 115, 45, 65, 65, 180],
+                pie: 'Las restricciones y los datos de contacto se consultan en pantalla, donde queda anotado quién los vio.',
+            }),
+        };
     }
     async createCoupon(organizationId, userId, dto, clientId) {
         const code = dto.code.trim().toUpperCase();

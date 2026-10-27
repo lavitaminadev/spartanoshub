@@ -29,8 +29,11 @@ let UpdateOpportunityUseCase = class UpdateOpportunityUseCase {
         this.stageHistory = stageHistory;
         this.campos = campos;
     }
-    async execute(id, dto, organizationId, actorId) {
-        const opportunity = await this.getOpportunity.execute(id, organizationId);
+    async execute(id, dto, organizationId, actorId, allowedClientIds) {
+        const opportunity = await this.getOpportunity.execute(id, organizationId, allowedClientIds);
+        if (dto.clientId && allowedClientIds !== undefined && !allowedClientIds.includes(dto.clientId)) {
+            throw new common_1.BadRequestException('No puedes mover el trato a esa empresa');
+        }
         const previousStage = opportunity.stage;
         await this.referenceValidator.validate(dto, organizationId);
         const movingToLost = dto.stage?.trim().toLowerCase() === 'lost' && opportunity.stage !== 'lost';

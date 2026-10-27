@@ -7,11 +7,17 @@ import { QueryErrorState } from '../../shared/QueryErrorState';
 import { triggerToast } from '../../shared/toast-events';
 import { ImportarSuscriptores } from './ImportarSuscriptores';
 import { Modal } from '../../shared/Modal';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
+import { estaProtegido } from '@espartanos/shared';
+import { CampoProtegido, ValorProtegido } from '../../shared/CampoProtegido';
+import { useRevelarProtegidos, type AvisoDeDatosProtegidos } from '../../shared/datos-protegidos';
 
 interface Suscriptor {
   id: string;
   clientId?: string | null;
   email: string;
+  /** Qué datos el servidor no mandó y si quien mira puede pedirlos. */
+  datosProtegidos?: AvisoDeDatosProtegidos;
   name?: string | null;
   status: 'pending' | 'subscribed' | 'unsubscribed';
   source: string;
@@ -21,7 +27,6 @@ interface Suscriptor {
   consentIp?: string | null;
   adultDeclaredAt?: string | null;
   birthDate?: string | null;
-  lastSentAt?: string | null;
   unsubscribedFrom?: string | null;
   unsubscribedAt?: string | null;
   unsubscribedScope?: 'local' | 'todas' | null;
@@ -65,7 +70,10 @@ const ORIGEN: Record<string, string> = {
 export function SuscriptoresPage() {
   const { user } = useAuth();
   const esEmpresa = user?.role === 'client';
-  const [empresa, setEmpresa] = useState(esEmpresa ? (user?.clientId ?? '') : '');
+  const empresaActiva = useEmpresaActiva();
+  const [empresaDelEquipo, setEmpresa] = useState('');
+  // El portal trabaja siempre sobre la empresa elegida, nunca sobre la de su sesión por descarte.
+  const empresa = esEmpresa ? empresaActiva.clientId : empresaDelEquipo;
   const [estado, setEstado] = useState('subscribed');
   const [origen, setOrigen] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -124,13 +132,14 @@ export function SuscriptoresPage() {
    * navegador para producir lo que el CSV ya abre con doble clic en Excel.
    */
   const descargar = async (formato: 'csv' | 'json' = 'csv') => {
-    const destino = empresa || (esEmpresa ? user?.clientId ?? 'agencia' : 'agencia');
+    const destino = empresa || 'agencia';
     const respuesta = await api
       .get<{ empresa: string; total: number; data: Array<Record<string, unknown>> }>(`/marketing/suscriptores/descargar?empresa=${encodeURIComponent(destino)}`)
       .catch(() => null);
     if (!respuesta?.data?.length) { triggerToast('No hay suscritos que descargar.', 'info'); return; }
 
-    const columnas = ['email', 'nombre', 'aceptoEl', 'origen', 'detalle'];
+    // Sólo las columnas que el servidor entregó: sin permiso para ver el correo, el archivo sale sin esa columna.
+    const columnas = ['email', 'nombre', 'aceptoEl', 'origen', 'detalle'].filter((columna) => columna in respuesta.data[0]);
     const nombre = `suscriptores-${nombreDe(empresa || null).replace(/\W+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}`;
 
     let contenido: string;
@@ -245,11 +254,11 @@ export function SuscriptoresPage() {
             {origenes.map((valor) => <option key={valor} value={valor}>{ORIGEN[valor] ?? valor}</option>)}
           </select>
         )}
-        <button type="button" className="btn btn-outline btn-sm" disabled={!busqueda && !empresa && !origen && estado === 'subscribed'} onClick={() => { setBusqueda(''); setEmpresa(esEmpresa ? (user?.clientId ?? '') : ''); setEstado('subscribed'); setOrigen(''); }}>Limpiar</button>
+        <button type="button" className="btn btn-outline btn-sm" disabled={!busqueda && !(empresaDelEquipo) && !origen && estado === 'subscribed'} onClick={() => { setBusqueda(''); setEmpresa(''); setEstado('subscribed'); setOrigen(''); }}>Limpiar</button>
         <span className="filter-result-count">{data?.total ?? 0} personas</span>
       </div>
 
-      {error ? <QueryErrorState message={(error as Error).message} onRetry={() => void refetch()} /> : (
+      {error ? <QueryErrorState message={(error as Error).message} error={error} onRetry={() => void refetch()} /> : (
         <DataTable<Suscriptor>
           storageKey="suscriptores"
           keyExtractor={(fila) => fila.id}
@@ -257,7 +266,7 @@ export function SuscriptoresPage() {
           loading={isLoading}
           emptyMessage="Nadie por ahora. La lista se llena cuando alguien marca «quiero beneficios» al reservar, o importando un archivo."
           columns={[
-            { key: 'email', label: 'Correo' },
+            { key: 'email', label: 'Correo', render: (fila) => <CampoProtegido valor={fila.email} campo="email" ruta={`/marketing/suscriptores/${fila.id}/datos-protegidos`} sePuedePedir={fila.datosProtegidos?.sePuedePedir === true} /> },
             { key: 'name', label: 'Nombre', render: (fila) => fila.name || '—' },
             ...(esEmpresa ? [] : [{ key: 'clientId', label: 'Empresa', render: (fila: Suscriptor) => nombreDe(fila.clientId) }]),
             { key: 'status', label: 'Estado', render: (fila) => ESTADO[fila.status] ?? fila.status },
@@ -307,10 +316,13 @@ function FichaDelSuscriptor({ suscriptor, empresa, onCerrar }: {
   onCerrar: () => void;
 }) {
   const fecha = (valor?: string | null) => (valor ? new Date(valor).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+  const revelado = useRevelarProtegidos(`/marketing/suscriptores/${suscriptor.id}/datos-protegidos`);
+  const correo = revelado.datos ? String(revelado.datos.email ?? '') : suscriptor.email;
 
   return (
-    <Modal open onClose={onCerrar} title={suscriptor.email}>
+    <Modal open onClose={onCerrar} title={estaProtegido(correo) ? 'Suscriptor' : correo}>
       <dl className="ficha-suscriptor">
+        {estaProtegido(correo) && <div><dt>Correo</dt><dd><ValorProtegido sePuedePedir={suscriptor.datosProtegidos?.sePuedePedir === true} pendiente={revelado.pendiente} onVer={revelado.ver} /></dd></div>}
         <div><dt>Empresa</dt><dd>{empresa}</dd></div>
         <div><dt>Nombre</dt><dd>{suscriptor.name || '—'}</dd></div>
         <div><dt>Estado</dt><dd>{ESTADO[suscriptor.status] ?? suscriptor.status}</dd></div>
@@ -321,13 +333,12 @@ function FichaDelSuscriptor({ suscriptor, empresa, onCerrar }: {
         <div><dt>Desde qué dirección</dt><dd>{suscriptor.consentIp || 'No consta (no vino por web)'}</dd></div>
         <div><dt>Declaró ser mayor de edad</dt><dd>{fecha(suscriptor.adultDeclaredAt)}</dd></div>
         <div><dt>Fecha de nacimiento declarada</dt><dd>{suscriptor.birthDate ? new Date(suscriptor.birthDate).toLocaleDateString('es-CL') : '—'}</dd></div>
-        <div><dt>Último correo enviado</dt><dd>{fecha(suscriptor.lastSentAt)}</dd></div>
         {suscriptor.unsubscribedAt && <div>
           <dt>Se dio de baja</dt>
           <dd>
             {fecha(suscriptor.unsubscribedAt)}
             {suscriptor.unsubscribedScope === 'todas' ? ' · de todos los locales' : ' · sólo de esta empresa'}
-            {suscriptor.unsubscribedFrom ? ` · desde el correo «${suscriptor.unsubscribedFrom}»` : ''}
+            {suscriptor.unsubscribedFrom ? ` · origen «${suscriptor.unsubscribedFrom}»` : ''}
           </dd>
         </div>}
       </dl>
@@ -415,7 +426,7 @@ function ConsultarExclusion() {
                 <li key={`${fila.clientId ?? 'todas'}-${fila.cuando}`}>
                   {fila.clientId ? 'Una empresa en concreto' : 'Todos los locales'}
                   {' · '}{new Date(fila.cuando).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
-                  {fila.origen ? ` · desde el correo «${fila.origen}»` : ''}
+                  {fila.origen ? ` · origen «${fila.origen}»` : ''}
                 </li>
               ))}
             </ul>

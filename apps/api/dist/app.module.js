@@ -62,6 +62,7 @@ const portal_module_1 = require("./modules/client-portal/portal.module");
 const reservations_module_1 = require("./modules/reservations/reservations.module");
 const surveys_module_1 = require("./modules/surveys/surveys.module");
 const service_requests_module_1 = require("./modules/service-requests/service-requests.module");
+const vulneraciones_module_1 = require("./modules/vulneraciones/vulneraciones.module");
 const account_access_module_1 = require("./core/client-scope/account-access.module");
 const cron_module_1 = require("./core/cron/cron.module");
 const process_templates_module_1 = require("./modules/process-templates/process-templates.module");
@@ -151,6 +152,7 @@ exports.AppModule = AppModule = __decorate([
             portal_module_1.PortalModule,
             surveys_module_1.SurveysModule,
             service_requests_module_1.ServiceRequestsModule,
+            vulneraciones_module_1.VulneracionesModule,
             process_templates_module_1.ProcessTemplatesModule,
             automations_module_1.AutomationsModule,
             pods_module_1.PodsModule,

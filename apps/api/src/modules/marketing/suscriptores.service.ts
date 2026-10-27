@@ -258,7 +258,7 @@ export class SuscriptoresService {
     const limpio = email?.trim().toLowerCase();
     if (!limpio) return { alcance: null, empresas: [] };
     const filas = await this.exclusiones.find({
-      where: { organizationId, huella: this.huellaDe(organizationId, limpio) },
+      where: { organizationId, huella: this.huellaDe(organizationId, limpio), activa: true },
       order: { createdAt: 'DESC' },
     });
     return {
@@ -339,8 +339,8 @@ export class SuscriptoresService {
   /** Cuántas peticiones de no recibir hay anotadas. El número sí se puede mostrar; las huellas no. */
   async cuantasExclusiones(organizationId: string): Promise<{ total: number; deTodas: number }> {
     const [total, deTodas] = await Promise.all([
-      this.exclusiones.count({ where: { organizationId } }),
-      this.exclusiones.count({ where: { organizationId, clientId: IsNull() } }),
+      this.exclusiones.count({ where: { organizationId, activa: true } }),
+      this.exclusiones.count({ where: { organizationId, clientId: IsNull(), activa: true } }),
     ]);
     return { total, deTodas };
   }
@@ -363,6 +363,16 @@ export class SuscriptoresService {
 
   private async anotarExclusion(organizationId: string, huella: string, clientId: string | null, alcance: 'local' | 'todas', origen?: string, pedidaEl?: Date): Promise<void> {
     const yaEsta = await this.exclusiones.findOne({ where: { organizationId, huella, clientId: clientId ?? IsNull() } });
+    if (yaEsta && !yaEsta.activa) {
+      // Pidió no recibir otra vez después de haber vuelto a darlo: rige de nuevo, y la fila conserva
+      // cuándo se levantó. La fecha de la nueva petición reemplaza a la anterior.
+      yaEsta.activa = true;
+      yaEsta.alcance = alcance;
+      yaEsta.origen = origen?.slice(0, 80) ?? yaEsta.origen ?? null;
+      yaEsta.pedidaEl = pedidaEl ?? new Date();
+      await this.exclusiones.save(yaEsta);
+      return;
+    }
     if (yaEsta) {
       // Una exclusión ya anotada no se reescribe, salvo para corregir su fecha hacia atrás: vale la
       // primera vez que la persona lo pidió, aunque nos hayamos enterado después (art. 5 inciso 2).
@@ -386,7 +396,7 @@ export class SuscriptoresService {
    */
   async exclusionDe(organizationId: string, email: string, clientId: string | null): Promise<'local' | 'todas' | null> {
     const huella = this.huellaDe(organizationId, email);
-    const filas = await this.exclusiones.find({ where: { organizationId, huella } });
+    const filas = await this.exclusiones.find({ where: { organizationId, huella, activa: true } });
     if (filas.some((fila) => fila.clientId === null)) return 'todas';
     return filas.some((fila) => fila.clientId === clientId) ? 'local' : null;
   }
@@ -397,12 +407,24 @@ export class SuscriptoresService {
    * Sólo desde una casilla marcada a propósito. La de «todas» se levanta igual, pero la pantalla
    * tiene que haberle advertido antes que había pedido no recibir: un permiso nuevo vale, pero
    * tiene que ser inequívoco.
+   *
+   * **La fila se marca como levantada y se conserva.** Es la constancia de que la persona pidió no
+   * recibir, de cuándo, y de que se respetó hasta que ella misma lo revirtió; sin ella, ante un
+   * reclamo no hay cómo mostrar que alguna vez se cumplió.
    */
-  async levantarExclusion(organizationId: string, email: string, clientId: string | null): Promise<void> {
+  async levantarExclusion(organizationId: string, email: string, clientId: string | null, origen = 'consentimiento nuevo'): Promise<void> {
     const huella = this.huellaDe(organizationId, email);
-    const filas = await this.exclusiones.find({ where: { organizationId, huella } });
-    const quitar = filas.filter((fila) => fila.clientId === clientId || fila.clientId === null);
-    if (quitar.length) await this.exclusiones.remove(quitar);
+    const filas = await this.exclusiones.find({ where: { organizationId, huella, activa: true } });
+    const levantar = filas.filter((fila) => fila.clientId === clientId || fila.clientId === null);
+    if (!levantar.length) return;
+    const ahora = new Date();
+    for (const fila of levantar) {
+      fila.activa = false;
+      fila.levantadaEl = ahora;
+      fila.levantadaOrigen = origen.slice(0, 80);
+      fila.vecesLevantada = (fila.vecesLevantada ?? 0) + 1;
+    }
+    await this.exclusiones.save(levantar);
   }
 
   /**
@@ -538,6 +560,18 @@ export class SuscriptoresService {
     }
 
     return { data, total, resumen: [...resumen.values()], origenes };
+  }
+
+  /**
+   * Un suscriptor para entregar sus datos protegidos a quien los pidió.
+   *
+   * @param encerradoEn - Empresa de la que no puede salir quien pregunta, si es una cuenta de empresa.
+   * Lo que queda fuera se responde como inexistente.
+   */
+  async buscarParaRevelar(organizationId: string, id: string, encerradoEn?: string): Promise<Suscriptor> {
+    const suscriptor = await this.repo.findOne({ where: { id, organizationId } });
+    if (!suscriptor || (encerradoEn && suscriptor.clientId !== encerradoEn)) throw new NotFoundException('El suscriptor no existe');
+    return suscriptor;
   }
 
   /**

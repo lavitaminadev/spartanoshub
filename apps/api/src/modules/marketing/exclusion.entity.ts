@@ -61,6 +61,26 @@ export class ExclusionDeCorreo {
   @Column({ name: 'pedida_el', type: 'datetime', nullable: true })
   pedidaEl?: Date | null;
 
+  /**
+   * Si la exclusión rige. Falso: la persona volvió a dar su permiso a propósito y la petición se levantó.
+   *
+   * Levantar marca y no borra. La fila es la constancia de que pidió no recibir, desde cuándo y que
+   * se respetó hasta que ella misma dijo lo contrario; borrarla es borrar la prueba de la baja.
+   */
+  @Column({ type: 'boolean', default: true })
+  activa: boolean;
+
+  /** La última vez que se levantó. Se conserva si la persona vuelve a pedir la baja. */
+  @Column({ name: 'levantada_el', type: 'datetime', nullable: true })
+  levantadaEl?: Date | null;
+
+  @Column({ name: 'levantada_origen', type: 'varchar', length: 80, nullable: true })
+  levantadaOrigen?: string | null;
+
+  /** Cuántas veces se levantó, para que una baja que se levanta y se vuelve a pedir deje su historia. */
+  @Column({ name: 'veces_levantada', type: 'smallint', default: 0 })
+  vecesLevantada: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

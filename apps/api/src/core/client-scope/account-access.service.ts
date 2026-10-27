@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, MoreThan, Repository } from 'typeorm';
 import type { AuthUser } from '../../shared/types/request';
 import { Client } from '../../modules/clients/client.entity';
 import { PodMember } from '../../modules/pods/pod-member.entity';
@@ -28,6 +28,20 @@ const UNRESTRICTED_ROLES = new Set<UserRole>([
   UserRole.AV_DIRECTOR,
 ]);
 
+/**
+ * Filtro de las asignaciones directas que cuentan ahora: ni retiradas ni vencidas.
+ *
+ * Una cesión con fecha de término deja de dar acceso al llegar a ella, sin que nadie tenga que
+ * quitarla. Es una lista de dos condiciones porque `expires_at` nulo significa «sin fecha de
+ * término», que es una decisión válida y no una cesión vencida.
+ */
+function vigentes<T extends object>(base: T, ahora = new Date()) {
+  return [
+    { ...base, retiredAt: IsNull(), expiresAt: IsNull() },
+    { ...base, retiredAt: IsNull(), expiresAt: MoreThan(ahora) },
+  ];
+}
+
 /** Procedencia de una cuenta visible, para poder explicar por qué alguien la ve. */
 export interface ClientAccessReason {
   clientId: string;
@@ -43,7 +57,8 @@ export interface ClientAccessReason {
  * 1. **Pod** — quien integra un pod ve las cuentas asignadas a ese pod. Es la vía normal y
  *    la única que no exige mantenimiento aparte: se entra al pod y las cuentas siguen.
  * 2. **Asignación directa** — excepciones en `user_client_access`, para prestar una cuenta
- *    sin mover a nadie de pod ni alterar la capacidad del pod.
+ *    sin mover a nadie de pod ni alterar la capacidad del pod. Pueden tener fecha de término:
+ *    vencida, deja de contar sola.
  * 3. **Community manager** — la cuenta apunta a la persona en `community_manager_id`.
  *
  * Solo la administración ve todas las cuentas sin asignación. Las direcciones también se
@@ -84,7 +99,7 @@ export class AccountAccessService {
      */
     if ((user.role as UserRole) === UserRole.CLIENT) {
       const propias = user.clientId ? [user.clientId] : [];
-      const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
+      const asignadas = (await this.assignments.find({ where: vigentes({ userId: user.id }), select: { clientId: true } }))
         .map((fila) => fila.clientId)
         .filter((id) => id !== user.clientId);
       return this.soloEnServicio([...propias, ...asignadas]);
@@ -127,6 +142,28 @@ export class AccountAccessService {
     return alcanzables?.includes(pedida) ? pedida : propia;
   }
 
+  /**
+   * La empresa de una cuenta de portal, sin adivinarla.
+   *
+   * Garantiza que el resultado es una empresa que la cuenta alcanza: la pedida, comprobada con
+   * `assertClient` (404 si no la alcanza), o la propia cuando es la única. Si la cuenta alcanza
+   * más de una y no se pidió ninguna, no elige por ella: responde 400 para que la pantalla pida
+   * elegir. Para el equipo interno devuelve lo pedido, comprobado, o `undefined`.
+   */
+  async empresaElegida(organizationId: string, user: AuthUser, pedida?: string | null): Promise<string | undefined> {
+    if ((user.role as UserRole) !== UserRole.CLIENT) {
+      await this.assertClient(organizationId, user, pedida || undefined);
+      return pedida || undefined;
+    }
+    if (pedida) {
+      await this.assertClient(organizationId, user, pedida);
+      return pedida;
+    }
+    const alcanzables = (await this.allowedClientIds(organizationId, user)) ?? [];
+    if (alcanzables.length > 1) throw new BadRequestException('Elige la empresa sobre la que trabajas');
+    return user.clientId || alcanzables[0] || undefined;
+  }
+
   async assertClient(organizationId: string, user: AuthUser, clientId?: string): Promise<void> {
     if (!clientId) return;
 
@@ -149,7 +186,7 @@ export class AccountAccessService {
     if ((user.role as UserRole) === UserRole.CLIENT) {
       // La propia se marca como `own` para que la pantalla pueda impedir que se quite.
       const propia: ClientAccessReason[] = user.clientId ? [{ clientId: user.clientId, source: 'own' }] : [];
-      const asignadas = (await this.assignments.find({ where: { userId: user.id }, select: { clientId: true } }))
+      const asignadas = (await this.assignments.find({ where: vigentes({ userId: user.id }), select: { clientId: true } }))
         .filter((fila) => fila.clientId !== user.clientId)
         .map((fila): ClientAccessReason => ({ clientId: fila.clientId, source: 'assignment' }));
       return [...propia, ...asignadas];
@@ -193,7 +230,7 @@ export class AccountAccessService {
     const ids = acotadas.map((persona) => persona.id);
     const internas = acotadas.filter((persona) => (persona.role as UserRole) !== UserRole.CLIENT).map((persona) => persona.id);
     const [asignaciones, membresias, manejadas] = await Promise.all([
-      this.assignments.find({ where: { organizationId, userId: In(ids) }, select: { userId: true, clientId: true } }),
+      this.assignments.find({ where: vigentes({ organizationId, userId: In(ids) }), select: { userId: true, clientId: true } }),
       internas.length ? this.podMembers.find({ where: { userId: In(internas) }, select: { userId: true, podId: true } }) : Promise.resolve<PodMember[]>([]),
       internas.length ? this.clients.find({ where: { organizationId, communityManagerId: In(internas) }, select: { id: true, communityManagerId: true } }) : Promise.resolve<Client[]>([]),
     ]);
@@ -236,7 +273,7 @@ export class AccountAccessService {
       podIds.length
         ? this.clients.find({ where: { organizationId, podId: In(podIds) }, select: { id: true } })
         : Promise.resolve<Client[]>([]),
-      this.assignments.find({ where: { organizationId, userId }, select: { clientId: true } }),
+      this.assignments.find({ where: vigentes({ organizationId, userId }), select: { clientId: true } }),
       this.clients.find({ where: { organizationId, communityManagerId: userId }, select: { id: true } }),
     ]);
 

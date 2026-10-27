@@ -2,15 +2,22 @@ import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, Res
 import type { Response } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { columnasAQuitar, camposProtegidosDe } from '@espartanos/shared';
+import { AuditService } from '../../core/audit/audit.service';
+import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../core/client-scope/nivel-de-datos.service';
+import { exigirConstanciaDeRevelacion } from '../../core/client-scope/revelar-protegidos';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { Public } from '../../core/auth/decorators/public.decorator';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { ORIGEN_RESERVA } from './alta-desde-reserva';
 import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { SuscriptoresService } from './suscriptores.service';
 import { EstadoDeSuscripcion } from './suscriptor.entity';
 import { paginaDeBaja, paginaDeConfirmarBaja } from './pagina-de-baja';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 /** Lo que se necesita para importar una lista sin dejarla sin procedencia. */
 class ImportarSuscriptoresDto {
@@ -61,26 +68,51 @@ export class SuscriptoresController {
   constructor(
     private readonly suscriptores: SuscriptoresService,
     private readonly capacidades: ClientCapabilityService,
+    private readonly acceso: AccountAccessService,
+    private readonly niveles: NivelDeDatosService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
    * La empresa a cuya lista queda encerrada la consulta, o `undefined` si puede verlas todas.
    *
-   * Una cuenta de empresa ve la suya y ninguna otra, diga lo que diga la dirección. Si no tiene
+   * Una cuenta de empresa ve la que eligió entre las que alcanza (404 si no la alcanza); con varias y
+   * sin elegir se le pide elegir. Si no tiene
    * empresa asignada se la rechaza en vez de darle la de la agencia por descarte: caer hacia la
    * lista propia de Espartanos ante un dato que falta es exactamente al revés de lo prudente.
    *
    * La capacidad se afirma también acá y no sólo en el menú: esconder una pantalla no es
    * cerrarla, y el resto del portal —Contactos, Interacciones— afirma la suya del mismo modo.
    */
-  private async encierroDe(req: AuthenticatedRequest): Promise<string | undefined> {
+  private async encierroDe(req: AuthenticatedRequest, elegida?: string): Promise<string | undefined> {
+    return this.encierroConCapacidad(req, 'marketing', elegida);
+  }
+
+  /**
+   * El mismo encierro, afirmando la capacidad que gobierna la ruta.
+   *
+   * Casi todas las rutas de aquí son de Marketing y afirman `marketing`. La de lo captado por
+   * reservas afirma `reservations`, porque es la empresa leyendo lo que se guardó a su nombre al
+   * reservar: exigirle Marketing la dejaría sin ver sus propios datos, que es justo lo que esa
+   * ruta existe para arreglar.
+   *
+   * @param capacidad - La que de verdad gobierna, no la del módulo donde vive el archivo.
+   */
+  private async encierroConCapacidad(
+    req: AuthenticatedRequest,
+    capacidad: 'marketing' | 'reservations',
+    elegida?: string,
+  ): Promise<string | undefined> {
     if (req.user.role !== UserRole.CLIENT) return undefined;
-    if (!req.user.clientId) throw new ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
-    await this.capacidades.assert(req.organizationId || req.user.organizationId, req.user.clientId, 'marketing');
-    return req.user.clientId;
+    const organizationId = req.organizationId || req.user.organizationId;
+    const clientId = await this.acceso.empresaElegida(organizationId, req.user, elegida);
+    if (!clientId) throw new ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
+    await this.capacidades.assert(organizationId, clientId, capacidad);
+    return clientId;
   }
 
   @Get()
+  @RequiereArea('marketing.suscriptores', 'ver')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Lista de suscriptores con su procedencia y estado' })
   async listar(
@@ -91,15 +123,90 @@ export class SuscriptoresController {
     @Query('origen') origen?: string,
     @Query('q') busqueda?: string,
   ) {
-    return this.suscriptores.listar(req.organizationId || req.user.organizationId, {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const lista = await this.suscriptores.listar(organizationId, {
       limite: limit ? Number(limit) : undefined,
       empresa,
-      encerradoEn: await this.encierroDe(req),
+      encerradoEn: await this.encierroDe(req, empresa),
       // Sólo los tres estados que existen: un valor inventado en la dirección no filtra nada.
       estado: Object.values(EstadoDeSuscripcion).includes(estado as EstadoDeSuscripcion) ? estado as EstadoDeSuscripcion : undefined,
       origen,
       busqueda,
     });
+    // El correo es lo que identifica a cada suscriptor: sale recortado según el nivel en la empresa de cada fila.
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    return { ...lista, data: recortarFilasPorEmpresa(lista.data, 'marketing', niveles) };
+  }
+
+  /**
+   * A quién captó esta empresa por sus propias reservas.
+   *
+   * Existe porque el consentimiento se guarda donde la empresa no siempre puede leerlo. Cuando
+   * alguien marca la casilla de marketing al reservar, la dirección entra en la lista con su texto
+   * y su fecha, y eso es correcto: honrar un «sí» no depende de lo que la empresa haya contratado.
+   * Lo que no era correcto es que, sin Marketing contratado, la empresa **responsable** de esos
+   * datos no pudiera verlos — y entonces tampoco atender una solicitud de derechos sobre ellos.
+   *
+   * Por eso esta ruta se gobierna con **Reservas** y no con Marketing: `@ModuleScope` a nivel de
+   * método manda sobre el de la clase, así que pide el permiso, la capacidad y el área de Reservas.
+   * Quien ve las reservas de un local ve a quién consintió en ellas; no es una puerta nueva a la
+   * lista, porque sólo devuelve lo captado por reserva (`origen: 'reserva'`), nunca lo importado ni
+   * lo captado por otras vías.
+   *
+   * El recorte va por el nivel de datos protegidos en **Reservas**, por lo mismo: es la reja de
+   * quien está mirando, y el correo del comensal ya está en su reserva.
+   */
+  @Get('captados-por-reservas')
+  @ModuleScope('reservations')
+  @RequiereArea('reservations.reservas', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Quiénes consintieron recibir correos al reservar en esta empresa' })
+  async captadosPorReservas(
+    @Req() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+    @Query('empresa') empresa?: string,
+    @Query('q') busqueda?: string,
+  ) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const lista = await this.suscriptores.listar(organizationId, {
+      limite: limit ? Number(limit) : undefined,
+      empresa,
+      encerradoEn: await this.encierroConCapacidad(req, 'reservations', empresa),
+      origen: ORIGEN_RESERVA,
+      busqueda,
+    });
+    /*
+     * La reja sale de Reservas y el mapa de campos de Marketing, y las dos cosas son a propósito.
+     *
+     * El nivel es el que esa persona tiene en **Reservas**, porque es el módulo que gobierna esta
+     * ruta. Los campos a recortar son los de **Marketing**, porque la fila es un suscriptor: su
+     * correo está en `email`, no en `guestEmail`. Usar el mapa de Reservas no encontraría nada que
+     * recortar y entregaría el correo entero con cualquier nivel.
+     */
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'reservations');
+    return { ...lista, data: recortarFilasPorEmpresa(lista.data, 'marketing', niveles) };
+  }
+
+  /**
+   * El correo (y teléfono, si lo hubiera) de un suscriptor, para quien lo pidió desde la lista.
+   *
+   * Con `bajo_registro` deja constancia de quién lo vio y cuándo antes de responder; si no se puede
+   * escribir, el dato no sale. Con `oculto` no hay forma de pedirlo.
+   */
+  @Get(':id/datos-protegidos')
+  @RequiereArea('marketing.suscriptores', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Ver los datos protegidos de un suscriptor' })
+  async datosProtegidos(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const organizationId = req.organizationId || req.user.organizationId;
+    const suscriptor = await this.suscriptores.buscarParaRevelar(organizationId, id, await this.encierroDe(req));
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    const ficha = suscriptor as unknown as Record<string, unknown>;
+    const datos = Object.fromEntries(camposProtegidosDe('marketing').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, ficha[campo] ?? null]));
+    await exigirConstanciaDeRevelacion(this.audit, niveles.de(suscriptor.clientId), {
+      organizationId, actorId: req.user.id, entityType: 'email_subscribers', entityId: id, campos: Object.keys(datos), ipAddress: req.ip,
+    });
+    return { id, datos };
   }
 
   /**
@@ -115,6 +222,7 @@ export class SuscriptoresController {
    * de empresa preguntando por una dirección cualquiera sabría si esa persona está en el sistema.
    */
   @Get('exclusiones')
+  @RequiereArea('marketing.bajas', 'ver')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Si a una dirección se le pidió no escribir más' })
   async exclusiones(@Req() req: AuthenticatedRequest, @Query('correo') correo?: string) {
@@ -138,6 +246,7 @@ export class SuscriptoresController {
    * Sólo la agencia: es la que recibe el aviso y la que responde de haberlo aplicado.
    */
   @Post('exclusiones')
+  @RequiereArea('marketing.suscriptores', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Anotar una petición de baja recibida por fuera (SERNAC, teléfono, correo)' })
   async anotarPeticion(@Req() req: AuthenticatedRequest, @Body() dto: PeticionExternaDto) {
@@ -160,27 +269,38 @@ export class SuscriptoresController {
    * copia es responsabilidad de quien la tiene.
    */
   @Get('descargar')
+  @RequiereArea('marketing.exportar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Descargar los suscritos de una empresa' })
   async descargar(@Req() req: AuthenticatedRequest, @Query('empresa') empresa: string) {
     const organizationId = req.organizationId || req.user.organizationId;
     // Una cuenta de empresa descarga la suya y ninguna otra, diga lo que diga la dirección.
-    const alcance = (await this.encierroDe(req)) || empresa || 'agencia';
+    const alcance = (await this.encierroDe(req, empresa)) || empresa || 'agencia';
     const filas = await this.suscriptores.paraDescargar(organizationId, alcance);
+    /*
+     * El archivo sale sin las columnas protegidas, no con una marca dentro: quien no puede ver el
+     * correo en la lista tampoco lo recibe en la descarga.
+     */
+    const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+    const quitar = new Set(columnasAQuitar('marketing', niveles.de(alcance === 'agencia' ? null : alcance)));
     return {
       empresa: alcance,
       total: filas.length,
-      data: filas.map((fila) => ({
-        email: fila.email,
-        nombre: fila.name,
-        aceptoEl: fila.consentAt,
-        origen: fila.source,
-        detalle: fila.sourceDetail,
-      })),
+      data: filas.map((fila) => {
+        const completa: Record<string, unknown> = {
+          email: fila.email,
+          nombre: fila.name,
+          aceptoEl: fila.consentAt,
+          origen: fila.source,
+          detalle: fila.sourceDetail,
+        };
+        return Object.fromEntries(Object.entries(completa).filter(([columna]) => !quitar.has(columna)));
+      }),
     };
   }
 
   @Post('importar')
+  @RequiereArea('marketing.importar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Importar una lista de correos declarando su origen' })
   importar(@Req() req: AuthenticatedRequest, @Body() dto: ImportarSuscriptoresDto) {

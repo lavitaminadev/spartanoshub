@@ -24,16 +24,19 @@ const node_events_1 = require("node:events");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const client_capability_service_1 = require("../../core/client-scope/client-capability.service");
 const audit_service_1 = require("../../core/audit/audit.service");
+const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const reservations_service_1 = require("./application/reservations.service");
 const bulk_import_service_1 = require("./application/bulk-import.service");
+const exportaciones_1 = require("./application/exportaciones");
 const reservation_dto_1 = require("./dto/reservation.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 let ReservationsController = class ReservationsController {
-    constructor(service, accountAccess, capabilities, bulkImport, audit, dataSource, permisos) {
+    constructor(service, accountAccess, capabilities, bulkImport, audit, dataSource, permisos, niveles) {
         this.service = service;
         this.accountAccess = accountAccess;
         this.capabilities = capabilities;
@@ -41,6 +44,7 @@ let ReservationsController = class ReservationsController {
         this.audit = audit;
         this.dataSource = dataSource;
         this.permisos = permisos;
+        this.niveles = niveles;
     }
     publicOrigin() {
         return (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '') || undefined;
@@ -50,22 +54,30 @@ let ReservationsController = class ReservationsController {
         const publicOrigin = this.publicOrigin();
         return { ...form, ...context, publicUrl: publicOrigin ? `${publicOrigin}/book/${form.publicSlug}` : undefined };
     }
-    client(req) {
+    async empresaDelPortalEnLaPeticion(req) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
             return undefined;
+        const declarada = req.query?.clientId?.trim();
+        if (declarada && declarada !== req.user.clientId) {
+            await this.accountAccess.assertClient(req.organizationId, req.user, declarada);
+            return declarada;
+        }
         if (!req.user.clientId)
             throw new common_1.ForbiddenException('La cuenta cliente no está asociada a una empresa');
         return req.user.clientId;
     }
     async scope(req) {
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
-            const clientId = this.client(req);
+        const clientId = await this.empresaDelPortalEnLaPeticion(req);
+        if (clientId)
             await this.capabilities.assert(req.organizationId, clientId, 'reservations');
-        }
         return {
-            clientId: this.client(req),
+            clientId,
             clientIds: await this.accountAccess.allowedClientIds(req.organizationId, req.user),
         };
+    }
+    async recortada(req, reserva) {
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        return (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)([reserva], 'reservations', niveles)[0];
     }
     async requestedScope(req, requestedClientId) {
         const scope = await this.scope(req);
@@ -80,18 +92,13 @@ let ReservationsController = class ReservationsController {
     async saveCompanyLegal(req, query, dto) {
         const empresa = await this.empresaLegal(req, query.clientId);
         await (0, datos_legales_de_empresa_1.asegurarQueAdministraLaEmpresa)(this.permisos, req.organizationId, req.user, empresa);
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+        const laAceptaLaEmpresa = req.user.role === user_role_enum_1.UserRole.CLIENT;
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
     }
     async empresaLegal(req, pedida) {
-        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
-            const propia = (0, datos_legales_de_empresa_1.empresaDelPortal)(req.user.clientId);
-            await this.capabilities.assert(req.organizationId, propia, 'reservations');
-            return propia;
-        }
-        if (!pedida)
-            throw new common_1.BadRequestException('Indica la empresa');
-        await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
-        return pedida;
+        const empresa = await (0, datos_legales_de_empresa_1.empresaDeLosDatosLegales)(this.accountAccess, req.organizationId, req.user, pedida);
+        await this.capabilities.assert(req.organizationId, empresa, 'reservations');
+        return empresa;
     }
     async metaHealth(req, id) {
         const scope = await this.scope(req);
@@ -194,7 +201,7 @@ let ReservationsController = class ReservationsController {
         const scope = await this.scope(req);
         if (req.user.role === user_role_enum_1.UserRole.CLIENT)
             dto.skipAvailability = false;
-        return this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds);
+        return this.recortada(req, await this.service.createManual(req.organizationId, req.user.id, dto, scope.clientId, scope.clientIds));
     }
     async importReservations(req, dto) {
         const scope = await this.scope(req);
@@ -210,14 +217,16 @@ let ReservationsController = class ReservationsController {
     }
     async list(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
-        return this.service.listReservations(req.organizationId, query, scope.clientId, scope.clientIds, req.user.role !== user_role_enum_1.UserRole.CLIENT);
+        const respuesta = await this.service.listReservations(req.organizationId, query, scope.clientId, scope.clientIds, req.user.role !== user_role_enum_1.UserRole.CLIENT);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        return { ...respuesta, data: (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(respuesta.data, 'reservations', niveles) };
     }
     async updateReservation(req, id, dto) {
         const scope = await this.scope(req);
         if (req.user.role === user_role_enum_1.UserRole.CLIENT && dto.workflowState !== undefined) {
             throw new common_1.ForbiddenException('La etapa de producción la gestiona el equipo de Espartanos');
         }
-        return this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds);
+        return this.recortada(req, await this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds));
     }
     async allGroupRequests(req, formId, clientId) {
         const scope = await this.requestedScope(req, clientId);
@@ -241,7 +250,28 @@ let ReservationsController = class ReservationsController {
     }
     async guestHistory(req, id) {
         const scope = await this.scope(req);
-        return this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+        const historial = await this.service.guestHistory(req.organizationId, id, scope.clientId, scope.clientIds);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        if (niveles.de(historial.clientId) === 'directo')
+            return historial;
+        const { preferencias: _preferencias, ...sinPreferencias } = historial;
+        return sinPreferencias;
+    }
+    async datosProtegidos(req, id) {
+        const scope = await this.scope(req);
+        const reserva = await this.service.datosProtegidosDeReserva(req.organizationId, id, scope.clientId, scope.clientIds);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        const nivel = niveles.de(reserva.clientId);
+        if (nivel === 'oculto')
+            throw new common_1.ForbiddenException('Tu perfil no permite ver estos datos');
+        if (nivel === 'bajo_registro') {
+            await this.audit.log({
+                organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservations', entityId: id,
+                action: 'reveal_protected_data', reason: `campos=${Object.keys(reserva.datos).join(',')}`,
+                ipAddress: req.ip,
+            });
+        }
+        return { id, datos: reserva.datos };
     }
     async registrarSalida(req, id, dto) {
         const scope = await this.scope(req);
@@ -250,6 +280,13 @@ let ReservationsController = class ReservationsController {
     async history(req, id) {
         const scope = await this.scope(req);
         return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
+    }
+    async historialDelComensal(req, id) {
+        const scope = await this.scope(req);
+        const historial = await this.service.historialDelComensal(req.organizationId, id, scope.clientId, scope.clientIds);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        const [comensal] = (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)([historial.comensal], 'reservations', niveles);
+        return { ...historial, comensal };
     }
     async historialDeReserva(req, id) {
         const scope = await this.scope(req);
@@ -269,7 +306,7 @@ let ReservationsController = class ReservationsController {
     }
     async createCoupon(req, dto) {
         if (req.user.role === user_role_enum_1.UserRole.CLIENT)
-            dto.clientId = this.client(req);
+            dto.clientId = (await this.empresaDelPortalEnLaPeticion(req));
         if (!dto.clientId)
             throw new common_1.BadRequestException('Elige la empresa del cupón: cada cupón vale sólo en los locales de su empresa.');
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
@@ -312,15 +349,20 @@ let ReservationsController = class ReservationsController {
     }
     async exportCsv(req, query, res) {
         const scope = await this.requestedScope(req, query.clientId);
-        void this.audit.log({
-            organizationId: req.organizationId, actorId: req.user.id, entityType: 'reservations',
-            action: 'export_csv', reason: `clientId=${scope.clientId ?? 'all'} from=${query.from ?? ''} to=${query.to ?? ''}`,
-            ipAddress: req.ip,
-        }).catch(() => { });
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        const { columnas, conProtegidos } = (0, exportaciones_1.columnasDelCsv)(niveles, scope.clientId, scope.clientIds);
+        const filas = await this.service.contarParaExportar(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit);
+        await this.service.registrarExportacion({
+            organizationId: req.organizationId, actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
+            finalidad: 'procesable', formato: 'csv',
+            filtro: { clientId: scope.clientId ?? null, desde: query.from ?? null, hasta: query.to ?? null, limite: query.limit ?? null },
+            filas, columnas, conProtegidos, desde: query.from, hasta: query.to, motivo: query.motivo,
+        });
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
+        res.setHeader('Content-Disposition', `attachment; filename="reservas-para-procesar-${new Date().toISOString().slice(0, 10)}.csv"`);
+        res.setHeader('X-Uso', 'interno; contiene datos personales');
         res.write('\uFEFF');
-        for await (const chunk of this.service.streamCsv(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
+        for await (const chunk of this.service.streamCsv(req.organizationId, niveles, scope.clientId, scope.clientIds, query.from, query.to, query.limit)) {
             if (!res.write(chunk))
                 await (0, node_events_1.once)(res, 'drain');
         }
@@ -328,22 +370,44 @@ let ReservationsController = class ReservationsController {
     }
     async exportForm(req, formId, body, res) {
         const scope = await this.scope(req);
-        const result = await this.service.exportFormReservations(req.organizationId, formId, scope.clientId, scope.clientIds, body.format, body.dateFrom, body.dateTo, body.fields, req.user.role !== user_role_enum_1.UserRole.CLIENT);
-        if (body.format === 'json') {
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.json"`);
-            res.send(JSON.stringify(result, null, 2));
-        }
-        else if (body.format === 'csv') {
+        const { cuerpo } = await this.service.exportFormReservations({
+            organizationId: req.organizationId,
+            niveles: await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations'),
+            formId,
+            clientId: scope.clientId,
+            clientIds: scope.clientIds,
+            formato: body.format,
+            dateFrom: body.dateFrom,
+            dateTo: body.dateTo,
+            fields: body.fields,
+            includeInternalNotes: req.user.role !== user_role_enum_1.UserRole.CLIENT,
+            actor: { id: req.user.id, nombre: req.user.name },
+            motivo: body.motivo,
+            ip: req.ip,
+        });
+        const dia = new Date().toISOString().slice(0, 10);
+        res.setHeader('X-Uso', 'interno; contiene datos personales');
+        if (body.format === 'csv') {
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.csv"`);
-            res.send(result);
+            res.setHeader('Content-Disposition', `attachment; filename="reservas-para-procesar-${dia}.csv"`);
+            res.send(cuerpo);
         }
-        else if (body.format === 'xlsx') {
+        else {
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', `attachment; filename="reservas-${new Date().toISOString().slice(0, 10)}.xlsx"`);
-            res.end(result);
+            res.setHeader('Content-Disposition', `attachment; filename="reservas-${dia}.xlsx"`);
+            res.end(cuerpo);
         }
+    }
+    async hojaDelTurno(req, formId, query, res) {
+        const scope = await this.scope(req);
+        const hoja = await this.service.hojaDelTurno({
+            organizationId: req.organizationId, formId, fecha: query.fecha,
+            clientId: scope.clientId, clientIds: scope.clientIds,
+            actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
+        });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${hoja.nombre}"`);
+        res.end(hoja.cuerpo);
     }
     async operationalHome(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
@@ -352,6 +416,10 @@ let ReservationsController = class ReservationsController {
     async metrics(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
         return this.service.metrics(req.organizationId, scope.clientId, scope.clientIds, query.days ? String(query.days) : '30');
+    }
+    async noShow(req, query) {
+        const scope = await this.requestedScope(req, query.clientId);
+        return this.service.noShowPorLocalYDia(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
     }
     async occupancy(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
@@ -369,7 +437,8 @@ let ReservationsController = class ReservationsController {
     }
     async getReservation(req, id) {
         const scope = await this.scope(req);
-        return this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
+        const reserva = await this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
+        return this.recortada(req, reserva);
     }
 };
 exports.ReservationsController = ReservationsController;
@@ -394,6 +463,7 @@ __decorate([
 ], ReservationsController.prototype, "saveCompanyLegal", null);
 __decorate([
     (0, common_1.Get)('forms/:id/meta-health'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -403,6 +473,7 @@ __decorate([
 ], ReservationsController.prototype, "metaHealth", null);
 __decorate([
     (0, common_1.Get)('forms/meta-pixels'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -421,6 +492,7 @@ __decorate([
 ], ReservationsController.prototype, "forms", null);
 __decorate([
     (0, common_1.Post)('forms'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -430,6 +502,7 @@ __decorate([
 ], ReservationsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)('forms/:id'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -439,6 +512,7 @@ __decorate([
 ], ReservationsController.prototype, "form", null);
 __decorate([
     (0, common_1.Patch)('forms/:id/pause'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.publicar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -450,6 +524,7 @@ __decorate([
 __decorate([
     (0, common_1.Patch)('forms/:id'),
     (0, requiere_accion_1.RequiereAccion)('reservations.configurar'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -461,6 +536,7 @@ __decorate([
 __decorate([
     (0, common_1.Patch)('forms/:id/operacion'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -471,6 +547,7 @@ __decorate([
 ], ReservationsController.prototype, "actualizarOperacion", null);
 __decorate([
     (0, common_1.Post)('forms/:id/duplicate'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -480,6 +557,7 @@ __decorate([
 ], ReservationsController.prototype, "duplicate", null);
 __decorate([
     (0, common_1.Get)('forms/:id/ultimos-cambios'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -489,6 +567,7 @@ __decorate([
 ], ReservationsController.prototype, "ultimosCambios", null);
 __decorate([
     (0, common_1.Get)('forms/:id/blocks'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -498,6 +577,7 @@ __decorate([
 ], ReservationsController.prototype, "blocks", null);
 __decorate([
     (0, common_1.Post)('forms/:id/blocks'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -508,6 +588,7 @@ __decorate([
 ], ReservationsController.prototype, "block", null);
 __decorate([
     (0, common_1.Post)('forms/:id/blocks/batch'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -519,6 +600,7 @@ __decorate([
 __decorate([
     (0, common_1.Delete)('blocks/:id'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -528,6 +610,7 @@ __decorate([
 ], ReservationsController.prototype, "deleteBlock", null);
 __decorate([
     (0, common_1.Post)('manual'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.tomar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -538,6 +621,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('import'),
     (0, requiere_accion_1.RequiereAccion)('reservations.importar'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60000 } }),
     __param(0, (0, common_1.Req)()),
@@ -548,6 +632,7 @@ __decorate([
 ], ReservationsController.prototype, "importReservations", null);
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -557,6 +642,7 @@ __decorate([
 ], ReservationsController.prototype, "list", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -567,6 +653,7 @@ __decorate([
 ], ReservationsController.prototype, "updateReservation", null);
 __decorate([
     (0, common_1.Get)('group-requests'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.espera_y_grupos', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('formId')),
@@ -577,6 +664,7 @@ __decorate([
 ], ReservationsController.prototype, "allGroupRequests", null);
 __decorate([
     (0, common_1.Get)('forms/:id/group-requests'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.espera_y_grupos', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -586,6 +674,7 @@ __decorate([
 ], ReservationsController.prototype, "groupRequests", null);
 __decorate([
     (0, common_1.Post)('group-requests/:id/convert'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.espera_y_grupos', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -596,6 +685,7 @@ __decorate([
 ], ReservationsController.prototype, "convertGroupRequest", null);
 __decorate([
     (0, common_1.Patch)('group-requests/:id'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.espera_y_grupos', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -606,6 +696,7 @@ __decorate([
 ], ReservationsController.prototype, "updateGroupRequest", null);
 __decorate([
     (0, common_1.Post)('close-day'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.configurar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -615,6 +706,7 @@ __decorate([
 ], ReservationsController.prototype, "closeDay", null);
 __decorate([
     (0, common_1.Get)(':id/guest-history'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -623,7 +715,18 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "guestHistory", null);
 __decorate([
+    (0, common_1.Get)(':id/datos-protegidos'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id', new common_1.ParseUUIDPipe())),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "datosProtegidos", null);
+__decorate([
     (0, common_1.Post)(':id/salida'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.turno', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id', new common_1.ParseUUIDPipe())),
@@ -634,6 +737,7 @@ __decorate([
 ], ReservationsController.prototype, "registrarSalida", null);
 __decorate([
     (0, common_1.Get)(':id/history'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -642,8 +746,19 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "history", null);
 __decorate([
+    (0, common_1.Get)(':id/historial-del-comensal'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.historial', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id', new common_1.ParseUUIDPipe())),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "historialDelComensal", null);
+__decorate([
     (0, common_1.Get)(':id/historial'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -653,6 +768,7 @@ __decorate([
 ], ReservationsController.prototype, "historialDeReserva", null);
 __decorate([
     (0, common_1.Get)('coupons'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.cupones', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -663,6 +779,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('coupons'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'manage'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.cupones', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -673,6 +790,7 @@ __decorate([
 __decorate([
     (0, common_1.Patch)('coupons/:id'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'manage'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.cupones', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -684,6 +802,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('coupons/buscar'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.canjear_cupon', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('codigo')),
@@ -694,6 +813,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('coupons/:id/metricas'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.cupones', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -704,6 +824,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('coupons/:id/canjes'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.cupones', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -715,6 +836,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('coupons/:id/canjes.csv'),
     (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.exportar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -727,6 +849,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('coupons/:id/canjes'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'edit'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.canjear_cupon', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -738,17 +861,19 @@ __decorate([
 __decorate([
     (0, common_1.Get)('export/csv'),
     (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.exportar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
     __param(2, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto, Object]),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ExportCsvQueryDto, Object]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "exportCsv", null);
 __decorate([
     (0, common_1.Post)('forms/:formId/export'),
     (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.exportar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('formId')),
@@ -759,7 +884,21 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "exportForm", null);
 __decorate([
+    (0, common_1.Get)('forms/:formId/hoja-del-turno'),
+    (0, requiere_accion_1.RequiereAccion)('reservations.exportar'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.exportar', 'hacer'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('formId')),
+    __param(2, (0, common_1.Query)()),
+    __param(3, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, reservation_dto_1.HojaDelTurnoDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "hojaDelTurno", null);
+__decorate([
     (0, common_1.Get)('analytics/operational-home'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -769,6 +908,7 @@ __decorate([
 ], ReservationsController.prototype, "operationalHome", null);
 __decorate([
     (0, common_1.Get)('analytics/metrics'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -777,7 +917,18 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "metrics", null);
 __decorate([
+    (0, common_1.Get)('analytics/no-show'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.historial', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "noShow", null);
+__decorate([
     (0, common_1.Get)('analytics/occupancy'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
@@ -806,6 +957,7 @@ __decorate([
 ], ReservationsController.prototype, "updateSurveyContact", null);
 __decorate([
     (0, common_1.Get)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id', new common_1.ParseUUIDPipe())),
@@ -825,5 +977,6 @@ exports.ReservationsController = ReservationsController = __decorate([
         bulk_import_service_1.ReservationsBulkImportService,
         audit_service_1.AuditService,
         typeorm_1.DataSource,
-        permission_resolver_service_1.PermissionResolverService])
+        permission_resolver_service_1.PermissionResolverService,
+        nivel_de_datos_service_1.NivelDeDatosService])
 ], ReservationsController);

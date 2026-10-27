@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { rutaDocumentoLegal } from '@espartanos/shared';
+import { LoadingSpinner } from '../../shared/LoadingSpinner';
 
 interface DatosDeCaptacion { local: string; texto: string; red?: string }
 interface Resultado { estado: 'alta' | 'omitida' | 'local' | 'todas'; local: string }
@@ -60,7 +61,7 @@ export function CaptacionPage() {
     }),
   });
 
-  if (isLoading) return <main className="captacion"><p>Cargando…</p></main>;
+  if (isLoading) return <main className="captacion"><LoadingSpinner text="Cargando…" /></main>;
   if (error || !data) {
     return (
       <main className="captacion">
@@ -81,6 +82,15 @@ export function CaptacionPage() {
             Puedes salirte cuando quieras desde el enlace que lleva cada correo abajo del todo. No
             hace falta escribirle a nadie.
           </p>
+        </> : estado === 'omitida' ? <>
+          {/* `omitida`: el servidor no completó la operación (correo sin forma válida o fallo al
+              guardar). No es una exclusión: no se le dice que pidió no recibir nada. */}
+          <h1>No pudimos registrar tu correo</h1>
+          <p>
+            Tu suscripción no quedó guardada. Revisa que el correo esté bien escrito e inténtalo de
+            nuevo en unos minutos.
+          </p>
+          <button type="button" className="btn btn-primary" onClick={() => suscribir.reset()}>Volver a intentar</button>
         </> : <>
           {/* Pidió no recibir antes. No se le vuelve a suscribir en silencio: el artículo 28 B
               dice que tras la petición los envíos quedan prohibidos, y una casilla marcada en
@@ -110,16 +120,16 @@ export function CaptacionPage() {
       <form onSubmit={(evento) => { evento.preventDefault(); suscribir.mutate(); }}>
         <label>
           Correo <span className="required-star">*</span>
-          <input className="input" type="email" required value={email} onChange={(evento) => setEmail(evento.target.value)} placeholder="tu@correo.cl" />
+          <input className="input" type="email" inputMode="email" autoComplete="email" required value={email} onChange={(evento) => setEmail(evento.target.value)} placeholder="tu@correo.cl" />
         </label>
         <label>
           Nombre <small>(opcional)</small>
-          <input className="input" value={nombre} onChange={(evento) => setNombre(evento.target.value)} placeholder="Cómo te llamamos" />
+          <input className="input" autoComplete="name" value={nombre} onChange={(evento) => setNombre(evento.target.value)} placeholder="Cómo te llamamos" />
         </label>
         {/* El cumpleaños sólo sirve si el local manda el beneficio; por eso se pide y no se exige. */}
         <label>
           Tu cumpleaños <small>(opcional)</small>
-          <input className="input" type="date" value={cumple} onChange={(evento) => setCumple(evento.target.value)} />
+          <input className="input" type="date" autoComplete="bday" value={cumple} onChange={(evento) => setCumple(evento.target.value)} />
         </label>
 
         {/* El campo trampa: oculto a la vista y al lector de pantalla, sin autocompletado. */}
@@ -143,7 +153,7 @@ export function CaptacionPage() {
           </label>
         </div>
 
-        {suscribir.isError && <p className="error-text">No se pudo completar. Inténtalo de nuevo en un momento.</p>}
+        {suscribir.isError && <p className="error-text" role="alert">No se pudo completar. Inténtalo de nuevo en un momento.</p>}
 
         <button type="submit" className="btn btn-primary" disabled={!puedeEnviar}>
           {suscribir.isPending ? 'Enviando…' : 'Quiero recibirlas'}

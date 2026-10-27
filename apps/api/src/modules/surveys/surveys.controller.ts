@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { exigirIdentidadLegalDeEncuesta } from './consentimiento-de-encuesta';
 import { AuditService } from '../../core/audit/audit.service';
-import { CompanyLegalDto, CompanyLegalScopeDto, empresaDelPortal, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDeLosDatosLegales, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
@@ -28,6 +28,11 @@ import { leerPlantilla } from '../../core/parameters/plantilla-resuelta';
 import { exigirEncuestasHabilitadas } from './encuestas-de-la-empresa';
 import { Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { RequiereAccion } from '../../core/authorization/requiere-accion';
+import { camposProtegidosDe, recortarListaProtegidos, sePuedePedir } from '@espartanos/shared';
+import { contestadoEn, sinDatosDeContacto, soloDatosDeContacto } from './datos-de-contacto-protegidos';
+import { NivelDeDatosService } from '../../core/client-scope/nivel-de-datos.service';
+import { exigirConstanciaDeRevelacion } from '../../core/client-scope/revelar-protegidos';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 
 /**
  * El instante en que termina el día de una fecha dada.
@@ -73,6 +78,7 @@ export class SurveysController {
     private readonly audit: AuditService,
     private readonly parametros: ParameterResolver,
     private readonly permisos: PermissionResolverService,
+    private readonly niveles: NivelDeDatosService,
   ) {}
 
   /** Traduce la fila a la forma que el frontend ya consume, con el conteo desnormalizado. */
@@ -109,30 +115,35 @@ export class SurveysController {
     const survey = await this.surveys.findOne({ where: { id, organizationId: req.organizationId } });
     if (!survey) throw new NotFoundException('La encuesta no existe');
     if (req.user.role === UserRole.CLIENT) {
-      if (!survey.clientId || survey.clientId !== req.user.clientId) throw new NotFoundException('La encuesta no existe');
-      await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
+      if (!survey.clientId) throw new NotFoundException('La encuesta no existe');
     }
     if (survey.clientId) {
       const permitidas = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
       if (permitidas !== undefined && !permitidas.includes(survey.clientId)) throw new NotFoundException('La encuesta no existe');
+      if (req.user.role === UserRole.CLIENT) await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
     }
     return survey;
   }
 
   @Get()
+  @RequiereArea('surveys.editar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar encuestas' })
   async list(@Req() req: AuthenticatedRequest, @Query() filtros: ListSurveysDto) {
-    const clientId = filtros.clientId;
+    const esPortal = req.user.role === UserRole.CLIENT;
+    // El portal trabaja sobre la empresa elegida (404 si no la alcanza); con varias y sin elegir, 400.
+    const clientId = esPortal
+      ? await this.accountAccess.empresaElegida(req.organizationId, req.user, filtros.clientId)
+      : filtros.clientId;
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     // Sin empresa elegida, cada persona ve las de sus empresas y las internas del equipo; no las
     // de toda la organización.
     const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     // El portal ve sólo las de su empresa: nunca las internas del equipo.
-    if (req.user.role === UserRole.CLIENT) {
-      if (!req.user.clientId) return [];
-      await exigirEncuestasHabilitadas(this.dataSource, req.user.clientId);
-      return this.listarAcotado({ organizationId: req.organizationId, clientId: req.user.clientId }, filtros);
+    if (esPortal) {
+      if (!clientId) return [];
+      await exigirEncuestasHabilitadas(this.dataSource, clientId);
+      return this.listarAcotado({ organizationId: req.organizationId, clientId }, filtros);
     }
     return this.listarAcotado(
       { organizationId: req.organizationId, clientId, permitidas },
@@ -201,33 +212,43 @@ export class SurveysController {
    * Va antes de `:id` para que la ruta no se lea como el id de una encuesta.
    */
   @Get('company-legal')
+  @RequiereArea('surveys.editar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async companyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto) {
     return leerDatosLegales(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
   }
 
   @Put('company-legal')
+  @RequiereArea('surveys.editar', 'hacer')
   // Son los datos de la propia empresa: una empresa con sólo Encuestas (lectura) debe poder mantenerlos.
   @RequiresPermission('surveys', 'view')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
     const empresa = await this.empresaLegal(req, query.clientId);
     await asegurarQueAdministraLaEmpresa(this.permisos, req.organizationId, req.user, empresa);
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: req.user.clientId ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+    // El contrato de encargo lo acepta la empresa, no la agencia en su nombre: sólo una cuenta de
+    // portal puede marcarlo. Estaba escrito como «si la cuenta tiene empresa», que daba lo mismo
+    // mientras la empresa de la sesión fuera la única posible, y ahora ya no lo es.
+    const laAceptaLaEmpresa = req.user.role === UserRole.CLIENT;
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
   }
 
+  /**
+   * La empresa cuyos datos legales se tocan, y que tiene Encuestas habilitado.
+   *
+   * La resolución es la misma que en Reservas y vive en `empresaDeLosDatosLegales`; aquí sólo se
+   * añade la reja propia del módulo. Una cuenta de portal que declara una empresa que alcanza
+   * trabaja sobre ella, que es lo que permite a quien atiende dos locales mantener los datos del
+   * segundo en vez de escribirlos en el primero.
+   */
   private async empresaLegal(req: AuthenticatedRequest, pedida?: string): Promise<string> {
-    if (req.user.role === UserRole.CLIENT) {
-      const propia = empresaDelPortal(req.user.clientId);
-      await exigirEncuestasHabilitadas(this.dataSource, propia);
-      return propia;
-    }
-    if (!pedida) throw new BadRequestException('Indica la empresa');
-    await this.accountAccess.assertClient(req.organizationId, req.user, pedida);
-    return pedida;
+    const empresa = await empresaDeLosDatosLegales(this.accountAccess, req.organizationId, req.user, pedida);
+    await exigirEncuestasHabilitadas(this.dataSource, empresa);
+    return empresa;
   }
 
   @Get(':id')
+  @RequiereArea('surveys.editar', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Leer una encuesta' })
   async detail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -235,6 +256,7 @@ export class SurveysController {
   }
 
   @Post()
+  @RequiereArea('surveys.editar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Crear una encuesta' })
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateSurveyDto) {
@@ -265,6 +287,7 @@ export class SurveysController {
   }
 
   @Put(':id')
+  @RequiereArea('surveys.editar', 'hacer')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Actualizar una encuesta' })
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateSurveyDto) {
@@ -332,6 +355,7 @@ export class SurveysController {
   }
 
   @Delete(':id')
+  @RequiereArea('surveys.publicar', 'hacer')
   @RequiereAccion('surveys.borrar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
   @ApiOperation({ summary: 'Eliminar una encuesta' })
@@ -347,10 +371,13 @@ export class SurveysController {
   }
 
   @Get(':id/results')
+  @RequiereArea('surveys.resultados', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   @ApiOperation({ summary: 'Resultados agregados de una encuesta' })
   async results(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() periodo?: SurveyResultsQueryDto) {
     const survey = await this.findOwned(id, req);
+    // Qué ve esta persona de quienes respondieron, según el nivel que tiene en la empresa de la encuesta.
+    const nivel = (await this.niveles.nivelesDe(req.organizationId, req.user.id, 'surveys')).de(survey.clientId);
     /*
      * El período acota las respuestas, no la encuesta.
      *
@@ -452,6 +479,8 @@ export class SurveysController {
       rating: row.rating ?? null,
       respondentName: survey.anonymous ? null : row.respondentName ?? null,
       respondentEmail: survey.anonymous ? null : row.respondentEmail ?? null,
+      // El teléfono lo da quien responde en la pregunta de contacto; se expone con el nombre del catálogo.
+      respondentPhone: survey.anonymous ? null : contestadoEn(row.answers, survey.questions, 'telefono'),
       reservationId: survey.anonymous ? null : row.reservationId ?? null,
       teamMessage: row.teamMessage ?? null,
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
@@ -460,7 +489,7 @@ export class SurveysController {
       attendedAt: row.attendedAt ? row.attendedAt.toISOString() : null,
       attendedByName: row.attendedBy ? nombres.get(row.attendedBy) ?? null : null,
       origen: row.respondentId.startsWith('reserva:') ? 'reserva' : row.respondentId.startsWith('public:') ? row.respondentId.split(':')[1] || null : null,
-      answers: row.answers ?? {},
+      answers: nivel === 'directo' ? row.answers ?? {} : sinDatosDeContacto(row.answers, survey.questions),
     }));
     // La misma función que usa el frontend para su respaldo local: un solo cálculo evita que
     // el panel muestre un NPS y la copia sin red muestre otro.
@@ -477,10 +506,19 @@ export class SurveysController {
      * no puede derivarlos de él: con más respuestas que el tope daría la nota de las últimas y no
      * la del período. Este es el único lugar que las tiene todas.
      */
+    /*
+     * Quién respondió sale recortado según el nivel de esta persona en la empresa de la encuesta.
+     *
+     * Con `oculto` los resultados se leen agregados y anónimos; con `bajo_registro` cada respuesta
+     * ofrece «Ver» y queda anotado quién miró. Las respuestas anónimas no traen nombre ni correo:
+     * ahí no hay nada que recortar y la pantalla no debe decir «protegido».
+     */
+    const protegido = recortarListaProtegidos(detalle, 'surveys', nivel);
     const notasDelPeriodo = rows.map((row) => row.rating).filter((nota): nota is number => typeof nota === 'number');
     return {
       ...computeSurveyResults(this.toContract(survey), responses),
-      respuestas: detalle,
+      respuestas: protegido.datos,
+      datosProtegidos: protegido.recortados.length ? { campos: protegido.recortados, sePuedePedir: sePuedePedir(nivel) } : null,
       visitasPorDia,
       campanas,
       campanasTruncadas,
@@ -496,11 +534,40 @@ export class SurveysController {
   }
 
   /**
+   * Nombre y correo de quien dejó una respuesta, para quien los pidió desde los resultados.
+   *
+   * Con `bajo_registro` deja constancia de quién los vio y cuándo antes de responder; si no se
+   * puede escribir, el dato no sale. Con `oculto` no hay forma de pedirlos. En una encuesta
+   * anónima no hay nada que entregar.
+   */
+  @Get(':id/responses/:responseId/datos-protegidos')
+  @RequiereArea('surveys.resultados', 'ver')
+  @RequiresPermission('surveys', 'view')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  @ApiOperation({ summary: 'Ver quién respondió' })
+  async datosProtegidos(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('responseId') responseId: string) {
+    const survey = await this.findOwned(id, req);
+    const respuesta = await this.responses.findOne({ where: { id: responseId, surveyId: survey.id } });
+    if (!respuesta) throw new NotFoundException('La respuesta no existe');
+    const nivel = (await this.niveles.nivelesDe(req.organizationId, req.user.id, 'surveys')).de(survey.clientId);
+    const ficha = respuesta as unknown as Record<string, unknown>;
+    const datos: Record<string, unknown> = Object.fromEntries(camposProtegidosDe('surveys').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, survey.anonymous ? null : ficha[campo] ?? null]));
+    // Teléfono, RUT y demás datos de contacto viven en las respuestas, por id de pregunta.
+    datos.respondentPhone = survey.anonymous ? null : contestadoEn(respuesta.answers, survey.questions, 'telefono');
+    datos.respuestasDeContacto = survey.anonymous ? {} : soloDatosDeContacto(respuesta.answers, survey.questions);
+    await exigirConstanciaDeRevelacion(this.audit, nivel, {
+      organizationId: req.organizationId, actorId: req.user.id, entityType: 'survey_responses', entityId: respuesta.id, campos: Object.keys(datos), ipAddress: req.ip,
+    });
+    return { id: respuesta.id, datos };
+  }
+
+  /**
    * Marca una respuesta como atendida, o la vuelve a dejar pendiente.
    *
    * La empresa también puede hacerlo desde su portal: es quien suele contestarle a su cliente.
    */
   @Patch(':id/responses/:responseId/attention')
+  @RequiereArea('surveys.editar', 'hacer')
   // Marcar atendida no modifica la encuesta: basta con poder verla (la empresa tiene lectura).
   @RequiresPermission('surveys', 'view')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
@@ -614,6 +681,7 @@ export class SurveysController {
    * Quien lo usa responde por tener permiso para escribirles. La pantalla lo pide confirmar antes.
    */
   @Post(':id/send-email')
+  @RequiereArea('surveys.enviar', 'hacer')
   @RequiereAccion('surveys.enviar')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER)
   @ApiOperation({ summary: 'Enviar la encuesta por correo a sus destinatarios' })

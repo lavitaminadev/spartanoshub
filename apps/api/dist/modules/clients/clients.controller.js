@@ -29,13 +29,15 @@ const client_capabilities_1 = require("./client-capabilities");
 const paquetes_de_correo_1 = require("../../core/parameters/paquetes-de-correo");
 const update_client_dto_1 = require("./dto/update-client.dto");
 const user_entity_1 = require("../users/user.entity");
+const perfiles_service_1 = require("../users/perfiles/perfiles.service");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const client_overview_service_1 = require("./client-overview.service");
 const pagination_dto_1 = require("../../shared/dto/pagination.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const detalle_de_contacto_en_avisos_1 = require("./detalle-de-contacto-en-avisos");
 const requires_recent_auth_decorator_1 = require("../../core/auth/requires-recent-auth.decorator");
 let ClientsController = class ClientsController {
-    constructor(repo, users, accountAccess, overviewService, createClient, listClients, getClient, paquetes) {
+    constructor(repo, users, accountAccess, overviewService, createClient, listClients, getClient, paquetes, perfiles, detalleDeContacto) {
         this.repo = repo;
         this.users = users;
         this.accountAccess = accountAccess;
@@ -44,9 +46,14 @@ let ClientsController = class ClientsController {
         this.listClients = listClients;
         this.getClient = getClient;
         this.paquetes = paquetes;
+        this.perfiles = perfiles;
+        this.detalleDeContacto = detalleDeContacto;
     }
-    create(dto, req) {
-        return this.createClient.execute({ ...dto, organizationId: req.organizationId });
+    async create(dto, req) {
+        const capabilities = { ...(dto.capabilities ?? {}), detalleDeContactoEnAvisos: false };
+        const creada = await this.createClient.execute({ ...dto, capabilities, organizationId: req.organizationId });
+        await this.perfiles.sembrarSugeridos(req.organizationId, creada.id);
+        return creada;
     }
     async list(pagination, req) {
         const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -73,6 +80,10 @@ let ClientsController = class ClientsController {
         await this.accountAccess.assertClient(req.organizationId, req.user, id);
         return this.getClient.execute(id, req.organizationId);
     }
+    async textoDetalleDeContacto(id, req) {
+        await this.accountAccess.assertClient(req.organizationId, req.user, id);
+        return this.detalleDeContacto.texto(req.organizationId);
+    }
     async update(id, dto, req) {
         const client = await this.repo.findOne({ where: { id, organizationId: req.organizationId } });
         if (!client)
@@ -84,7 +95,18 @@ let ClientsController = class ClientsController {
             }
         }
         const antes = (0, client_capabilities_1.normalizeClientCapabilities)(client.capabilities);
-        Object.assign(client, dto, {
+        const { aceptacionDetalleDeContacto, ...cambios } = dto;
+        if (cambios.capabilities) {
+            const pedida = cambios.capabilities.detalleDeContactoEnAvisos ?? antes.detalleDeContactoEnAvisos;
+            cambios.capabilities = { ...cambios.capabilities, detalleDeContactoEnAvisos: pedida };
+            if (pedida !== antes.detalleDeContactoEnAvisos) {
+                await this.detalleDeContacto.registrarCambio({
+                    organizationId: req.organizationId, clientId: client.id, actorId: req.user.id, rol: req.user.role,
+                    ip: req.ip, encender: pedida, aceptacion: aceptacionDetalleDeContacto,
+                });
+            }
+        }
+        Object.assign(client, cambios, {
             startedAt: dto.startedAt ? new Date(dto.startedAt) : client.startedAt,
             renewalAt: dto.renewalAt ? new Date(dto.renewalAt) : client.renewalAt,
         });
@@ -93,6 +115,9 @@ let ClientsController = class ClientsController {
         const reciencontratados = ['reservations', 'crm', 'surveys'].filter((servicio) => despues[servicio] && !antes[servicio]);
         if (reciencontratados.length)
             await this.paquetes.encenderPara(guardado.id, [...reciencontratados]);
+        const encendidos = ['reservations', 'crm', 'surveys', 'marketing'].filter((modulo) => despues[modulo] && !antes[modulo]);
+        if (encendidos.length)
+            await this.perfiles.sembrarSugeridos(req.organizationId, guardado.id, [...encendidos]);
         return guardado;
     }
     async remove(id, req) {
@@ -116,7 +141,7 @@ __decorate([
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_client_dto_1.CreateClientDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ClientsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
@@ -155,6 +180,16 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ClientsController.prototype, "getOne", null);
 __decorate([
+    (0, common_1.Get)(':id/detalle-de-contacto-en-avisos/texto'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
+    (0, swagger_1.ApiOperation)({ summary: 'Texto que se acepta para encender el detalle de contacto en los avisos de grupo' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ClientsController.prototype, "textoDetalleDeContacto", null);
+__decorate([
     (0, common_1.Put)(':id'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar un cliente' }),
@@ -192,5 +227,7 @@ exports.ClientsController = ClientsController = __decorate([
         create_client_use_case_1.CreateClientUseCase,
         list_clients_use_case_1.ListClientsUseCase,
         get_client_use_case_1.GetClientUseCase,
-        paquetes_de_correo_1.PaquetesDeCorreo])
+        paquetes_de_correo_1.PaquetesDeCorreo,
+        perfiles_service_1.PerfilesService,
+        detalle_de_contacto_en_avisos_1.DetalleDeContactoEnAvisosService])
 ], ClientsController);

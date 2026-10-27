@@ -8,6 +8,7 @@
  */
 
 import { useEmpresaActiva } from '../../shared/empresa-activa';
+import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -19,6 +20,7 @@ import { ForbiddenState } from '../../shared/ForbiddenState';
 import { isForbiddenError } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
+import { TEXTO_PROTEGIDO, contactoDe, telefonoDe } from './datos-protegidos';
 import { localInputToUtc, utcToLocalInput } from './local-time';
 
 /** Ahora, en el formato de un campo `datetime-local` con la hora de este navegador. */
@@ -76,7 +78,7 @@ export function AgendaPage() {
     sesión, elegir un local en el CRM dejaba esta pantalla mostrando el otro.
   */
   const empresaActiva = useEmpresaActiva();
-  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId || user?.clientId || '' : searchParams.get('clientId') ?? '');
+  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId : searchParams.get('clientId') ?? '');
   useEffect(() => {
     if (clientMode && empresaActiva.clientId && empresaActiva.clientId !== clientId) setClientId(empresaActiva.clientId);
   }, [clientMode, empresaActiva.clientId, clientId]);
@@ -104,7 +106,8 @@ export function AgendaPage() {
     enabled: Boolean(clientId),
   });
   const forms = Array.isArray(formsArray) ? formsArray : [];
-  const activeForm = forms.find((form) => form.id === formId) ?? forms[0];
+  // Con varios locales no se fija el primero en silencio: se elige uno. Con uno solo no hay nada que elegir.
+  const activeForm = forms.find((form) => form.id === formId) ?? (forms.length === 1 ? forms[0] : undefined);
   const effectiveFormId = formId || activeForm?.id || '';
 
   const dayRange = useMemo(
@@ -125,6 +128,13 @@ export function AgendaPage() {
     enabled: Boolean(clientId && effectiveFormId && activeForm),
   });
   const reservations = Array.isArray(reservationPage?.data) ? reservationPage.data : EMPTY_RESERVATIONS;
+  /** El total del día lo cuenta el servidor: la página trae a lo más 100 filas. */
+  const totalDelDia = reservationPage?.total ?? reservations.length;
+  const { data: noShowPage } = useQuery<ReservationPage>({
+    queryKey: ['agenda-no-shows', clientId, effectiveFormId, dateFilter],
+    queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, ...dayRange, status: 'no_show', pageSize: '1' })}`),
+    enabled: Boolean(clientId && effectiveFormId && activeForm),
+  });
   const { data: groupRequests = [], refetch: refetchGroupRequests } = useQuery<GroupRequest[]>({
     queryKey: ['reservation-group-requests', effectiveFormId], queryFn: () => api.get(`/reservations/forms/${effectiveFormId}/group-requests`), enabled: Boolean(effectiveFormId),
   });
@@ -156,6 +166,10 @@ export function AgendaPage() {
    * clic para ver una alergia o marcar asistencia. Las decisiones del servicio se toman aqui.
    */
   const [detalle, setDetalle] = useState<Reservation | null>(null);
+  const [confirmaCancelar, setConfirmaCancelar] = useState(false);
+  const [confirmaCierre, setConfirmaCierre] = useState(false);
+  // Solo con varias empresas: con una no hay otra sobre la que equivocarse.
+  const empresaParaConfirmar = empresaActiva.varias ? empresaActiva.nombre : undefined;
   const [motivoCancelacion, setMotivoCancelacion] = useState('');
   const actualizarReserva = useMutation({
     mutationFn: ({ id, body }: { id: string; body: { status?: string; cancellationReason?: string } }) => api.patch<Reservation>(`/reservations/${id}`, body),
@@ -194,17 +208,17 @@ export function AgendaPage() {
   }, [reservations, zones]);
 
   const summary = useMemo(() => {
-    const total = reservations.length;
-    const noShows = reservations.filter((reservation) => NO_SHOW_STATUSES.has(reservation.status)).length;
+    const total = totalDelDia;
+    const noShows = noShowPage?.total ?? reservations.filter((reservation) => NO_SHOW_STATUSES.has(reservation.status)).length;
     const occupied = reservations.filter((reservation) => !['cancelled_client', 'cancelled_business'].includes(reservation.status)).length;
     const capacity = activeForm?.dailyCapacity || 0;
     const occupancyPct = capacity > 0 ? Math.round((occupied / capacity) * 100) : null;
     return { total, noShows, occupancyPct };
-  }, [reservations, activeForm]);
+  }, [reservations, activeForm, totalDelDia, noShowPage]);
 
   const isLoading = (!clientMode && loadingClients) || (Boolean(clientId) && loadingForms);
   if (isLoading) return <LoadingSpinner text="Preparando la agenda del servicio..." />;
-  if (!clientMode && clientsError) return isForbiddenError(clientsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir la agenda" message={clientsError.message} onRetry={() => void refetchClients()} />;
+  if (!clientMode && clientsError) return isForbiddenError(clientsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir la agenda" message={clientsError.message} error={clientsError} onRetry={() => void refetchClients()} />;
 
 
   return <div className="page agenda-page">
@@ -228,7 +242,7 @@ export function AgendaPage() {
       <select className="input" aria-label="Página de reserva" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
         {forms.length === 0
           ? <option value="">Sin páginas de reserva configuradas</option>
-          : forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}
+          : <>{!activeForm && <option value="">Elige una página de reserva</option>}{forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}</>}
       </select>
       <div className="agenda-date-nav">
         <button type="button" className="btn btn-outline btn-sm" aria-label="Día anterior" onClick={() => setDateFilter((current) => shiftDate(current, -1))}>‹</button>
@@ -238,7 +252,7 @@ export function AgendaPage() {
       </div>
       <strong className="agenda-date-label">{formatDateLabel(dateFilter)}</strong>
       <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId} onClick={() => { setBlockStart(`${dateFilter}T13:00`); setBlockEnd(`${dateFilter}T23:00`); setBlockOpen(true); }}>Bloquear por evento</button>
-      {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId || closeDay.isPending || new Date(`${dateFilter}T23:59:59`) > new Date()} onClick={() => { if (window.confirm('Se marcarán como asistidas las reservas abiertas de este turno y quedará registrado.')) closeDay.mutate(); }}>{closeDay.isPending ? 'Cerrando...' : 'Cerrar turno'}</button>}
+      {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId || closeDay.isPending || new Date(`${dateFilter}T23:59:59`) > new Date()} onClick={() => setConfirmaCierre(true)}>{closeDay.isPending ? 'Cerrando...' : 'Cerrar turno'}</button>}
       {!clientMode && <button type="button" className="btn btn-outline btn-sm" disabled={!effectiveFormId} onClick={() => { setPausaHasta(utcToLocalInput(activeForm?.designConfig?.bookingPausedUntil, activeForm?.timezone || 'America/Santiago')); setPausaOpen(true); }}>{activeForm?.designConfig?.bookingPausedUntil ? 'Reservas pausadas' : 'Pausar reservas'}</button>}
     </div>
 
@@ -256,10 +270,11 @@ export function AgendaPage() {
                 {({ pending: 'Sin responder', contacted: 'Contactada', quoted: 'Cotizada', converted: 'Convertida', closed: 'Cerrada' } as Record<string, string>)[request.status] ?? request.status}
                 {request.status === 'pending' && esperandoDesde(request.createdAt) ? ` · ${esperandoDesde(request.createdAt)}` : ''}
               </span>{(() => { const wsp = whatsappDeSolicitud(request.guestPhone, request.guestName, request.partySize, { monto: request.quoteAmount, detalle: request.quoteMessage }); return wsp ? <a className="btn btn-primary btn-sm" href={wsp} target="_blank" rel="noopener noreferrer">Responder por WhatsApp</a> : null; })()}{request.status === 'pending' && <button className="btn btn-outline btn-sm" type="button" disabled={updateGroupRequest.isPending} onClick={() => updateGroupRequest.mutate({ id: request.id, body: { status: 'contacted' } })}>Marcar contactada</button>}{['pending', 'contacted'].includes(request.status) && <button className="btn btn-outline btn-sm" type="button" onClick={() => { setQuoteRequest(request); setQuote({ amount: '', message: '', expiresAt: '' }); }}>{request.quoteAmount ? 'Editar precio' : 'Anotar precio'}</button>}{!['converted', 'closed'].includes(request.status) && <><Link className="btn btn-outline btn-sm" to={`${clientMode ? '/portal/reservations' : '/reservations'}?tab=groups&convertir=${encodeURIComponent(request.id)}`}>Crear reserva</Link><Link className="btn btn-outline btn-sm" to={`${clientMode ? '/portal/reservations' : '/reservations'}?tab=groups&cerrar=${encodeURIComponent(request.id)}`}>Cerrar sin reserva</Link></>}</div></article>; })}</div>}</section>
-          {closeDay.error && <p className="error-text">No se pudo cerrar el turno. Verifica que la fecha ya haya terminado.</p>}
+          {closeDay.error && <p className="error-text">{closeDay.error instanceof Error && closeDay.error.message ? closeDay.error.message : 'No se pudo cerrar el turno.'}</p>}
+          {totalDelDia > reservations.length && <p className="ajustes-alerta">El tablero muestra {reservations.length} de {totalDelDia} reservas del día; el resumen cuenta todas.</p>}
 
           {reservationsError
-            ? (isForbiddenError(reservationsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas del día" message={reservationsError.message} onRetry={() => void refetchReservations()} retrying={fetchingReservations} />)
+            ? (isForbiddenError(reservationsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas del día" message={reservationsError.message} error={reservationsError} onRetry={() => void refetchReservations()} retrying={fetchingReservations} />)
             : loadingReservations
               ? <LoadingSpinner text="Cargando reservas del día..." />
               : <>
@@ -296,7 +311,7 @@ export function AgendaPage() {
                               <div className="agenda-card-time">{new Date(reservation.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</div>
                               <div className="agenda-card-body">
                                 <strong>{reservation.guestName}</strong>
-                                <span>{reservation.partySize} persona{reservation.partySize === 1 ? '' : 's'}{reservation.guestPhone ? ` · ${reservation.guestPhone}` : ''}</span>
+                                <span>{reservation.partySize} persona{reservation.partySize === 1 ? '' : 's'}{contactoDe(reservation) === TEXTO_PROTEGIDO ? ` · ${TEXTO_PROTEGIDO}` : telefonoDe(reservation) ? ` · ${telefonoDe(reservation)}` : ''}</span>
                                 {(() => {
                                   // Alergias, niños y accesibilidad se deciden al sentar a la mesa, no al
                                   // revisar el listado despues del turno.
@@ -328,10 +343,29 @@ export function AgendaPage() {
             <button type="button" className="btn btn-outline" disabled={actualizarReserva.isPending} onClick={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'no_show' } })}>No asistió</button>
           </div>
           <label>Cancelar desde el local — motivo<input className="input" value={motivoCancelacion} onChange={(event) => setMotivoCancelacion(event.target.value)} placeholder="Ej. el local cerró por corte de agua" /></label>
-          <div className="modal-actions"><button type="button" className="btn btn-outline" disabled={actualizarReserva.isPending || !motivoCancelacion.trim()} onClick={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'cancelled_business', cancellationReason: motivoCancelacion.trim() } })}>Cancelar reserva</button></div>
+          <div className="modal-actions"><button type="button" className="btn btn-outline" disabled={actualizarReserva.isPending || !motivoCancelacion.trim()} onClick={() => setConfirmaCancelar(true)}>Cancelar reserva</button></div>
         </> : <p className="page-subtitle">Esta reserva ya está cerrada, así que no admite cambios de asistencia.</p>}
       </div>}
     </Modal>
+    {confirmaCancelar && detalle && <ConfirmarAccion
+      titulo={`Cancelar la reserva de ${detalle.guestName}`}
+      empresa={empresaParaConfirmar}
+      consecuencia="La reserva queda cancelada por el local, el cupo se libera y se registra el motivo."
+      confirmar="Cancelar la reserva"
+      enCurso={actualizarReserva.isPending}
+      onCancelar={() => setConfirmaCancelar(false)}
+      onConfirmar={() => actualizarReserva.mutate({ id: detalle.id, body: { status: 'cancelled_business', cancellationReason: motivoCancelacion.trim() } }, { onSettled: () => setConfirmaCancelar(false) })}
+    />}
+    {confirmaCierre && <ConfirmarAccion
+      titulo="Cerrar el turno"
+      empresa={empresaParaConfirmar}
+      consecuencia="Se marcarán como asistidas las reservas abiertas de este turno y quedará registrado."
+      confirmar="Cerrar el turno"
+      irreversible={false}
+      enCurso={closeDay.isPending}
+      onCancelar={() => setConfirmaCierre(false)}
+      onConfirmar={() => closeDay.mutate(undefined, { onSettled: () => setConfirmaCierre(false) })}
+    />}
     <Modal open={pausaOpen} onClose={() => setPausaOpen(false)} title="Pausar reservas">
       <div className="modal-form">
         <p className="page-subtitle">La página pública deja de ofrecer horarios hasta la fecha indicada. No cancela reservas ya tomadas ni despublica el local.</p>

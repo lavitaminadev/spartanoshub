@@ -18,12 +18,18 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const audit_entity_1 = require("./audit.entity");
 const user_entity_1 = require("../../modules/users/user.entity");
+const sanear_bitacora_1 = require("./sanear-bitacora");
 let AuditService = class AuditService {
     constructor(repo) {
         this.repo = repo;
     }
     async log(params) {
-        const entry = this.repo.create(params);
+        const entry = this.repo.create({
+            ...params,
+            before: (0, sanear_bitacora_1.sanearParaBitacora)(params.before),
+            after: (0, sanear_bitacora_1.sanearParaBitacora)(params.after),
+            reason: params.reason === undefined ? undefined : (0, sanear_bitacora_1.sanearTexto)(params.reason),
+        });
         return this.repo.save(entry);
     }
     async findByEntity(entityType, entityId) {

@@ -14,6 +14,9 @@ import { CampanasService } from './campanas.service';
 import { EnviosDeCampanaService } from './envios-de-campana.service';
 import { CampanasController } from './campanas.controller';
 import { AltaDeSuscriptorDesdeReserva } from './alta-desde-reserva';
+import { AuditModule } from '../../core/audit/audit.module';
+import { NivelDeDatosModule } from '../../core/client-scope/nivel-de-datos.module';
+import { UsersModule } from '../users/users.module';
 import { AccountAccessModule } from '../../core/client-scope/account-access.module';
 import { EmailModule } from '../../core/notifications/email.module';
 import { ParametersModule } from '../../core/parameters/parameters.module';
@@ -27,10 +30,13 @@ import { ParametersModule } from '../../core/parameters/parameters.module';
  * campañas, con la constancia de por qué.
  */
 @Module({
-  imports: [
+  imports: [NivelDeDatosModule, 
     TypeOrmModule.forFeature([Suscriptor, ExclusionDeCorreo, Campana, EnvioDeCampana, ReservationCoupon, ReservationCouponRedemption, Reservation, User]),
     // `AccountAccessModule` trae la capacidad por empresa: el portal sólo ve su lista si la tiene.
     AccountAccessModule,
+    // La constancia de quién pidió ver un correo, y el nivel de cada persona en cada empresa.
+    AuditModule,
+    UsersModule,
     // Enviar campañas necesita el transporte y los interruptores del enlace de baja.
     EmailModule,
     ParametersModule,

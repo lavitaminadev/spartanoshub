@@ -46,6 +46,7 @@ const user_entity_1 = require("../users/user.entity");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
 const requires_feature_decorator_1 = require("../../core/authorization/requires-feature.decorator");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 let ProductionController = class ProductionController {
     constructor(pieceRepo, approvalRepo, versionRepo, clientRepo, userRepo, briefRepo, accountAccess, workflow, parameters, udValues, pieceTypes, assignPiece, cancelPiece, submitVer, rejectPiece, deliverPiece, listPieces) {
         this.pieceRepo = pieceRepo;
@@ -147,7 +148,7 @@ let ProductionController = class ProductionController {
             ...dto,
             userId: req.user.id,
             role: req.user.role,
-            clientId: req.user.clientId,
+            clientId: piece.clientId,
         });
     }
     cancel(id, dto, req) {
@@ -232,6 +233,7 @@ let ProductionController = class ProductionController {
 exports.ProductionController = ProductionController;
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Crear una nueva pieza' }),
     __param(0, (0, common_1.Body)()),
@@ -242,6 +244,7 @@ __decorate([
 ], ProductionController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Listar piezas de produccion' }),
     __param(0, (0, common_1.Query)('status')),
     __param(1, (0, common_1.Query)('clientId')),
@@ -253,6 +256,7 @@ __decorate([
 ], ProductionController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)('options/assignees'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.asignar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Listar responsables creativos activos' }),
     __param(0, (0, common_1.Req)()),
@@ -262,6 +266,7 @@ __decorate([
 ], ProductionController.prototype, "assigneeOptions", null);
 __decorate([
     (0, common_1.Post)(':id/assign'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.asignar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Asignar responsable a una pieza' }),
     __param(0, (0, common_1.Param)('id')),
@@ -273,6 +278,7 @@ __decorate([
 ], ProductionController.prototype, "assign", null);
 __decorate([
     (0, common_1.Get)(':id/versions'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Listar versiones de una pieza' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -282,6 +288,7 @@ __decorate([
 ], ProductionController.prototype, "versions", null);
 __decorate([
     (0, common_1.Post)(':id/versions'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Subir nueva version de una pieza' }),
     __param(0, (0, common_1.Param)('id')),
@@ -293,6 +300,7 @@ __decorate([
 ], ProductionController.prototype, "submitVersion", null);
 __decorate([
     (0, common_1.Post)(':id/reject'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.aprobaciones', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('approvals', 'edit'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Rechazar pieza y solicitar correccion' }),
@@ -305,6 +313,7 @@ __decorate([
 ], ProductionController.prototype, "reject", null);
 __decorate([
     (0, common_1.Post)(':id/cancel'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.cancelar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Cancelar pieza y devolver sus unidades segun la regla configurada' }),
     __param(0, (0, common_1.Param)('id')),
@@ -316,6 +325,7 @@ __decorate([
 ], ProductionController.prototype, "cancel", null);
 __decorate([
     (0, common_1.Post)(':id/deliver'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.entregar', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Entregar pieza al cliente' }),
     __param(0, (0, common_1.Param)('id')),
@@ -326,6 +336,7 @@ __decorate([
 ], ProductionController.prototype, "deliver", null);
 __decorate([
     (0, common_1.Post)(':id/approve'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.aprobaciones', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('approvals', 'edit'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Aprobar pieza internamente' }),
@@ -337,6 +348,7 @@ __decorate([
 ], ProductionController.prototype, "approve", null);
 __decorate([
     (0, common_1.Post)(':id/start'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.piezas', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DESIGNER, user_role_enum_1.UserRole.AUDIOVISUAL, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Iniciar progreso de una pieza' }),
     __param(0, (0, common_1.Param)('id')),
@@ -347,6 +359,7 @@ __decorate([
 ], ProductionController.prototype, "startProgress", null);
 __decorate([
     (0, common_1.Post)(':id/send-to-client'),
+    (0, requiere_area_decorator_1.RequiereArea)('production.aprobaciones', 'hacer'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN),
     (0, swagger_1.ApiOperation)({ summary: 'Enviar pieza a validacion del cliente' }),
     __param(0, (0, common_1.Param)('id')),

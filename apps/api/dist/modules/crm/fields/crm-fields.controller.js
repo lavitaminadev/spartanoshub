@@ -18,11 +18,13 @@ const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 const shared_1 = require("@espartanos/shared");
+const account_access_service_1 = require("../../../core/client-scope/account-access.service");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
 const roles_decorator_1 = require("../../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
 const crm_fields_service_1 = require("./crm-fields.service");
+const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 const TIPOS = shared_1.TIPOS_DE_CAMPO.map((tipo) => tipo.value);
 class CrearCampoDto {
 }
@@ -117,11 +119,15 @@ __decorate([
 ], ArchivarCampoDto.prototype, "archivado", void 0);
 const QUIEN_DEFINE = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR];
 let CrmFieldsController = class CrmFieldsController {
-    constructor(campos) {
+    constructor(campos, accesos) {
         this.campos = campos;
+        this.accesos = accesos;
     }
-    listar(req, entity, archivados, clientId) {
-        return this.campos.listar(req.organizationId, entity, archivados === 'true', clientId || undefined);
+    async listar(req, entity, archivados, clientId) {
+        const empresa = clientId?.trim() || undefined;
+        if (empresa)
+            await this.accesos.assertClient(req.organizationId, req.user, empresa);
+        return this.campos.listar(req.organizationId, entity, archivados === 'true', empresa);
     }
     crear(req, dto) {
         return this.campos.crear(req.organizationId, req.user.id, dto);
@@ -136,6 +142,7 @@ let CrmFieldsController = class CrmFieldsController {
 exports.CrmFieldsController = CrmFieldsController;
 __decorate([
     (0, common_1.Get)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.prospectos', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Campos propios de un tipo de registro' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('entity')),
@@ -143,10 +150,11 @@ __decorate([
     __param(3, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String, String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], CrmFieldsController.prototype, "listar", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(...QUIEN_DEFINE),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Crear un campo propio' }),
@@ -158,6 +166,7 @@ __decorate([
 ], CrmFieldsController.prototype, "crear", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(...QUIEN_DEFINE),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Cambiar nombre, orden, opciones o tipo de un campo' }),
@@ -170,6 +179,7 @@ __decorate([
 ], CrmFieldsController.prototype, "editar", null);
 __decorate([
     (0, common_1.Patch)(':id/archivo'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.campos', 'hacer'),
     (0, roles_decorator_1.Roles)(...QUIEN_DEFINE),
     (0, requires_permission_decorator_1.RequiresPermission)('crm', 'manage'),
     (0, swagger_1.ApiOperation)({ summary: 'Archivar o desarchivar un campo, sin borrar lo guardado' }),
@@ -186,5 +196,6 @@ exports.CrmFieldsController = CrmFieldsController = __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, common_1.Controller)('crm/fields'),
     (0, module_scope_decorator_1.ModuleScope)('crm'),
-    __metadata("design:paramtypes", [crm_fields_service_1.CrmFieldsService])
+    __metadata("design:paramtypes", [crm_fields_service_1.CrmFieldsService,
+        account_access_service_1.AccountAccessService])
 ], CrmFieldsController);

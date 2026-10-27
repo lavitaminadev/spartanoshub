@@ -16,6 +16,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DataProtectionService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
+const node_crypto_1 = require("node:crypto");
 const typeorm_2 = require("typeorm");
 const google_calendar_service_1 = require("../../modules/integrations/google/google-calendar.service");
 const user_entity_1 = require("../../modules/users/user.entity");
@@ -76,6 +77,9 @@ let DataProtectionService = DataProtectionService_1 = class DataProtectionServic
             occurredAt: new Date(),
         }));
     }
+    async limpiarBitacoraDe(organizationId, entityId) {
+        await this.auditRepo.update({ organizationId, entityId, action: (0, typeorm_2.Not)('anonymize') }, { before: () => 'NULL', after: () => 'NULL' });
+    }
     async anonymizeUser(userId) {
         const user = await this.userRepo.findOneBy({ id: userId });
         if (!user)
@@ -88,7 +92,8 @@ let DataProtectionService = DataProtectionService_1 = class DataProtectionServic
             refreshToken: null,
             isActive: false,
         });
-        await this.auditRepo.update({ actorId: userId }, { actorId: null });
+        await this.auditRepo.update({ actorId: userId, organizationId: user.organizationId }, { actorId: (0, node_crypto_1.randomUUID)() });
+        await this.limpiarBitacoraDe(user.organizationId, userId);
         await this.recordAnonymization(user.organizationId, 'User', userId, 'Solicitud de anonimización');
     }
     async exportUserData(userId) {
@@ -144,6 +149,7 @@ let DataProtectionService = DataProtectionService_1 = class DataProtectionServic
             previousFitStatus: lead.fitStatus,
         };
         const saved = await this.leadRepo.save(lead);
+        await this.limpiarBitacoraDe(organizationId, leadId);
         await this.recordAnonymization(organizationId, 'Lead', leadId, reason);
         return saved;
     }
@@ -155,6 +161,7 @@ let DataProtectionService = DataProtectionService_1 = class DataProtectionServic
         contact.email = null;
         contact.phone = null;
         const saved = await this.contactRepo.save(contact);
+        await this.limpiarBitacoraDe(organizationId, contactId);
         await this.recordAnonymization(organizationId, 'Contact', contactId, reason);
         return saved;
     }
@@ -182,6 +189,7 @@ let DataProtectionService = DataProtectionService_1 = class DataProtectionServic
         reservation.clientUserAgent = null;
         const saved = await this.reservationRepo.save(reservation);
         await this.olvidarEnElCalendarioDelLocal(saved);
+        await this.limpiarBitacoraDe(organizationId, reservationId);
         await this.recordAnonymization(organizationId, 'Reservation', reservationId, reason);
         return saved;
     }
@@ -265,6 +273,7 @@ let DataProtectionService = DataProtectionService_1 = class DataProtectionServic
         solicitud.extra = null;
         solicitud.resolutionNote = null;
         const guardada = await this.serviceRequestRepo.save(solicitud);
+        await this.limpiarBitacoraDe(organizationId, requestId);
         await this.recordAnonymization(organizationId, 'ServiceRequest', requestId, reason);
         return guardada;
     }

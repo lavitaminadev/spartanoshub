@@ -18,6 +18,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { VitaIcons } from '../../shared/Icons';
 import { ForbiddenState } from '../../shared/ForbiddenState';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { isForbiddenError } from '../../core/api';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
@@ -27,6 +28,7 @@ import type { GroupRequest, MetaConversionStatus, Reservation, ReservationForm }
 import { browserDateBoundaryUtc, localDateBoundsUtc, localInputToUtc, plainDateInZone } from './local-time';
 import { publicReservationUrl } from '../../core/public-url';
 import { origenDeSolicitud, respuestasDestacadas, respuestasLegibles } from './answer-labels';
+import { contactoDe } from './datos-protegidos';
 import { useAuth } from '../../core/auth';
 import { ExportModal } from './ExportModal';
 import { ReservationResults } from '../dashboard/ReservationResults';
@@ -36,7 +38,6 @@ import { puedeAccion } from '../../core/acciones';
 import { empresaOfrece } from './servicios-contratados';
 import { MOTIVOS_DE_CIERRE, nombreDelMotivo } from '@espartanos/shared';
 import { esperandoDesde, tonoDeEspera, whatsappDeSolicitud } from './solicitudes-de-grupo';
-import { describirEvento, type EventoDeReserva } from './describir-evento';
 import { empresasConServicio } from '../../shared/empresas-con-servicio';
 
 interface Client { id: string; name: string; capabilities?: Record<string, boolean> }
@@ -79,7 +80,6 @@ function metaReadiness(form: ReservationForm, binding?: PixelBinding): { tone: '
 }
 /** Página de reservas. `data` es el nombre con que responden todas las listas del sistema. */
 interface ReservationPage { data: Reservation[]; total: number; page: number; pageSize: number; pages: number }
-type ReservationEvent = EventoDeReserva;
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente', confirmed: 'Confirmada', attended: 'Asistió', no_show: 'No asistió',
@@ -130,7 +130,17 @@ function fechaLegible(fecha: string): string {
 export function ReservationsPage({ clientView = false }: { clientView?: boolean }) {
   const user = useAuth((state) => state.user);
   const [searchParams] = useSearchParams();
-  const initialClientId = clientView ? '' : searchParams.get('clientId') ?? '';
+  /*
+   * En el portal, la empresa sale de la elegida en la barra; en la agencia, del filtro.
+   *
+   * La vista del portal arrancaba en vacío y nunca la mandaba, así que el servidor usaba la de la
+   * sesión: quien atiende dos locales abría el segundo y operaba el primero —la lista, las
+   * métricas, los cupones y la exportación—. La elección ya vive en un solo sitio
+   * (`useEmpresaActiva`), que es de donde la leen el menú y el inicio del portal; esta pantalla
+   * era la que no la miraba.
+   */
+  const empresaActiva = useEmpresaActiva();
+  const initialClientId = clientView ? empresaActiva.clientId : searchParams.get('clientId') ?? '';
   const navigate = useNavigate();
   const qc = useQueryClient();
   const requestedTab = searchParams.get('tab');
@@ -191,6 +201,27 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const [exportFormId, setExportFormId] = useState('');
   const [page, setPage] = useState(1);
   const [clientFilter, setClientFilter] = useState(initialClientId);
+  /*
+   * Cambiar de local en la barra tiene que mover esta pantalla con él.
+   *
+   * `clientFilter` nace de la empresa activa, pero es estado: sin esto conservaría el local con el
+   * que se montó, y la pantalla seguiría pidiendo el anterior bajo el nombre del nuevo. Sólo en el
+   * portal; en la agencia el filtro es del usuario y nadie debe moverlo por él.
+   */
+  useEffect(() => {
+    if (clientView) setClientFilter(empresaActiva.clientId);
+  }, [clientView, empresaActiva.clientId]);
+
+  /*
+   * La empresa sobre la que opera la pantalla, sin repliegue a la de la sesión.
+   *
+   * Lo escrito antes era el filtro «o la empresa de mi cuenta», y ese «o» sólo llegaba a importar en
+   * una cuenta de portal, porque el equipo interno no tiene empresa en su cuenta: era el repliegue
+   * silencioso. Vacío significa ahora lo que de verdad significa —una cuenta que alcanza varios
+   * locales y todavía no eligió, o la agencia sin filtro—, y entonces no se opera sobre ninguno en
+   * vez de operar sobre el de la sesión. Con un solo local la elección ya viene resuelta.
+   */
+  const empresaEnUso = clientFilter;
   const [formData, setFormData] = useState({
     clientId: initialClientId,
     name: '',
@@ -314,7 +345,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * que sólo usa Reservas veía una puerta que no le abre. Con una empresa elegida manda la suya;
    * mirando varias, basta con que alguna lo tenga para que el enlace sirva de algo.
    */
-  const ofreceEncuestas = empresaOfrece('surveys', clients, clientFilter || user?.clientId);
+  const ofreceEncuestas = empresaOfrece('surveys', clients, empresaEnUso);
   const selectedFilterForm = forms.find((form) => form.id === filters.formId);
   const createStepReady = [
     Boolean(formData.clientId && formData.name.trim()),
@@ -369,8 +400,6 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     },
   });
   const attendanceRate = attendanceRateOf(statusCounts.attended, statusCounts.no_show);
-  const { data: historyData = [], isLoading: historyLoading } = useQuery<ReservationEvent[]>({ queryKey: ['reservation-history', selectedBooking?.id], queryFn: () => api.get(`/reservations/${selectedBooking!.id}/history`), enabled: Boolean(selectedBooking) });
-  const history = Array.isArray(historyData) ? historyData : [];
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -538,7 +567,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
        * dueño, y un cupón sin dueño se aceptaba en todos los locales de todos los clientes. Las
        * cuentas de empresa no lo notaban porque el servidor les pone la suya.
        */
-      const body: Record<string, unknown> = { code: couponForm.code.trim(), discountType: couponForm.discountType, value: couponForm.value, maxUses: couponForm.maxUses, ...((clientFilter || user?.clientId) ? { clientId: clientFilter || user?.clientId } : {}), ...(couponForm.maxUsesPerPerson > 0 ? { maxUsesPerPerson: couponForm.maxUsesPerPerson, personKeys: couponForm.personKeys } : {}) };
+      const body: Record<string, unknown> = { code: couponForm.code.trim(), discountType: couponForm.discountType, value: couponForm.value, maxUses: couponForm.maxUses, ...(empresaEnUso ? { clientId: empresaEnUso } : {}), ...(couponForm.maxUsesPerPerson > 0 ? { maxUsesPerPerson: couponForm.maxUsesPerPerson, personKeys: couponForm.personKeys } : {}) };
       if (couponForm.validFrom) body.validFrom = browserDateBoundaryUtc(couponForm.validFrom);
       if (couponForm.validUntil) body.validUntil = browserDateBoundaryUtc(couponForm.validUntil, true);
       if (couponForm.formIds.trim()) body.formIds = couponForm.formIds.split(',').map((s) => s.trim()).filter(Boolean);
@@ -566,7 +595,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   ));
 
   if (isLoading) return <LoadingSpinner text="Preparando Reservas..." />;
-  if (formsError) return isForbiddenError(formsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir Reservas y formularios" message={formsError.message} onRetry={() => void refetchForms()} retrying={fetchingForms} />;
+  if (formsError) return isForbiddenError(formsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos abrir Reservas y formularios" message={formsError.message} error={formsError} onRetry={() => void refetchForms()} retrying={fetchingForms} />;
   const formPath = (id: string) => clientView ? `/portal/reservations/locals/${id}` : `/reservations/locals/${id}`;
   /** Raiz del modulo segun quien mira: la agencia por su panel, la empresa por su portal. */
   const base = clientView ? '/portal/reservations' : '/reservations';
@@ -735,7 +764,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <option value="declarado">Sólo lo declarado en el enlace</option>
           <option value="detectado">Sólo lo que dedujo el sistema</option>
         </select><label className="filter-date">Desde<input className="input" type="date" aria-label="Reservas desde" value={filters.from} max={filters.to || undefined} onChange={(event) => resetFilters({ from: event.target.value })} /></label><label className="filter-date">Hasta<input className="input" type="date" aria-label="Reservas hasta" value={filters.to} min={filters.from || undefined} onChange={(event) => resetFilters({ to: event.target.value })} /></label><button type="button" className="btn btn-outline btn-sm" onClick={() => { const today = new Date(); const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; resetFilters({ from: key, to: key }); }}>Hoy</button><button type="button" className="btn btn-outline btn-sm" disabled={Object.values(filters).every((valor) => !valor)} onClick={() => resetFilters(FILTROS_VACIOS)}>Limpiar</button><span className="filter-result-count">{bookingPage?.total ?? 0} reserva{bookingPage?.total === 1 ? '' : 's'}</span></div>
-      {bookingsError ? (isForbiddenError(bookingsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas" message={bookingsError.message} onRetry={() => void refetchBookings()} retrying={loadingBookings} />)
+      {bookingsError ? (isForbiddenError(bookingsError) ? <ForbiddenState /> : <QueryErrorState title="No pudimos cargar las reservas" message={bookingsError.message} error={bookingsError} onRetry={() => void refetchBookings()} retrying={loadingBookings} />)
         : loadingBookings && !bookingPage ? <LoadingSpinner text="Buscando reservas..." />
         : bookings.length === 0 ? <EmptyState icon="calendar" title="Sin reservas para estos filtros" description="Las nuevas solicitudes aparecerán aquí en tiempo real." /> : <div className="booking-list" aria-busy={loadingBookings}>
         {bookings.map((item) => {
@@ -749,7 +778,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           const preparar = respuestasDestacadas(item.answers, forms.find((form) => form.id === item.formId)?.fieldSchema);
           return <article className="booking-row" key={item.id}>
           <div className="booking-date"><strong>{new Date(item.startsAt).getDate()}</strong><span>{new Date(item.startsAt).toLocaleDateString('es-CL', { month: 'short' })}</span><small>{new Date(item.startsAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</small></div>
-          <button className="booking-guest booking-guest-button" onClick={() => { setSelectedBooking(item); }} aria-label={`Ver detalle de la reserva de ${item.guestName}`}><strong>{item.guestName}</strong><span>{item.guestPhone || item.guestEmail || 'Sin contacto'}</span><small>{item.tableLabel ? <em className="booking-mesa">Mesa {item.tableLabel}</em> : null}#{item.referenceCode} · {item.utmCampaign || item.utmSource || 'Origen directo'}{item.couponCode ? <em className="booking-coupon"><VitaIcons.ticket /> {item.couponCode}</em> : null}</small>{(preparar.length > 0 || item.internalNotes) && <span className="booking-flags">{preparar.map((dato) => <em key={dato.clave} title={`${dato.etiqueta}: ${dato.valor}`}>{dato.etiqueta}</em>)}{item.internalNotes ? <em className="es-nota" title={item.internalNotes}>Nota del equipo</em> : null}</span>}</button>
+          <button className="booking-guest booking-guest-button" onClick={() => { setSelectedBooking(item); }} aria-label={`Ver detalle de la reserva de ${item.guestName}`}><strong>{item.guestName}</strong><span>{contactoDe(item)}</span><small>{item.tableLabel ? <em className="booking-mesa">Mesa {item.tableLabel}</em> : null}#{item.referenceCode} · {item.utmCampaign || item.utmSource || 'Origen directo'}{item.couponCode ? <em className="booking-coupon"><VitaIcons.ticket /> {item.couponCode}</em> : null}</small>{(preparar.length > 0 || item.internalNotes) && <span className="booking-flags">{preparar.map((dato) => <em key={dato.clave} title={`${dato.etiqueta}: ${dato.valor}`}>{dato.etiqueta}</em>)}{item.internalNotes ? <em className="es-nota" title={item.internalNotes}>Nota del equipo</em> : null}</span>}</button>
           <div className="booking-status-cell">
             {/* El gesto del dia es marcar asistencia: dos botones directos, sin desplegable.
                 El resto del ciclo queda en el semaforo, que se usa mucho menos. */}
@@ -804,7 +833,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         <button type="button" className="btn btn-outline btn-sm" disabled={!filters.formId} onClick={() => resetFilters({ formId: '' })}>Limpiar</button>
         <span className="filter-result-count">{grupos.length} solicitud{grupos.length === 1 ? '' : 'es'}</span>
       </div>
-      {errorGrupos ? <QueryErrorState message={errorGrupos.message} onRetry={() => { void recargarGrupos(); }} />
+      {errorGrupos ? <QueryErrorState message={errorGrupos.message} error={errorGrupos} onRetry={() => { void recargarGrupos(); }} />
         : cargandoGrupos && grupos.length === 0 ? <LoadingSpinner text="Buscando solicitudes..." />
         : grupos.length === 0 ? <EmptyState title="Sin solicitudes de grupo" description="Cuando alguien pida un evento desde la página pública, aparecerá acá." />
         : <div className="reservation-request-list">{grupos.map((request) => {
@@ -892,10 +921,10 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         ) : null}
       </div></div>
       {!clientFilter && user?.role !== 'client' && <p className="page-subtitle">Para crear un cupón, elige primero la empresa arriba: cada cupón vale sólo en los locales de su empresa.</p>}
-      {(clientFilter || user?.clientId) && (
+      {empresaEnUso && (
         <CuponAutomatico
-          clientId={(clientFilter || user?.clientId)!}
-          empresa={clients.find((empresa) => empresa.id === (clientFilter || user?.clientId))?.name || 'tu empresa'}
+          clientId={empresaEnUso}
+          empresa={clients.find((empresa) => empresa.id === empresaEnUso)?.name || 'tu empresa'}
           cupones={coupons}
           ofreceEncuestas={ofreceEncuestas}
         />
@@ -1085,7 +1114,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         <div><span>Identificadores de coincidencia</span><strong>{(selectedBooking.metaConversion?.matchFields ?? 0)} identificadores de coincidencia</strong>{(selectedBooking.metaConversion?.matchFields ?? 0) === 0 && <small className="page-subtitle">Meta no puede atribuir esta reserva a la campaña</small>}</div>
       </div>
     </section>
-    {!clientView && ['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(selectedBooking.status) && <div className="booking-quick-actions"><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { startsAt: localInputToUtc(rescheduleAt, forms.find((form) => form.id === selectedBooking.formId)?.timezone || 'America/Santiago') } }); }}><label>Reagendar a una nueva fecha y hora<input className="input" type="datetime-local" required value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} /></label><button className="btn btn-outline btn-sm" disabled={updateMutation.isPending}>Validar y reagendar</button></form><div className="attendance-actions"><strong>Marcar asistencia</strong><button type="button" className="btn btn-primary btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'attended' } })}>Asistió</button><button type="button" className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'no_show' } })}>No asistió</button></div><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { status: 'cancelled_business', cancellationReason: cancellationReason.trim() } }); }}><label>Motivo de cancelación del local<input className="input" required maxLength={500} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} placeholder="Ej.: cierre excepcional del local" /></label><button className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending || !cancellationReason.trim()}>Cancelar y avisar al cliente</button></form></div>}<h4>Historial trazable</h4>{historyLoading ? <p className="page-subtitle">Cargando historial...</p> : <div className="reservation-history">{history.length === 0 ? <p className="page-subtitle">Todavía no hay cambios registrados.</p> : history.map((event) => { const descrito = describirEvento(event, forms.find((form) => form.id === selectedBooking.formId)?.timezone); return <div key={event.id} className={descrito.supuesto ? 'es-supuesto' : undefined}><span>{descrito.titulo}</span><small>{new Date(event.createdAt).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short', timeZone: forms.find((form) => form.id === selectedBooking.formId)?.timezone })} · {descrito.autor}</small>{descrito.detalle && <em>{descrito.detalle}</em>}</div>; })}</div>}{updateMutation.error && <div className="alert alert-error">{updateMutation.error.message}</div>}</div>}</Modal>
+    {!clientView && ['pending', 'confirmed', 'rescheduled', 'waitlist'].includes(selectedBooking.status) && <div className="booking-quick-actions"><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { startsAt: localInputToUtc(rescheduleAt, forms.find((form) => form.id === selectedBooking.formId)?.timezone || 'America/Santiago') } }); }}><label>Reagendar a una nueva fecha y hora<input className="input" type="datetime-local" required value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} /></label><button className="btn btn-outline btn-sm" disabled={updateMutation.isPending}>Validar y reagendar</button></form><div className="attendance-actions"><strong>Marcar asistencia</strong><button type="button" className="btn btn-primary btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'attended' } })}>Asistió</button><button type="button" className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ id: selectedBooking.id, body: { status: 'no_show' } })}>No asistió</button></div><form className="reschedule-form" onSubmit={(event) => { event.preventDefault(); updateMutation.mutate({ id: selectedBooking.id, body: { status: 'cancelled_business', cancellationReason: cancellationReason.trim() } }); }}><label>Motivo de cancelación del local<input className="input" required maxLength={500} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} placeholder="Ej.: cierre excepcional del local" /></label><button className="btn btn-outline btn-danger btn-sm" disabled={updateMutation.isPending || !cancellationReason.trim()}>Cancelar y avisar al cliente</button></form></div>}{updateMutation.error && <div className="alert alert-error">{updateMutation.error.message}</div>}</div>}</Modal>
     <ConfirmDialog open={Boolean(confirmCoupon)} title="Desactivar cupón" description="¿Desactivar este cupón? Las reservas existentes no se verán afectadas." confirmLabel="Desactivar" pending={couponToggle.isPending} onClose={() => setConfirmCoupon(null)} onConfirm={() => { if (confirmCoupon) couponToggle.mutate(confirmCoupon); setConfirmCoupon(null); }} />
     <ConfirmDialog open={Boolean(confirmFormAction)} title="Pausar esta reserva" description="Mientras esté pausada, quien abra su página verá un aviso y no podrá reservar. Las reservas ya hechas no se tocan." confirmLabel="Pausar" pending={updateFormMutation.isPending} onClose={() => setConfirmFormAction(null)} onConfirm={() => { if (!confirmFormAction) return; updateFormMutation.mutate({ id: confirmFormAction.id, status: 'paused' }); setConfirmFormAction(null); }} />
 
@@ -1100,6 +1129,6 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         ? 'La medición de esta reserva recibe cada alta con su canal y campaña.'
         : 'El canal y la campaña quedan en cada reserva y en Resultados, aunque no uses Google Analytics ni Meta.'}
     />
-    <ExportModal open={exportModalOpen} onClose={() => { setExportModalOpen(false); setExportFormId(''); }} formId={exportFormId || filters.formId || undefined} clientView={clientView} />
+    <ExportModal open={exportModalOpen} onClose={() => { setExportModalOpen(false); setExportFormId(''); }} formId={exportFormId || filters.formId || undefined} locales={forms.filter((form) => !isSurveyMode(form.mode)).map((form) => ({ id: form.id, name: form.name }))} clientView={clientView} />
   </div>;
 }

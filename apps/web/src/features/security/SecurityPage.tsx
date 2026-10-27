@@ -11,13 +11,14 @@ import { useQuery } from '@tanstack/react-query';
 import { refetchWhenIdle } from '../../core/refetch-policy';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
-import { useOrganizationSettings } from '../../core/organization-settings';
+import { PLAZOS_DE_CONSERVACION } from '@espartanos/shared';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { EmptyState } from '../../shared/EmptyState';
 import { PageHero } from '../../shared/PageHero';
 import { AuditPanel } from '../governance/AuditPanel';
 import { ServiceRequestsPanel } from './ServiceRequestsPanel';
+import { VulneracionesPanel } from './VulneracionesPanel';
 
 interface HealthCheckResult {
   status: string;
@@ -99,7 +100,6 @@ export function SecurityPage() {
     queryKey: ['consent-pending'],
     queryFn: () => api.get('/consent/pending-count'),
   });
-  const pwdPolicyQuery = useOrganizationSettings();
 
   return <div className="page security-page">
     <PageHero
@@ -114,7 +114,7 @@ export function SecurityPage() {
         <button className="btn btn-outline" onClick={() => healthQuery.refetch()} disabled={healthQuery.isFetching}>{healthQuery.isFetching ? 'Actualizando...' : 'Actualizar'}</button>
       </div>
       {healthQuery.isLoading ? <LoadingSpinner text="Consultando estado del sistema..." /> :
-        healthQuery.error ? <QueryErrorState title="No pudimos consultar el estado del sistema" message={healthQuery.error.message} onRetry={() => healthQuery.refetch()} retrying={healthQuery.isFetching} /> :
+        healthQuery.error ? <QueryErrorState title="No pudimos consultar el estado del sistema" message={healthQuery.error.message} error={healthQuery.error} onRetry={() => healthQuery.refetch()} retrying={healthQuery.isFetching} /> :
         healthQuery.data && <div className="security-health-grid">
           <article><span className="page-eyebrow">GENERAL</span><StatusPill status={healthQuery.data.status} /><p>Versión {healthQuery.data.version} · activo hace {formatUptime(healthQuery.data.uptime)}</p></article>
           <article><span className="page-eyebrow">BASE DE DATOS</span><StatusPill status={healthQuery.data.database.status} /><p>{healthQuery.data.database.connected ? 'Conexión activa' : (healthQuery.data.database.message ?? 'Sin conexión')}</p></article>
@@ -131,7 +131,7 @@ export function SecurityPage() {
       <div className="security-policy-grid">
         <article>
           <h3>Reservas</h3>
-          <p>Los datos del comensal (nombre, email, teléfono, identificadores de Meta y respuestas del formulario) se anonimizan automáticamente <strong>180 días</strong> después de la fecha de la reserva. Fecha, estado y formulario se conservan para que la analítica de asistencia siga siendo correcta.</p>
+          <p>Los datos del comensal (nombre, email, teléfono, identificadores de Meta y respuestas del formulario) se anonimizan automáticamente <strong>{PLAZOS_DE_CONSERVACION.reservasMeses} meses</strong> después de la fecha de la reserva. Fecha, estado y formulario se conservan para que la analítica de asistencia siga siendo correcta.</p>
         </article>
         <article>
           <h3>Leads (pipeline propio)</h3>
@@ -152,7 +152,7 @@ export function SecurityPage() {
         <button className="btn btn-outline" onClick={() => anonymizationsQuery.refetch()} disabled={anonymizationsQuery.isFetching}>{anonymizationsQuery.isFetching ? 'Actualizando...' : 'Actualizar'}</button>
       </div>
       {anonymizationsQuery.isLoading ? <LoadingSpinner text="Cargando bitácora de anonimizaciones..." /> :
-        anonymizationsQuery.error ? <QueryErrorState title="No pudimos cargar la bitácora" message={anonymizationsQuery.error.message} onRetry={() => anonymizationsQuery.refetch()} retrying={anonymizationsQuery.isFetching} /> :
+        anonymizationsQuery.error ? <QueryErrorState title="No pudimos cargar la bitácora" message={anonymizationsQuery.error.message} error={anonymizationsQuery.error} onRetry={() => anonymizationsQuery.refetch()} retrying={anonymizationsQuery.isFetching} /> :
         !anonymizationsQuery.data?.length ? <EmptyState icon="lock" title="Sin anonimizaciones registradas" description="Todavía no se ha anonimizado ningún dato personal en esta organización." /> :
         <table className="table security-anonymization-table">
           <thead><tr><th>Fecha</th><th>Responsable</th><th>Entidad</th><th>Registro</th><th>Motivo</th></tr></thead>
@@ -164,31 +164,6 @@ export function SecurityPage() {
             <td>{row.reason ?? '—'}</td>
           </tr>)}</tbody>
         </table>}
-    </section>
-
-    <section>
-      <div className="section-toolbar">
-        <div><span className="page-eyebrow">POLÍTICA DE CONTRASEÑAS</span><h2>Requisitos de seguridad</h2><p className="page-subtitle">Aplica a todos los usuarios. Se configura desde el panel de control de acceso.</p></div>
-      </div>
-      {pwdPolicyQuery.isLoading ? <LoadingSpinner text="Cargando política..." /> :
-        <div className="security-policy-grid">
-          <article>
-            <h3>Caducidad</h3>
-            <p>La contraseña debe cambiarse cada <strong>{pwdPolicyQuery.data?.['security.password.expiryDays'] ?? 90} días</strong>. Al cumplirse el plazo, el sistema exige el cambio al iniciar sesión.</p>
-          </article>
-          <article>
-            <h3>Complejidad</h3>
-            <p>Mínimo <strong>{pwdPolicyQuery.data?.['security.password.minLength'] ?? 8} caracteres</strong>{pwdPolicyQuery.data?.['security.password.requireUppercase'] !== 'false' ? ', al menos una mayúscula' : ''}{pwdPolicyQuery.data?.['security.password.requireNumber'] !== 'false' ? ', un número' : ''}{pwdPolicyQuery.data?.['security.password.requireSpecial'] === 'true' ? ', un carácter especial' : ''}.</p>
-          </article>
-          <article>
-            <h3>Historial</h3>
-            <p>No se puede reutilizar ninguna de las últimas <strong>{pwdPolicyQuery.data?.['security.password.preventReuse'] ?? 5} contraseñas</strong>.</p>
-          </article>
-          <article>
-            <h3>Control de vencimiento</h3>
-            <p>Cada {pwdPolicyQuery.data?.['security.password.expiryDays'] ?? 90} días el sistema solicita el cambio. El administrador recibe una notificación si hay usuarios con contraseña vencida.</p>
-          </article>
-        </div>}
     </section>
 
     <section>
@@ -219,6 +194,7 @@ export function SecurityPage() {
     </section>
 
     <ServiceRequestsPanel />
+    <VulneracionesPanel />
 
     <AuditPanel />
   </div>;

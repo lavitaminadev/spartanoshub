@@ -29,6 +29,13 @@ import { ProcessSubject } from '../../../core/process-history/process-stage-chan
 import { UserRole } from '../../organizations/user-role.enum';
 import { ParameterResolver } from '../../../core/parameters/parameter-resolver.service';
 import { RequiereAccion } from '../../../core/authorization/requiere-accion';
+import { camposProtegidosDe } from '@espartanos/shared';
+import { AuditService } from '../../../core/audit/audit.service';
+import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../../core/client-scope/nivel-de-datos.service';
+import { exigirConstanciaDeRevelacion } from '../../../core/client-scope/revelar-protegidos';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
+import { NivelDeAreaService } from '../../../core/client-scope/nivel-de-area.service';
+import { LeadStatus } from './lead-status.enum';
 
 @ApiTags('CRM - Leads')
 @Controller('crm/leads')
@@ -63,9 +70,25 @@ export class LeadController {
     private readonly parametros: ParameterResolver,
     private readonly capacidades: ClientCapabilityService,
     private readonly responsablesDelCrm: ResponsablesDelCrmService,
+    private readonly niveles: NivelDeDatosService,
+    private readonly audit: AuditService,
+    // Al final, como el resto: las pruebas construyen este controlador por posición.
+    private readonly areas: NivelDeAreaService,
   ) {}
 
+  /**
+   * Recorta los datos de contacto de los leads según lo que esta persona es en la empresa de cada uno.
+   *
+   * Todo lo que sale de este controlador con un lead dentro pasa por aquí: recortar en la pantalla
+   * dejaría el teléfono visible en la respuesta.
+   */
+  private async protegidos<T extends { clientId?: string | null }>(req: AuthenticatedRequest, filas: readonly T[]) {
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+    return recortarFilasPorEmpresa(filas, 'crm', niveles);
+  }
+
   @Post()
+  @RequiereArea('crm.prospectos', 'hacer')
   @ApiOperation({ summary: 'Crear un nuevo lead' })
   async create(@Body() dto: CreateLeadDto, @Req() req: AuthenticatedRequest) {
     /*
@@ -77,7 +100,7 @@ export class LeadController {
     const clientId = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, dto.clientId);
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     await this.capacidades.assert(req.organizationId, clientId, 'crm');
-    return this.createLead.execute({
+    const creado = await this.createLead.execute({
       ...dto,
       // La sesión manda sobre el cuerpo: omitir o falsificar el campo no saca el lead de la
       // empresa del portal.
@@ -85,6 +108,7 @@ export class LeadController {
       domain: req.user.role === UserRole.CLIENT ? 'commercial' : dto.domain,
       organizationId: req.organizationId,
     });
+    return (await this.protegidos(req, [creado]))[0];
   }
 
   /**
@@ -95,6 +119,7 @@ export class LeadController {
    * petición inválida, y responder un error dejaría a quien importa sin saber qué se guardó.
    */
   @Post('import')
+  @RequiereArea('crm.importar', 'hacer')
   @RequiereAccion('crm.importar')
   @ApiOperation({ summary: 'Importar prospectos desde un archivo' })
   async import(@Body() dto: ImportLeadsDto, @Req() req: AuthenticatedRequest) {
@@ -122,6 +147,7 @@ export class LeadController {
    * toda la organización.
    */
   @Get()
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Listar leads' })
   async list(@Query() query: ListLeadsQueryDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -209,15 +235,13 @@ export class LeadController {
       warning: Number(ajustes.get(CLAVE_ALERTA) ?? PLAZOS_POR_DEFECTO.warning),
       critical: Number(ajustes.get(CLAVE_ABANDONO) ?? PLAZOS_POR_DEFECTO.critical),
     };
-    return {
-      ...pagina,
-      data: pagina.data.map((lead) => ({
-        ...lead,
-        openTasks: tareas.get(lead.id)?.openTasks ?? 0,
-        nextStep: tareas.get(lead.id)?.nextStep ?? null,
-        ...inactividadDe(lead, plazos),
-      })),
-    };
+    const filas = pagina.data.map((lead) => ({
+      ...lead,
+      openTasks: tareas.get(lead.id)?.openTasks ?? 0,
+      nextStep: tareas.get(lead.id)?.nextStep ?? null,
+      ...inactividadDe(lead, plazos),
+    }));
+    return { ...pagina, data: await this.protegidos(req, filas) };
   }
 
   /**
@@ -242,6 +266,7 @@ export class LeadController {
    * @returns Identificador y nombre, nada más. Es lo único que la pantalla dibuja.
    */
   @Get('responsables')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Personas asignables en el CRM de una empresa' })
   async responsables(@Req() req: AuthenticatedRequest, @Query('clientId') solicitado?: string) {
     await this.assertPortalCrm(req);
@@ -255,12 +280,34 @@ export class LeadController {
 
   /** Devuelve un lead, siempre que pertenezca a una cuenta accesible para el usuario. */
   @Get(':id')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Obtener un lead' })
   async getById(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
     const lead = await this.getLead.execute(id, req.organizationId);
     await this.assertLeadAccess(req, lead);
-    return lead;
+    return (await this.protegidos(req, [lead]))[0];
+  }
+
+  /**
+   * Teléfono, correo y documento de un lead, para quien los pidió desde su ficha.
+   *
+   * Con `bajo_registro` deja constancia de quién los vio y cuándo antes de responder: si no se
+   * puede escribir, el dato no sale. Con `oculto` no hay forma de pedirlos.
+   */
+  @Get(':id/datos-protegidos')
+  @RequiereArea('crm.prospectos', 'ver')
+  @ApiOperation({ summary: 'Ver los datos de contacto protegidos de un lead' })
+  async datosProtegidos(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.assertPortalCrm(req);
+    const lead = await this.assertLeadAccess(req, await this.getLead.execute(id, req.organizationId));
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'crm');
+    const ficha = lead as unknown as Record<string, unknown>;
+    const datos = Object.fromEntries(camposProtegidosDe('crm').filter(({ campo }) => campo in ficha).map(({ campo }) => [campo, ficha[campo] ?? null]));
+    await exigirConstanciaDeRevelacion(this.audit, niveles.de(lead.clientId), {
+      organizationId: req.organizationId, actorId: req.user.id, entityType: 'leads', entityId: id, campos: Object.keys(datos), ipAddress: req.ip,
+    });
+    return { id, datos };
   }
 
   /**
@@ -271,6 +318,7 @@ export class LeadController {
    * al escribirse, así que la ficha no tiene que restar fechas para mostrarla.
    */
   @Get(':id/historial')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Historial de etapas de un lead' })
   async historial(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -294,6 +342,7 @@ export class LeadController {
 
   /** Actualiza estado, calidad o etiquetas de un lead de una cuenta accesible. */
   @Put(':id')
+  @RequiereArea('crm.prospectos', 'hacer')
   @ApiOperation({ summary: 'Actualizar estado de un lead' })
   async update(@Param('id') id: string, @Body() dto: UpdateLeadDto, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -305,6 +354,23 @@ export class LeadController {
     if (req.user.role === UserRole.CLIENT && dto.clientId !== undefined && dto.clientId !== lead.clientId) {
       throw new ForbiddenException('El portal no puede mover contactos fuera de su empresa');
     }
+
+    /*
+     * Descartar es un área aparte, y no se puede declarar en la ruta.
+     *
+     * Cerrar un prospecto no tiene endpoint propio: viaja como un estado dentro de esta misma
+     * edición, así que `@RequiereArea` —que mira la ruta y no el cuerpo— no alcanza. Se comprueba
+     * aquí, que es donde ya se sabe sobre qué empresa va la petición.
+     *
+     * Sólo cuando el descarte es **nuevo**, con el mismo criterio con que el caso de uso exige
+     * motivo: corregir el texto de un prospecto ya cerrado no vuelve a cerrarlo.
+     */
+    if (dto.status === LeadStatus.LOST && lead.status !== LeadStatus.LOST) {
+      const puede = await this.areas.alcanzaArea(
+        req.organizationId, req.user.id, lead.clientId ?? undefined, 'crm.descartar', 'hacer',
+      );
+      if (!puede) throw new ForbiddenException('Tu perfil no incluye descartar prospectos');
+    }
     if (req.user.role === UserRole.CLIENT && dto.excludedFromMeta !== undefined) {
       throw new ForbiddenException('El portal no puede cambiar la medición publicitaria');
     }
@@ -314,7 +380,8 @@ export class LeadController {
     await this.capacidades.assert(req.organizationId, clientIdDestino, 'crm');
     // Para el portal, la empresa del lead —que ya alcanza— y no la de su cuenta: con dos locales,
     // mover una tarjeta en el segundo no se reconocía como trabajo propio.
-    return this.updateLead.execute(id, dto, req.organizationId, req.user.id, req.user.role === UserRole.CLIENT ? lead.clientId ?? null : req.user.clientId ?? null);
+    const actualizado = await this.updateLead.execute(id, dto, req.organizationId, req.user.id);
+    return (await this.protegidos(req, [actualizado]))[0];
   }
 
   /**
@@ -379,6 +446,7 @@ export class LeadController {
    * persona puede haber reservado con varios clientes de la organización.
    */
   @Get(':id/reservations')
+  @RequiereArea('crm.prospectos', 'ver')
   @ApiOperation({ summary: 'Historial de reservas de un lead' })
   async reservations(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     await this.assertPortalCrm(req);
@@ -392,13 +460,17 @@ export class LeadController {
       .where('r.organization_id = :organizationId', params)
       .andWhere(`(${conditions.join(' OR ')})`);
     if (lead.clientId) query.andWhere('r.client_id = :clientId', { clientId: lead.clientId });
-    return query
+    const reservas = await query
       .orderBy('r.starts_at', 'DESC')
       .take(50)
       .getMany();
+    // Son reservas: las protege el nivel que esta persona tiene en Reservas, no el del CRM.
+    const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+    return recortarFilasPorEmpresa(reservas, 'reservations', niveles);
   }
 
   @Post(':id/convert')
+  @RequiereArea('crm.convertir', 'hacer')
   @RequiresPermission('crm', 'manage')
   @ApiOperation({ summary: 'Convertir lead a cliente' })
   async convert(@Param('id') id: string, @Req() req: AuthenticatedRequest) {

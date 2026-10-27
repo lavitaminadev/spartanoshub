@@ -34,7 +34,7 @@ export function KnowledgePage() {
   const [selected, setSelected] = useState<KnowledgeChunk | null>(null);
   const knowledgeQuery = useQuery<KnowledgeChunk[]>({ queryKey: ['knowledge'], queryFn: () => api.get('/knowledge') });
   if (knowledgeQuery.isLoading) return <LoadingSpinner text="Organizando conocimiento interno..." />;
-  if (knowledgeQuery.error) return <QueryErrorState title="No pudimos abrir la base interna" message={knowledgeQuery.error.message} onRetry={() => knowledgeQuery.refetch()} />;
+  if (knowledgeQuery.error) return <QueryErrorState title="No pudimos abrir la base interna" message={knowledgeQuery.error.message} error={knowledgeQuery.error} onRetry={() => knowledgeQuery.refetch()} />;
 
   const chunks = Array.isArray(knowledgeQuery.data) ? knowledgeQuery.data : [];
   const sources = [...new Set(chunks.map((chunk) => chunk.sourceName))].sort();

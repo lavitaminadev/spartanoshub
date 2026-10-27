@@ -12,10 +12,13 @@ import { vi } from 'vitest';
  * cuarto argumento—, porque es el caso de una empresa que no configuró casillas aparte: deja la
  * regla en reposo sin que la prueba tenga que declarar destinatarios que no le importan.
  *
+ * `conNivelDirecto` responde que ninguna dirección es una cuenta con nivel directo, salvo las que la
+ * prueba declare en `directos`.
+ *
  * @param correos - Casillas fijas a devolver, cuando la prueba sí quiere comprobar a quién le
  *   llega.
  */
-export function createDestinatariosDeAvisosDouble(correos?: string[]) {
+export function createDestinatariosDeAvisosDouble(correos?: string[], directos: string[] = []) {
   return {
     para: vi.fn(async (
       _organizationId: string,
@@ -23,5 +26,6 @@ export function createDestinatariosDeAvisosDouble(correos?: string[]) {
       _tipo: string,
       delFormulario: string[] = [],
     ) => correos ?? delFormulario),
+    conNivelDirecto: vi.fn(async (_o: string, _c: string, _m: string, lista: string[]) => new Set(lista.filter((c) => directos.includes(c)))),
   } as never;
 }

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Client } from '../../../modules/clients/client.entity';
 import { ClientStatus } from '../../../modules/clients/client-status.enum';
-import { UDBudget } from '../../../modules/design-budget/ud-budget.entity';
+import { DesignBudgetService } from '../../../modules/design-budget/design-budget.service';
 import { AccountCyclesService } from '../../../modules/account-cycles/account-cycles.service';
 
 @Injectable()
@@ -12,7 +12,7 @@ export class CreateMonthlyCyclesJob {
 
   constructor(
     @InjectRepository(Client) private clientRepo: Repository<Client>,
-    @InjectRepository(UDBudget) private budgetRepo: Repository<UDBudget>,
+    private readonly budgets: DesignBudgetService,
     private readonly cycles: AccountCyclesService,
   ) {}
 
@@ -32,21 +32,9 @@ export class CreateMonthlyCyclesJob {
     for (const client of activeClients) {
       try {
         await this.cycles.ensure(client.organizationId, client.id, year, month);
-        const existing = await this.budgetRepo.findOne({
-          where: { clientId: client.id, year, month },
-        });
-        if (existing) continue;
-
-        const budget = this.budgetRepo.create({
-          clientId: client.id,
-          year,
-          month,
-          contracted: client.defaultUdBudget ?? 20,
-          reserved: 0,
-          consumed: 0,
-          status: 'open',
-        });
-        await this.budgetRepo.save(budget);
+        const before = await this.budgets.findMonthlyBudget(client.id, year, month);
+        if (before) continue;
+        await this.budgets.ensureMonthlyBudget(client.id, year, month);
         created++;
       } catch (error) {
         this.logger.error(`Failed to create monthly cycle for client ${client.id}: ${error instanceof Error ? error.message : error}`);

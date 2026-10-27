@@ -35,9 +35,49 @@ __decorate([
     __metadata("design:type", Object)
 ], UserClientAccess.prototype, "reason", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'expires_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "expiresAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'expiry_notified_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "expiryNotifiedAt", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'granted_by', type: 'uuid', nullable: true }),
     __metadata("design:type", Object)
 ], UserClientAccess.prototype, "grantedBy", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'retired_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "retiredAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'retired_by', type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "retiredBy", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'retired_reason', type: 'varchar', length: 300, nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "retiredReason", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'retired_outcome', type: 'varchar', length: 10, nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "retiredOutcome", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'reentered_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "reenteredAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'reentered_by', type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "reenteredBy", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'reentry_reason', type: 'varchar', length: 300, nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "reentryReason", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'previous_retired_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], UserClientAccess.prototype, "previousRetiredAt", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)

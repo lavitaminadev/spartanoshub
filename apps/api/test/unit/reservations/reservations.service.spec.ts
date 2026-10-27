@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReservationsService } from '../../../src/modules/reservations/application/reservations.service';
 import { createDestinatariosDeAvisosDouble } from '../../helpers/destinatarios-de-avisos.double';
+import { nivelesFijos } from '../../../src/core/client-scope/nivel-de-datos.service';
 
 /** Posiciones 14 a 20 del constructor: estas pruebas no recorren nada que las use. */
 const SIN_USAR = undefined as never;
@@ -145,7 +146,7 @@ describe('ReservationsService', () => {
     });
 
     let csv = '';
-    for await (const chunk of service.streamCsv('org-1')) csv += chunk;
+    for await (const chunk of service.streamCsv('org-1', nivelesFijos('directo'))) csv += chunk;
 
     expect(csv).toContain('R1');
     expect(csv).toContain('"color"');
@@ -167,7 +168,7 @@ describe('ReservationsService', () => {
     });
 
     const chunks: string[] = [];
-    for await (const chunk of service.streamCsv('org-1')) chunks.push(chunk);
+    for await (const chunk of service.streamCsv('org-1', nivelesFijos('directo'))) chunks.push(chunk);
 
     expect(chunks[0]).toContain('"codigo"');
     expect(chunks[0]).not.toContain('\r\n');

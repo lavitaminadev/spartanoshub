@@ -10,7 +10,7 @@
  * pertenece. Administrarla, en cambio, sí se marca: pertenecer no es mandar.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { triggerToast } from '../../shared/toast-events';
 
@@ -65,9 +65,9 @@ export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, pu
    * ninguna pantalla y que vuelve a actuar el día que alguien reasigna esa empresa.
    */
   const cambiarMando = useMutation({
-    mutationFn: ({ clientId, conceder }: { clientId: string; conceder: boolean }) => conceder
+    mutationFn: ({ clientId, conceder, motivo }: { clientId: string; conceder: boolean; motivo?: string }) => conceder
       ? api.put(`/users/${usuarioId}/administra/${clientId}`, {})
-      : api.delete(`/users/${usuarioId}/administra/${clientId}`),
+      : api.delete(`/users/${usuarioId}/administra/${clientId}${motivo ? `?motivo=${encodeURIComponent(motivo)}` : ''}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: claveManda });
       void qc.invalidateQueries({ queryKey: ['administran-equipo'] });
@@ -75,6 +75,32 @@ export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, pu
     },
     onError: (fallo) => triggerToast((fallo as Error).message),
   });
+
+  /*
+   * En qué empresas esta persona es la única que administra el equipo.
+   *
+   * Retirarla ahí dejaría a la empresa sin nadie que cree cuentas, así que el control se muestra
+   * deshabilitado con el motivo. Sólo la agencia (`puedeAsignarEmpresas`) puede hacerlo, con
+   * motivo escrito que queda en auditoría.
+   */
+  const idsAdministradas = manda.data?.clientIds ?? [];
+  const mandos = useQueries({
+    queries: idsAdministradas.map((id) => ({
+      queryKey: ['administran-equipo', id],
+      queryFn: () => api.get<{ userIds: string[] }>(`/users/administran-equipo?clientId=${encodeURIComponent(id)}`),
+    })),
+  });
+  const unicaAdministradora = new Set(idsAdministradas.filter((_id, i) => {
+    const ids = mandos[i]?.data?.userIds;
+    return ids?.length === 1 && ids[0] === usuarioId;
+  }));
+  const motivoDeUnica = 'Es la única persona que administra el equipo de esta empresa. Nombra primero a otra.';
+
+  const quitarMando = (clientId: string) => {
+    if (!unicaAdministradora.has(clientId)) return cambiarMando.mutate({ clientId, conceder: false });
+    const motivo = window.prompt('Es la única persona que administra esta empresa. Escribe el motivo para retirarla: queda en auditoría.')?.trim();
+    if (motivo) cambiarMando.mutate({ clientId, conceder: false, motivo });
+  };
 
   const acceso = accesos.data?.access;
   const asignadas = new Set((Array.isArray(acceso) ? acceso : []).map((item) => item.clientId));
@@ -97,6 +123,7 @@ export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, pu
    * parte de eso. Es la simétrica de quitar el acceso, que ya retira la administración.
    */
   const darMando = async (clientId: string, conceder: boolean, entra: boolean) => {
+    if (!conceder) return quitarMando(clientId);
     if (conceder && !entra) await cambiarAcceso.mutateAsync({ clientId, conceder: true }).catch(() => null);
     cambiarMando.mutate({ clientId, conceder });
   };
@@ -113,7 +140,8 @@ export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, pu
           <input
             type="checkbox"
             checked={entra}
-            disabled={esPropia || !puedeEditar || guardando}
+            disabled={esPropia || !puedeEditar || guardando || unicaAdministradora.has(empresa.id)}
+            title={unicaAdministradora.has(empresa.id) ? motivoDeUnica : undefined}
             onChange={(evento) => (evento.target.checked
               ? cambiarAcceso.mutate({ clientId: empresa.id, conceder: true })
               : quitarAcceso(empresa.id))}
@@ -124,10 +152,14 @@ export function EmpresasAdicionales({ usuarioId, empresaDeLaCuenta, empresas, pu
           <input
             type="checkbox"
             checked={administradas.has(empresa.id)}
-            disabled={!puedeEditar || guardando}
+            disabled={!puedeEditar || guardando || (unicaAdministradora.has(empresa.id) && !puedeAsignarEmpresas)}
+            title={unicaAdministradora.has(empresa.id) && !puedeAsignarEmpresas ? motivoDeUnica : undefined}
             onChange={(evento) => darMando(empresa.id, evento.target.checked, entra)}
           />
           {' '}Administra el equipo
+          {unicaAdministradora.has(empresa.id) && (
+            <small className="field-hint">{puedeAsignarEmpresas ? ' Es la única: retirarla exige motivo y queda en auditoría.' : ` ${motivoDeUnica}`}</small>
+          )}
         </label>
       </li>
     );

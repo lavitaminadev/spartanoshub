@@ -6,11 +6,15 @@ import { MonthlyReportCard } from '../reports/MonthlyReportCard';
 import type { MonthlyReport } from '../reports/monthly-report.types';
 import { PageHero } from '../../shared/PageHero';
 import { QueryErrorState } from '../../shared/QueryErrorState';
+import { useEmpresaDeDatos } from './empresa-de-datos';
+import { SoloEmpresaPropia } from './SoloEmpresaPropia';
 
 export function ClientReports() {
-  const { data: reports = [], isLoading, error, refetch } = useQuery<MonthlyReport[]>({ queryKey: ['client-monthly-reports'], queryFn: () => api.get('/reporting/monthly-reports') });
+  const empresa = useEmpresaDeDatos();
+  const { data: reports = [], isLoading, error, refetch } = useQuery<MonthlyReport[]>({ queryKey: ['client-monthly-reports', empresa.userId, empresa.clientId], enabled: empresa.disponible, queryFn: () => api.get(`/reporting/monthly-reports?clientId=${encodeURIComponent(empresa.clientId)}`) });
+  if (!empresa.disponible) return <SoloEmpresaPropia nombre={empresa.nombre} seccion="Los informes" />;
   if (isLoading) return <LoadingSpinner text="Cargando informes publicados..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar tus informes" message={error.message} onRetry={() => refetch()} />;
+  if (error) return <QueryErrorState title="No pudimos cargar tus informes" message={error.message} error={error} onRetry={() => refetch()} />;
   return <div className="page client-reports-page">
     <PageHero
       tone="portal"

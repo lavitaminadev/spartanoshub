@@ -16,6 +16,7 @@ exports.VitaminaPulseService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const active_pieces_1 = require("./active-pieces");
 let VitaminaPulseService = class VitaminaPulseService {
     constructor(dataSource) {
         this.dataSource = dataSource;
@@ -46,8 +47,8 @@ let VitaminaPulseService = class VitaminaPulseService {
          FROM account_cycles WHERE organization_id = ?${scope} AND year = YEAR(CURDATE()) AND month = MONTH(CURDATE())`, params),
             this.dataSource.query(`SELECT COUNT(*) total,
                 SUM(status = 'delivered') delivered,
-                SUM(status NOT IN ('delivered','cancelled')) pending,
-                SUM(deadline_at < NOW() AND status NOT IN ('delivered','cancelled')) overdue,
+                SUM(${active_pieces_1.ACTIVE_PIECE_STATUS_SQL}) pending,
+                SUM(deadline_at < NOW() AND ${active_pieces_1.ACTIVE_PIECE_STATUS_SQL}) overdue,
                 SUM(delivered_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) delivered_recent
          FROM pieces WHERE organization_id = ?${scope} AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)`, params),
             this.dataSource.query(`SELECT COUNT(*) total, SUM(status = 'pending') pending,

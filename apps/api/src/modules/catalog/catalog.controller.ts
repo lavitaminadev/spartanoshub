@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UseGuards, NotFoundException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,6 +12,8 @@ import { UserRole } from '../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { QuotesService } from './quotes.service';
 import { CreateQuoteDto, UpdateQuoteDto } from './dto/quote.dto';
+import { ListQuotesQueryDto } from './dto/list-quotes.dto';
+import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 import { RequiresFeature } from '../../core/authorization/requires-feature.decorator';
 
 @Controller('catalog')
@@ -78,7 +80,16 @@ export class CatalogController {
   }
 
   @Get('quotes')
-  listQuotes(@Req() req: AuthenticatedRequest) { return this.quotes.list(req.organizationId); }
+  @RequiereArea('crm.cotizaciones', 'ver')
+  listQuotes(@Query() query: ListQuotesQueryDto, @Req() req: AuthenticatedRequest) { return this.quotes.list(req.organizationId, query); }
+
+  @Get('quotes/lead/:leadId/resumen')
+  @RequiereArea('crm.cotizaciones', 'ver')
+  resumenDelLead(@Param('leadId') leadId: string, @Req() req: AuthenticatedRequest) { return this.quotes.resumenDelLead(leadId, req.organizationId); }
+
+  @Get('quotes/:id/versiones')
+  @RequiereArea('crm.cotizaciones', 'ver')
+  versionesDeLaCotizacion(@Param('id') id: string, @Req() req: AuthenticatedRequest) { return this.quotes.versiones(id, req.organizationId); }
 
   @Post('quotes')
   createQuote(@Body() dto: CreateQuoteDto, @Req() req: AuthenticatedRequest) { return this.quotes.create(req.organizationId, req.user.id, dto); }
@@ -87,6 +98,7 @@ export class CatalogController {
   updateQuote(@Param('id') id: string, @Body() dto: UpdateQuoteDto, @Req() req: AuthenticatedRequest) { return this.quotes.update(id, req.organizationId, dto); }
 
   @Post('quotes/:id/version')
+  @RequiereArea('crm.cotizaciones', 'hacer')
   createQuoteVersion(@Param('id') id: string, @Req() req: AuthenticatedRequest) { return this.quotes.createVersion(id, req.organizationId, req.user.id); }
 
   @Post('quotes/:id/send')

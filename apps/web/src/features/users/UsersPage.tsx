@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useEmpresaActiva, useUsuarioEnEmpresaActiva } from '../../shared/empresa-activa';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +11,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { PermisosDeUsuario } from './PermisosDeUsuario';
+import { PerfilesDelEquipo } from './PerfilesDelEquipo';
 import { useSearchParams } from 'react-router-dom';
 
 interface UserRow {
@@ -104,6 +106,7 @@ export function UsersPage() {
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [accessTarget, setAccessTarget] = useState<UserRow | null>(null);
   const [permisosDe, setPermisosDe] = useState<UserRow | null>(null);
+  const [verPerfiles, setVerPerfiles] = useState(false);
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
   const [resetResult, setResetResult] = useState<ResetResult | null>(null);
   const [sendResetEmail, setSendResetEmail] = useState(true);
@@ -149,7 +152,7 @@ export function UsersPage() {
     return params.toString();
   }, [administraSuEmpresa, clientFilter, deferredSearch, empresaActiva.clientId, roleFilter, statusFilter]);
 
-  const { data, isLoading, error } = useQuery<UserRow[]>({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<UserRow[]>({
     queryKey: ['users', query],
     queryFn: () => api.get(`/users${query ? `?${query}` : ''}`),
     // Mientras llega el resultado de otra búsqueda o filtro sigue a la vista el anterior: la
@@ -371,7 +374,7 @@ export function UsersPage() {
   };
 
   if (isLoading) return <LoadingSpinner text="Cargando usuarios..." />;
-  if (error) return <div className="alert alert-error">Error al cargar usuarios: {error.message}</div>;
+  if (error) return <QueryErrorState title="No pudimos cargar los usuarios" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const clientRequired = form.accountType === 'client';
@@ -401,6 +404,13 @@ export function UsersPage() {
         <div className="alert alert-warning" role="status">
           Ninguna cuenta de esta empresa puede administrar el equipo. Edita a la persona que
           corresponda y marca <strong>«Puede administrar el equipo de esta empresa»</strong>.
+        </div>
+      )}
+
+      {/* Con una sola persona administrando, retirarla queda bloqueado: se avisa antes de que alguien lo intente. */}
+      {mandos && mandos.userIds.length === 1 && users.length > 1 && (
+        <div className="alert alert-info" role="status">
+          Solo una persona administra el equipo de esta empresa. Conviene nombrar a una segunda: mientras sea la única no se la podrá retirar.
         </div>
       )}
 
@@ -598,6 +608,9 @@ export function UsersPage() {
         onClose={() => setPendingBulkAccess(null)}
         onConfirm={() => void confirmBulkAccess()}
       />
+      <Modal open={verPerfiles && Boolean(empresaMirada)} onClose={() => setVerPerfiles(false)} title="Perfiles e invitaciones">
+        {verPerfiles && empresaMirada && <PerfilesDelEquipo clientId={empresaMirada} empresa={clientMap.get(empresaMirada) || empresaActiva.nombre || "esta empresa"} capacidades={usuarioEnEmpresa?.capabilities} esAgencia={!administraSuEmpresa} onCerrar={() => setVerPerfiles(false)} />}
+      </Modal>
       {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id && !(esOperaciones && ['admin', 'operations_director', 'dev'].includes(permisosDe.role))} limitadoAOperaciones={esOperaciones} limitadoASuEmpresa={administraSuEmpresa} miEmpresa={(administraSuEmpresa && empresaActiva.clientId) || currentUser?.clientId || ''} serviciosDeLaEmpresa={usuarioEnEmpresa?.capabilities} onCerrar={() => setPermisosDe(null)} />}
       <Modal open={Boolean(resetTarget)} onClose={() => { setResetTarget(null); setResetResult(null); }} title={`Resetear clave de ${resetTarget?.name ?? ''}`}>
         <div className="modal-form reset-access-modal">

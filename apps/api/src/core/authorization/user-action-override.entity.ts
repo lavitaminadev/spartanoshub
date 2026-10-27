@@ -23,6 +23,15 @@ export class UserActionOverride {
 
   @Column({ name: 'granted_by', type: 'uuid', nullable: true }) grantedBy?: string | null;
 
+  /**
+   * Hasta cuándo rige el ajuste. Vacío: sin fecha de término. Vencido, la acción vuelve a seguir
+   * al nivel de su módulo, igual que si no existiera la fila.
+   */
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true }) expiresAt?: Date | null;
+
+  /** Cuándo se avisó a quien lo concedió que está por vencer. */
+  @Column({ name: 'expiry_notified_at', type: 'timestamp', nullable: true }) expiryNotifiedAt?: Date | null;
+
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;

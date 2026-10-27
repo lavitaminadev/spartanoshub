@@ -33,6 +33,8 @@ const permission_level_1 = require("./permission-level");
 const role_permissions_1 = require("./role-permissions");
 const audit_service_1 = require("../audit/audit.service");
 const module_scope_decorator_1 = require("../authorization/module-scope.decorator");
+const empresa_interceptor_1 = require("../client-scope/empresa.interceptor");
+const empresa_resuelta_1 = require("../client-scope/empresa-resuelta");
 const account_access_service_1 = require("../client-scope/account-access.service");
 const user_client_access_entity_1 = require("../client-scope/user-client-access.entity");
 const grant_client_access_dto_1 = require("./dto/grant-client-access.dto");
@@ -66,9 +68,10 @@ let PermissionsController = class PermissionsController {
             throw new common_2.BadRequestException(`Acción desconocida: ${accion}`);
         const user = await this.findUser(id, req.organizationId);
         await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined);
+        const venceEl = this.fechaDeTermino(dto.expiresAt);
         const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
-        const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, grantedBy: req.user.id });
-        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed } });
+        const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, expiresAt: venceEl, expiryNotifiedAt: null, grantedBy: req.user.id });
+        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed, expiresAt: venceEl } });
         return guardado;
     }
     async quitarAjusteDeAccion(id, accion, req) {
@@ -183,19 +186,21 @@ let PermissionsController = class PermissionsController {
         return { data: excepciones };
     }
     async mine(req, clientId) {
-        const empresa = req.user.role === user_role_enum_1.UserRole.CLIENT
-            ? await this.empresaDelPortal(req, clientId)
-            : clientId;
+        const empresa = await this.empresaDeLosPermisos(req, clientId);
         const permissions = await this.permissions.permissionsFor(req.organizationId, req.user.id, req.user.role, empresa);
         const acciones = Object.fromEntries((await this.acciones.explicar(req.organizationId, req.user.id, req.user.role, empresa)).map((accion) => [accion.clave, accion.permitida]));
         return { permissions, acciones };
     }
-    async empresaDelPortal(req, pedida) {
-        const propia = req.user.clientId ?? undefined;
-        if (!pedida || pedida === propia)
-            return propia;
-        const alcanzables = await this.accountAccess.allowedClientIds(req.organizationId, req.user).catch(() => undefined);
-        return alcanzables?.includes(pedida) ? pedida : propia;
+    async empresaDeLosPermisos(req, declarada) {
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
+            const ambito = (0, empresa_interceptor_1.ambitoDeLaPeticion)(req);
+            if (ambito instanceof Error)
+                throw ambito;
+            return ambito !== undefined && (0, empresa_resuelta_1.esUnaEmpresa)(ambito) ? ambito : undefined;
+        }
+        if (declarada)
+            await this.accountAccess.assertClient(req.organizationId, req.user, declarada);
+        return declarada || undefined;
     }
     async ofRole(role, req) {
         if (!Object.values(user_role_enum_1.UserRole).includes(role))
@@ -310,13 +315,22 @@ let PermissionsController = class PermissionsController {
         const client = await this.clients.findOne({ where: { id: clientId, organizationId: req.organizationId }, select: { id: true } });
         if (!client)
             throw new common_2.NotFoundException('Cuenta no encontrada');
+        const venceEl = this.fechaDeTermino(dto.expiresAt);
         const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId: client.id } });
+        if (existing?.retiredOutcome === 'vetado')
+            throw new common_2.BadRequestException('Esa persona está vetada en esa empresa. Para levantar el veto hay que invitarla de nuevo, confirmándolo');
         const saved = await this.clientAccess.save({
             ...(existing ?? {}),
+            retiredAt: null,
+            retiredBy: null,
+            retiredReason: null,
+            retiredOutcome: null,
             organizationId: req.organizationId,
             userId: user.id,
             clientId: client.id,
             reason: dto.reason ?? null,
+            expiresAt: venceEl,
+            expiryNotifiedAt: null,
             grantedBy: req.user.id,
         });
         this.accountAccess.invalidateUser(user.id);
@@ -326,8 +340,8 @@ let PermissionsController = class PermissionsController {
             entityType: 'UserClientAccess',
             entityId: saved.id,
             action: existing ? 'updated' : 'created',
-            before: existing ? { reason: existing.reason } : undefined,
-            after: { userId: user.id, clientId: client.id, reason: dto.reason ?? null },
+            before: existing ? { reason: existing.reason, expiresAt: existing.expiresAt ?? null } : undefined,
+            after: { userId: user.id, clientId: client.id, reason: dto.reason ?? null, expiresAt: venceEl },
         });
         return saved;
     }
@@ -340,14 +354,16 @@ let PermissionsController = class PermissionsController {
         const existing = await this.clientAccess.findOne({ where: { userId: user.id, clientId } });
         if (!existing)
             throw new common_2.NotFoundException('No existe una asignación directa para esa cuenta');
-        await this.clientAccess.remove(existing);
+        if (existing.retiredAt)
+            throw new common_2.NotFoundException('No existe una asignación directa para esa cuenta');
+        await this.clientAccess.save({ ...existing, retiredAt: new Date(), retiredBy: req.user.id, retiredReason: 'Asignación retirada', retiredOutcome: 'retirado' });
         this.accountAccess.invalidateUser(user.id);
         await this.audit.log({
             organizationId: req.organizationId,
             actorId: req.user.id,
             entityType: 'UserClientAccess',
             entityId: existing.id,
-            action: 'deleted',
+            action: 'retired',
             before: { userId: user.id, clientId, reason: existing.reason },
         });
         const remaining = await this.accountAccess.allowedClientIds(req.organizationId, {
@@ -364,6 +380,15 @@ let PermissionsController = class PermissionsController {
             clientId,
             stillVisible: remaining === undefined || remaining.includes(clientId),
         };
+    }
+    fechaDeTermino(valor) {
+        if (!valor)
+            return null;
+        const fecha = new Date(valor);
+        if (Number.isNaN(fecha.getTime()) || fecha.getTime() <= Date.now()) {
+            throw new common_2.BadRequestException('La fecha de término tiene que ser futura');
+        }
+        return fecha;
     }
     async findUser(id, organizationId) {
         const user = await this.users.findOne({ where: { id, organizationId } });

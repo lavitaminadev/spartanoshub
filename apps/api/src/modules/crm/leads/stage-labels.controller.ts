@@ -10,6 +10,7 @@ import { UserRole } from '../../organizations/user-role.enum';
 import type { AuthenticatedRequest } from '@shared/types/request';
 import { AccountAccessService } from '../../../core/client-scope/account-access.service';
 import { CLAVE_VOCABULARIO, StageLabelsService, type RotulosDeEtapa } from './stage-labels.service';
+import { RequiereArea } from '../../../core/authorization/requiere-area.decorator';
 
 /**
  * Cómo llama cada empresa a las etapas de su embudo.
@@ -30,6 +31,7 @@ export class StageLabelsController {
   ) {}
 
   @Get()
+  @RequiereArea('crm.embudo', 'ver')
   @ApiOperation({ summary: 'Rótulos de etapa de una empresa' })
   async get(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
@@ -44,6 +46,7 @@ export class StageLabelsController {
    * parezca de otro negocio. Solo cambia el rótulo: nada de lo guardado se mueve.
    */
   @Get('vocabulary')
+  @RequiereArea('crm.embudo', 'ver')
   @ApiOperation({ summary: 'Vocabulario del CRM de una empresa' })
   async vocabulario(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
@@ -51,6 +54,7 @@ export class StageLabelsController {
   }
 
   @Put('vocabulary')
+  @RequiereArea('crm.campos', 'hacer')
   @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Renombrar las cosas del CRM de una empresa' })
   async guardarVocabulario(
@@ -67,6 +71,7 @@ export class StageLabelsController {
   }
 
   @Put()
+  @RequiereArea('crm.campos', 'hacer')
   @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Renombrar las etapas de una empresa' })
   async put(
@@ -85,6 +90,7 @@ export class StageLabelsController {
    * dibujar, y sin esto las pintaría todas.
    */
   @Get('hidden')
+  @RequiereArea('crm.embudo', 'ver')
   @ApiOperation({ summary: 'Etapas ocultas de una empresa' })
   async ocultas(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
@@ -102,6 +108,7 @@ export class StageLabelsController {
    * Volver a mostrar una etapa nunca se impide: no puede romper nada.
    */
   @Put('hidden')
+  @RequiereArea('crm.campos', 'hacer')
   @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Elegir qué etapas usa una empresa' })
   async guardarOcultas(
@@ -141,6 +148,7 @@ export class StageLabelsController {
    * tarjeta tiene que preguntar. Elegirlo es otra cosa y pide cargo, abajo.
    */
   @Get('qualify-at')
+  @RequiereArea('crm.embudo', 'ver')
   @ApiOperation({ summary: 'Etapas en las que se pregunta la calificación' })
   async preguntanCalificacion(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     await this.accountAccess.assertClient(req.organizationId!, req.user, clientId);
@@ -158,6 +166,7 @@ export class StageLabelsController {
    * pregunta siempre por su cuenta cuando nadie contestó antes.
    */
   @Put('qualify-at')
+  @RequiereArea('crm.reglas', 'hacer')
   @Roles(UserRole.DEV, UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Elegir en qué etapas se pregunta la calificación' })
   async guardarPreguntanCalificacion(

@@ -40,6 +40,8 @@ let AssignPieceUseCase = class AssignPieceUseCase {
                 throw new common_1.NotFoundException('Pieza no encontrada');
             if (piece.status === piece_status_enum_1.PieceStatus.DELIVERED)
                 throw new common_1.BadRequestException('Una pieza entregada no se puede reasignar');
+            if (piece.status === piece_status_enum_1.PieceStatus.CANCELLED)
+                throw new common_1.BadRequestException('Una pieza cancelada no se puede reasignar');
             const assignee = await manager.findOne(user_entity_1.User, { where: { id: designerId, organizationId, isActive: true } });
             if (!assignee || !['designer', 'audiovisual', 'art_director'].includes(assignee.role)) {
                 throw new common_1.BadRequestException('El responsable debe ser un usuario creativo activo de esta organizacion');

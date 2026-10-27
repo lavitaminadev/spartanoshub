@@ -56,3 +56,9 @@ __decorate([
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], UpdateClientDto.prototype, "logoPublicId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(36),
+    __metadata("design:type", String)
+], UpdateClientDto.prototype, "aceptacionDetalleDeContacto", void 0);

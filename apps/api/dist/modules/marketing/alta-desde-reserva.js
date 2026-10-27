@@ -13,13 +13,14 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 var AltaDeSuscriptorDesdeReserva_1;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AltaDeSuscriptorDesdeReserva = void 0;
+exports.AltaDeSuscriptorDesdeReserva = exports.ORIGEN_RESERVA = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const node_crypto_1 = require("node:crypto");
 const typeorm_2 = require("typeorm");
 const suscriptor_entity_1 = require("./suscriptor.entity");
 const suscriptores_service_1 = require("./suscriptores.service");
+exports.ORIGEN_RESERVA = 'reserva';
 let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDeSuscriptorDesdeReserva {
     constructor(suscriptores, suscriptores2) {
         this.suscriptores = suscriptores;
@@ -64,7 +65,7 @@ let AltaDeSuscriptorDesdeReserva = AltaDeSuscriptorDesdeReserva_1 = class AltaDe
                 email,
                 name: datos.name ?? null,
                 birthDate: datos.birthDate ? new Date(`${datos.birthDate}T00:00:00Z`) : null,
-                source: datos.source ?? 'reserva',
+                source: datos.source ?? exports.ORIGEN_RESERVA,
                 sourceDetail: datos.origen,
                 status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO,
                 consentAt: datos.consentAt ?? new Date(),

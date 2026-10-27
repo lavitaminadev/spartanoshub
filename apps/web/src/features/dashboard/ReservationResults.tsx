@@ -148,7 +148,7 @@ export function ReservationResults({ clientId, headingLevel = 2, detalle = false
   }, [data]);
 
   if (isLoading) return <LoadingSpinner text="Cargando resultados de reservas..." />;
-  if (error) return <QueryErrorState title="No pudimos cargar los resultados de reservas" message={error.message} onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error) return <QueryErrorState title="No pudimos cargar los resultados de reservas" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;
 
   const emptyRange = reservations === 0 && Number(data?.funnel.views ?? 0) === 0;
 

@@ -1,3 +1,4 @@
+import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
@@ -60,6 +61,7 @@ export function ContentGridPage() {
   if (clientFilter) query.set('clientId', clientFilter);
   const gridsQuery = useQuery<ContentGrid[]>({
     queryKey: ['content-grids', selectedMonth, clientFilter],
+    placeholderData: (previa) => previa,
     queryFn: () => api.get(`/content/grids?${query}`),
   });
   const { data: clientsResp } = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
@@ -103,8 +105,8 @@ export function ContentGridPage() {
     return { grids: grids.length, items: items.length, approved: items.filter((item) => item.status === 'approved').length, published: items.filter((item) => item.status === 'published').length };
   })();
 
-  if (gridsQuery.isLoading) return <LoadingSpinner text="Cargando calendario de contenido..." />;
-  if (gridsQuery.error) return <div className="alert alert-error">Error al cargar el calendario: {gridsQuery.error.message}</div>;
+  if (gridsQuery.isLoading && !gridsQuery.data) return <LoadingSpinner text="Cargando calendario de contenido..." />;
+  if (gridsQuery.error) return <QueryErrorState title="No pudimos cargar el calendario" message={gridsQuery.error.message} error={gridsQuery.error} onRetry={() => void gridsQuery.refetch()} retrying={gridsQuery.isFetching} />;
 
   return (
     <div className="page">
