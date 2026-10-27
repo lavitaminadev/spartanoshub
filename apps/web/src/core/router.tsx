@@ -73,6 +73,7 @@ const ReservationBuilderPage = lazy(() => import('../features/reservations/Reser
 const PublicReservationPage = lazy(() => import('../features/reservations/PublicReservationPage').then(m => ({ default: m.PublicReservationPage })));
 const PublicReservationManagementPage = lazy(() => import('../features/reservations/PublicReservationManagementPage').then(m => ({ default: m.PublicReservationManagementPage })));
 const DocumentoLegalPage = lazy(() => import('../features/legal/DocumentoLegalPage').then(m => ({ default: m.DocumentoLegalPage })));
+const MiEquipoPage = lazy(() => import('../features/users/MiEquipoPage').then(m => ({ default: m.MiEquipoPage })));
 const AceptarInvitacionPage = lazy(() => import('../features/users/AceptarInvitacionPage').then(m => ({ default: m.AceptarInvitacionPage })));
 const PublicSurveyPage = lazy(() => import('../features/surveys/PublicSurveyPage').then(m => ({ default: m.PublicSurveyPage })));
 const CaptacionPage = lazy(() => import('../features/marketing/CaptacionPage').then(m => ({ default: m.CaptacionPage })));
@@ -190,6 +191,8 @@ export function AppRouter() {
           <Route path="/briefs" element={<ProtectedRoute path="/briefs"><SafeSuspense><BriefsPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/onboarding" element={<ProtectedRoute path="/onboarding"><SafeSuspense><OnboardingPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute path="/users"><SafeSuspense><UsersPage /></SafeSuspense></ProtectedRoute>} />
+          {/* La misma función sobre el alcance de un local, con nombre y menú propios. */}
+          <Route path="/mi-equipo" element={<ProtectedRoute path="/mi-equipo"><SafeSuspense><MiEquipoPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/governance" element={<ProtectedRoute path="/governance"><SafeSuspense><GovernancePage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/security" element={<ProtectedRoute path="/security"><SafeSuspense><SecurityPage /></SafeSuspense></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute path="/admin"><SafeSuspense><AdminPage /></SafeSuspense></ProtectedRoute>} />

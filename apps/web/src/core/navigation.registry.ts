@@ -83,7 +83,7 @@ export const NAVIGATION_SECTIONS: Array<{ id: string; label: string; paths: stri
     // Administración reúne el trabajo diario: usuarios, seguridad, privacidad e integraciones.
     // Gobierno, configuración técnica y estado del sistema aparecen en este mismo grupo solo
     // para Desarrollo.
-    paths: ['/admin', '/users', '/correos', '/registro-de-correos', '/suscriptores', '/campanas', '/security', '/integrations', '/governance', '/settings', '/operations'],
+    paths: ['/admin', '/users', '/mi-equipo', '/correos', '/registro-de-correos', '/suscriptores', '/campanas', '/security', '/integrations', '/governance', '/settings', '/operations'],
   },
 ];
 
@@ -215,6 +215,8 @@ const PATH_FEATURE: Record<string, string | string[]> = {
   '/dashboard': 'dashboard',
   '/clients': 'clients',
   '/users': 'users',
+  // «Mi equipo»: la misma función sobre un local, y por tanto el mismo módulo.
+  '/mi-equipo': 'users',
   '/settings': 'settings',
   '/suscriptores': 'marketing',
   '/campanas': 'marketing',
