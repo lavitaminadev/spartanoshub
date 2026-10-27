@@ -25,12 +25,13 @@ describe('datos protegidos de una reserva', () => {
     reservaId = randomUUID();
 
     await banco.db.query(
+      // `created_by` es obligatoria y sin valor por defecto: la fila dice quién creó el local.
       `INSERT INTO reservation_forms (id, organization_id, client_id, name, public_slug, status,
                                       mode, timezone, field_schema, design_config, schedule_config,
-                                      created_at, updated_at)
+                                      created_by, created_at, updated_at)
        VALUES (?, ?, ?, 'Local de prueba', ?, 'published', 'appointment', 'America/Santiago',
-               '[]', '{}', '{}', NOW(), NOW())`,
-      [formId, banco.organizationId, banco.empresas.reservasUno, `local-${formId.slice(0, 8)}`],
+               '[]', '{}', '{}', ?, NOW(), NOW())`,
+      [formId, banco.organizationId, banco.empresas.reservasUno, `local-${formId.slice(0, 8)}`, banco.cuentas.admin.id],
     );
 
     await banco.db.query(
