@@ -119,15 +119,26 @@ describe('datos protegidos de una reserva', () => {
         banco.empresas.reservasUno],
     ).catch(() => undefined);
 
+    // Con el token de quien acaba de recibir la administración, no con el de la agencia: es esa
+    // cuenta la que administra la empresa, y la pregunta es qué ve ella.
     const { body } = await banco.pedir(
       'GET',
       `/reservations/${reservaId}`,
-      banco.cuentas.admin.token,
+      banco.cuentas.portalReservasUno.token,
     );
 
-    // `admin` no tiene límite de alcance, así que ve los datos como siempre.
     expect(body.guestPhone).toBe('+56911111111');
     expect(body.answers).toMatchObject({ alergia: 'maní' });
+
+    /*
+     * Y la agencia no, aunque alcance la empresa entera.
+     *
+     * Sin perfil en ella y sin administrarla, su nivel es `bajo_registro`: puede pedir el dato y
+     * queda constancia de que lo pidió, pero no le llega por el solo hecho de su cargo. Es la
+     * diferencia entre el responsable de los datos —el local— y quien los trata por su cuenta.
+     */
+    const desdeLaAgencia = await banco.pedir('GET', `/reservations/${reservaId}`, banco.cuentas.admin.token);
+    expect(desdeLaAgencia.body.guestPhone).toBe(MARCA_PROTEGIDA);
   });
 
   /*
