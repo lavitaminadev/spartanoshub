@@ -60,14 +60,14 @@ let UsersController = class UsersController {
         await this.definirAdministracion(id, clientId, true, req);
         return { clientId, administra: true };
     }
-    async retirarAdministracion(id, clientId, req) {
-        await this.definirAdministracion(id, clientId, false, req);
+    async retirarAdministracion(id, clientId, req, motivo) {
+        await this.definirAdministracion(id, clientId, false, req, motivo);
         return { clientId, administra: false };
     }
-    async definirAdministracion(id, clientId, puede, req) {
+    async definirAdministracion(id, clientId, puede, req, motivo) {
         const alcance = await this.administracion.alcance(req, clientId);
         this.administracion.asegurarDentro(alcance, { clientId, role: user_role_enum_1.UserRole.CLIENT });
-        await this.administradores.definir(req.organizationId || req.user.organizationId, id, clientId, puede, req.user.id);
+        await this.administradores.definir(req.organizationId || req.user.organizationId, id, clientId, puede, req.user.id, { esAgencia: !alcance.soloEmpresa, motivo, ip: req.ip });
     }
     async create(dto, req, clientId) {
         const alcance = await this.administracion.alcance(req, clientId);
@@ -190,8 +190,9 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('clientId')),
     __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_1.Query)('motivo')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:paramtypes", [String, String, Object, String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "retirarAdministracion", null);
 __decorate([

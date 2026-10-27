@@ -30,6 +30,7 @@ const requires_permission_decorator_1 = require("../../core/authorization/requir
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const reservations_service_1 = require("./application/reservations.service");
 const bulk_import_service_1 = require("./application/bulk-import.service");
+const exportaciones_1 = require("./application/exportaciones");
 const reservation_dto_1 = require("./dto/reservation.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
@@ -280,6 +281,13 @@ let ReservationsController = class ReservationsController {
         const scope = await this.scope(req);
         return this.service.history(req.organizationId, id, scope.clientId, scope.clientIds);
     }
+    async historialDelComensal(req, id) {
+        const scope = await this.scope(req);
+        const historial = await this.service.historialDelComensal(req.organizationId, id, scope.clientId, scope.clientIds);
+        const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
+        const [comensal] = (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)([historial.comensal], 'reservations', niveles);
+        return { ...historial, comensal };
+    }
     async historialDeReserva(req, id) {
         const scope = await this.scope(req);
         return this.service.historialDeReserva(req.organizationId, id, scope.clientIds);
@@ -342,7 +350,7 @@ let ReservationsController = class ReservationsController {
     async exportCsv(req, query, res) {
         const scope = await this.requestedScope(req, query.clientId);
         const niveles = await this.niveles.nivelesDe(req.organizationId, req.user.id, 'reservations');
-        const { columnas, conProtegidos } = this.service.columnasDelCsv(niveles, scope.clientId, scope.clientIds);
+        const { columnas, conProtegidos } = (0, exportaciones_1.columnasDelCsv)(niveles, scope.clientId, scope.clientIds);
         const filas = await this.service.contarParaExportar(req.organizationId, scope.clientId, scope.clientIds, query.from, query.to, query.limit);
         await this.service.registrarExportacion({
             organizationId: req.organizationId, actor: { id: req.user.id, nombre: req.user.name }, ip: req.ip,
@@ -409,6 +417,10 @@ let ReservationsController = class ReservationsController {
         const scope = await this.requestedScope(req, query.clientId);
         return this.service.metrics(req.organizationId, scope.clientId, scope.clientIds, query.days ? String(query.days) : '30');
     }
+    async noShow(req, query) {
+        const scope = await this.requestedScope(req, query.clientId);
+        return this.service.noShowPorLocalYDia(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
+    }
     async occupancy(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
         if (query.formId)
@@ -425,7 +437,8 @@ let ReservationsController = class ReservationsController {
     }
     async getReservation(req, id) {
         const scope = await this.scope(req);
-        return this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
+        const reserva = await this.service.getReservation(req.organizationId, id, scope.clientId, scope.clientIds);
+        return this.recortada(req, reserva);
     }
 };
 exports.ReservationsController = ReservationsController;
@@ -733,6 +746,16 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "history", null);
 __decorate([
+    (0, common_1.Get)(':id/historial-del-comensal'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.historial', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id', new common_1.ParseUUIDPipe())),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "historialDelComensal", null);
+__decorate([
     (0, common_1.Get)(':id/historial'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
     (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
@@ -893,6 +916,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "metrics", null);
+__decorate([
+    (0, common_1.Get)('analytics/no-show'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.historial', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "noShow", null);
 __decorate([
     (0, common_1.Get)('analytics/occupancy'),
     (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),

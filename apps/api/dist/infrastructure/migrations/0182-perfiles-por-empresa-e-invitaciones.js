@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PerfilesPorEmpresaEInvitaciones1790000000182 = void 0;
+const typeorm_1 = require("typeorm");
 const catalogo_1 = require("./helpers/catalogo");
 class PerfilesPorEmpresaEInvitaciones1790000000182 {
     constructor() {
@@ -10,11 +11,11 @@ class PerfilesPorEmpresaEInvitaciones1790000000182 {
         if (await queryRunner.hasTable('user_client_access')) {
             const columnas = [
                 ['retired_at', 'TIMESTAMP NULL'],
-                ['retired_by', 'CHAR(36) NULL'],
+                ['retired_by', 'VARCHAR(36) NULL'],
                 ['retired_reason', 'VARCHAR(300) NULL'],
                 ['retired_outcome', 'VARCHAR(10) NULL'],
                 ['reentered_at', 'TIMESTAMP NULL'],
-                ['reentered_by', 'CHAR(36) NULL'],
+                ['reentered_by', 'VARCHAR(36) NULL'],
                 ['reentry_reason', 'VARCHAR(300) NULL'],
                 ['previous_retired_at', 'TIMESTAMP NULL'],
             ];
@@ -25,57 +26,100 @@ class PerfilesPorEmpresaEInvitaciones1790000000182 {
             }
         }
         if (!(await queryRunner.hasTable('perfiles'))) {
-            await queryRunner.query(`CREATE TABLE perfiles (
-        id CHAR(36) NOT NULL PRIMARY KEY,
-        organization_id CHAR(36) NOT NULL,
-        client_id CHAR(36) NOT NULL,
-        name VARCHAR(80) NOT NULL,
-        description VARCHAR(300) NULL,
-        areas JSON NOT NULL,
-        protected_data JSON NOT NULL,
-        created_by CHAR(36) NULL,
-        created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-        updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-        UNIQUE KEY UQ_perfil_empresa_nombre (client_id, name),
-        CONSTRAINT FK_perfiles_client FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
-      )`);
+            await queryRunner.createTable(new typeorm_1.Table({
+                name: 'perfiles',
+                columns: [
+                    { name: 'id', type: 'uuid', isPrimary: true },
+                    { name: 'organization_id', type: 'uuid' },
+                    { name: 'client_id', type: 'uuid' },
+                    { name: 'name', type: 'varchar', length: '80' },
+                    { name: 'description', type: 'varchar', length: '300', isNullable: true },
+                    { name: 'areas', type: 'json' },
+                    { name: 'protected_data', type: 'json' },
+                    { name: 'created_by', type: 'uuid', isNullable: true },
+                    { name: 'created_at', type: 'timestamp', precision: 6, default: 'CURRENT_TIMESTAMP(6)' },
+                    { name: 'updated_at', type: 'timestamp', precision: 6, default: 'CURRENT_TIMESTAMP(6)', onUpdate: 'CURRENT_TIMESTAMP(6)' },
+                ],
+            }), true);
+            await queryRunner.createIndex('perfiles', new typeorm_1.TableIndex({ name: 'UQ_perfil_empresa_nombre', columnNames: ['client_id', 'name'], isUnique: true }));
+            await queryRunner.createForeignKey('perfiles', new typeorm_1.TableForeignKey({
+                name: 'FK_perfiles_client',
+                columnNames: ['client_id'],
+                referencedColumnNames: ['id'],
+                referencedTableName: 'clients',
+                onDelete: 'CASCADE',
+            }));
         }
         if (!(await queryRunner.hasTable('perfil_asignaciones'))) {
-            await queryRunner.query(`CREATE TABLE perfil_asignaciones (
-        id CHAR(36) NOT NULL PRIMARY KEY,
-        organization_id CHAR(36) NOT NULL,
-        client_id CHAR(36) NOT NULL,
-        user_id CHAR(36) NOT NULL,
-        perfil_id CHAR(36) NOT NULL,
-        assigned_by CHAR(36) NULL,
-        created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-        updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-        UNIQUE KEY UQ_perfil_asignacion (client_id, user_id),
-        KEY IDX_perfil_asignacion_perfil (perfil_id),
-        CONSTRAINT FK_perfil_asignacion_perfil FOREIGN KEY (perfil_id) REFERENCES perfiles (id) ON DELETE CASCADE,
-        CONSTRAINT FK_perfil_asignacion_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-      )`);
+            await queryRunner.createTable(new typeorm_1.Table({
+                name: 'perfil_asignaciones',
+                columns: [
+                    { name: 'id', type: 'uuid', isPrimary: true },
+                    { name: 'organization_id', type: 'uuid' },
+                    { name: 'client_id', type: 'uuid' },
+                    { name: 'user_id', type: 'uuid' },
+                    { name: 'perfil_id', type: 'uuid' },
+                    { name: 'assigned_by', type: 'uuid', isNullable: true },
+                    { name: 'created_at', type: 'timestamp', precision: 6, default: 'CURRENT_TIMESTAMP(6)' },
+                    { name: 'updated_at', type: 'timestamp', precision: 6, default: 'CURRENT_TIMESTAMP(6)', onUpdate: 'CURRENT_TIMESTAMP(6)' },
+                ],
+            }), true);
+            await queryRunner.createIndex('perfil_asignaciones', new typeorm_1.TableIndex({ name: 'UQ_perfil_asignacion', columnNames: ['client_id', 'user_id'], isUnique: true }));
+            await queryRunner.createIndex('perfil_asignaciones', new typeorm_1.TableIndex({ name: 'IDX_perfil_asignacion_perfil', columnNames: ['perfil_id'] }));
+            await queryRunner.createForeignKeys('perfil_asignaciones', [
+                new typeorm_1.TableForeignKey({
+                    name: 'FK_perfil_asignacion_perfil',
+                    columnNames: ['perfil_id'],
+                    referencedColumnNames: ['id'],
+                    referencedTableName: 'perfiles',
+                    onDelete: 'CASCADE',
+                }),
+                new typeorm_1.TableForeignKey({
+                    name: 'FK_perfil_asignacion_user',
+                    columnNames: ['user_id'],
+                    referencedColumnNames: ['id'],
+                    referencedTableName: 'users',
+                    onDelete: 'CASCADE',
+                }),
+            ]);
         }
         if (!(await queryRunner.hasTable('invitaciones_equipo'))) {
-            await queryRunner.query(`CREATE TABLE invitaciones_equipo (
-        id CHAR(36) NOT NULL PRIMARY KEY,
-        organization_id CHAR(36) NOT NULL,
-        client_id CHAR(36) NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        perfil_id CHAR(36) NOT NULL,
-        token_hash VARCHAR(64) NOT NULL,
-        invited_by CHAR(36) NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        accepted_at TIMESTAMP NULL,
-        revoked_at TIMESTAMP NULL,
-        lifts_ban TINYINT(1) NOT NULL DEFAULT 0,
-        reentry_reason VARCHAR(300) NULL,
-        created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-        UNIQUE KEY UQ_invitacion_token (token_hash),
-        KEY IDX_invitacion_empresa_correo (client_id, email),
-        CONSTRAINT FK_invitacion_client FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
-        CONSTRAINT FK_invitacion_perfil FOREIGN KEY (perfil_id) REFERENCES perfiles (id) ON DELETE CASCADE
-      )`);
+            await queryRunner.createTable(new typeorm_1.Table({
+                name: 'invitaciones_equipo',
+                columns: [
+                    { name: 'id', type: 'uuid', isPrimary: true },
+                    { name: 'organization_id', type: 'uuid' },
+                    { name: 'client_id', type: 'uuid' },
+                    { name: 'email', type: 'varchar', length: '255' },
+                    { name: 'perfil_id', type: 'uuid' },
+                    { name: 'token_hash', type: 'varchar', length: '64' },
+                    { name: 'invited_by', type: 'uuid' },
+                    { name: 'expires_at', type: 'timestamp' },
+                    { name: 'accepted_at', type: 'timestamp', isNullable: true },
+                    { name: 'revoked_at', type: 'timestamp', isNullable: true },
+                    { name: 'lifts_ban', type: 'tinyint', width: 1, default: 0 },
+                    { name: 'reentry_reason', type: 'varchar', length: '300', isNullable: true },
+                    { name: 'created_at', type: 'timestamp', precision: 6, default: 'CURRENT_TIMESTAMP(6)' },
+                ],
+            }), true);
+            await queryRunner.createIndex('invitaciones_equipo', new typeorm_1.TableIndex({ name: 'UQ_invitacion_token', columnNames: ['token_hash'], isUnique: true }));
+            await queryRunner.createIndex('invitaciones_equipo', new typeorm_1.TableIndex({ name: 'IDX_invitacion_empresa_correo', columnNames: ['client_id', 'email'] }));
+            await queryRunner.createForeignKeys('invitaciones_equipo', [
+                new typeorm_1.TableForeignKey({
+                    name: 'FK_invitacion_client',
+                    columnNames: ['client_id'],
+                    referencedColumnNames: ['id'],
+                    referencedTableName: 'clients',
+                    onDelete: 'CASCADE',
+                }),
+                new typeorm_1.TableForeignKey({
+                    name: 'FK_invitacion_perfil',
+                    columnNames: ['perfil_id'],
+                    referencedColumnNames: ['id'],
+                    referencedTableName: 'perfiles',
+                    onDelete: 'CASCADE',
+                }),
+            ]);
         }
     }
     async down(queryRunner) {

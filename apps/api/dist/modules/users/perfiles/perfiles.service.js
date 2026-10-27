@@ -285,9 +285,10 @@ let PerfilesService = class PerfilesService {
             const perfil = await this.perfiles.findOne({ where: { id: asignacion.perfilId } });
             if (perfil)
                 (0, concesion_1.asegurarQueNoConcedePorEncima)(await this.topeDe(ctx), perfil.areas, perfil.datosProtegidos);
-            await this.asignaciones.remove(asignacion);
         }
-        await this.administradores.definir(ctx.organizationId, userId, ctx.clientId, false, ctx.actorId);
+        await this.administradores.definir(ctx.organizationId, userId, ctx.clientId, false, ctx.actorId, { esAgencia: ctx.esAgencia, motivo: razon, ip: ctx.ip });
+        if (asignacion)
+            await this.asignaciones.remove(asignacion);
         await this.invitaciones.update({ clientId: ctx.clientId, email: usuario.email, aceptadaEl: (0, typeorm_2.IsNull)(), revocadaEl: (0, typeorm_2.IsNull)() }, { revocadaEl: new Date() });
         const marca = { retiredAt: new Date(), retiredBy: ctx.actorId, retiredReason: razon, retiredOutcome: vetar ? 'vetado' : 'retirado' };
         const fila = await this.accesos.findOne({ where: { userId, clientId: ctx.clientId } });

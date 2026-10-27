@@ -44,6 +44,7 @@ const node_crypto_1 = require("node:crypto");
 const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
 const cambio_de_zona_1 = require("./cambio-de-zona");
 const describir_cambio_1 = require("./describir-cambio");
+const historial_de_asistencia_1 = require("./historial-de-asistencia");
 const reservation_dto_1 = require("../dto/reservation.dto");
 const shared_4 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
@@ -2676,6 +2677,40 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             anteriores: previas.slice(0, 5).map((item) => ({ asistenciaSupuesta: supuestasPrevias.has(item.id), id: item.id, referenceCode: item.referenceCode, startsAt: item.startsAt, status: item.status, partySize: item.partySize, internalNotes: item.internalNotes || null, mismoLocal: item.formId === actual.formId })),
         };
     }
+    async historialDelComensal(organizationId, reservationId, clientId, clientIds, ahora = new Date()) {
+        const actual = await this.reservations.findOne({ where: { id: reservationId, ...this.scope(organizationId, clientId, clientIds) } });
+        if (!actual)
+            throw new common_1.NotFoundException('Reserva no encontrada');
+        const correo = actual.guestEmail?.trim().toLowerCase() || undefined;
+        const telefono = actual.guestPhone?.trim() || undefined;
+        const comensal = { clientId: actual.clientId, guestName: actual.guestName, guestPhone: actual.guestPhone ?? null, guestEmail: actual.guestEmail ?? null };
+        if (!correo && !telefono)
+            return { clientId: actual.clientId, comensal, ...(0, historial_de_asistencia_1.resumirAsistenciaDelComensal)([], ahora) };
+        const qb = this.reservations.createQueryBuilder('r')
+            .where('r.organization_id = :organizationId AND r.client_id = :clientId AND r.id != :id', { organizationId, clientId: actual.clientId, id: actual.id });
+        if (correo && telefono)
+            qb.andWhere('(LOWER(r.guest_email) = :correo OR r.guest_phone = :telefono)', { correo, telefono });
+        else if (correo)
+            qb.andWhere('LOWER(r.guest_email) = :correo', { correo });
+        else
+            qb.andWhere('r.guest_phone = :telefono', { telefono });
+        const anteriores = await qb.orderBy('r.starts_at', 'DESC').take(200).getMany();
+        return { clientId: actual.clientId, comensal, ...(0, historial_de_asistencia_1.resumirAsistenciaDelComensal)(anteriores, ahora) };
+    }
+    async noShowPorLocalYDia(organizationId, clientId, clientIds, dias = 90, ahora = new Date()) {
+        const ventana = Math.min(Math.max(Math.trunc(dias) || 90, 7), 365);
+        const desde = new Date(ahora.getTime() - ventana * 86_400_000);
+        const alcance = this.scope(organizationId, clientId, clientIds);
+        const [locales, reservas] = await Promise.all([
+            this.forms.find({ where: alcance, select: ['id', 'name', 'clientId', 'timezone'] }),
+            this.reservations.find({ where: { ...alcance, status: (0, typeorm_2.In)(['attended', 'no_show']), startsAt: (0, typeorm_2.Between)(desde, ahora) }, select: ['id', 'formId', 'status', 'startsAt'] }),
+        ]);
+        return {
+            dias: ventana,
+            muestraMinimaPorDia: historial_de_asistencia_1.MUESTRA_MINIMA_POR_DIA,
+            locales: (0, historial_de_asistencia_1.noShowPorLocalYDia)(reservas, (locales ?? []).map((local) => ({ id: local.id, nombre: local.name, clientId: local.clientId, timezone: local.timezone || 'America/Santiago' }))),
+        };
+    }
     preferenciasDeLaPersona(previas, actual) {
         if (previas.length === 0)
             return undefined;
@@ -2997,13 +3032,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             qb.andWhere('r.starts_at <= :to', { to });
         const total = await qb.getCount();
         return limit === undefined ? total : Math.min(total, limit);
-    }
-    columnasDelCsv(niveles, clientId, clientIds) {
-        const quitar = new Set((0, shared_3.columnasAQuitar)('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
-        const base = ['codigo', 'nombre', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas'];
-        const protegidas = [['correo', 'guestEmail'], ['telefono', 'guestPhone']].filter(([, campo]) => !quitar.has(campo)).map(([nombre]) => nombre);
-        const respuestas = quitar.has('answers') ? [] : ['respuestas_del_formulario'];
-        return { columnas: [...base, ...protegidas, ...respuestas], conProtegidos: protegidas.length > 0 || respuestas.length > 0 };
     }
     async exportFormReservations(p) {
         const { organizationId, niveles, formId, clientId, clientIds, formato, dateFrom, dateTo } = p;

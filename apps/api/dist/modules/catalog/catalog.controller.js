@@ -26,6 +26,8 @@ const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const quotes_service_1 = require("./quotes.service");
 const quote_dto_1 = require("./dto/quote.dto");
+const list_quotes_dto_1 = require("./dto/list-quotes.dto");
+const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 const requires_feature_decorator_1 = require("../../core/authorization/requires-feature.decorator");
 let CatalogController = class CatalogController {
     constructor(serviceRepo, packRepo, quotes) {
@@ -71,7 +73,9 @@ let CatalogController = class CatalogController {
         await this.packRepo.remove(pack);
         return { deleted: true };
     }
-    listQuotes(req) { return this.quotes.list(req.organizationId); }
+    listQuotes(query, req) { return this.quotes.list(req.organizationId, query); }
+    resumenDelLead(leadId, req) { return this.quotes.resumenDelLead(leadId, req.organizationId); }
+    versionesDeLaCotizacion(id, req) { return this.quotes.versiones(id, req.organizationId); }
     createQuote(dto, req) { return this.quotes.create(req.organizationId, req.user.id, dto); }
     updateQuote(id, dto, req) { return this.quotes.update(id, req.organizationId, dto); }
     createQuoteVersion(id, req) { return this.quotes.createVersion(id, req.organizationId, req.user.id); }
@@ -147,11 +151,31 @@ __decorate([
 ], CatalogController.prototype, "deletePack", null);
 __decorate([
     (0, common_1.Get)('quotes'),
-    __param(0, (0, common_1.Req)()),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.cotizaciones', 'ver'),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [list_quotes_dto_1.ListQuotesQueryDto, Object]),
     __metadata("design:returntype", void 0)
 ], CatalogController.prototype, "listQuotes", null);
+__decorate([
+    (0, common_1.Get)('quotes/lead/:leadId/resumen'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.cotizaciones', 'ver'),
+    __param(0, (0, common_1.Param)('leadId')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], CatalogController.prototype, "resumenDelLead", null);
+__decorate([
+    (0, common_1.Get)('quotes/:id/versiones'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.cotizaciones', 'ver'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], CatalogController.prototype, "versionesDeLaCotizacion", null);
 __decorate([
     (0, common_1.Post)('quotes'),
     __param(0, (0, common_1.Body)()),
@@ -171,6 +195,7 @@ __decorate([
 ], CatalogController.prototype, "updateQuote", null);
 __decorate([
     (0, common_1.Post)('quotes/:id/version'),
+    (0, requiere_area_decorator_1.RequiereArea)('crm.cotizaciones', 'hacer'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),

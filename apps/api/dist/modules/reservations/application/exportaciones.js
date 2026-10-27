@@ -5,6 +5,8 @@ exports.razonesParaExigirMotivo = razonesParaExigirMotivo;
 exports.motivoEscrito = motivoEscrito;
 exports.marcaDeExportacion = marcaDeExportacion;
 exports.tieneRestricciones = tieneRestricciones;
+exports.columnasDelCsv = columnasDelCsv;
+const shared_1 = require("@espartanos/shared");
 exports.FILAS_QUE_EXIGEN_MOTIVO = 500;
 exports.DIAS_QUE_EXIGEN_MOTIVO = 31;
 exports.MOTIVO_MINIMO = 10;
@@ -44,4 +46,11 @@ function tieneRestricciones(answers, etiquetaDe) {
             return false;
         return CLAVES_DE_RESTRICCION.has(clave) || PALABRAS_DE_RESTRICCION.test(`${clave} ${etiquetaDe(clave)}`);
     });
+}
+function columnasDelCsv(niveles, clientId, clientIds) {
+    const quitar = new Set((0, shared_1.columnasAQuitar)('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
+    const base = ['codigo', 'nombre', 'fecha', 'estado', 'origen', 'medio', 'campana', 'contenido', 'cupon', 'personas', 'notas_internas'];
+    const protegidas = [['correo', 'guestEmail'], ['telefono', 'guestPhone']].filter(([, campo]) => !quitar.has(campo)).map(([nombre]) => nombre);
+    const respuestas = quitar.has('answers') ? [] : ['respuestas_del_formulario'];
+    return { columnas: [...base, ...protegidas, ...respuestas], conProtegidos: protegidas.length > 0 || respuestas.length > 0 };
 }

@@ -22,6 +22,7 @@ const client_status_enum_1 = require("../clients/client-status.enum");
 const contract_entity_1 = require("../contracts/contract.entity");
 const lead_entity_1 = require("../crm/leads/lead.entity");
 const lead_status_enum_1 = require("../crm/leads/lead-status.enum");
+const cotizaciones_historial_1 = require("./cotizaciones-historial");
 const quote_entity_1 = require("./quote.entity");
 const quote_status_enum_1 = require("./quote-status.enum");
 const service_entity_1 = require("./service.entity");
@@ -34,7 +35,38 @@ let QuotesService = class QuotesService {
         this.contracts = contracts;
         this.events = events;
     }
-    list(organizationId) { return this.quotes.find({ where: { organizationId }, relations: ['client', 'lead'], order: { createdAt: 'DESC' }, take: 300 }); }
+    async list(organizationId, filtros = {}) {
+        const limit = filtros.limit ?? 50;
+        const offset = filtros.offset ?? 0;
+        const qb = this.quotes.createQueryBuilder('q')
+            .leftJoinAndSelect('q.client', 'client')
+            .leftJoinAndSelect('q.lead', 'lead')
+            .where('q.organizationId = :organizationId', { organizationId });
+        const patron = (0, cotizaciones_historial_1.patronDeBusqueda)(filtros.empresa);
+        if (patron) {
+            qb.andWhere('(lead.company COLLATE utf8mb4_unicode_ci LIKE :patron OR client.name COLLATE utf8mb4_unicode_ci LIKE :patron)', { patron });
+        }
+        if (filtros.status)
+            qb.andWhere('q.status = :status', { status: filtros.status });
+        if (filtros.desde)
+            qb.andWhere('q.createdAt >= :desde', { desde: new Date(`${filtros.desde}T00:00:00`) });
+        if (filtros.hasta)
+            qb.andWhere('q.createdAt <= :hasta', { hasta: new Date(`${filtros.hasta}T23:59:59.999`) });
+        const [data, total] = await qb.orderBy('q.createdAt', 'DESC').skip(offset).take(limit).getManyAndCount();
+        return { data, total, limit, offset };
+    }
+    async versiones(id, organizationId) {
+        const origen = await this.find(id, organizationId);
+        const raiz = (0, cotizaciones_historial_1.raizDeLaFamilia)(origen);
+        const familia = await this.quotes.find({ where: [{ id: raiz, organizationId }, { parentQuoteId: raiz, organizationId }] });
+        return (0, cotizaciones_historial_1.arbolDeVersiones)(familia, id);
+    }
+    async resumenDelLead(leadId, organizationId) {
+        const lead = await this.leads.findOne({ where: { id: leadId, organizationId } });
+        if (!lead || lead.domain !== 'commercial')
+            return { veces: 0, ultimaEn: null };
+        return (0, cotizaciones_historial_1.resumenDeCotizaciones)(await this.quotes.find({ where: { leadId, organizationId } }));
+    }
     async create(organizationId, userId, dto) {
         await this.validateTarget(organizationId, dto.clientId, dto.leadId);
         const items = await this.normalizeItems(organizationId, dto.items);
