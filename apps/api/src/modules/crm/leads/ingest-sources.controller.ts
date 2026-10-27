@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -119,9 +119,27 @@ export class IngestSourcesController {
   @RequiereArea('crm.origenes', 'hacer')
   @ApiOperation({ summary: 'Crear un origen y emitir su llave' })
   async create(@Body() dto: CreateIngestSourceDto, @Req() req: AuthenticatedRequest) {
+    /*
+     * La empresa del origen se comprueba antes de emitir nada.
+     *
+     * Una llave de entrada **escribe** leads sin sesión, así que emitirla para una empresa que no
+     * se lleva es peor que poder leerla: deja entrar datos en el CRM de otra cuenta, y rotarla o
+     * apagarla queda del lado de quien sí la lleva. Rotar, apagar y revocar ya lo comprobaban en
+     * `find`; emitir era la única puerta que aceptaba cualquier identificador.
+     *
+     * Un origen sin empresa es de la agencia y sólo lo pueden crear los cargos sin límite de
+     * alcance: quien lleva cuentas concretas lo crearía sin poder volver a verlo en su listado.
+     */
+    const empresa = dto.clientId?.trim() || null;
+    if (empresa) {
+      await this.accountAccess.assertClient(req.organizationId!, req.user, empresa);
+    } else if ((await this.accountAccess.allowedClientIds(req.organizationId!, req.user)) !== undefined) {
+      throw new BadRequestException('Indica la empresa a la que entran estos leads');
+    }
+
     const { source, token } = await this.ingest.issueToken(this.sources.create({
       organizationId: req.organizationId!,
-      clientId: dto.clientId ?? null,
+      clientId: empresa,
       name: dto.name.trim(),
       source: dto.source,
       isActive: true,

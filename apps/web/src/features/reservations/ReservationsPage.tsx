@@ -18,6 +18,7 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { VitaIcons } from '../../shared/Icons';
 import { ForbiddenState } from '../../shared/ForbiddenState';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { isForbiddenError } from '../../core/api';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { EmptyState } from '../../shared/EmptyState';
@@ -129,7 +130,17 @@ function fechaLegible(fecha: string): string {
 export function ReservationsPage({ clientView = false }: { clientView?: boolean }) {
   const user = useAuth((state) => state.user);
   const [searchParams] = useSearchParams();
-  const initialClientId = clientView ? '' : searchParams.get('clientId') ?? '';
+  /*
+   * En el portal, la empresa sale de la elegida en la barra; en la agencia, del filtro.
+   *
+   * La vista del portal arrancaba en vacío y nunca la mandaba, así que el servidor usaba la de la
+   * sesión: quien atiende dos locales abría el segundo y operaba el primero —la lista, las
+   * métricas, los cupones y la exportación—. La elección ya vive en un solo sitio
+   * (`useEmpresaActiva`), que es de donde la leen el menú y el inicio del portal; esta pantalla
+   * era la que no la miraba.
+   */
+  const empresaActiva = useEmpresaActiva();
+  const initialClientId = clientView ? empresaActiva.clientId : searchParams.get('clientId') ?? '';
   const navigate = useNavigate();
   const qc = useQueryClient();
   const requestedTab = searchParams.get('tab');
@@ -190,6 +201,27 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
   const [exportFormId, setExportFormId] = useState('');
   const [page, setPage] = useState(1);
   const [clientFilter, setClientFilter] = useState(initialClientId);
+  /*
+   * Cambiar de local en la barra tiene que mover esta pantalla con él.
+   *
+   * `clientFilter` nace de la empresa activa, pero es estado: sin esto conservaría el local con el
+   * que se montó, y la pantalla seguiría pidiendo el anterior bajo el nombre del nuevo. Sólo en el
+   * portal; en la agencia el filtro es del usuario y nadie debe moverlo por él.
+   */
+  useEffect(() => {
+    if (clientView) setClientFilter(empresaActiva.clientId);
+  }, [clientView, empresaActiva.clientId]);
+
+  /*
+   * La empresa sobre la que opera la pantalla, sin repliegue a la de la sesión.
+   *
+   * Lo escrito antes era el filtro «o la empresa de mi cuenta», y ese «o» sólo llegaba a importar en
+   * una cuenta de portal, porque el equipo interno no tiene empresa en su cuenta: era el repliegue
+   * silencioso. Vacío significa ahora lo que de verdad significa —una cuenta que alcanza varios
+   * locales y todavía no eligió, o la agencia sin filtro—, y entonces no se opera sobre ninguno en
+   * vez de operar sobre el de la sesión. Con un solo local la elección ya viene resuelta.
+   */
+  const empresaEnUso = clientFilter;
   const [formData, setFormData] = useState({
     clientId: initialClientId,
     name: '',
@@ -313,7 +345,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * que sólo usa Reservas veía una puerta que no le abre. Con una empresa elegida manda la suya;
    * mirando varias, basta con que alguna lo tenga para que el enlace sirva de algo.
    */
-  const ofreceEncuestas = empresaOfrece('surveys', clients, clientFilter || user?.clientId);
+  const ofreceEncuestas = empresaOfrece('surveys', clients, empresaEnUso);
   const selectedFilterForm = forms.find((form) => form.id === filters.formId);
   const createStepReady = [
     Boolean(formData.clientId && formData.name.trim()),
@@ -535,7 +567,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
        * dueño, y un cupón sin dueño se aceptaba en todos los locales de todos los clientes. Las
        * cuentas de empresa no lo notaban porque el servidor les pone la suya.
        */
-      const body: Record<string, unknown> = { code: couponForm.code.trim(), discountType: couponForm.discountType, value: couponForm.value, maxUses: couponForm.maxUses, ...((clientFilter || user?.clientId) ? { clientId: clientFilter || user?.clientId } : {}), ...(couponForm.maxUsesPerPerson > 0 ? { maxUsesPerPerson: couponForm.maxUsesPerPerson, personKeys: couponForm.personKeys } : {}) };
+      const body: Record<string, unknown> = { code: couponForm.code.trim(), discountType: couponForm.discountType, value: couponForm.value, maxUses: couponForm.maxUses, ...(empresaEnUso ? { clientId: empresaEnUso } : {}), ...(couponForm.maxUsesPerPerson > 0 ? { maxUsesPerPerson: couponForm.maxUsesPerPerson, personKeys: couponForm.personKeys } : {}) };
       if (couponForm.validFrom) body.validFrom = browserDateBoundaryUtc(couponForm.validFrom);
       if (couponForm.validUntil) body.validUntil = browserDateBoundaryUtc(couponForm.validUntil, true);
       if (couponForm.formIds.trim()) body.formIds = couponForm.formIds.split(',').map((s) => s.trim()).filter(Boolean);
@@ -889,10 +921,10 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         ) : null}
       </div></div>
       {!clientFilter && user?.role !== 'client' && <p className="page-subtitle">Para crear un cupón, elige primero la empresa arriba: cada cupón vale sólo en los locales de su empresa.</p>}
-      {(clientFilter || user?.clientId) && (
+      {empresaEnUso && (
         <CuponAutomatico
-          clientId={(clientFilter || user?.clientId)!}
-          empresa={clients.find((empresa) => empresa.id === (clientFilter || user?.clientId))?.name || 'tu empresa'}
+          clientId={empresaEnUso}
+          empresa={clients.find((empresa) => empresa.id === empresaEnUso)?.name || 'tu empresa'}
           cupones={coupons}
           ofreceEncuestas={ofreceEncuestas}
         />

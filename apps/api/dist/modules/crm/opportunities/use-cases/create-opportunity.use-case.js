@@ -25,7 +25,10 @@ let CreateOpportunityUseCase = class CreateOpportunityUseCase {
         this.referenceValidator = referenceValidator;
         this.stageHistory = stageHistory;
     }
-    async execute(dto, organizationId, actorId) {
+    async execute(dto, organizationId, actorId, allowedClientIds) {
+        if (dto.clientId && allowedClientIds !== undefined && !allowedClientIds.includes(dto.clientId)) {
+            throw new common_1.BadRequestException('No puedes crear el trato en esa empresa');
+        }
         await this.referenceValidator.validate(dto, organizationId);
         const opportunity = this.repo.create({
             ...dto,

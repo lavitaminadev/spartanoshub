@@ -29,7 +29,7 @@ let HealthController = class HealthController {
     async check(res) {
         const result = await this.health.check();
         res.status(result.status === 'ok' ? 200 : 503);
-        return { status: result.status, timestamp: result.timestamp, version: result.version };
+        return { status: result.status, timestamp: result.timestamp, version: result.version, commit: result.commit, builtAt: result.builtAt };
     }
     async details(res) {
         const result = await this.health.check();

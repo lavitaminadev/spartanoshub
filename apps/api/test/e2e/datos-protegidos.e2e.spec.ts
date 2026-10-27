@@ -25,12 +25,13 @@ describe('datos protegidos de una reserva', () => {
     reservaId = randomUUID();
 
     await banco.db.query(
+      // `created_by` es obligatoria y sin valor por defecto: la fila dice quién creó el local.
       `INSERT INTO reservation_forms (id, organization_id, client_id, name, public_slug, status,
                                       mode, timezone, field_schema, design_config, schedule_config,
-                                      created_at, updated_at)
+                                      created_by, created_at, updated_at)
        VALUES (?, ?, ?, 'Local de prueba', ?, 'published', 'appointment', 'America/Santiago',
-               '[]', '{}', '{}', NOW(), NOW())`,
-      [formId, banco.organizationId, banco.empresas.reservasUno, `local-${formId.slice(0, 8)}`],
+               '[]', '{}', '{}', ?, NOW(), NOW())`,
+      [formId, banco.organizationId, banco.empresas.reservasUno, `local-${formId.slice(0, 8)}`, banco.cuentas.admin.id],
     );
 
     await banco.db.query(
@@ -118,15 +119,26 @@ describe('datos protegidos de una reserva', () => {
         banco.empresas.reservasUno],
     ).catch(() => undefined);
 
+    // Con el token de quien acaba de recibir la administración, no con el de la agencia: es esa
+    // cuenta la que administra la empresa, y la pregunta es qué ve ella.
     const { body } = await banco.pedir(
       'GET',
       `/reservations/${reservaId}`,
-      banco.cuentas.admin.token,
+      banco.cuentas.portalReservasUno.token,
     );
 
-    // `admin` no tiene límite de alcance, así que ve los datos como siempre.
     expect(body.guestPhone).toBe('+56911111111');
     expect(body.answers).toMatchObject({ alergia: 'maní' });
+
+    /*
+     * Y la agencia no, aunque alcance la empresa entera.
+     *
+     * Sin perfil en ella y sin administrarla, su nivel es `bajo_registro`: puede pedir el dato y
+     * queda constancia de que lo pidió, pero no le llega por el solo hecho de su cargo. Es la
+     * diferencia entre el responsable de los datos —el local— y quien los trata por su cuenta.
+     */
+    const desdeLaAgencia = await banco.pedir('GET', `/reservations/${reservaId}`, banco.cuentas.admin.token);
+    expect(desdeLaAgencia.body.guestPhone).toBe(MARCA_PROTEGIDA);
   });
 
   /*

@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { ContactoDelLead } from './ContactoDelLead';
 import { CamposPropiosEnFicha, hayValoresInvalidos, useDefinicionesDeCampos, type ValoresEnEdicion } from './CamposPropiosEnFicha';
+import { CotizacionesDelLead } from './CotizacionesDelLead';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';
 import { api } from '../../core/api';
@@ -870,6 +871,8 @@ export function LeadDetailDrawer({ lead: leadInicial, nombreDe, etapaLabel, onCl
             La columna se conserva y lo guardado no se toca: si vuelven, será con un catálogo
             cerrado y con filtro, que es lo que las haría servir para algo.
           */}
+
+          {(lead.domain ?? leadInicial.domain ?? 'commercial') === 'commercial' && <CotizacionesDelLead leadId={lead.id} />}
 
           {/* Datos propios que el CRM no trae, definidos en Administración. */}
           <CamposPropiosEnFicha

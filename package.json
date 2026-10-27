@@ -57,12 +57,16 @@
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
     "js-yaml": "5.4.2",
-    "multer": "2.4.0",
-    "undici": "7.30.0",
+    "multer": "2.5.0",
+    "undici": "7.30.1",
     "axios": "1.20.0",
     "qs": "6.16.0",
     "brace-expansion": "2.1.7",
-    "proxy-addr": "2.0.8"
+    "proxy-addr": "2.0.8",
+    "follow-redirects": "1.16.1",
+    "body-parser": "2.4.0",
+    "nodemailer": "10.2.1",
+    "zod": "4.6.7"
   },
   "allowScripts": {
     "@scarf/scarf": false,

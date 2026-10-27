@@ -168,6 +168,12 @@ export function useEmpresaActiva(): EmpresaActiva {
 /** Servicios que se venden por empresa. Sin la clave cuentan como encendidos, igual que en el servidor. */
 const SERVICIOS_POR_EMPRESA = ['crm', 'reservations', 'surveys', 'marketing'] as const;
 
+/** Módulos que se contratan por empresa y nacen apagados: sin la clave cuentan como apagados. */
+const MODULOS_POR_EMPRESA = [
+  'production', 'audiovisual', 'content', 'approvals', 'meetings', 'documents', 'briefs',
+  'billing', 'contracts', 'intake', 'reports', 'commercialPipeline',
+] as const;
+
 /**
  * La persona con los servicios de la empresa que está mirando, no los de la suya.
  *
@@ -188,7 +194,9 @@ export function useUsuarioEnEmpresaActiva() {
   const activa = data?.data?.find((empresa) => empresa.id === clientId);
   if (!user || user.role !== 'client' || !activa) return user;
   const propias = Object.fromEntries(SERVICIOS_POR_EMPRESA.map((servicio) => [servicio, activa.capabilities?.[servicio] !== false]));
-  return { ...user, capabilities: { ...(user.capabilities ?? {}), ...propias } };
+  // Los módulos por empresa nacen apagados: aquí la ausencia de la clave significa «no contratado».
+  const porModulo = Object.fromEntries(MODULOS_POR_EMPRESA.map((servicio) => [servicio, activa.capabilities?.[servicio] === true]));
+  return { ...user, capabilities: { ...(user.capabilities ?? {}), ...propias, ...porModulo } };
 }
 
 /**

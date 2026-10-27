@@ -14,6 +14,7 @@ exports.asegurarQueAdministraLaEmpresa = asegurarQueAdministraLaEmpresa;
 exports.leerDatosLegales = leerDatosLegales;
 exports.guardarDatosLegales = guardarDatosLegales;
 exports.empresaDelPortal = empresaDelPortal;
+exports.empresaDeLosDatosLegales = empresaDeLosDatosLegales;
 const common_1 = require("@nestjs/common");
 const class_validator_1 = require("class-validator");
 const shared_1 = require("@espartanos/shared");
@@ -113,4 +114,14 @@ function empresaDelPortal(clientId) {
     if (!clientId)
         throw new common_1.ForbiddenException('La cuenta no pertenece a una empresa');
     return clientId;
+}
+async function empresaDeLosDatosLegales(alcance, organizationId, user, pedida) {
+    const declarada = pedida?.trim();
+    if (declarada) {
+        await alcance.assertClient(organizationId, user, declarada);
+        return declarada;
+    }
+    if (user.role === 'client')
+        return empresaDelPortal(user.clientId);
+    throw new common_1.BadRequestException('Indica la empresa');
 }

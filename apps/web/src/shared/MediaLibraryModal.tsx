@@ -89,7 +89,7 @@ export function MediaLibraryModal({ open, onClose, onSelect }: MediaLibraryProps
                 <button type="button" className="btn btn-sm btn-outline" onClick={() => handleCopy(resource.url, resource.publicId)} title="Copiar URL">
                   {copiedId === resource.publicId ? '✓ Copiado' : 'Copiar'}
                 </button>
-                <button type="button" className="btn btn-sm btn-outline btn-danger" onClick={() => setDeleteTarget(resource)} title="Eliminar"><VitaIcons.delete /></button>
+                <button type="button" className="btn btn-sm btn-outline btn-danger" onClick={() => setDeleteTarget(resource)} title="Eliminar" aria-label={`Eliminar ${resource.publicId.split('/').pop()}`}><VitaIcons.delete /></button>
               </div>
             </div>
           ))}

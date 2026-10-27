@@ -62,18 +62,17 @@ let DestinatariosDeAvisosController = class DestinatariosDeAvisosController {
     }
     async cualEmpresa(req, pedida) {
         const organizationId = req.organizationId || req.user.organizationId;
+        const declarada = pedida?.trim();
+        if (declarada) {
+            await this.acceso.assertClient(organizationId, req.user, declarada);
+            return declarada;
+        }
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
             if (!req.user.clientId)
                 throw new common_1.ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
             return req.user.clientId;
         }
-        if (!pedida)
-            throw new common_1.ForbiddenException('Falta indicar de qué empresa es el equipo');
-        const alcanzables = await this.acceso.allowedClientIds(organizationId, req.user);
-        if (alcanzables && !alcanzables.includes(pedida)) {
-            throw new common_1.ForbiddenException('Esta cuenta no alcanza esa empresa');
-        }
-        return pedida;
+        throw new common_1.ForbiddenException('Falta indicar de qué empresa es el equipo');
     }
     tipos() {
         return {

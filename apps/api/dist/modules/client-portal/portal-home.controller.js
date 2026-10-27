@@ -29,6 +29,7 @@ const ud_movement_entity_1 = require("../design-budget/ud-movement.entity");
 const administradores_de_empresa_service_1 = require("../users/administradores-de-empresa.service");
 const client_capabilities_1 = require("../clients/client-capabilities");
 const user_role_enum_1 = require("../organizations/user-role.enum");
+const ud_movement_effect_1 = require("../design-budget/ud-movement-effect");
 let PortalHomeController = class PortalHomeController {
     constructor(crmHome, capacidades, reservas, accesos, clientes, presupuestos, movimientos, administradores) {
         this.crmHome = crmHome;
@@ -117,7 +118,7 @@ let PortalHomeController = class PortalHomeController {
         return filas.map((movimiento) => ({
             fecha: movimiento.createdAt,
             tipo: movimiento.type,
-            unidades: Number(movimiento.amount),
+            unidades: (0, ud_movement_effect_1.efectoEnElDisponible)(movimiento.type, Number(movimiento.amount)),
             pieza: movimiento.piece?.title ?? null,
             motivo: movimiento.reason ?? null,
         }));

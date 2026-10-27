@@ -18,6 +18,8 @@ const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
 const module_scope_decorator_1 = require("../../../core/authorization/module-scope.decorator");
 const account_access_service_1 = require("../../../core/client-scope/account-access.service");
+const empresa_decorator_1 = require("../../../core/client-scope/empresa.decorator");
+const empresa_resuelta_1 = require("../../../core/client-scope/empresa-resuelta");
 const campaigns_service_1 = require("./campaigns.service");
 const save_campaign_dto_1 = require("./dto/save-campaign.dto");
 const requires_permission_decorator_1 = require("../../../core/authorization/requires-permission.decorator");
@@ -27,13 +29,11 @@ let CampaignsController = class CampaignsController {
         this.campaigns = campaigns;
         this.accountAccess = accountAccess;
     }
-    async list(req, clientId) {
-        const scope = await this.resolveScope(req, clientId);
-        return this.campaigns.list(req.organizationId, scope);
+    async list(req, empresa) {
+        return this.campaigns.list(req.organizationId, this.cuentaDe(empresa));
     }
-    async create(dto, req) {
-        const scope = await this.resolveScope(req, dto.clientId ?? undefined);
-        const { campaign, token } = await this.campaigns.create(req.organizationId, { ...dto, clientId: scope ?? null }, req.user.id);
+    async create(dto, req, empresa) {
+        const { campaign, token } = await this.campaigns.create(req.organizationId, { ...dto, clientId: this.cuentaDe(empresa) ?? null }, req.user.id);
         return {
             campaign,
             integracion: {
@@ -46,30 +46,29 @@ let CampaignsController = class CampaignsController {
     }
     async update(id, dto, req) {
         const current = await this.campaigns.findOne(id, req.organizationId);
-        await this.resolveScope(req, current.clientId ?? undefined);
-        const destination = dto.clientId === undefined
-            ? current.clientId ?? undefined
-            : await this.resolveScope(req, dto.clientId ?? undefined);
+        await this.asegurarAlcance(req, current.clientId);
+        const destination = dto.clientId === undefined ? current.clientId : dto.clientId;
+        if (dto.clientId !== undefined)
+            await this.asegurarAlcance(req, destination);
         return this.campaigns.update(id, req.organizationId, { ...dto, clientId: destination ?? null });
     }
     async remove(id, req) {
         const current = await this.campaigns.findOne(id, req.organizationId);
-        await this.resolveScope(req, current.clientId ?? undefined);
+        await this.asegurarAlcance(req, current.clientId);
         await this.campaigns.remove(id, req.organizationId);
         return { success: true };
     }
-    async resolveScope(req, requested) {
-        if (req.user.clientId) {
-            const empresa = await this.accountAccess.empresaDeTrabajo(req.organizationId, req.user, requested) ?? req.user.clientId;
-            await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
-            return empresa;
+    cuentaDe(empresa) {
+        return empresa === empresa_resuelta_1.AGENCIA ? undefined : empresa;
+    }
+    async asegurarAlcance(req, clientId) {
+        if (!clientId) {
+            const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+            if (allowed !== undefined)
+                throw new common_1.NotFoundException('Client not found');
+            return;
         }
-        const allowed = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
-        if (!requested && allowed !== undefined) {
-            throw new common_1.NotFoundException('Client not found');
-        }
-        await this.accountAccess.assertClient(req.organizationId, req.user, requested);
-        return requested;
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     }
 };
 exports.CampaignsController = CampaignsController;
@@ -78,7 +77,7 @@ __decorate([
     (0, requiere_area_decorator_1.RequiereArea)('crm.medicion', 'ver'),
     (0, swagger_1.ApiOperation)({ summary: 'Campañas con su inversión y costo por lead' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('clientId')),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
@@ -90,8 +89,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Registrar una campaña y emitir su llave de entrada' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [save_campaign_dto_1.SaveCampaignDto, Object]),
+    __metadata("design:paramtypes", [save_campaign_dto_1.SaveCampaignDto, Object, String]),
     __metadata("design:returntype", Promise)
 ], CampaignsController.prototype, "create", null);
 __decorate([

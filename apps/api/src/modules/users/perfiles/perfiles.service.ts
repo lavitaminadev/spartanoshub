@@ -18,6 +18,8 @@ import { Client } from '../../clients/client.entity';
 import { normalizeClientCapabilities, type ClientCapabilityKey } from '../../clients/client-capabilities';
 import { User } from '../user.entity';
 import { UserRole } from '../../organizations/user-role.enum';
+import { UserActionOverride } from '../../../core/authorization/user-action-override.entity';
+import { AREAS, DATOS_PROTEGIDOS, datosEfectivos, definicionDeArea, nivelEnJuego, type NivelDeArea, type NivelDeDatosProtegidos } from '@espartanos/shared';
 import { asegurarQueNoConcedePorEncima, datosSubieron, validarJuegos, type TopeDeConcesion } from './concesion';
 import { InvitacionDeEquipo } from './invitacion-de-equipo.entity';
 import { PerfilAsignacion } from './perfil-asignacion.entity';
@@ -37,6 +39,32 @@ export interface ContextoDePerfiles {
   ip?: string;
 }
 
+
+/** Un área tal como la ve quien revisa accesos: con su nivel y de dónde le viene. */
+export interface AreaDeUnaPersona {
+  clave: string;
+  nombre: string;
+  modulo: OrganizationModuleKey;
+  nivel: NivelDeArea;
+  /** `perfil` si viene del grupo; `concedido` o `quitado` si alguien lo escribió para ella. */
+  origen: 'perfil' | 'concedido' | 'quitado';
+  motivo: string | null;
+  porQuien: string | null;
+  venceEl: string | null;
+}
+
+/** Lo que ve y puede hacer una persona en una empresa, dicho para que alguien lo revise. */
+export interface VistaDeUnaPersona {
+  userId: string;
+  nombre: string;
+  correo: string;
+  perfil: { id: string; nombre: string } | null;
+  sinPerfil: boolean;
+  asignadoPor: string | null;
+  areas: AreaDeUnaPersona[];
+  datosProtegidos: Array<{ modulo: OrganizationModuleKey; nombre: string; nivel: NivelDeDatosProtegidos; incluyeSensibles: boolean }>;
+  avisoDeExtrasGlobales: boolean;
+}
 export interface EntradaDePerfil {
   nombre: string;
   descripcion?: string | null;
@@ -68,6 +96,7 @@ export class PerfilesService {
     private readonly permisos: PermissionResolverService,
     private readonly administradores: AdministradoresDeEmpresaService,
     @InjectRepository(InvitacionDeEquipo) private readonly invitaciones: Repository<InvitacionDeEquipo>,
+    @InjectRepository(UserActionOverride) private readonly extras: Repository<UserActionOverride>,
   ) {}
 
   /** Lo que alcanza quien hace la petición en esa empresa, que es lo máximo que puede conceder. */
@@ -101,6 +130,91 @@ export class PerfilesService {
       reinvitadoPor: (fila.reenteredBy && nombres.get(fila.reenteredBy)) || null,
       antesHasta: fila.previousRetiredAt ? new Date(fila.previousRetiredAt).toISOString() : null,
     }));
+  }
+
+  /**
+   * Qué ve y qué puede hacer una persona en esta empresa, y de dónde le viene cada cosa.
+   *
+   * Es la pieza que convierte el modelo de perfiles en algo administrable. Sin ella, quien
+   * reparte accesos no puede comprobar lo que repartió, y nadie puede contestar «¿por qué esta
+   * persona ve esto?» sin leer tres tablas. La Ley 21.719 no pide una pantalla, pide poder
+   * **demostrar** que el acceso está limitado: esto es esa demostración.
+   *
+   * Cada área dice su procedencia —el perfil, o una excepción escrita para esa persona— porque
+   * ahí está la diferencia entre lo que se repartió a un grupo y lo que alguien concedió a
+   * alguien. Lo segundo es lo que se revisa.
+   */
+  async queVe(ctx: ContextoDePerfiles, userId: string): Promise<VistaDeUnaPersona> {
+    await this.exigirQuePertenezca(ctx, userId);
+
+    const [persona, asignacion, extras] = await Promise.all([
+      this.usuarios.findOne({ where: { id: userId }, select: { id: true, name: true, email: true } }),
+      this.asignaciones.findOne({ where: { organizationId: ctx.organizationId, clientId: ctx.clientId, userId } }),
+      this.extras.find({ where: { organizationId: ctx.organizationId, userId } }),
+    ]);
+    if (!persona) throw new NotFoundException('Esa persona no existe');
+
+    const perfil = asignacion ? await this.perfiles.findOne({ where: { id: asignacion.perfilId } }) : null;
+    const quienes = [asignacion?.asignadoPor, ...extras.map((e) => e.grantedBy)].filter((id): id is string => Boolean(id));
+    const nombres = new Map((quienes.length
+      ? await this.usuarios.find({ where: { id: In(quienes) }, select: { id: true, name: true } })
+      : []).map((u) => [u.id, u.name]));
+
+    const ahora = Date.now();
+    const vigentes = extras.filter((extra) => !extra.expiresAt || extra.expiresAt.getTime() > ahora);
+    const porClave = new Map(vigentes.filter((extra) => definicionDeArea(extra.action)).map((extra) => [extra.action, extra]));
+
+    const areas = AREAS.map((area) => {
+      const extra = porClave.get(area.clave);
+      const delPerfil = nivelEnJuego(perfil?.areas ?? {}, area.clave);
+      const nivel = extra ? (extra.allowed ? 'hacer' : 'ninguno') : delPerfil;
+      return {
+        clave: area.clave,
+        nombre: area.nombre,
+        modulo: area.modulo,
+        nivel,
+        // De dónde le viene: lo que se revisa es lo concedido a mano, no lo del grupo.
+        origen: extra ? (extra.allowed ? 'concedido' : 'quitado') : 'perfil',
+        motivo: extra?.reason ?? null,
+        porQuien: (extra?.grantedBy && nombres.get(extra.grantedBy)) || null,
+        venceEl: extra?.expiresAt ? extra.expiresAt.toISOString() : null,
+      } satisfies AreaDeUnaPersona;
+    }).filter((area) => area.nivel !== 'ninguno' || area.origen !== 'perfil');
+
+    const datos = DATOS_PROTEGIDOS.map((entrada) => ({
+      modulo: entrada.modulo,
+      nombre: entrada.nombre,
+      nivel: datosEfectivos(perfil?.datosProtegidos ?? {}, {}, entrada.modulo),
+      incluyeSensibles: entrada.incluyeSensibles === true,
+    }));
+
+    return {
+      userId: persona.id,
+      nombre: persona.name,
+      correo: persona.email,
+      perfil: perfil ? { id: perfil.id, nombre: perfil.nombre } : null,
+      // Sin perfil manda el permiso de módulo, que es el comportamiento anterior: conviene que
+      // la pantalla lo diga en vez de mostrar una lista vacía que se lee como «no ve nada».
+      sinPerfil: !perfil,
+      asignadoPor: (asignacion?.asignadoPor && nombres.get(asignacion.asignadoPor)) || null,
+      areas,
+      datosProtegidos: datos,
+      /*
+       * Las excepciones no distinguen empresa.
+       *
+       * `user_action_override` guarda organización y persona, no empresa, de modo que una
+       * excepción alcanza a esa persona en **todas** las empresas que atiende. Se dice aquí
+       * porque quien revisa accesos tiene que saberlo: creer que concedió algo en un local y
+       * haberlo concedido en los tres es el error que esta pantalla existe para evitar.
+       */
+      avisoDeExtrasGlobales: vigentes.length > 0,
+    };
+  }
+
+  /** Que la persona pertenezca a esta empresa: no se explica a quien no es del equipo. */
+  private async exigirQuePertenezca(ctx: ContextoDePerfiles, userId: string): Promise<void> {
+    if (await this.perteneceAEmpresa(ctx.clientId, userId)) return;
+    throw new NotFoundException('Esa persona no pertenece a tu equipo');
   }
 
   /** Qué perfil tiene cada persona de la empresa. */
@@ -299,9 +413,10 @@ export class PerfilesService {
     if (asignacion) {
       const perfil = await this.perfiles.findOne({ where: { id: asignacion.perfilId } });
       if (perfil) asegurarQueNoConcedePorEncima(await this.topeDe(ctx), perfil.areas, perfil.datosProtegidos);
-      await this.asignaciones.remove(asignacion);
     }
-    await this.administradores.definir(ctx.organizationId, userId, ctx.clientId, false, ctx.actorId);
+    // Primero la administración: si era la última, se rechaza aquí y no se ha tocado nada todavía.
+    await this.administradores.definir(ctx.organizationId, userId, ctx.clientId, false, ctx.actorId, { esAgencia: ctx.esAgencia, motivo: razon, ip: ctx.ip });
+    if (asignacion) await this.asignaciones.remove(asignacion);
     // Una invitación pendiente no puede devolverle el acceso a quien se acaba de retirar.
     await this.invitaciones.update({ clientId: ctx.clientId, email: usuario.email, aceptadaEl: IsNull(), revocadaEl: IsNull() }, { revocadaEl: new Date() });
 

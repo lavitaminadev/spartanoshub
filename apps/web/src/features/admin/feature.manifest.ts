@@ -4,6 +4,6 @@ registerFeature({
   id: 'admin-panel',
   name: 'Accesos y seguridad',
   enabled: true,
-  navigation: [{ label: 'Accesos y seguridad', path: '/admin', icon: '🛡️', roles: ['admin', 'dev'] }],
+  navigation: [{ label: 'Accesos y seguridad', path: '/admin', icon: '🛡️', roles: ['admin', 'dev', 'commercial_director'] }],
   routes: [],
 });

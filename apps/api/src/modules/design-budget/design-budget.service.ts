@@ -10,6 +10,9 @@ import { ParameterResolver } from '../../core/parameters/parameter-resolver.serv
 import { UdValuesService } from './ud-values.service';
 import { BudgetAlertDto } from './dto/budget-alert.dto';
 
+/** Contratado de un cliente cuya ficha no lo trae. La fuente es `client.defaultUdBudget`. */
+const DEFAULT_MONTHLY_UD = 20;
+
 @Injectable()
 export class DesignBudgetService {
   constructor(
@@ -20,20 +23,32 @@ export class DesignBudgetService {
     private udValues: UdValuesService,
   ) {}
 
+  /**
+   * Devuelve el presupuesto del mes y lo crea si no existe, con el contratado de la ficha del cliente.
+   *
+   * Corre bajo el candado de la fila del cliente: dos llamadas simultáneas para el mismo mes no
+   * crean dos presupuestos. Es el único lugar que crea la fila del mes.
+   */
   async ensureMonthlyBudget(clientId: string, year: number, month: number, manager?: EntityManager): Promise<UDBudget> {
-    const repo = manager?.getRepository(UDBudget) ?? this.budgetRepo;
-    const existing = await repo.findOne({ where: { clientId, year, month } });
-    if (existing) return existing;
+    const execute = async (tx: EntityManager) => {
+      const client = await tx.findOne(Client, { where: { id: clientId }, lock: { mode: 'pessimistic_write' } });
+      const repo = tx.getRepository(UDBudget);
+      const existing = await repo.findOne({ where: { clientId, year, month } });
+      if (existing) return existing;
+      return repo.save(repo.create({
+        clientId, year, month,
+        contracted: Number(client?.defaultUdBudget ?? DEFAULT_MONTHLY_UD),
+        reserved: 0,
+        consumed: 0,
+        status: 'open',
+      }));
+    };
+    return manager ? execute(manager) : this.budgetRepo.manager.transaction(execute);
+  }
 
-    const contracted = await this.resolveMonthlyBudget(clientId);
-    const budget = repo.create({
-      clientId, year, month,
-      contracted,
-      reserved: 0,
-      consumed: 0,
-      status: 'open',
-    });
-    return repo.save(budget);
+  /** El presupuesto del mes si ya existe; no lo crea. */
+  findMonthlyBudget(clientId: string, year: number, month: number): Promise<UDBudget | null> {
+    return this.budgetRepo.findOne({ where: { clientId, year, month } });
   }
 
   /** Unidades que consume una pieza según los valores que configuró la organización. */
@@ -93,6 +108,12 @@ export class DesignBudgetService {
         where: { pieceId: piece.id, type: UDMovementType.CONSUMPTION },
       });
       if (existingMovement) return existingMovement;
+      const released = await movementRepo.findOne({
+        where: { pieceId: piece.id, type: UDMovementType.RELEASE },
+      });
+      if (released) {
+        throw new BadRequestException('La reserva de UD de esta pieza ya fue devuelta. Vuelve a asignarla antes de entregar.');
+      }
       const reservation = await movementRepo.findOne({
         where: { pieceId: piece.id, type: UDMovementType.RESERVATION },
       });
@@ -242,11 +263,6 @@ export class DesignBudgetService {
     }
 
     return { clientId, clientName, used, total, percentage, status };
-  }
-
-  private async resolveMonthlyBudget(clientId: string): Promise<number> {
-    const fromParam = await this.parameterResolver.get('ud.default_monthly_budget', clientId);
-    return Number(fromParam ?? 20);
   }
 
   private async resolveOrganizationId(clientId: string): Promise<string | null> {

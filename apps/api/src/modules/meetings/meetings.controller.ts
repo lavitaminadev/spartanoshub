@@ -19,6 +19,8 @@ import { GoogleCalendarService } from '../integrations/google/google-calendar.se
 import { UpdateMeetingDto } from './dto/update-meeting.dto';
 import { Client } from '../clients/client.entity';
 import { User } from '../users/user.entity';
+import { Empresa } from '../../core/client-scope/empresa.decorator';
+import { esUnaEmpresa, type AmbitoDeEmpresa } from '../../core/client-scope/empresa-resuelta';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 
 @ApiTags('Reuniones')
@@ -56,12 +58,18 @@ export class MeetingsController {
   @Get()
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar reuniones' })
-  async list(@Query('type') type: string, @Req() req: AuthenticatedRequest) {
-    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : undefined;
+  async list(@Query('type') type: string, @Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+    const clientId = esUnaEmpresa(ambito) ? ambito : undefined;
     if (req.user?.role === UserRole.CLIENT && !clientId) throw new ForbiddenException('Client account is not associated');
-    const assignedClientIds = req.user.role === UserRole.COMMUNITY_MANAGER
+    let assignedClientIds = req.user.role === UserRole.COMMUNITY_MANAGER
       ? (await this.clientRepo.find({ select: { id: true }, where: { organizationId: req.organizationId, communityManagerId: req.user.id } })).map((client) => client.id)
       : undefined;
+    if (clientId && assignedClientIds) {
+      // Quien lleva cuentas sólo ve las suyas: una empresa pedida que no lleva es un 404, y la
+      // lista de las suyas no puede pisar a la empresa elegida.
+      if (!assignedClientIds.includes(clientId)) throw new NotFoundException('Client not found');
+      assignedClientIds = undefined;
+    }
     const meetings = await this.listMeetings.execute(req.organizationId!, type, clientId, assignedClientIds);
     if (meetings.length === 0) return [];
     const actionItems = await this.actionItemRepo.find({
@@ -81,9 +89,7 @@ export class MeetingsController {
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Obtener una reunion' })
   async getOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const clientId = req.user.role === UserRole.CLIENT ? req.user.clientId : undefined;
-    if (req.user.role === UserRole.CLIENT && !clientId) throw new ForbiddenException('Client account is not associated');
-    const meeting = await this.repo.findOne({ where: { id, organizationId: req.organizationId, ...(clientId ? { clientId } : {}) } });
+    const meeting = await this.repo.findOne({ where: { id, organizationId: req.organizationId } });
     if (!meeting) throw new NotFoundException('Meeting not found');
     await this.assertClientAccess(req, meeting.clientId);
     const actionItems = await this.actionItemRepo.find({ where: { meetingId: id }, order: { createdAt: 'ASC' } });

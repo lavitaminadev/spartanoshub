@@ -290,6 +290,7 @@ export function ContactsPage() {
 }
 
 export function OpportunitiesPage() {
+  const scope = useCrmScope();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const user = useAuth((state) => state.user);
@@ -307,7 +308,7 @@ export function OpportunitiesPage() {
   const [stageFilter, setStageFilter] = useState('');
   const [view, setView] = useState<'board' | 'table'>('board');
   const [feedback, setFeedback] = useState('');
-  const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities'], queryFn: () => api.get('/crm/opportunities?limit=100') });
+  const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities', scope.clientId], queryFn: () => api.get(`/crm/opportunities?limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`) });
   const leadsQuery = useQuery<{ data: LeadOption[] }>({ queryKey: ['leads'], queryFn: () => api.get('/crm/leads') });
   const clientsQuery = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });
   const oppLeads: Array<{ id: string; name: string }> = (leadsQuery.data as { data?: Array<{ id: string; name: string }> } | undefined)?.data ?? [];
@@ -376,6 +377,7 @@ export function InteractionsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuth((state) => state.user);
+  const scope = useCrmScope();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Interaction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Interaction | null>(null);
@@ -383,11 +385,21 @@ export function InteractionsPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [search, setSearch] = useState('');
   const [feedback, setFeedback] = useState('');
-  const interactionsQuery = useQuery<PageResult<Interaction>>({ queryKey: ['crm-interactions'], queryFn: () => api.get('/crm/interactions?limit=100') });
-  const contactsQuery = useQuery<PageResult<Contact>>({ queryKey: ['crm-contacts'], queryFn: () => api.get('/crm/contacts?limit=100') });
-  const leadsQuery = useQuery<{ data: LeadOption[] }>({ queryKey: ['leads'], queryFn: () => api.get('/crm/leads') });
+  /*
+   * Las cuatro consultas de esta pantalla llevan la empresa elegida, en la dirección y en la
+   * clave de caché.
+   *
+   * Sin la dirección, el servidor devolvía todo lo que la cuenta alcanza y la pantalla mostraba
+   * los registros de varias empresas bajo el encabezado de una; sin la clave, cambiar de empresa
+   * seguía enseñando las filas de la anterior hasta que la consulta volviera. Lo primero es
+   * mezclar cuentas y lo segundo lo hace parecer correcto.
+   */
+  const deLaEmpresa = scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : '';
+  const interactionsQuery = useQuery<PageResult<Interaction>>({ queryKey: ['crm-interactions', scope.clientId], queryFn: () => api.get(`/crm/interactions?limit=100${deLaEmpresa}`) });
+  const contactsQuery = useQuery<PageResult<Contact>>({ queryKey: ['crm-contacts', scope.clientId], queryFn: () => api.get(`/crm/contacts?limit=100${deLaEmpresa}`) });
+  const leadsQuery = useQuery<{ data: LeadOption[] }>({ queryKey: ['leads', scope.clientId], queryFn: () => api.get(`/crm/leads${scope.clientId ? `?clientId=${encodeURIComponent(scope.clientId)}` : ''}`) });
   const intLeads = useMemo<LeadOption[]>(() => (leadsQuery.data as { data?: LeadOption[] } | undefined)?.data ?? [], [leadsQuery.data]);
-  const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities'], queryFn: () => api.get('/crm/opportunities?limit=100') });
+  const opportunitiesQuery = useQuery<PageResult<Opportunity>>({ queryKey: ['crm-opportunities', scope.clientId], queryFn: () => api.get(`/crm/opportunities?limit=100${scope.clientId ? `&clientId=${encodeURIComponent(scope.clientId)}` : ''}`) });
   const save = useMutation({
     mutationFn: () => {
       const body = { type: form.type, description: form.description.trim() || undefined, date: form.date ? new Date(form.date).toISOString() : undefined, leadId: form.leadId || (editing ? null : undefined), contactId: form.contactId || (editing ? null : undefined) };

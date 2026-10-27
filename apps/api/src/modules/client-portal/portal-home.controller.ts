@@ -15,6 +15,7 @@ import { UDMovement } from '../design-budget/ud-movement.entity';
 import { AdministradoresDeEmpresaService } from '../users/administradores-de-empresa.service';
 import { normalizeClientCapabilities } from '../clients/client-capabilities';
 import { UserRole } from '../organizations/user-role.enum';
+import { efectoEnElDisponible } from '../design-budget/ud-movement-effect';
 
 /**
  * Lo que una empresa cliente tiene que atender hoy.
@@ -203,8 +204,8 @@ export class PortalHomeController {
     return filas.map((movimiento) => ({
       fecha: movimiento.createdAt,
       tipo: movimiento.type,
-      /** Positivo descuenta del presupuesto; una devolución llega en negativo desde el motor. */
-      unidades: Number(movimiento.amount),
+      /** Efecto en lo disponible, con signo: negativo descuenta, positivo suma. Sale del tipo. */
+      unidades: efectoEnElDisponible(movimiento.type, Number(movimiento.amount)),
       pieza: movimiento.piece?.title ?? null,
       motivo: movimiento.reason ?? null,
     }));

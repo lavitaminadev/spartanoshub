@@ -25,6 +25,7 @@ const client_capability_service_1 = require("../../core/client-scope/client-capa
 const public_decorator_1 = require("../../core/auth/decorators/public.decorator");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const alta_desde_reserva_1 = require("./alta-desde-reserva");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const suscriptores_service_1 = require("./suscriptores.service");
 const suscriptor_entity_1 = require("./suscriptor.entity");
@@ -43,13 +44,16 @@ let SuscriptoresController = class SuscriptoresController {
         this.audit = audit;
     }
     async encierroDe(req, elegida) {
+        return this.encierroConCapacidad(req, 'marketing', elegida);
+    }
+    async encierroConCapacidad(req, capacidad, elegida) {
         if (req.user.role !== user_role_enum_1.UserRole.CLIENT)
             return undefined;
         const organizationId = req.organizationId || req.user.organizationId;
         const clientId = await this.acceso.empresaElegida(organizationId, req.user, elegida);
         if (!clientId)
             throw new common_1.ForbiddenException('La cuenta de empresa no tiene una empresa asociada');
-        await this.capacidades.assert(organizationId, clientId, 'marketing');
+        await this.capacidades.assert(organizationId, clientId, capacidad);
         return clientId;
     }
     async listar(req, limit, empresa, estado, origen, busqueda) {
@@ -63,6 +67,18 @@ let SuscriptoresController = class SuscriptoresController {
             busqueda,
         });
         const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'marketing');
+        return { ...lista, data: (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(lista.data, 'marketing', niveles) };
+    }
+    async captadosPorReservas(req, limit, empresa, busqueda) {
+        const organizationId = req.organizationId || req.user.organizationId;
+        const lista = await this.suscriptores.listar(organizationId, {
+            limite: limit ? Number(limit) : undefined,
+            empresa,
+            encerradoEn: await this.encierroConCapacidad(req, 'reservations', empresa),
+            origen: alta_desde_reserva_1.ORIGEN_RESERVA,
+            busqueda,
+        });
+        const niveles = await this.niveles.nivelesDe(organizationId, req.user.id, 'reservations');
         return { ...lista, data: (0, nivel_de_datos_service_1.recortarFilasPorEmpresa)(lista.data, 'marketing', niveles) };
     }
     async datosProtegidos(req, id) {
@@ -137,6 +153,20 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], SuscriptoresController.prototype, "listar", null);
+__decorate([
+    (0, common_1.Get)('captados-por-reservas'),
+    (0, module_scope_decorator_1.ModuleScope)('reservations'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Quiénes consintieron recibir correos al reservar en esta empresa' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('empresa')),
+    __param(3, (0, common_1.Query)('q')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], SuscriptoresController.prototype, "captadosPorReservas", null);
 __decorate([
     (0, common_1.Get)(':id/datos-protegidos'),
     (0, requiere_area_decorator_1.RequiereArea)('marketing.suscriptores', 'ver'),

@@ -27,9 +27,8 @@ let AdministracionDelEquipoService = class AdministracionDelEquipoService {
         const organizacion = request.organizationId || request.user.organizationId;
         if (!organizacion)
             throw new common_1.ForbiddenException('Tu cuenta no administra personas');
-        const alcanzables = await this.alcanceDeCuentas.allowedClientIds(organizacion, request.user);
-        const empresa = empresaPedida && alcanzables?.includes(empresaPedida)
-            ? empresaPedida
+        const empresa = empresaPedida?.trim()
+            ? await this.empresaAlcanzada(organizacion, request.user, empresaPedida.trim())
             : request.user.clientId;
         if (!empresa)
             throw new common_1.ForbiddenException('Tu cuenta no administra personas');
@@ -37,6 +36,10 @@ let AdministracionDelEquipoService = class AdministracionDelEquipoService {
         if (!puede)
             throw new common_1.ForbiddenException('Tu cuenta no administra personas');
         return { soloEmpresa: empresa };
+    }
+    async empresaAlcanzada(organizacion, user, pedida) {
+        await this.alcanceDeCuentas.assertClient(organizacion, user, pedida);
+        return pedida;
     }
     asegurarDentro(alcance, destino) {
         if (!alcance.soloEmpresa)

@@ -161,6 +161,7 @@ export const AREAS: readonly DefinicionDeArea[] = [
   { clave: 'reservations.configurar', modulo: 'reservations', nombre: 'Configurar el local', ayuda: 'Horarios, zonas, mesas, capacidad, tolerancia y cierres del día.', niveles: VER_O_HACER },
   { clave: 'reservations.publicar', modulo: 'reservations', nombre: 'Página pública y textos', ayuda: 'Publicar o despublicar la página de reserva y escribir los correos que recibe el comensal.', niveles: VER_O_HACER },
   { clave: 'reservations.medicion', modulo: 'reservations', nombre: 'Medición', ayuda: 'Las analíticas del local y lo que se le informa a la pauta.', niveles: SOLO_VER },
+  { clave: 'reservations.historial', modulo: 'reservations', nombre: 'Historial de asistencia', ayuda: 'Ver cuántas veces cada comensal llegó o no llegó, y en qué días del local falla más gente.', niveles: SOLO_VER },
   ...transversales('reservations'),
 
   // ─── CRM ────────────────────────────────────────────────────────────────────
@@ -170,6 +171,7 @@ export const AREAS: readonly DefinicionDeArea[] = [
   { clave: 'crm.importar', modulo: 'crm', nombre: 'Importar', ayuda: 'Alta masiva de prospectos desde un archivo.', niveles: SI_O_NO },
   { clave: 'crm.contactos', modulo: 'crm', nombre: 'Contactos y actividades', ayuda: 'Registrar llamadas, correos y reuniones con un prospecto.', niveles: VER_O_HACER, tocaDatosDeTerceros: true },
   { clave: 'crm.embudo', modulo: 'crm', nombre: 'Embudo', ayuda: 'Mover tratos de etapa y cerrarlos como ganados o perdidos.', niveles: VER_O_HACER },
+  { clave: 'crm.cotizaciones', modulo: 'crm', nombre: 'Cotizaciones', ayuda: 'Buscar las cotizaciones hechas a una empresa y ver sus versiones; con «hacer», además crear versiones nuevas.', niveles: VER_O_HACER },
   { clave: 'crm.reglas', modulo: 'crm', nombre: 'Reglas de calificación', ayuda: 'Crear y ordenar las reglas, y aplicarlas: aplicar reescribe el semáforo, la etapa y el responsable de los prospectos elegidos.', niveles: VER_O_HACER },
   { clave: 'crm.campos', modulo: 'crm', nombre: 'Campos propios', ayuda: 'La estructura de la ficha: qué se le pregunta a cada prospecto.', niveles: VER_O_HACER },
   { clave: 'crm.origenes', modulo: 'crm', nombre: 'Orígenes de entrada', ayuda: 'Los formularios externos que dejan prospectos, y sus llaves.', niveles: VER_O_HACER },
@@ -314,7 +316,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
     descripcion: 'Recibe, toma reservas por teléfono y resuelve la lista de espera.',
     areas: {
       'reservations.turno': 'hacer', 'reservations.reservas': 'hacer', 'reservations.tomar': 'hacer',
-      'reservations.espera_y_grupos': 'hacer', 'reservations.canjear_cupon': 'hacer',
+      'reservations.espera_y_grupos': 'hacer', 'reservations.canjear_cupon': 'hacer', 'reservations.historial': 'ver',
     },
     datosProtegidos: { reservations: 'bajo_registro' },
   },
@@ -326,7 +328,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
       'reservations.turno': 'hacer', 'reservations.reservas': 'hacer', 'reservations.tomar': 'hacer',
       'reservations.espera_y_grupos': 'hacer', 'reservations.canjear_cupon': 'hacer', 'reservations.cupones': 'hacer',
       'reservations.configurar': 'hacer', 'reservations.publicar': 'hacer', 'reservations.medicion': 'ver',
-      'reservations.exportar': 'hacer',
+      'reservations.historial': 'ver', 'reservations.exportar': 'hacer',
     },
     datosProtegidos: { reservations: 'directo' },
   },
@@ -334,7 +336,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
     modulo: 'crm',
     nombre: 'Asistente comercial',
     descripcion: 'Registra el contacto del día a día sin mover el embudo.',
-    areas: { 'crm.prospectos': 'ver', 'crm.contactos': 'hacer', 'crm.embudo': 'ver' },
+    areas: { 'crm.prospectos': 'ver', 'crm.contactos': 'hacer', 'crm.embudo': 'ver', 'crm.cotizaciones': 'ver' },
     datosProtegidos: { crm: 'bajo_registro' },
   },
   {
@@ -343,7 +345,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
     descripcion: 'Trabaja sus prospectos de punta a punta.',
     areas: {
       'crm.prospectos': 'hacer', 'crm.descartar': 'hacer', 'crm.contactos': 'hacer',
-      'crm.embudo': 'hacer', 'crm.reglas': 'ver', 'crm.medicion': 'ver',
+      'crm.embudo': 'hacer', 'crm.cotizaciones': 'hacer', 'crm.reglas': 'ver', 'crm.medicion': 'ver',
     },
     datosProtegidos: { crm: 'directo' },
   },
@@ -354,7 +356,7 @@ export const PERFILES_SUGERIDOS: readonly { modulo: OrganizationModuleKey; nombr
     areas: {
       'crm.prospectos': 'hacer', 'crm.descartar': 'hacer', 'crm.convertir': 'hacer', 'crm.importar': 'hacer',
       'crm.contactos': 'hacer', 'crm.embudo': 'hacer', 'crm.reglas': 'hacer', 'crm.campos': 'hacer',
-      'crm.origenes': 'hacer', 'crm.medicion': 'ver', 'crm.exportar': 'hacer',
+      'crm.origenes': 'hacer', 'crm.cotizaciones': 'hacer', 'crm.medicion': 'ver', 'crm.exportar': 'hacer',
     },
     datosProtegidos: { crm: 'directo' },
   },

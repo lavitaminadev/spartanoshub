@@ -19,6 +19,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const notification_entity_1 = require("../../notifications/notification.entity");
 const parameter_resolver_service_1 = require("../../parameters/parameter-resolver.service");
+const plazo_de_aviso_1 = require("../../../modules/vulneraciones/plazo-de-aviso");
 const shared_1 = require("@espartanos/shared");
 exports.DIAS_DE_AVISO_ANTES_DE_VENCER = 3;
 let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
@@ -37,6 +38,7 @@ let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
                 created += await this.actionItemAlerts(organization.id);
                 created += await this.budgetAlerts(organization.id);
                 created += await this.cycleAlerts(organization.id);
+                created += await this.vulneracionAlerts(organization.id);
                 created += await this.solicitudesDeDerechos(organization.id);
                 created += await this.prestamosPorVencer(organization.id);
             }
@@ -129,6 +131,22 @@ let OperationalAlertsJob = OperationalAlertsJob_1 = class OperationalAlertsJob {
                 continue;
             const recipients = cycle.communityManagerId ? [cycle.communityManagerId, ...fallback] : fallback;
             total += await this.notifyOnce(organizationId, [...new Set(recipients)], 'cycle.pending', `${cycle.id}:${pending.join('|')}`, 'Ciclo mensual con pendientes', `${cycle.clientName}: falta completar ${pending.join(', ')}.`, { cycleId: cycle.id, clientId: cycle.clientId, pending });
+        }
+        return total;
+    }
+    async vulneracionAlerts(organizationId) {
+        const incidentes = await this.dataSource.query('SELECT id, descripcion, detected_at detectedAt FROM security_incidents WHERE organization_id = ? AND aviso_local_at IS NULL', [organizationId]);
+        let total = 0;
+        const destinatarios = await this.directors(organizationId);
+        for (const incidente of incidentes) {
+            const plazo = (0, plazo_de_aviso_1.plazoDeAviso)(new Date(incidente.detectedAt), null);
+            if (plazo.estado !== 'por vencer' && plazo.estado !== 'vencido')
+                continue;
+            const vencido = plazo.estado === 'vencido';
+            const resumen = incidente.descripcion.length > 120 ? `${incidente.descripcion.slice(0, 117)}...` : incidente.descripcion;
+            total += await this.notifyOnce(organizationId, destinatarios, vencido ? 'security.incident_notice_overdue' : 'security.incident_notice_due', `${incidente.id}:${vencido ? 'overdue' : 'due'}`, vencido ? 'Aviso de vulneración vencido' : 'Aviso de vulneración por vencer', vencido
+                ? `Venció el plazo para avisar al local de la vulneración «${resumen}». Avisa y registra la fecha.`
+                : `Quedan ${Math.max(0, Math.floor(plazo.horasRestantes))} horas para avisar al local de la vulneración «${resumen}».`, { incidentId: incidente.id, vence: plazo.vence });
         }
         return total;
     }

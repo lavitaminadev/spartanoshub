@@ -13,6 +13,8 @@ export class ReservationHold {
   @Column({ name: 'party_size', type: 'smallint' }) partySize: number;
   @Column({ name: 'service_id', type: 'varchar', length: 120, nullable: true }) serviceId?: string;
   @Column({ name: 'resource_id', type: 'varchar', length: 120, nullable: true }) resourceId?: string;
+  /** Huella del origen de la petición, para topar las retenciones vigentes de un mismo origen. */
+  @Column({ name: 'origin_key', type: 'varchar', length: 64, nullable: true }) originKey?: string | null;
   @Column({ name: 'expires_at', type: 'timestamp' }) expiresAt: Date;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
 }

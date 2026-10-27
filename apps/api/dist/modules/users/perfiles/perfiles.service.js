@@ -27,6 +27,8 @@ const client_entity_1 = require("../../clients/client.entity");
 const client_capabilities_1 = require("../../clients/client-capabilities");
 const user_entity_1 = require("../user.entity");
 const user_role_enum_1 = require("../../organizations/user-role.enum");
+const user_action_override_entity_1 = require("../../../core/authorization/user-action-override.entity");
+const shared_2 = require("@espartanos/shared");
 const concesion_1 = require("./concesion");
 const invitacion_de_equipo_entity_1 = require("./invitacion-de-equipo.entity");
 const perfil_asignacion_entity_1 = require("./perfil-asignacion.entity");
@@ -34,7 +36,7 @@ const perfil_de_empresa_entity_1 = require("./perfil-de-empresa.entity");
 const texto_de_confidencialidad_1 = require("./texto-de-confidencialidad");
 const MODULOS_CONTRATABLES = new Set(['reservations', 'crm', 'surveys', 'marketing']);
 let PerfilesService = class PerfilesService {
-    constructor(perfiles, asignaciones, clientes, usuarios, accesos, textos, consentimientos, auditoria, permisos, administradores, invitaciones) {
+    constructor(perfiles, asignaciones, clientes, usuarios, accesos, textos, consentimientos, auditoria, permisos, administradores, invitaciones, extras) {
         this.perfiles = perfiles;
         this.asignaciones = asignaciones;
         this.clientes = clientes;
@@ -46,6 +48,7 @@ let PerfilesService = class PerfilesService {
         this.permisos = permisos;
         this.administradores = administradores;
         this.invitaciones = invitaciones;
+        this.extras = extras;
     }
     async topeDe(ctx) {
         if (ctx.esAgencia)
@@ -71,6 +74,61 @@ let PerfilesService = class PerfilesService {
             reinvitadoPor: (fila.reenteredBy && nombres.get(fila.reenteredBy)) || null,
             antesHasta: fila.previousRetiredAt ? new Date(fila.previousRetiredAt).toISOString() : null,
         }));
+    }
+    async queVe(ctx, userId) {
+        await this.exigirQuePertenezca(ctx, userId);
+        const [persona, asignacion, extras] = await Promise.all([
+            this.usuarios.findOne({ where: { id: userId }, select: { id: true, name: true, email: true } }),
+            this.asignaciones.findOne({ where: { organizationId: ctx.organizationId, clientId: ctx.clientId, userId } }),
+            this.extras.find({ where: { organizationId: ctx.organizationId, userId } }),
+        ]);
+        if (!persona)
+            throw new common_1.NotFoundException('Esa persona no existe');
+        const perfil = asignacion ? await this.perfiles.findOne({ where: { id: asignacion.perfilId } }) : null;
+        const quienes = [asignacion?.asignadoPor, ...extras.map((e) => e.grantedBy)].filter((id) => Boolean(id));
+        const nombres = new Map((quienes.length
+            ? await this.usuarios.find({ where: { id: (0, typeorm_2.In)(quienes) }, select: { id: true, name: true } })
+            : []).map((u) => [u.id, u.name]));
+        const ahora = Date.now();
+        const vigentes = extras.filter((extra) => !extra.expiresAt || extra.expiresAt.getTime() > ahora);
+        const porClave = new Map(vigentes.filter((extra) => (0, shared_2.definicionDeArea)(extra.action)).map((extra) => [extra.action, extra]));
+        const areas = shared_2.AREAS.map((area) => {
+            const extra = porClave.get(area.clave);
+            const delPerfil = (0, shared_2.nivelEnJuego)(perfil?.areas ?? {}, area.clave);
+            const nivel = extra ? (extra.allowed ? 'hacer' : 'ninguno') : delPerfil;
+            return {
+                clave: area.clave,
+                nombre: area.nombre,
+                modulo: area.modulo,
+                nivel,
+                origen: extra ? (extra.allowed ? 'concedido' : 'quitado') : 'perfil',
+                motivo: extra?.reason ?? null,
+                porQuien: (extra?.grantedBy && nombres.get(extra.grantedBy)) || null,
+                venceEl: extra?.expiresAt ? extra.expiresAt.toISOString() : null,
+            };
+        }).filter((area) => area.nivel !== 'ninguno' || area.origen !== 'perfil');
+        const datos = shared_2.DATOS_PROTEGIDOS.map((entrada) => ({
+            modulo: entrada.modulo,
+            nombre: entrada.nombre,
+            nivel: (0, shared_2.datosEfectivos)(perfil?.datosProtegidos ?? {}, {}, entrada.modulo),
+            incluyeSensibles: entrada.incluyeSensibles === true,
+        }));
+        return {
+            userId: persona.id,
+            nombre: persona.name,
+            correo: persona.email,
+            perfil: perfil ? { id: perfil.id, nombre: perfil.nombre } : null,
+            sinPerfil: !perfil,
+            asignadoPor: (asignacion?.asignadoPor && nombres.get(asignacion.asignadoPor)) || null,
+            areas,
+            datosProtegidos: datos,
+            avisoDeExtrasGlobales: vigentes.length > 0,
+        };
+    }
+    async exigirQuePertenezca(ctx, userId) {
+        if (await this.perteneceAEmpresa(ctx.clientId, userId))
+            return;
+        throw new common_1.NotFoundException('Esa persona no pertenece a tu equipo');
     }
     async asignacionesDeLaEmpresa(ctx) {
         const filas = await this.asignaciones.find({ where: { clientId: ctx.clientId } });
@@ -227,9 +285,10 @@ let PerfilesService = class PerfilesService {
             const perfil = await this.perfiles.findOne({ where: { id: asignacion.perfilId } });
             if (perfil)
                 (0, concesion_1.asegurarQueNoConcedePorEncima)(await this.topeDe(ctx), perfil.areas, perfil.datosProtegidos);
-            await this.asignaciones.remove(asignacion);
         }
-        await this.administradores.definir(ctx.organizationId, userId, ctx.clientId, false, ctx.actorId);
+        await this.administradores.definir(ctx.organizationId, userId, ctx.clientId, false, ctx.actorId, { esAgencia: ctx.esAgencia, motivo: razon, ip: ctx.ip });
+        if (asignacion)
+            await this.asignaciones.remove(asignacion);
         await this.invitaciones.update({ clientId: ctx.clientId, email: usuario.email, aceptadaEl: (0, typeorm_2.IsNull)(), revocadaEl: (0, typeorm_2.IsNull)() }, { revocadaEl: new Date() });
         const marca = { retiredAt: new Date(), retiredBy: ctx.actorId, retiredReason: razon, retiredOutcome: vetar ? 'vetado' : 'retirado' };
         const fila = await this.accesos.findOne({ where: { userId, clientId: ctx.clientId } });
@@ -346,6 +405,7 @@ exports.PerfilesService = PerfilesService = __decorate([
     __param(5, (0, typeorm_1.InjectRepository)(consent_version_entity_1.ConsentVersion)),
     __param(6, (0, typeorm_1.InjectRepository)(consent_entity_1.DataConsent)),
     __param(10, (0, typeorm_1.InjectRepository)(invitacion_de_equipo_entity_1.InvitacionDeEquipo)),
+    __param(11, (0, typeorm_1.InjectRepository)(user_action_override_entity_1.UserActionOverride)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -356,5 +416,6 @@ exports.PerfilesService = PerfilesService = __decorate([
         audit_service_1.AuditService,
         permission_resolver_service_1.PermissionResolverService,
         administradores_de_empresa_service_1.AdministradoresDeEmpresaService,
+        typeorm_2.Repository,
         typeorm_2.Repository])
 ], PerfilesService);

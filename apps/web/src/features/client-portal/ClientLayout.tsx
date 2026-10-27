@@ -96,6 +96,7 @@ export function ClientLayout() {
           <div className="sidebar-footer-actions"><NotificationBell /></div>
           <PwaInstallButton />
           <div className="user-info"><div className="user-name">{user?.name}</div><div className="user-role">Cliente</div></div>
+          <Link className="sidebar-account-link" to="/portal/sesiones" onClick={() => setOpen(false)}>Mis sesiones</Link>
           <Link className="sidebar-account-link" to="/change-password" onClick={() => setOpen(false)}>Cambiar mi contraseña</Link>
           <button className="btn btn-outline btn-sm" onClick={logout}>Cerrar sesión</button>
         </div>

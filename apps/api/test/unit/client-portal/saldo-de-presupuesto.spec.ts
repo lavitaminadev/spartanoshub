@@ -95,7 +95,7 @@ describe('saldo de presupuesto en el portal', () => {
     const inicio = await controller.inicio(PORTAL);
 
     expect(inicio.presupuesto?.movimientos).toEqual([
-      { fecha: new Date('2026-10-12T15:00:00Z'), tipo: 'consumption', unidades: 4, pieza: 'Carta de primavera', motivo: 'Aprobada en la primera ronda' },
+      { fecha: new Date('2026-10-12T15:00:00Z'), tipo: 'consumption', unidades: -4, pieza: 'Carta de primavera', motivo: 'Aprobada en la primera ronda' },
     ]);
     // Qué persona de Espartanos movió qué es reparto interno: no sale al portal por ninguna clave.
     expect(JSON.stringify(inicio.presupuesto?.movimientos)).not.toContain('u-interno');

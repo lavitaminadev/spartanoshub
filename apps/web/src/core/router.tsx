@@ -221,9 +221,11 @@ export function AppRouter() {
           <Route index element={<SafeSuspense><ClientDashboard /></SafeSuspense>} />
           <Route path="reservations" element={<ClientRoute capability="reservations"><SafeSuspense><ReservationsPage clientView /></SafeSuspense></ClientRoute>} />
           {/* Reuniones no se monta: el servidor entrega las actas y reuniones internas completas a la cuenta cliente. */}
-          <Route path="approvals" element={<ClientRoute><SafeSuspense><ClientApprovals /></SafeSuspense></ClientRoute>} />
-          <Route path="grid" element={<ClientRoute><SafeSuspense><ClientGrid /></SafeSuspense></ClientRoute>} />
-          <Route path="reports" element={<ClientRoute><SafeSuspense><ClientReports /></SafeSuspense></ClientRoute>} />
+          <Route path="approvals" element={<ClientRoute capability="approvals"><SafeSuspense><ClientApprovals /></SafeSuspense></ClientRoute>} />
+          <Route path="grid" element={<ClientRoute capability="content"><SafeSuspense><ClientGrid /></SafeSuspense></ClientRoute>} />
+          <Route path="reports" element={<ClientRoute capability="reports"><SafeSuspense><ClientReports /></SafeSuspense></ClientRoute>} />
+          {/* Las sesiones propias dentro del portal: quien sospecha que entraron a su cuenta las cierra sin pasar por el menú del equipo. */}
+          <Route path="sesiones" element={<SafeSuspense><SessionsPage /></SafeSuspense>} />
           <Route path="legal" element={<ClientRoute anyCapability={['reservations', 'surveys']}><SafeSuspense><ClientLegalData /></SafeSuspense></ClientRoute>} />
           {/* La empresa configura su propio local primero; el editor visual queda como una
               segunda pantalla, no como la única forma de operar reservas. */}

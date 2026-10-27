@@ -26,6 +26,7 @@ export class AssignPieceUseCase {
       });
       if (!piece) throw new NotFoundException('Pieza no encontrada');
       if (piece.status === PieceStatus.DELIVERED) throw new BadRequestException('Una pieza entregada no se puede reasignar');
+      if (piece.status === PieceStatus.CANCELLED) throw new BadRequestException('Una pieza cancelada no se puede reasignar');
       const assignee = await manager.findOne(User, { where: { id: designerId, organizationId, isActive: true } });
       if (!assignee || !['designer', 'audiovisual', 'art_director'].includes(assignee.role)) {
         throw new BadRequestException('El responsable debe ser un usuario creativo activo de esta organizacion');

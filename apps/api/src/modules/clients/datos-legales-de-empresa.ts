@@ -1,8 +1,9 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, IsUrl, IsUUID, MaxLength } from 'class-validator';
 import { VERSION_DOCUMENTOS_LEGALES } from '@espartanos/shared';
 import type { DataSource } from 'typeorm';
 import type { AuditService } from '../../core/audit/audit.service';
+import type { AuthUser } from '../../shared/types/request';
 
 /**
  * @fileoverview Datos legales de una empresa: responsable, RUT, correo para derechos y política.
@@ -89,4 +90,43 @@ export async function guardarDatosLegales(db: DataSource, audit: AuditService, o
 export function empresaDelPortal(clientId: string | null | undefined): string {
   if (!clientId) throw new ForbiddenException('La cuenta no pertenece a una empresa');
   return clientId;
+}
+
+/** Lo que hace falta del alcance de la cuenta, sin arrastrar el servicio entero. */
+export interface AlcanceParaDatosLegales {
+  allowedClientIds: (organizationId: string, user: AuthUser) => Promise<string[] | undefined>;
+  assertClient: (organizationId: string, user: AuthUser, clientId: string) => Promise<void>;
+}
+
+/**
+ * De qué empresa son los datos legales que se están leyendo o guardando.
+ *
+ * Reservas y Encuestas exponen estos datos bajo rutas propias y resolvían la empresa cada una por
+ * su cuenta, con el mismo criterio: una cuenta de portal usaba **siempre** la empresa de su
+ * sesión. Con un solo local acertaba; con dos, una cuenta que atiende Centro y Providencia
+ * declaraba Providencia y escribía en Centro —incluida la **aceptación del contrato de encargo**,
+ * que es la constancia legal de quién aceptó qué y por qué empresa—. Resolverlo aquí, una vez, es
+ * lo que impide que los dos módulos vuelvan a separarse.
+ *
+ * Una empresa declarada se honra para los dos papeles, portal incluido, siempre que la cuenta la
+ * alcance; declarar una que no se alcanza da 404, el mismo que si no existiera. Sin declarar nada,
+ * la cuenta de portal usa la suya y el equipo interno recibe un 400: elegir por él sería escribir
+ * datos legales en una empresa que nadie nombró.
+ *
+ * Nombrar la empresa no concede nada: quien llama sigue comprobando a continuación que tenga el
+ * servicio contratado y que quien actúa la administre.
+ */
+export async function empresaDeLosDatosLegales(
+  alcance: AlcanceParaDatosLegales,
+  organizationId: string,
+  user: AuthUser,
+  pedida?: string,
+): Promise<string> {
+  const declarada = pedida?.trim();
+  if (declarada) {
+    await alcance.assertClient(organizationId, user, declarada);
+    return declarada;
+  }
+  if (user.role === 'client') return empresaDelPortal(user.clientId);
+  throw new BadRequestException('Indica la empresa');
 }

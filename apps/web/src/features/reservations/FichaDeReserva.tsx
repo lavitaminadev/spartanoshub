@@ -7,6 +7,7 @@ import { respuestasLegibles } from './answer-labels';
 import { describirEvento, type EventoDeReserva } from './describir-evento';
 import { StatusBadge } from '../../shared/StatusBadge';
 import { EstadiaEnLaMesa } from './EstadiaEnLaMesa';
+import { AsistenciaDelComensal } from './AsistenciaDelComensal';
 import { TEXTO_PROTEGIDO } from './datos-protegidos';
 
 /** Visitas anteriores que se muestran de entrada; el resto queda tras «Ver las N visitas». */
@@ -235,6 +236,7 @@ export function FichaDeReserva({ reserva: recibida, local, onGuardada, onVerCupo
         : reserva.couponCode}</strong></div>}
     </div>
     <HistorialDeLaReserva reservaId={reserva.id} zonaHoraria={local?.timezone} />
+    <AsistenciaDelComensal reservaId={reserva.id} zonaHoraria={local?.timezone} />
     {guardar.error && <p className="error-text">{guardar.error.message}</p>}
     {revelar.error && <p className="error-text">No se pudieron abrir los datos: {revelar.error.message}</p>}
     <EstadiaEnLaMesa reserva={reserva} zonaHoraria={local?.timezone} onCambio={(nueva) => { setAlDia(nueva); onGuardada?.(); }} />

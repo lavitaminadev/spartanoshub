@@ -2,6 +2,8 @@ import { Inject, forwardRef, BadRequestException, Body, Controller, ForbiddenExc
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../authorization/roles.decorator';
 import { Throttle } from '@nestjs/throttler';
+import { Empresa } from '../client-scope/empresa.decorator';
+import { esUnaEmpresa, type AmbitoDeEmpresa } from '../client-scope/empresa-resuelta';
 import { AccountAccessService } from '../client-scope/account-access.service';
 import { EmailService } from '../notifications/email.service';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -73,6 +75,9 @@ export function modulosDeCorreo(clave: string): ModuloDeCorreo[] {
 }
 import { REQUIRED_LIFECYCLE_KEYS } from '../../modules/organizations/organization-features';
 import { isModuleLifecycleVisible, moduleLifecycleSettingKey, type ModuleLifecycleStatus } from '@espartanos/shared';
+
+/** La empresa del ámbito, o `undefined` cuando la petición es de la agencia (plantillas generales). */
+const empresaConcreta = (ambito: AmbitoDeEmpresa): string | undefined => (esUnaEmpresa(ambito) ? ambito : undefined);
 
 @ApiTags('Configuración')
 @ApiBearerAuth()
@@ -192,11 +197,11 @@ export class OrganizationSettingsController {
   @ApiOperation({ summary: 'Plantillas de correo efectivas, opcionalmente de una empresa' })
   async correos(
     @Req() request: AuthenticatedRequest,
-    @Query('clientId') clientId?: string,
+    @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa,
     /* Con reserva se ve lo que ella haya escrito y, para lo demas, lo de su empresa. */
     @Query('formId') formId?: string,
   ) {
-    clientId = await this.empresaDeLaSesion(request, clientId);
+    const clientId = empresaConcreta(ambito);
     const organizationId = request.organizationId || request.user.organizationId;
     await this.accountAccess.assertClient(organizationId, request.user, clientId);
     // Sólo las plantillas de los módulos que esta persona puede editar: las demás no se muestran.
@@ -249,11 +254,9 @@ export class OrganizationSettingsController {
      * accesos es quien escribe los correos: una sola cosa que entender, no dos.
      */
     if (request.user.role === UserRole.CLIENT) {
-      // La empresa que se está mirando, ya comprobada contra su alcance por quien llama. Con la
-      // de la cuenta, quien administra un segundo local no podía escribir sus correos.
-      const empresa = clientId ?? request.user.clientId;
-      const administra = empresa
-        ? await this.permisos.can(organizationId, request.user.id, UserRole.CLIENT, 'users', 'manage', empresa)
+      // La empresa de la petición, ya resuelta contra el alcance de la cuenta.
+      const administra = clientId
+        ? await this.permisos.can(organizationId, request.user.id, UserRole.CLIENT, 'users', 'manage', clientId)
         : false;
       if (!administra) return new Set<ModuloDeCorreo>();
     }
@@ -280,8 +283,8 @@ export class OrganizationSettingsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @Put('correos')
   @ApiOperation({ summary: 'Guardar plantillas de correo' })
-  async guardarCorreos(@Req() request: AuthenticatedRequest, @Body() dto: UpdateOrganizationSettingsDto, @Query('clientId') clientId?: string) {
-    clientId = await this.empresaDeLaSesion(request, clientId);
+  async guardarCorreos(@Req() request: AuthenticatedRequest, @Body() dto: UpdateOrganizationSettingsDto, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+    const clientId = empresaConcreta(ambito);
     const valores = dto.values ?? {};
     const ajenas = Object.keys(valores).filter((clave) => !ES_CLAVE_DE_CORREO(clave));
     if (ajenas.length) throw new ForbiddenException(`Desde Correos sólo se guardan plantillas de correo: ${ajenas.join(', ')}`);
@@ -328,8 +331,8 @@ export class OrganizationSettingsController {
   // La reja de verdad es `asegurarQuePuedeCorreos`: administrar esa empresa.
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Estado del envío de correos' })
-  async estadoDelCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
+  async estadoDelCorreo(@Req() request: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+    await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
     const estado = this.correo.estado();
     if (request.user.role !== UserRole.DEV) return { ...estado, faltan: [] };
     /*
@@ -370,8 +373,8 @@ export class OrganizationSettingsController {
   // La reja de verdad es `asegurarQuePuedeCorreos`: administrar esa empresa.
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Condiciones que necesita cada aviso además de su interruptor' })
-  async requisitosDeCorreo(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
+  async requisitosDeCorreo(@Req() request: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+    await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
     const corridas = new Map((await this.corridas.find()).map((fila) => [fila.task, fila]));
     const limite = Date.now() - HORAS_SIN_CORRER_PARA_ALARMA * 3_600_000;
     const casilla = this.correo.estado().habilitado;
@@ -404,9 +407,9 @@ export class OrganizationSettingsController {
   // La reja de verdad es `asegurarQuePuedeCorreos`: administrar esa empresa.
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.DEV, UserRole.CLIENT)
   @ApiOperation({ summary: 'Personas del equipo a las que se puede enviar una prueba' })
-  async destinatariosDePrueba(@Req() request: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+  async destinatariosDePrueba(@Req() request: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
     const organizationId = request.organizationId || request.user.organizationId;
-    await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
+    await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
     /*
      * Cada empresa prueba con su propia gente.
      *
@@ -418,7 +421,7 @@ export class OrganizationSettingsController {
      * El equipo interno sigue viendo a todos: es quien escribe las plantillas de varias empresas
      * y necesita poder mandarse la prueba a sí mismo.
      */
-    const empresa = await this.empresaDeLaSesion(request, clientId);
+    const empresa = empresaConcreta(ambito);
     if (empresa) await this.accountAccess.assertClient(organizationId, request.user, empresa);
     const equipo = await this.usuarios.find({
       where: empresa
@@ -473,9 +476,9 @@ export class OrganizationSettingsController {
   async vistaPreviaDeCorreo(
     @Body() dto: { asunto?: string; cuerpo?: string },
     @Req() request: AuthenticatedRequest,
-    @Query('clientId') clientId?: string,
+    @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa,
   ) {
-    await this.asegurarQuePuedeCorreos(request, await this.empresaDeLaSesion(request, clientId));
+    await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
     return componerCorreo(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), MUESTRA);
   }
 
@@ -497,9 +500,9 @@ export class OrganizationSettingsController {
   async probar(
     @Req() request: AuthenticatedRequest,
     @Body() dto: { asunto?: string; cuerpo?: string; destinatarioId?: string },
-    @Query('clientId') clientId?: string,
+    @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa,
   ) {
-    const empresa = await this.empresaDeLaSesion(request, clientId);
+    const empresa = empresaConcreta(ambito);
     await this.asegurarQuePuedeCorreos(request, empresa);
     const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId, empresa);
 
@@ -559,26 +562,4 @@ export class OrganizationSettingsController {
 
     return persona.email;
   }
-
-  /**
-   * La empresa sobre la que se trabaja.
-   *
-   * Una cuenta de portal trabaja sobre la que está mirando, no sobre la de su cuenta. Devolver
-   * siempre la segunda cruzaba las empresas de quien atiende dos locales: estando en el segundo
-   * se leían —y se guardaban— las plantillas del primero, así que el correo que salía con la
-   * marca de un local lo escribía la pantalla del otro.
-   *
-   * Lo pedido llega del navegador, de modo que se acepta sólo si esa cuenta lo alcanza de
-   * verdad; cualquier otra cosa cae en la de su cuenta. Para el equipo interno se respeta lo que
-   * pidió, que es lo que permite atender a varias empresas desde la misma pantalla.
-   */
-  private async empresaDeLaSesion(request: AuthenticatedRequest, pedido?: string): Promise<string | undefined> {
-    if (request.user.role !== UserRole.CLIENT) return pedido;
-    const propia = request.user.clientId ?? undefined;
-    if (!pedido || pedido === propia) return propia;
-    const organizationId = request.organizationId || request.user.organizationId;
-    const alcanzables = await this.accountAccess.allowedClientIds(organizationId, request.user).catch(() => undefined);
-    return alcanzables?.includes(pedido) ? pedido : propia;
-  }
-
 }

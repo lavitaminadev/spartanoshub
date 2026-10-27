@@ -29,6 +29,8 @@ const create_approval_dto_1 = require("./dto/create-approval.dto");
 const client_entity_1 = require("../clients/client.entity");
 const piece_entity_1 = require("../production/piece.entity");
 const account_access_service_1 = require("../../core/client-scope/account-access.service");
+const empresa_decorator_1 = require("../../core/client-scope/empresa.decorator");
+const empresa_resuelta_1 = require("../../core/client-scope/empresa-resuelta");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
 let ApprovalsController = class ApprovalsController {
@@ -56,8 +58,8 @@ let ApprovalsController = class ApprovalsController {
             status: approval_request_status_enum_1.ApprovalRequestStatus.PENDING,
         }));
     }
-    async list(req) {
-        const clientId = req.user?.role === 'client' ? req.user.clientId : undefined;
+    async list(req, ambito) {
+        const clientId = (0, empresa_resuelta_1.esUnaEmpresa)(ambito) ? ambito : undefined;
         if (req.user?.role === user_role_enum_1.UserRole.CLIENT && !clientId)
             throw new common_1.ForbiddenException('Client account is not associated');
         const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
@@ -68,7 +70,7 @@ let ApprovalsController = class ApprovalsController {
         if (!approval)
             throw new common_1.BadRequestException('Approval request not found');
         await this.accountAccess.assertClient(req.organizationId, req.user, approval.clientId);
-        return this.updateStatus.execute(id, req.organizationId, { userId: req.user.id, role: req.user.role, clientId: req.user.clientId }, dto.status, dto.decisionNotes);
+        return this.updateStatus.execute(id, req.organizationId, { userId: req.user.id, role: req.user.role, clientId: approval.clientId }, dto.status, dto.decisionNotes);
     }
 };
 exports.ApprovalsController = ApprovalsController;
@@ -89,8 +91,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Listar solicitudes de aprobación' }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ApprovalsController.prototype, "list", null);
 __decorate([

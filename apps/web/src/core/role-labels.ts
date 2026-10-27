@@ -6,7 +6,7 @@
  * copias del mismo mapa acaban divergiendo en cuanto alguien renombra un cargo en una sola.
  */
 export const ROLE_LABELS: Record<string, string> = {
-  admin: 'Administración',
+  admin: 'Plataforma',
   dev: 'Desarrollo',
   commercial_director: 'Dirección comercial',
   creative_director: 'Dirección creativa',

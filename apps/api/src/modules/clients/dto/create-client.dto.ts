@@ -5,7 +5,7 @@ import { CLIENT_INDUSTRY_VALUES } from '@espartanos/shared';
 /**
  * Capacidades contratadas por la cuenta.
  *
- * Las cinco de `CLIENT_CAPABILITY_KEYS`, no un subconjunto. Faltaban `googleConversions` y
+ * Todas las de `CLIENT_CAPABILITY_KEYS`, no un subconjunto. Faltaban `googleConversions` y
  * `budgetVisibility`: la entidad las guarda y el panel las ofrece, pero al enviarlas la
  * validación las rechazaba por no estar declaradas acá, así que editar una cuenta que las
  * tuviera encendidas fallaba entera —y el mensaje señalaba el campo sin decir que el problema
@@ -20,6 +20,18 @@ export class ClientCapabilitiesDto {
   @IsOptional() @IsBoolean() googleConversions?: boolean;
   @IsOptional() @IsBoolean() budgetVisibility?: boolean;
   @IsOptional() @IsBoolean() detalleDeContactoEnAvisos?: boolean;
+  @IsOptional() @IsBoolean() production?: boolean;
+  @IsOptional() @IsBoolean() audiovisual?: boolean;
+  @IsOptional() @IsBoolean() content?: boolean;
+  @IsOptional() @IsBoolean() approvals?: boolean;
+  @IsOptional() @IsBoolean() meetings?: boolean;
+  @IsOptional() @IsBoolean() documents?: boolean;
+  @IsOptional() @IsBoolean() briefs?: boolean;
+  @IsOptional() @IsBoolean() billing?: boolean;
+  @IsOptional() @IsBoolean() contracts?: boolean;
+  @IsOptional() @IsBoolean() intake?: boolean;
+  @IsOptional() @IsBoolean() reports?: boolean;
+  @IsOptional() @IsBoolean() commercialPipeline?: boolean;
 }
 
 export class CreateClientDto {

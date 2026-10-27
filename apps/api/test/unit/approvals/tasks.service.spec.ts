@@ -136,4 +136,37 @@ describe('TasksService', () => {
       expect(where.assignedTo).toBe('user-1');
     });
   });
+
+  /*
+   * La agenda y la diferencia entre no tener límite y no alcanzar nada.
+   *
+   * `allowedClientIds` devuelve `undefined` para quien ve todas las cuentas y una lista vacía
+   * para quien no lleva ninguna. Colapsar las dos en «sin filtro» es cómo un alcance vacío se
+   * convierte en la agenda de toda la organización; el controlador ya pasaba la lista vacía, y
+   * se perdía aquí.
+   *
+   * La prueba del controlador no podía verlo: finge este servicio.
+   */
+  describe('agenda', () => {
+    const desde = new Date('2026-08-01T00:00:00.000Z');
+    const hasta = new Date('2026-08-31T23:59:59.999Z');
+
+    it('sin límite de alcance no acota por empresa', async () => {
+      repo.find.mockResolvedValue([]);
+      await service.listAgenda('org-1', desde, hasta, undefined);
+      expect(repo.find.mock.calls[0][0].where.clientId).toBeUndefined();
+    });
+
+    it('un alcance vacío no devuelve nada, en vez de devolverlo todo', async () => {
+      const tareas = await service.listAgenda('org-1', desde, hasta, []);
+      expect(tareas).toEqual([]);
+      expect(repo.find).not.toHaveBeenCalled();
+    });
+
+    it('con empresas alcanzables acota a ellas', async () => {
+      repo.find.mockResolvedValue([]);
+      await service.listAgenda('org-1', desde, hasta, ['cliente-1']);
+      expect(repo.find.mock.calls[0][0].where.clientId).toBeDefined();
+    });
+  });
 });

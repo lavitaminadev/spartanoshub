@@ -23,6 +23,7 @@ const piece_entity_1 = require("../production/piece.entity");
 const client_entity_1 = require("../clients/client.entity");
 const parameter_resolver_service_1 = require("../../core/parameters/parameter-resolver.service");
 const ud_values_service_1 = require("./ud-values.service");
+const DEFAULT_MONTHLY_UD = 20;
 let DesignBudgetService = class DesignBudgetService {
     constructor(budgetRepo, movementRepo, clientRepo, parameterResolver, udValues) {
         this.budgetRepo = budgetRepo;
@@ -32,19 +33,24 @@ let DesignBudgetService = class DesignBudgetService {
         this.udValues = udValues;
     }
     async ensureMonthlyBudget(clientId, year, month, manager) {
-        const repo = manager?.getRepository(ud_budget_entity_1.UDBudget) ?? this.budgetRepo;
-        const existing = await repo.findOne({ where: { clientId, year, month } });
-        if (existing)
-            return existing;
-        const contracted = await this.resolveMonthlyBudget(clientId);
-        const budget = repo.create({
-            clientId, year, month,
-            contracted,
-            reserved: 0,
-            consumed: 0,
-            status: 'open',
-        });
-        return repo.save(budget);
+        const execute = async (tx) => {
+            const client = await tx.findOne(client_entity_1.Client, { where: { id: clientId }, lock: { mode: 'pessimistic_write' } });
+            const repo = tx.getRepository(ud_budget_entity_1.UDBudget);
+            const existing = await repo.findOne({ where: { clientId, year, month } });
+            if (existing)
+                return existing;
+            return repo.save(repo.create({
+                clientId, year, month,
+                contracted: Number(client?.defaultUdBudget ?? DEFAULT_MONTHLY_UD),
+                reserved: 0,
+                consumed: 0,
+                status: 'open',
+            }));
+        };
+        return manager ? execute(manager) : this.budgetRepo.manager.transaction(execute);
+    }
+    findMonthlyBudget(clientId, year, month) {
+        return this.budgetRepo.findOne({ where: { clientId, year, month } });
     }
     async calculateForPiece(pieceType, carouselSlides = 0, organizationId) {
         return this.udValues.udFor(pieceType, carouselSlides, organizationId);
@@ -99,6 +105,12 @@ let DesignBudgetService = class DesignBudgetService {
             });
             if (existingMovement)
                 return existingMovement;
+            const released = await movementRepo.findOne({
+                where: { pieceId: piece.id, type: ud_movement_type_enum_1.UDMovementType.RELEASE },
+            });
+            if (released) {
+                throw new common_1.BadRequestException('La reserva de UD de esta pieza ya fue devuelta. Vuelve a asignarla antes de entregar.');
+            }
             const reservation = await movementRepo.findOne({
                 where: { pieceId: piece.id, type: ud_movement_type_enum_1.UDMovementType.RESERVATION },
             });
@@ -207,10 +219,6 @@ let DesignBudgetService = class DesignBudgetService {
             status = 'warning';
         }
         return { clientId, clientName, used, total, percentage, status };
-    }
-    async resolveMonthlyBudget(clientId) {
-        const fromParam = await this.parameterResolver.get('ud.default_monthly_budget', clientId);
-        return Number(fromParam ?? 20);
     }
     async resolveOrganizationId(clientId) {
         const client = await this.clientRepo.findOne({ where: { id: clientId }, select: { organizationId: true } });

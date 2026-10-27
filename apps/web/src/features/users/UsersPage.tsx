@@ -407,6 +407,13 @@ export function UsersPage() {
         </div>
       )}
 
+      {/* Con una sola persona administrando, retirarla queda bloqueado: se avisa antes de que alguien lo intente. */}
+      {mandos && mandos.userIds.length === 1 && users.length > 1 && (
+        <div className="alert alert-info" role="status">
+          Solo una persona administra el equipo de esta empresa. Conviene nombrar a una segunda: mientras sea la única no se la podrá retirar.
+        </div>
+      )}
+
       <div className="filters users-filter-bar">
         <input className="input" aria-label="Buscar usuarios" placeholder="Nombre, email, teléfono o rol..." value={search} onChange={(event) => setSearch(event.target.value)} />
         {/* Filtrar por cargo o por empresa no dice nada cuando solo hay una de cada una. */}
@@ -602,7 +609,7 @@ export function UsersPage() {
         onConfirm={() => void confirmBulkAccess()}
       />
       <Modal open={verPerfiles && Boolean(empresaMirada)} onClose={() => setVerPerfiles(false)} title="Perfiles e invitaciones">
-        {verPerfiles && empresaMirada && <PerfilesDelEquipo clientId={empresaMirada} empresa={clientMap.get(empresaMirada) || empresaActiva.nombre || "esta empresa"} capacidades={usuarioEnEmpresa?.capabilities} onCerrar={() => setVerPerfiles(false)} />}
+        {verPerfiles && empresaMirada && <PerfilesDelEquipo clientId={empresaMirada} empresa={clientMap.get(empresaMirada) || empresaActiva.nombre || "esta empresa"} capacidades={usuarioEnEmpresa?.capabilities} esAgencia={!administraSuEmpresa} onCerrar={() => setVerPerfiles(false)} />}
       </Modal>
       {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id && !(esOperaciones && ['admin', 'operations_director', 'dev'].includes(permisosDe.role))} limitadoAOperaciones={esOperaciones} limitadoASuEmpresa={administraSuEmpresa} miEmpresa={(administraSuEmpresa && empresaActiva.clientId) || currentUser?.clientId || ''} serviciosDeLaEmpresa={usuarioEnEmpresa?.capabilities} onCerrar={() => setPermisosDe(null)} />}
       <Modal open={Boolean(resetTarget)} onClose={() => { setResetTarget(null); setResetResult(null); }} title={`Resetear clave de ${resetTarget?.name ?? ''}`}>

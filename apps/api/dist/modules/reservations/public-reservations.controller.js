@@ -55,7 +55,7 @@ let PublicReservationsController = class PublicReservationsController {
     recover(slug, dto) {
         return this.service.recoverPublicReservations(slug, dto.contact);
     }
-    hold(slug, dto) { return this.service.holdPublic(slug, dto); }
+    hold(slug, dto, ipAddress) { return this.service.holdPublic(slug, dto, ipAddress); }
     form(slug) {
         return this.service.publicForm(slug);
     }
@@ -66,6 +66,7 @@ let PublicReservationsController = class PublicReservationsController {
         return this.service.slots(slug, from, Number(days || 14), serviceId, resourceId, Number(partySize || 1));
     }
     event(slug, dto, ipAddress, userAgent) {
+        dto.eventSourceUrl = this.eventSourceUrl(slug, dto.eventSourceUrl);
         return this.service.trackPublicEvent(slug, dto, ipAddress, userAgent);
     }
     async validateCoupon(slug, dto) {
@@ -78,6 +79,7 @@ let PublicReservationsController = class PublicReservationsController {
         return this.service.createPublicSurveyResponse(slug, dto, ipAddress, userAgent, this.eventSourceUrl(slug, dto.eventSourceUrl));
     }
     groupRequest(slug, dto, ipAddress, userAgent) {
+        dto.eventSourceUrl = this.eventSourceUrl(slug, dto.eventSourceUrl);
         return this.service.createPublicGroupRequest(slug, dto, ipAddress, userAgent);
     }
     waitlist(slug, dto, ipAddress, userAgent) {
@@ -181,8 +183,9 @@ __decorate([
     (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60000 } }),
     __param(0, (0, common_1.Param)('slug')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Ip)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, reservation_dto_1.PublicReservationHoldDto]),
+    __metadata("design:paramtypes", [String, reservation_dto_1.PublicReservationHoldDto, String]),
     __metadata("design:returntype", void 0)
 ], PublicReservationsController.prototype, "hold", null);
 __decorate([

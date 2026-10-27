@@ -50,6 +50,9 @@ let PerfilesController = class PerfilesController {
     async asignaciones(req, clientId) {
         return { data: await this.perfiles.asignacionesDeLaEmpresa(await this.contexto(req, clientId)) };
     }
+    async queVe(req, userId, clientId) {
+        return this.perfiles.queVe(await this.contexto(req, clientId), userId);
+    }
     async reingresos(req, clientId) {
         return { data: await this.perfiles.reingresos(await this.contexto(req, clientId)) };
     }
@@ -113,6 +116,18 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], PerfilesController.prototype, "asignaciones", null);
+__decorate([
+    (0, common_1.Get)('que-ve/:userId'),
+    (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
+    (0, roles_decorator_1.Roles)(...CARGOS),
+    (0, swagger_1.ApiOperation)({ summary: 'Qué ve una persona en esta empresa, y por qué' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('userId')),
+    __param(2, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], PerfilesController.prototype, "queVe", null);
 __decorate([
     (0, common_1.Get)('reingresos'),
     (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
