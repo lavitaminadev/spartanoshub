@@ -141,7 +141,9 @@ export class SurveysController {
     const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
     // El portal ve sólo las de su empresa: nunca las internas del equipo.
     if (esPortal) {
-      if (!clientId) return [];
+      // Paginado también cuando está vacío: una respuesta con otra forma obliga a cada pantalla a
+      // tratar dos contratos, y leerla como arreglo es lo que dejaba la pantalla en blanco.
+      if (!clientId) return { data: [], total: 0, page: 1, pageSize: 0 };
       await exigirEncuestasHabilitadas(this.dataSource, clientId);
       return this.listarAcotado({ organizationId: req.organizationId, clientId }, filtros);
     }

@@ -20,6 +20,8 @@ import { ContentController } from '../../../src/modules/content/content.controll
 import { MeetingsController } from '../../../src/modules/meetings/meetings.controller';
 import { ProductionController } from '../../../src/modules/production/production.controller';
 import { ReportingController } from '../../../src/modules/reports/reports.controller';
+import { CampaignsController } from '../../../src/modules/crm/campaigns/campaigns.controller';
+import { AGENCIA, VariasEmpresasAlcanzables } from '../../../src/core/client-scope/empresa-resuelta';
 
 const ORG = 'org-1';
 const PORTAL = { id: 'u-portal', role: 'client', clientId: 'A', organizationId: ORG };
@@ -169,12 +171,46 @@ describe('rutas migradas a @Empresa()', () => {
       expect(pulseService.getPulse).toHaveBeenCalledWith(ORG, 'B', ['A', 'B']);
     });
 
+    /*
+     * Estas pantallas no tienen selector: preguntan «cómo va todo lo mío». Pedirles elegir una
+     * empresa las deja en blanco, y es lo que pasó al desplegar: un 400 en `pulse` y en
+     * `reports` sobre una cuenta que alcanza dos empresas.
+     *
+     * Que no haga falta elegir no las ensancha: cada una acota por la lista de empresas
+     * alcanzables, que es el tercer argumento que se comprueba más abajo.
+     */
+    for (const ruta of ['pulse', 'reports', 'performance', 'listMonthlyReports']) {
+      it(`${ruta}: sin declarar empresa y alcanzando dos, responde por las dos`, async () => {
+        expect(await empresaQueRecibe(ReportingController, ruta, PORTAL, {}, accesos())).toBe(AGENCIA);
+      });
+    }
+
+    it('pulse sin empresa declarada consulta acotado a las que alcanza', async () => {
+      const ambito = await empresaQueRecibe(ReportingController, 'pulse', PORTAL, {}, accesos());
+      const pulseService = { getPulse: vi.fn().mockResolvedValue({}) };
+      const controlador = Object.assign(Object.create(ReportingController.prototype), { pulseService, accountAccess: accesos() });
+      await controlador.pulse({ organizationId: ORG, user: { ...PORTAL, role: 'admin' } }, ambito);
+      expect(pulseService.getPulse).toHaveBeenCalledWith(ORG, undefined, ['A', 'B']);
+    });
+
     it('informes mensuales: la segunda empresa llega al servicio', async () => {
       const ambito = await empresaQueRecibe(ReportingController, 'listMonthlyReports', PORTAL, { clientId: 'B' }, accesos());
       const monthlyReports = { list: vi.fn().mockResolvedValue([]) };
       const controlador = Object.assign(Object.create(ReportingController.prototype), { monthlyReports, accountAccess: accesos() });
       await controlador.listMonthlyReports({ organizationId: ORG, user: PORTAL }, undefined, undefined, ambito);
       expect(monthlyReports.list.mock.calls[0][1]).toMatchObject({ clientId: 'B' });
+    });
+  });
+
+  /*
+   * El contrapeso de lo anterior: sumar sobre todo el alcance es una lectura, y una escritura no
+   * se reparte. Registrar una campaña sin decir de qué empresa anotaría el gasto en una que nadie
+   * eligió, así que ahí la pregunta se mantiene.
+   */
+  describe('crear una campaña sigue exigiendo la empresa', () => {
+    it('sin declararla y alcanzando dos, pregunta', async () => {
+      await expect(empresaQueRecibe(CampaignsController, 'create', PORTAL, {}, accesos()))
+        .rejects.toBeInstanceOf(VariasEmpresasAlcanzables);
     });
   });
 });

@@ -238,7 +238,8 @@ export function ReservationBuilderPage() {
    * Sólo las activas y de clientes de su empresa: ofrecer una cerrada o de otra empresa dejaría
    * elegir algo que el envío después descarta sin decir nada.
    */
-  const { data: encuestasDeLaEmpresa } = useQuery<Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }>>({
+  // `/surveys` responde paginado —`{ data, total, page, pageSize }`—, no un arreglo.
+  const { data: encuestasDeLaEmpresa } = useQuery<{ data: Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }> }>({
     queryKey: ['encuestas-del-local', data?.clientId],
     queryFn: () => api.get(`/surveys?clientId=${data?.clientId}`),
     enabled: Boolean(data?.clientId) && !clientMode,
@@ -943,7 +944,7 @@ export function ReservationBuilderPage() {
         {!clientMode && <label className="correo-rol"><strong>4. Qué encuesta se envía después de la visita</strong><small>Se manda unas horas después de una visita marcada como asistida, si el aviso está encendido en <Link to="/correos">Correos</Link>.</small>
           <select className="input" value={String(draft.designConfig?.encuestaPostVisita || '')} onChange={(e) => cambiarAjuste('encuestaPostVisita', e.target.value)}>
             <option value="">La que tenga su empresa</option>
-            {(encuestasDeLaEmpresa ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer').map((encuesta) => <option key={encuesta.id} value={encuesta.id}>{encuesta.title}</option>)}
+            {(encuestasDeLaEmpresa?.data ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer').map((encuesta) => <option key={encuesta.id} value={encuesta.id}>{encuesta.title}</option>)}
           </select>
         </label>}
         {draft.calendarReady ? <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.calendarEnabled)} onChange={(e) => change({ calendarEnabled: e.target.checked })} /> Crear también el evento en el calendario de Google conectado</label> : <small className="page-subtitle">El calendario de Google no está conectado en esta organización, así que no se ofrece.</small>}

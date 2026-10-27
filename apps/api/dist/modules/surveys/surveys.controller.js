@@ -116,7 +116,7 @@ let SurveysController = class SurveysController {
         const permitidas = clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         if (esPortal) {
             if (!clientId)
-                return [];
+                return { data: [], total: 0, page: 1, pageSize: 0 };
             await (0, encuestas_de_la_empresa_1.exigirEncuestasHabilitadas)(this.dataSource, clientId);
             return this.listarAcotado({ organizationId: req.organizationId, clientId }, filtros);
         }

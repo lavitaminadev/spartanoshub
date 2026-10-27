@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AGENCIA = void 0;
+exports.VariasEmpresasAlcanzables = exports.AGENCIA = void 0;
 exports.resolverEmpresa = resolverEmpresa;
 exports.esUnaEmpresa = esUnaEmpresa;
 const common_1 = require("@nestjs/common");
@@ -19,8 +19,14 @@ async function resolverEmpresa(pedida, user, alcance) {
     if (suyas.length === 0) {
         throw new common_1.BadRequestException('Tu cuenta no tiene ninguna empresa asignada');
     }
-    throw new common_1.BadRequestException('Elige la empresa sobre la que trabajas');
+    throw new VariasEmpresasAlcanzables();
 }
+class VariasEmpresasAlcanzables extends common_1.BadRequestException {
+    constructor() {
+        super('Elige la empresa sobre la que trabajas');
+    }
+}
+exports.VariasEmpresasAlcanzables = VariasEmpresasAlcanzables;
 function esUnaEmpresa(ambito) {
     return ambito !== exports.AGENCIA;
 }
