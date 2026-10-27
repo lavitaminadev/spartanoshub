@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext, InternalServerErrorException, SetMetadata } from '@nestjs/common';
-import { AGENCIA, type AmbitoDeEmpresa } from './empresa-resuelta';
+import { AGENCIA, VariasEmpresasAlcanzables, type AmbitoDeEmpresa } from './empresa-resuelta';
 import { ambitoDeLaPeticion } from './empresa.interceptor';
 
 /** Marca que la ruta es de toda la agencia, con el motivo escrito. */
@@ -28,14 +28,26 @@ export const SinEmpresa = (motivo: string) => SetMetadata(SIN_EMPRESA_KEY, motiv
  * mayoría de las rutas trabajan sobre una empresa y recibir `AGENCIA` sin querer es cómo una
  * consulta termina leyendo la organización completa. Las que sí abarcan la agencia se declaran
  * con `@Empresa({ oAgencia: true })` y `@SinEmpresa('motivo')`.
+ *
+ * `oTodasLasQueAlcanza` es para las que suman sobre el alcance entero —un pulso, un consolidado,
+ * un listado de reportes—: ahí no declarar empresa no es una omisión, es la pregunta («cómo va
+ * todo lo mío»), y la ruta ya acota por la lista de empresas alcanzables. Sin esto, la cuenta que
+ * atiende más de una empresa recibe un 400 en una pantalla que no tiene selector, y queda en
+ * blanco. Exige `oAgencia`, porque el ámbito que recibe es `AGENCIA`.
  */
 export const Empresa = createParamDecorator(
-  ({ oAgencia = false }: { oAgencia?: boolean } = {}, ctx: ExecutionContext): AmbitoDeEmpresa => {
+  (
+    { oAgencia = false, oTodasLasQueAlcanza = false }: { oAgencia?: boolean; oTodasLasQueAlcanza?: boolean } = {},
+    ctx: ExecutionContext,
+  ): AmbitoDeEmpresa => {
     const ambito = ambitoDeLaPeticion(ctx.switchToHttp().getRequest());
 
     // El interceptor guarda lo que falló al resolver y lo lanza quien sabe que hacía falta: una
     // ruta que no necesita empresa no tiene por qué fallar porque la petición no la declarara.
-    if (ambito instanceof Error) throw ambito;
+    if (ambito instanceof Error) {
+      if (oAgencia && oTodasLasQueAlcanza && ambito instanceof VariasEmpresasAlcanzables) return AGENCIA;
+      throw ambito;
+    }
 
     if (ambito === undefined) {
       // No hay petición autenticada de la que resolverla, o el interceptor no corrió. Las dos

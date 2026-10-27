@@ -138,6 +138,31 @@ repositorio**, no con etiquetas. La decisión es del dueño.
 
 ---
 
+## Qué skill se carga, y cuándo
+
+No se piden: se cargan antes del primer paso del tipo de trabajo que cubren. Una skill instalada
+que nadie invoca no sirve de nada, y esperar a que el modelo la vea es dejarlo al azar.
+
+| Antes de… | Cargar | Por qué |
+|---|---|---|
+| Diagnosticar un fallo cuyo origen no esté claro, o una regresión que no se localiza | `systematic-debugging` | El `errno 150`, el YAML del workflow y el lock de npm costaron seis días, y los tres fueron fallos de método: cambiar algo plausible antes de medir. La skill obliga a probar la causa, no a adivinarla |
+| Abrir o actualizar un PR, o dejar un diff listo para revisar | `github-pr-workflow` | Rama, borrador, CI, riesgo anotado, fusión. Es el ciclo que se hace a mano varias veces por semana |
+| Copiar, instalar o clonar código de un repositorio de fuera | `oss-forensics` | Un `install.sh` ajeno escribe en `~/.claude`. Se lee antes de correrlo, siempre |
+| Notar que la conversación se alargó y el contexto empieza a apretar | `hermes-compress` | Resume y guarda las decisiones antes de perderlas, en vez de volver a averiguarlas |
+| Revisar los cambios de una rama buscando defectos | `/code-review` | Ya instalada |
+| Desplegar, publicar, o recompilar `dist` tras tocar código | `desplegar` | De este repositorio (`.claude/skills/desplegar`): los diez pasos, del `tsc` al sha en `/api/health`. Hecho a mano cinco veces en una semana, y cada vez se olvidó algo distinto |
+| Una pantalla nueva o una que cambie de forma | `design:accessibility-review` | Ya instalada |
+
+Las de este repositorio se cargan con `Skill`. Si una no existe, se dice y se sigue a mano: no se
+inventa el nombre.
+
+**Y una que no depende de que nadie se acuerde:** el gancho `PreToolUse` de `.claude/settings.json`
+rechaza un `git commit` cuando el índice contiene la `0179` o un `.env`, y dice con qué línea
+sacarlos. Está porque `git add -A apps/api/src` agrega la `0179` aunque esté sin seguir, y a partir
+de ahí sólo lo nota quien mire la lista de archivos de un commit de `dist`.
+
+---
+
 ## Dónde está lo ya averiguado
 
 `auditoria-main/` (ignorado por git, presente en disco) tiene 17 documentos: el consolidado, uno por

@@ -59,7 +59,7 @@ export class ApprovalsController {
   @RequiereArea('production.aprobaciones', 'ver')
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.CREATIVE_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN, UserRole.CLIENT)
   @ApiOperation({ summary: 'Listar solicitudes de aprobación' })
-  async list(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+  async list(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true, oTodasLasQueAlcanza: true }) ambito: AmbitoDeEmpresa) {
     // Una empresa concreta, o la agencia entera para quien no tiene límite. Una cuenta de portal
     // nunca recibe la agencia: sin empresa resuelta no hay nada que listar.
     const clientId = esUnaEmpresa(ambito) ? ambito : undefined;

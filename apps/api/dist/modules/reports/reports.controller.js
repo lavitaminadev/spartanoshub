@@ -260,7 +260,7 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Pulso Vitamina explicable de la operación y la marca' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true, oTodasLasQueAlcanza: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
@@ -281,7 +281,7 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Reportes generales' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true, oTodasLasQueAlcanza: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
@@ -300,7 +300,7 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Rendimiento consolidado de Meta Ads, Google Ads y Analytics' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
+    __param(1, (0, empresa_decorator_1.Empresa)({ oAgencia: true, oTodasLasQueAlcanza: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
@@ -311,7 +311,7 @@ __decorate([
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('year')),
     __param(2, (0, common_1.Query)('month')),
-    __param(3, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
+    __param(3, (0, empresa_decorator_1.Empresa)({ oAgencia: true, oTodasLasQueAlcanza: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)

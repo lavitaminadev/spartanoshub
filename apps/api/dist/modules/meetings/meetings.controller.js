@@ -228,7 +228,7 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Listar reuniones' }),
     __param(0, (0, common_1.Query)('type')),
     __param(1, (0, common_1.Req)()),
-    __param(2, (0, empresa_decorator_1.Empresa)({ oAgencia: true })),
+    __param(2, (0, empresa_decorator_1.Empresa)({ oAgencia: true, oTodasLasQueAlcanza: true })),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object, String]),
     __metadata("design:returntype", Promise)

@@ -506,12 +506,13 @@ export function PanelDeCorreo(): JSX.Element {
    */
   const empresaTieneEncuestas = !empresa
     || (empresasQuery.data?.data ?? []).find((cliente) => cliente.id === empresa)?.capabilities?.surveys !== false;
-  const encuestasQuery = useQuery<Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }>>({
+  // `/surveys` responde paginado —`{ data, total, page, pageSize }`—, no un arreglo.
+  const encuestasQuery = useQuery<{ data: Array<{ id: string; title: string; status: string; type: string; clientId?: string | null }> }>({
     queryKey: ['encuestas-para-correo', empresa],
     queryFn: () => api.get(`/surveys${empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''}`),
     enabled: alcanzaEncuestas && empresaTieneEncuestas && Boolean(empresasQuery.data),
   });
-  const encuestasElegibles = (encuestasQuery.data ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer' && (!encuesta.clientId || encuesta.clientId === empresa));
+  const encuestasElegibles = (encuestasQuery.data?.data ?? []).filter((encuesta) => encuesta.status === 'active' && encuesta.type === 'customer' && (!encuesta.clientId || encuesta.clientId === empresa));
 
   const guardar = useMutation({
     mutationFn: (values: Record<string, unknown>) => api.put(

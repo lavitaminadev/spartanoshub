@@ -63,7 +63,7 @@ export class ReportingController {
     UserRole.AI_LEAD, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT,
   )
   @ApiOperation({ summary: 'Pulso Vitamina explicable de la operación y la marca' })
-  async pulse(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+  async pulse(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true, oTodasLasQueAlcanza: true }) ambito: AmbitoDeEmpresa) {
     const clientId = this.resolveClientScope(req, ambito) ?? undefined;
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
     return this.pulseService.getPulse(req.organizationId!, clientId, clientIds);
@@ -161,7 +161,7 @@ export class ReportingController {
     UserRole.AI_LEAD, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT,
   )
   @ApiOperation({ summary: 'Reportes generales' })
-  async reports(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+  async reports(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true, oTodasLasQueAlcanza: true }) ambito: AmbitoDeEmpresa) {
     const orgId = req.organizationId;
     const clientId = this.resolveClientScope(req, ambito);
     const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
@@ -329,7 +329,7 @@ export class ReportingController {
     UserRole.AI_LEAD, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT,
   )
   @ApiOperation({ summary: 'Rendimiento consolidado de Meta Ads, Google Ads y Analytics' })
-  async performance(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true }) ambito: AmbitoDeEmpresa) {
+  async performance(@Req() req: AuthenticatedRequest, @Empresa({ oAgencia: true, oTodasLasQueAlcanza: true }) ambito: AmbitoDeEmpresa) {
     const clientId = this.resolveClientScope(req, ambito);
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
     const conditions = ['organization_id = ?', 'metric_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)'];
@@ -369,7 +369,7 @@ export class ReportingController {
 
   @Get('monthly-reports')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.CREATIVE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async listMonthlyReports(@Req() req: AuthenticatedRequest, @Query('year') year?: string, @Query('month') month?: string, @Empresa({ oAgencia: true }) ambito?: AmbitoDeEmpresa) {
+  async listMonthlyReports(@Req() req: AuthenticatedRequest, @Query('year') year?: string, @Query('month') month?: string, @Empresa({ oAgencia: true, oTodasLasQueAlcanza: true }) ambito?: AmbitoDeEmpresa) {
     const clientId = this.resolveClientScope(req, ambito as AmbitoDeEmpresa);
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
     return this.monthlyReports.list(req.organizationId!, { clientId: clientId ?? undefined, clientIds, clientView: req.user.role === UserRole.CLIENT, year: year ? Number(year) : undefined, month: month ? Number(month) : undefined });

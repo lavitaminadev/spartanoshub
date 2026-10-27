@@ -49,7 +49,7 @@ export interface AlcanceDeLaCuenta {
  * | La declara y la alcanza | La empresa |
  * | La declara y no la alcanza | 404, el mismo que si no existiera |
  * | No la declara y alcanza una sola | Esa |
- * | No la declara y alcanza varias | 400, para que la pantalla pregunte |
+ * | No la declara y alcanza varias | `VariasEmpresasAlcanzables`, un 400, para que la pantalla pregunte |
  * | No la declara y no tiene límite | `AGENCIA` |
  *
  * No hay repliegue silencioso: pedir una empresa y recibir otra —«la mía»— es el defecto que
@@ -79,7 +79,22 @@ export async function resolverEmpresa(
   if (suyas.length === 0) {
     throw new BadRequestException('Tu cuenta no tiene ninguna empresa asignada');
   }
-  throw new BadRequestException('Elige la empresa sobre la que trabajas');
+  throw new VariasEmpresasAlcanzables();
+}
+
+/**
+ * La cuenta alcanza varias empresas y la petición no dijo sobre cuál va.
+ *
+ * Tiene clase propia, y no sólo mensaje, porque hay rutas para las que esto no es un problema:
+ * las que suman sobre todo el alcance —un pulso, un consolidado— ya acotan por la lista de
+ * empresas alcanzables, así que no les falta nada. Esas lo convierten en `AGENCIA` declarándolo
+ * con `@Empresa({ oAgencia: true, oTodasLasQueAlcanza: true })`; distinguirlo por la clase evita
+ * que eso se haga mirando el texto del error, que cambia sin avisar.
+ */
+export class VariasEmpresasAlcanzables extends BadRequestException {
+  constructor() {
+    super('Elige la empresa sobre la que trabajas');
+  }
 }
 
 /** Si el ámbito es una empresa concreta. Estrecha el tipo, para no repetir la comparación. */
