@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var ReservationsController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReservationsController = void 0;
 const permission_resolver_service_1 = require("../../core/authorization/permission-resolver.service");
@@ -37,7 +38,7 @@ const reservation_dto_1 = require("./dto/reservation.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const requiere_accion_1 = require("../../core/authorization/requiere-accion");
 const requiere_area_decorator_1 = require("../../core/authorization/requiere-area.decorator");
-let ReservationsController = class ReservationsController {
+let ReservationsController = ReservationsController_1 = class ReservationsController {
     constructor(service, accountAccess, capabilities, bulkImport, audit, dataSource, permisos, niveles) {
         this.service = service;
         this.accountAccess = accountAccess;
@@ -140,6 +141,10 @@ let ReservationsController = class ReservationsController {
     }
     async update(req, id, dto) {
         const scope = await this.scope(req);
+        if (!ReservationsController_1.DECLARAN_LA_EXCEPCION.includes(req.user.role)) {
+            delete dto.consentimientoNoAplica;
+            delete dto.motivoSinConsentimiento;
+        }
         if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
             const allowed = {
                 timezone: dto.timezone,
@@ -451,6 +456,7 @@ let ReservationsController = class ReservationsController {
     }
 };
 exports.ReservationsController = ReservationsController;
+ReservationsController.DECLARAN_LA_EXCEPCION = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR];
 __decorate([
     (0, common_1.Get)('company-legal'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
@@ -992,7 +998,7 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "getReservation", null);
-exports.ReservationsController = ReservationsController = __decorate([
+exports.ReservationsController = ReservationsController = ReservationsController_1 = __decorate([
     (0, swagger_1.ApiTags)('Reservas'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

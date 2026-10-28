@@ -150,6 +150,17 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     overlaps(aStart, aEnd, bStart, bEnd) { return aStart < bEnd && aEnd > bStart; }
     minutesOverlaps(aStartMin, aEndMin, bStartMin, bEndMin) { return aStartMin < bEndMin && aEndMin > bStartMin; }
     configs(form) { return { services: (form.servicesConfig || []), resources: (form.resourcesConfig || []) }; }
+    assertConsentimientoDeclarado(form) {
+        if (form.consentimientoNoAplica) {
+            if (!form.motivoSinConsentimiento?.trim())
+                throw new common_1.BadRequestException('Escribe por qué esta página no pide la aceptación de tratamiento de datos');
+            return;
+        }
+        const fields = (form.fieldSchema || []);
+        if (!fields.some((field) => field.type === 'consent' && field.required)) {
+            throw new common_1.BadRequestException('El formulario requiere una aceptación de tratamiento de datos');
+        }
+    }
     validateConfiguration(form) {
         (0, timezone_1.assertTimeZone)(form.timezone);
         const fields = form.fieldSchema;
@@ -169,8 +180,6 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         if (!fields.some((field) => field.id === 'name' && field.required))
             throw new common_1.BadRequestException('El nombre debe permanecer como campo obligatorio');
-        if (!fields.some((field) => field.type === 'consent' && field.required))
-            throw new common_1.BadRequestException('El formulario requiere una aceptación de tratamiento de datos');
         const validateWindows = (windows, label) => {
             if (!Array.isArray(windows) || windows.length > 40)
                 throw new common_1.BadRequestException(`${label} no es válida`);
@@ -515,6 +524,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         if (form.status === 'published' && (form.scheduleConfig.windows?.length || 0) === 0)
             throw new common_1.BadRequestException('No puedes publicar sin disponibilidad');
+        if (form.status === 'published')
+            this.assertConsentimientoDeclarado(form);
         if (form.status === 'published' && !estabaPublicado) {
             const faltan = await this.faltantesLegales(form);
             if (faltan.length)
@@ -610,6 +621,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         await this.completarDatosLegales(form, manager?.query.bind(manager));
         try {
             this.validateConfiguration(form);
+            this.assertConsentimientoDeclarado(form);
         }
         catch (err) {
             this.logger.error(`Formulario publicado ${form.id} (${slug}) tiene configuración inválida: ${err instanceof Error ? err.message : err}`);
@@ -960,6 +972,14 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             network: String(design.networkConsentText || base.red),
             sensibles: base.sensibles,
         };
+    }
+    evidenciaDeLaReserva(form, acepto) {
+        if (form.consentimientoNoAplica) {
+            return { reservationConsentAt: null, reservationConsentText: `[no aplica] ${form.motivoSinConsentimiento ?? ''}`.trim() };
+        }
+        return acepto
+            ? { reservationConsentAt: new Date(), reservationConsentText: this.consentTexts(form).reservation }
+            : { reservationConsentAt: null, reservationConsentText: null };
     }
     evidenciaSensible(form, answers, guest, texto) {
         if (!guest.sensitiveConsent || !(0, shared_1.traeDatosSensibles)(form.fieldSchema, answers, guest))
@@ -1840,7 +1860,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             partySize: dto.partySize, eventType: dto.eventType, preferredDate: dto.preferredDate || null, preferredTime: dto.preferredTime?.trim() || null,
             notes: dto.notes?.trim() || null,
             details: { ...(dto.details ?? {}), ...(hayDatosSensibles ? { datosSensibles: { aceptadoEn: new Date().toISOString(), texto: `[${shared_1.VERSION_DATOS_SENSIBLES}] ${consent.sensibles}` } } : {}), ...(dto.measurementConsent ? { medicion: { aceptadaEn: new Date().toISOString(), version: dto.measurementConsentVersion || shared_1.VERSION_MEDICION, texto: shared_1.TEXTO_MEDICION, fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined), fbp: dto.fbp, ip: ipAddress, userAgent } } : {}) },
-            reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+            ...this.evidenciaDeLaReserva(form, true),
             marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
             groupMarketingConsentAt: dto.groupMarketingConsent ? new Date() : null, groupMarketingConsentText: dto.groupMarketingConsent ? consent.redBeneficios : null,
             networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentText: dto.networkConsent ? consent.network : null,
@@ -1887,7 +1907,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers,
                 birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
                 ...this.documentoDe(form, dto.answers || {}),
-                consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+                consentVersion: dto.consentVersion, ...this.evidenciaDeLaReserva(form, true),
                 marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
                 marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
                 measurementConsentVersion: dto.measurementConsent ? dto.measurementConsentVersion || shared_1.VERSION_MEDICION : null, measurementConsentText: dto.measurementConsent ? shared_1.TEXTO_MEDICION : null,
@@ -2131,8 +2151,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     ...(dto.howFound ? { howFound: dto.howFound } : {}),
                 },
                 consentVersion: dto.consentVersion,
-                reservationConsentAt: dto.reservationConsent ? new Date() : null,
-                reservationConsentText: dto.reservationConsent ? consent.reservation : null,
+                ...this.evidenciaDeLaReserva(form, Boolean(dto.reservationConsent)),
                 marketingConsentAt: dto.marketingConsent ? new Date() : null,
                 marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
                 marketingConsentText: dto.marketingConsent ? consent.marketing : null,

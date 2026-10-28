@@ -51,6 +51,14 @@ __decorate([
     __metadata("design:type", Object)
 ], ReservationForm.prototype, "tipoDeCaptacion", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'consentimiento_no_aplica', type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], ReservationForm.prototype, "consentimientoNoAplica", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'motivo_sin_consentimiento', type: 'varchar', length: 300, nullable: true }),
+    __metadata("design:type", Object)
+], ReservationForm.prototype, "motivoSinConsentimiento", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 80, default: 'America/Santiago' }),
     __metadata("design:type", String)
 ], ReservationForm.prototype, "timezone", void 0);
