@@ -148,6 +148,14 @@ export class VitaminaPulseService {
       coverage,
       status: statusFor(score),
       stage,
+      /*
+       * El cero es porque la cuenta no alcanza ninguna empresa, no porque no haya pasado nada.
+       *
+       * Son dos vacíos distintos y la pantalla tiene que poder decirlos de otra forma: uno se
+       * arregla trabajando y el otro pidiendo que te asignen un pod. Sin esta señal, la única
+       * salida era un «sin evidencia» que no dice a quién preguntar.
+       */
+      sinEmpresas: !clientId && Array.isArray(clientIds) && clientIds.length === 0,
       generatedAt: new Date().toISOString(),
       dimensions,
       actions: actions.slice(0, 5),

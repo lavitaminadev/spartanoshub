@@ -21,7 +21,7 @@ import { MeetingsController } from '../../../src/modules/meetings/meetings.contr
 import { ProductionController } from '../../../src/modules/production/production.controller';
 import { ReportingController } from '../../../src/modules/reports/reports.controller';
 import { CampaignsController } from '../../../src/modules/crm/campaigns/campaigns.controller';
-import { AGENCIA, VariasEmpresasAlcanzables } from '../../../src/core/client-scope/empresa-resuelta';
+import { AGENCIA, SinEmpresasAlcanzables, VariasEmpresasAlcanzables } from '../../../src/core/client-scope/empresa-resuelta';
 
 const ORG = 'org-1';
 const PORTAL = { id: 'u-portal', role: 'client', clientId: 'A', organizationId: ORG };
@@ -130,6 +130,23 @@ describe('rutas migradas a @Empresa()', () => {
       });
       await expect(controlador.list('', { organizationId: ORG, user: cm }, ambito)).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    /*
+     * Sin empresa elegida, la consulta se acota por el alcance y no por la organización.
+     *
+     * Ésta es la ruta agregada que no recibía la lista: con `AGENCIA` y sin ella, el `where`
+     * se quedaba en la organización entera y un director veía las reuniones de clientes que no
+     * atiende. Las otras seis ya la pasaban.
+     */
+    it('un director sin empresa elegida recibe sólo las empresas que alcanza', async () => {
+      const director = { id: 'u-dir', role: 'commercial_director', organizationId: ORG };
+      const ambito = await empresaQueRecibe(MeetingsController, 'list', director, {}, accesos());
+      expect(ambito).toBe(AGENCIA);
+      const listMeetings = { execute: vi.fn().mockResolvedValue([]) };
+      const controlador = Object.assign(Object.create(MeetingsController.prototype), { listMeetings, accountAccess: accesos() });
+      await controlador.list('', { organizationId: ORG, user: director }, ambito);
+      expect(listMeetings.execute).toHaveBeenCalledWith(ORG, '', undefined, ['A', 'B']);
+    });
   });
 
   describe('producción: rechazar una pieza', () => {
@@ -199,6 +216,33 @@ describe('rutas migradas a @Empresa()', () => {
       const controlador = Object.assign(Object.create(ReportingController.prototype), { monthlyReports, accountAccess: accesos() });
       await controlador.listMonthlyReports({ organizationId: ORG, user: PORTAL }, undefined, undefined, ambito);
       expect(monthlyReports.list.mock.calls[0][1]).toMatchObject({ clientId: 'B' });
+    });
+  });
+
+  /*
+   * Una cuenta recién creada, sin pod ni asignaciones, no es un error de quien la usa.
+   *
+   * Alcanzar cero empresas daba 400 y dejaba el pulso en blanco con un fallo encima. Para una
+   * ruta que suma sobre el alcance la respuesta correcta es «cero»: la lista vacía acota la
+   * consulta y no devuelve filas. Para una que trabaja sobre una empresa sigue siendo un 400,
+   * porque no hay sobre qué trabajar.
+   */
+  describe('una cuenta que no alcanza ninguna empresa', () => {
+    it('el pulso responde sobre su alcance vacío, no con un fallo', async () => {
+      const director = { id: 'u-nuevo', role: 'commercial_director', organizationId: ORG };
+      const ambito = await empresaQueRecibe(ReportingController, 'pulse', director, {}, accesos([]));
+      expect(ambito).toBe(AGENCIA);
+      const pulseService = { getPulse: vi.fn().mockResolvedValue({}) };
+      const controlador = Object.assign(Object.create(ReportingController.prototype), { pulseService, accountAccess: accesos([]) });
+      await controlador.pulse({ organizationId: ORG, user: director }, ambito);
+      // La lista vacía es lo que acota: ninguna empresa, ninguna fila.
+      expect(pulseService.getPulse).toHaveBeenCalledWith(ORG, undefined, []);
+    });
+
+    it('crear una campaña sigue pidiendo la empresa, porque no hay ninguna', async () => {
+      const director = { id: 'u-nuevo', role: 'commercial_director', organizationId: ORG };
+      await expect(empresaQueRecibe(CampaignsController, 'create', director, {}, accesos([])))
+        .rejects.toBeInstanceOf(SinEmpresasAlcanzables);
     });
   });
 

@@ -10,7 +10,8 @@ exports.SinEmpresa = SinEmpresa;
 exports.Empresa = (0, common_1.createParamDecorator)(({ oAgencia = false, oTodasLasQueAlcanza = false } = {}, ctx) => {
     const ambito = (0, empresa_interceptor_1.ambitoDeLaPeticion)(ctx.switchToHttp().getRequest());
     if (ambito instanceof Error) {
-        if (oAgencia && oTodasLasQueAlcanza && ambito instanceof empresa_resuelta_1.VariasEmpresasAlcanzables)
+        const esDeAlcance = ambito instanceof empresa_resuelta_1.VariasEmpresasAlcanzables || ambito instanceof empresa_resuelta_1.SinEmpresasAlcanzables;
+        if (oAgencia && oTodasLasQueAlcanza && esDeAlcance)
             return empresa_resuelta_1.AGENCIA;
         throw ambito;
     }
