@@ -73,6 +73,8 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = 
   const q = `?clientId=${encodeURIComponent(clientId)}`;
   const qc = useQueryClient();
   const [editando, setEditando] = useState<PerfilFila | 'nuevo' | null>(null);
+  /* El perfil del que se parte al crear otro: «como Anfitrión, pero además…». */
+  const [partiendoDe, setPartiendoDe] = useState<PerfilFila | null>(null);
   const [borrando, setBorrando] = useState<PerfilFila | null>(null);
   const [quitando, setQuitando] = useState<Persona | null>(null);
   const [mirando, setMirando] = useState<Persona | null>(null);
@@ -137,7 +139,9 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = 
               <small>{perfil.personas === 0 ? 'Nadie lo usa' : `${perfil.personas} persona${perfil.personas === 1 ? '' : 's'}`}</small>
               {perfil.descripcion && <small> — {perfil.descripcion}</small>}{' '}
               <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditando(perfil)}>Editar</button>{' '}
-              <button type="button" className="btn btn-outline btn-sm" onClick={() => setBorrando(perfil)}>Borrar</button>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setBorrando(perfil)}>Borrar</button>{' '}
+              {/* Casi todos los perfiles de un local son otro con un permiso más o uno menos. */}
+              <button type="button" className="btn btn-outline btn-sm" title={`Crea uno nuevo con las mismas áreas y niveles que ${perfil.nombre}`} onClick={() => { setPartiendoDe(perfil); setEditando('nuevo'); }}>Partir de este</button>
             </li>
           ))}
         </ul>
@@ -222,12 +226,13 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = 
 
       {editando && (
         <EditorDePerfil
-          key={editando === 'nuevo' ? 'nuevo' : editando.id}
+          key={editando === 'nuevo' ? `nuevo:${partiendoDe?.id ?? ''}` : editando.id}
           q={q}
           perfil={editando === 'nuevo' ? null : editando}
+          partirDe={editando === 'nuevo' ? partiendoDe : null}
           capacidades={capacidades}
-          onCerrar={() => setEditando(null)}
-          onGuardado={() => { setEditando(null); refrescar(); setMensaje({ tono: 'success', texto: 'Perfil guardado.' }); }}
+          onCerrar={() => { setEditando(null); setPartiendoDe(null); }}
+          onGuardado={() => { setEditando(null); setPartiendoDe(null); refrescar(); setMensaje({ tono: 'success', texto: 'Perfil guardado.' }); }}
         />
       )}
 
@@ -361,11 +366,23 @@ function BorrarPerfil({ q, perfil, otros, onCerrar, onBorrado, onError }: { q: s
   );
 }
 
-function EditorDePerfil({ q, perfil, capacidades, onCerrar, onGuardado }: { q: string; perfil: PerfilFila | null; capacidades?: Partial<Record<string, boolean>> | null; onCerrar: () => void; onGuardado: () => void }): JSX.Element {
+/**
+ * Crear o editar un perfil.
+ *
+ * `partirDe` sólo se mira al crear: hereda las áreas y los niveles de datos protegidos de otro
+ * perfil y deja el nombre vacío, porque el nombre es lo que lo distingue. Casi todos los perfiles
+ * de un local son otro con un permiso más o uno menos, y reconstruir cuarenta y cuatro áreas a
+ * mano para cambiar una es cómo se terminan concediendo de más por cansancio.
+ *
+ * Guardar sigue siendo `POST`: partir de otro cambia con qué valores nace el formulario, no qué
+ * hace el botón.
+ */
+function EditorDePerfil({ q, perfil, partirDe, capacidades, onCerrar, onGuardado }: { q: string; perfil: PerfilFila | null; partirDe?: PerfilFila | null; capacidades?: Partial<Record<string, boolean>> | null; onCerrar: () => void; onGuardado: () => void }): JSX.Element {
+  const base = perfil ?? partirDe ?? null;
   const [nombre, setNombre] = useState(perfil?.nombre ?? '');
   const [descripcion, setDescripcion] = useState(perfil?.descripcion ?? '');
-  const [areas, setAreas] = useState<Record<string, NivelDeArea>>({ ...(perfil?.areas ?? {}) });
-  const [datos, setDatos] = useState<Record<string, NivelDeDatosProtegidos>>({ ...(perfil?.datosProtegidos ?? {}) });
+  const [areas, setAreas] = useState<Record<string, NivelDeArea>>({ ...(base?.areas ?? {}) });
+  const [datos, setDatos] = useState<Record<string, NivelDeDatosProtegidos>>({ ...(base?.datosProtegidos ?? {}) });
   const [acepta, setAcepta] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState<string | null>(null);

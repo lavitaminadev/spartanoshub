@@ -1,0 +1,1 @@
+import{fn as e}from"./vendor-BRIR_CnQ.js";import{t}from"./EquipoYAccesos-CXVFTg34.js";var n=e();function r(){return(0,n.jsx)(t,{})}export{r as MiEquipoPage};

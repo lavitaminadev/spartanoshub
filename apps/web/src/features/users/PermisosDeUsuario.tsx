@@ -92,6 +92,14 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
     // La matriz de cargos es de la agencia: el servidor no se la abre al portal.
     enabled: puedeEditar && !limitadoASuEmpresa,
   });
+  /* El motivo y el vencimiento que llevará el próximo ajuste. Ver el bloque de justificación. */
+  const [motivo, setMotivo] = useState('');
+  const [vence, setVence] = useState('');
+  const hoy = new Date().toISOString().slice(0, 10);
+  /** Fin del día elegido: un permiso «hasta el viernes» vale todo el viernes. */
+  const venceEn = () => (vence ? new Date(`${vence}T23:59:59`).toISOString() : undefined);
+  const porQue = () => motivo.trim() || 'Ajuste desde Usuarios';
+
   const accesos = useQuery<{ access: AccesoEmpresa[] | 'unrestricted'; atiendeOtras?: boolean }>({
     queryKey: ['empresas-de-usuario', usuario.id, limitadoASuEmpresa ? miEmpresa : ''],
     queryFn: () => api.get(`/users/${usuario.id}/client-access${limitadoASuEmpresa ? qs : ''}`),
@@ -107,7 +115,7 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
   const cambiarAccion = useMutation({
     mutationFn: ({ accion, valor }: { accion: string; valor: 'nivel' | 'si' | 'no' }) => valor === 'nivel'
       ? api.delete(`/users/${usuario.id}/actions/${accion}`)
-      : api.put(`/users/${usuario.id}/actions/${accion}`, { allowed: valor === 'si', reason: 'Ajuste desde Usuarios' }),
+      : api.put(`/users/${usuario.id}/actions/${accion}`, { allowed: valor === 'si', reason: porQue(), expiresAt: venceEn() }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['acciones-de-usuario', usuario.id] }); triggerToast('Acción actualizada'); },
     onError: (error: Error) => triggerToast(error.message || 'No se pudo guardar el cambio', 'error'),
   });
@@ -123,7 +131,7 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
   const cambiarNivel = useMutation({
     mutationFn: ({ modulo, nivel }: { modulo: string; nivel: Nivel | 'cargo' }) => nivel === 'cargo'
       ? api.delete(`/users/${usuario.id}/permissions/${modulo}${qs}`)
-      : api.put(`/users/${usuario.id}/permissions/${modulo}`, { level: nivel, reason: 'Ajuste desde Usuarios', clientId: empresaDelPermiso || undefined }),
+      : api.put(`/users/${usuario.id}/permissions/${modulo}`, { level: nivel, reason: porQue(), expiresAt: venceEn(), clientId: empresaDelPermiso || undefined }),
     onSuccess: () => { refrescar(); triggerToast('Permiso actualizado. Se aplica en su próxima acción.'); },
     onError: fallo,
   });
@@ -171,6 +179,39 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
         {!limitadoASuEmpresa && empresaDelPermiso ? (
           <p className="page-subtitle">Lo que ajustes acá manda sobre lo general mientras esté en esa empresa.</p>
         ) : null}
+        {/*
+          * Por qué y hasta cuándo, para el ajuste que venga.
+          *
+          * La base guarda `reason`, `expires_at` y `granted_by` desde que existe la excepción, y
+          * esta pantalla mandaba «Ajuste desde Usuarios» y ningún vencimiento: cada permiso extra
+          * nacía permanente y sin explicación, de modo que meses después nadie sabía por qué lo
+          * tiene ni si ya sobra. Al vencer, el nivel vuelve solo al del cargo, sin que nadie tenga
+          * que acordarse de retirarlo.
+          *
+          * Van arriba y no por fila porque el motivo de una tanda es el mismo —«cubre las
+          * vacaciones de Ana»—, y repetirlo en cada control haría que no se escriba ninguno.
+        */}
+        {puedeEditar && (
+          <div className="permisos-usuario-justificacion">
+            <label>
+              <span>Por qué</span>
+              <input
+                className="input"
+                maxLength={300}
+                placeholder="Cubre las vacaciones de Ana"
+                value={motivo}
+                onChange={(evento) => setMotivo(evento.target.value)}
+              />
+            </label>
+            <label>
+              <span>Hasta</span>
+              <input className="input" type="date" min={hoy} value={vence} onChange={(evento) => setVence(evento.target.value)} />
+            </label>
+            <small>{vence
+              ? `Lo que ajustes ahora vence el ${new Date(`${vence}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })} y vuelve al nivel de su cargo.`
+              : 'Sin fecha, el ajuste queda hasta que alguien lo retire.'}</small>
+          </div>
+        )}
         {permisos.isLoading ? <p>Cargando permisos…</p> : permisos.error ? <p className="error-text">{(permisos.error as Error).message}</p> : (
           <div className="permisos-usuario-lista">
             {MODULOS.map((modulo) => {
