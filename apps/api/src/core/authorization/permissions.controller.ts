@@ -53,19 +53,41 @@ export class PermissionsController {
   ) {}
 
   /** Acciones de una persona: lo que da su nivel, su ajuste si existe y el resultado. */
+  // Quien administra su empresa también las lee: ajustarlas sin verlas no se puede.
   @Get('users/:id/actions')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Acciones permitidas de un usuario' })
   async accionesDeUsuario(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const user = await this.findUser(id, req.organizationId);
     // Con empresa se ven las acciones que rigen **en ella**, igual que el detalle de permisos.
     if (clientId) await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    /*
+     * Leerlas pasa por el mismo encierro que ajustarlas.
+     *
+     * Sin esto, abrir la ruta al cargo cliente le dejaba pedir las acciones de cualquier id de la
+     * organización —gente de la agencia incluida— escribiéndolo en la dirección: un `id` ajeno no
+     * es un secreto, aparece en cualquier listado. El encierro se comprueba sin módulo ni nivel,
+     * que es lo que corresponde a una lectura.
+     */
+    if (req.user.role === UserRole.CLIENT) {
+      await this.assertCanManageUserPermissionException(req, user, undefined, undefined, clientId || undefined);
+    }
     return { userId: user.id, acciones: await this.acciones.explicar(req.organizationId, user.id, user.role as UserRole, clientId || undefined) };
   }
 
-  /** Abre o cierra una acción para una persona. */
+  /**
+   * Abre o cierra una acción para una persona.
+   *
+   * También quien administra su empresa, dentro de ella. El encierro lo pone
+   * `assertCanManageUserPermissionException`: sólo cuentas de la empresa que administra, sólo si la
+   * alcanza de verdad, y nunca los módulos con los que se administra el sistema. Estaba escrito y
+   * probado para el nivel de módulo —`PUT users/:id/permissions` ya acepta el cargo cliente— y
+   * estas dos rutas lo dejaban fuera por la lista de cargos, así que el administrador de un local
+   * podía subirle el nivel entero a alguien y no abrirle una acción suelta, que es el ajuste más
+   * acotado de los dos.
+   */
   @Put('users/:id/actions/:accion')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Ajustar una acción de un usuario' })
   async ajustarAccion(@Param('id') id: string, @Param('accion') accion: string, @Body() dto: AjustarAccionDto, @Req() req: AuthenticatedRequest) {
     const definicion = definicionDeAccion(accion);
@@ -79,9 +101,9 @@ export class PermissionsController {
     return guardado;
   }
 
-  /** Quita el ajuste: la acción vuelve a seguir el nivel del módulo. */
+  /** Quita el ajuste: la acción vuelve a seguir el nivel del módulo. Mismo encierro que ponerlo. */
   @Delete('users/:id/actions/:accion')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Quitar el ajuste de una acción' })
   async quitarAjusteDeAccion(@Param('id') id: string, @Param('accion') accion: string, @Req() req: AuthenticatedRequest) {
     const definicion = definicionDeAccion(accion);

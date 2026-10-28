@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { User } from './user.entity';
 import { Client } from '../clients/client.entity';
 import { UserRole } from '../organizations/user-role.enum';
+import { REVOKE_REASONS, SessionsService } from '../../core/auth/sessions.service';
 import * as bcrypt from 'bcryptjs';
 
 interface UpdateUserInput {
@@ -28,6 +29,7 @@ export class UpdateUserUseCase {
   constructor(
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     @InjectRepository(Client) private readonly clientsRepo: Repository<Client>,
+    private readonly sessions: SessionsService,
   ) {}
 
   async execute(data: UpdateUserInput): Promise<User> {
@@ -83,12 +85,16 @@ export class UpdateUserUseCase {
      * que moverla los invalida todos de inmediato. Es el mismo mecanismo que ya usaba el cambio
      * de contraseña; lo que faltaba era aplicarlo también acá.
      */
+    // Los dos caminos que dejan a alguien fuera: se juntan acá porque los dos tienen que cerrar
+    // las sesiones, y hacerlo después de guardar es lo que evita cerrarlas si el guardado falla.
+    let cerrarSesiones = false;
     if (typeof data.isActive === 'boolean') {
       const desactivando = user.isActive && data.isActive === false;
       user.isActive = data.isActive;
       if (desactivando) {
         user.passwordChangedAt = new Date();
         user.refreshToken = null;
+        cerrarSesiones = true;
       }
     }
     if (data.role) user.role = data.role;
@@ -98,6 +104,7 @@ export class UpdateUserUseCase {
       // Invalida los access tokens ya emitidos: `JwtStrategy` los compara contra esta marca.
       user.passwordChangedAt = new Date();
       user.refreshToken = null;
+      cerrarSesiones = true;
     }
     if (data.workMode !== undefined) user.workMode = data.workMode;
     if (data.weeklyCapacityUd !== undefined) user.weeklyCapacityUd = data.weeklyCapacityUd;
@@ -118,6 +125,16 @@ export class UpdateUserUseCase {
     }
 
     const saved = await this.usersRepo.save(user);
+
+    /*
+     * Desactivar o cambiar la clave cierra también las sesiones abiertas.
+     *
+     * Las marcas de arriba invalidan los access tokens ya entregados, pero las filas de
+     * `user_sessions` siguen vivas y `refreshToken()` emite uno nuevo para cualquiera de ellas sin
+     * volver a mirar la contraseña ni `isActive` de la fila original. Quien quedó dentro seguía
+     * dentro hasta que su token de renovación venciera.
+     */
+    if (cerrarSesiones) await this.sessions.revokeAll(user.id, REVOKE_REASONS.ADMIN);
 
     // Un 200 solo es válido si el cambio crítico se puede leer de vuelta. Así
     // evitamos que una respuesta optimista deje en pantalla una cuenta "activa"

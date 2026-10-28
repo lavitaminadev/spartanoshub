@@ -460,8 +460,16 @@ const VISUAL_NIVELES_CM: Record<string, string> = { dashboard: 'view', crm: 'man
 const visualAjustesDePermiso: Record<string, Record<string, string>> = {};
 const visualAjustesDeAccion: Record<string, Record<string, boolean>> = {};
 const visualEmpresasDeUsuario: Record<string, Array<{ clientId: string; source: string }>> = {};
+/*
+ * Los datos de contacto de este archivo son inventados, y tienen que seguir siéndolo.
+ *
+ * Correos en `example.com` —el dominio reservado para ejemplos, que no puede pertenecer a nadie— y
+ * móviles del rango `+569 0000 00xx`. El repositorio es público: un lead copiado de la base para
+ * «que la pantalla se vea real» publica el teléfono y el correo de un comensal, y bajo la Ley
+ * 21.719 el responsable de ese dato es el local, no quien lo pegó acá.
+ */
 const visualLeadConCampos: Record<string, any> = {
-  id: 'l1', name: 'Ricardo Galvez Lopez', phone: '+56983000089', email: 'galvezr941@gmail.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z',
+  id: 'l1', name: 'Rodrigo Soto Lara', phone: '+56900000001', email: 'comensal1@example.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z',
   customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' },
 };
 const visualCrmFields: Array<Record<string, any>> = [
@@ -719,7 +727,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   // Tres envíos de ejemplo para revisar la pantalla de diagnóstico de correo.
   [/\/registro-de-correos/, () => ([
     { id: 'rc-1', destinatario: 'ana@casacostanera.cl', asunto: 'Acceso temporal a Espartanos', resultado: 'enviado', motivo: null, createdAt: new Date(Date.now() - 3 * 60_000).toISOString() },
-    { id: 'rc-2', destinatario: 'test3@gmail.com', asunto: 'Lead nuevo: Javi Meza (meta lead ads)', resultado: 'rechazado', motivo: 'El servidor de correo no lo aceptó', createdAt: new Date(Date.now() - 90 * 60_000).toISOString() },
+    { id: 'rc-2', destinatario: 'comensal3@example.com', asunto: 'Lead nuevo: Javi Meza (meta lead ads)', resultado: 'rechazado', motivo: 'El servidor de correo no lo aceptó', createdAt: new Date(Date.now() - 90 * 60_000).toISOString() },
     { id: 'rc-3', destinatario: 'diego@casacostanera.cl', asunto: 'Tu reserva en Casa Costanera', resultado: 'omitido', motivo: 'El correo de salida está apagado (SMTP_ENABLED)', createdAt: new Date(Date.now() - 26 * 60 * 60_000).toISOString() },
   ])],
   // Sin servidor de correo el reenvío no sale, como en producción con SMTP apagado.
@@ -1072,13 +1080,13 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   ])],
   [/\/crm\/leads(\?|$)/, () => ({
     data: [
-      { id: 'l1', customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' }, name: 'Ricardo Galvez Lopez', phone: '+56983000089', email: 'galvezr941@gmail.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z' },
-      { id: 'l2', name: 'Fabiana Ibanez Escalona', phone: '+56948532342', email: 'fabiana@gmail.com', status: 'contacted', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: 'u1', clientId: null, estimatedAmount: 7800000, createdAt: '2026-08-17T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
-      { id: 'l3', name: 'Matias Cancino Caceres', phone: '+56967338235', email: 'matias09@hotmail.com', status: 'quote_sent', source: 'Formulario web', campaignName: null, assignedTo: 'u1', clientId: null, estimatedAmount: 12000000, createdAt: '2026-08-14T02:15:20.676Z', updatedAt: '2026-08-10T02:15:20.676Z' },
-      { id: 'l4', name: 'Yohana Valenzuela', phone: '+56996118555', email: 'yohana@gmail.com', status: 'meeting_scheduled', source: 'Referido', campaignName: null, assignedTo: 'u2', clientId: null, estimatedAmount: 9200000, createdAt: '2026-08-11T02:15:20.676Z', updatedAt: '2026-08-18T02:15:20.676Z' },
-      { id: 'l5', name: 'Oriana Astete', phone: '+56987392203', email: 'oriana@gmail.com', status: 'negotiation', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u2', clientId: null, estimatedAmount: 15600000, createdAt: '2026-07-31T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
-      { id: 'l6', name: 'Merida Colores', phone: '+56958036024', email: 'merida@gmail.com', status: 'won', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, estimatedAmount: 8100000, createdAt: '2026-07-21T02:15:20.676Z', updatedAt: '2026-08-16T02:15:20.676Z' },
-      { id: 'l7', name: 'Maria Elena Donoso', phone: '+56966459555', email: 'elenadg30@hotmail.com', status: 'lost', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, discardReason: 'Precio', estimatedAmount: 0, createdAt: '2026-07-26T02:15:20.676Z', updatedAt: '2026-08-13T02:15:20.676Z' },
+      { id: 'l1', customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' }, name: 'Rodrigo Soto Lara', phone: '+56900000001', email: 'comensal1@example.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z' },
+      { id: 'l2', name: 'Francisca Rojas Pinto', phone: '+56900000002', email: 'comensal2@example.com', status: 'contacted', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: 'u1', clientId: null, estimatedAmount: 7800000, createdAt: '2026-08-17T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
+      { id: 'l3', name: 'Matias Vega Cortes', phone: '+56900000003', email: 'comensal3@example.com', status: 'quote_sent', source: 'Formulario web', campaignName: null, assignedTo: 'u1', clientId: null, estimatedAmount: 12000000, createdAt: '2026-08-14T02:15:20.676Z', updatedAt: '2026-08-10T02:15:20.676Z' },
+      { id: 'l4', name: 'Javiera Munoz', phone: '+56900000004', email: 'comensal4@example.com', status: 'meeting_scheduled', source: 'Referido', campaignName: null, assignedTo: 'u2', clientId: null, estimatedAmount: 9200000, createdAt: '2026-08-11T02:15:20.676Z', updatedAt: '2026-08-18T02:15:20.676Z' },
+      { id: 'l5', name: 'Camila Herrera', phone: '+56900000005', email: 'comensal5@example.com', status: 'negotiation', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u2', clientId: null, estimatedAmount: 15600000, createdAt: '2026-07-31T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
+      { id: 'l6', name: 'Valeria Paredes', phone: '+56900000006', email: 'comensal6@example.com', status: 'won', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, estimatedAmount: 8100000, createdAt: '2026-07-21T02:15:20.676Z', updatedAt: '2026-08-16T02:15:20.676Z' },
+      { id: 'l7', name: 'Elena Bravo Diaz', phone: '+56900000007', email: 'comensal7@example.com', status: 'lost', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, discardReason: 'Precio', estimatedAmount: 0, createdAt: '2026-07-26T02:15:20.676Z', updatedAt: '2026-08-13T02:15:20.676Z' },
     ],
     total: 7,
   })],

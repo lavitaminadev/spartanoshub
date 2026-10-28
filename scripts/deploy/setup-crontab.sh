@@ -45,7 +45,7 @@ TAREAS_GESTIONADAS=(
   meta-capi meta-capi/diagnostics meta-capi/cleanup campanas google-ads
   stale-pieces leads-parados operational-alerts xp-periods monthly-cycles collection-emails data-retention
   recordatorio-reservas recordatorio-tareas encuesta-post-visita cupon-post-visita cierre-asistencia
-  cumpleanos resumen-diario reservation-integrations meta-lead-recovery
+  cumpleanos resumen-diario solicitudes-por-vencer reservation-integrations meta-lead-recovery
   automation-runs automation-schedule automation-webhooks automation-cleanup
 )
 FILTRO_TAREAS=()
@@ -144,6 +144,11 @@ echo "Instalando tareas para $CRON_URL..."
 
 # Spartanoshub - Resumen diario del CRM (diario, 08:05)
 5 8 * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/resumen-diario" -m 120 >> $APP_DIR/logs/cron-resumen-diario.log 2>&1
+
+# Spartanoshub - Plazos de solicitudes de derechos (diario, 08:10)
+# Sin esta linea el plazo de la Ley 21.719 se pasa sin que nadie se entere, que es el
+# incumplimiento y no el retraso. El aviso sale solo cuando hay algo en riesgo.
+10 8 * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/solicitudes-por-vencer" -m 120 >> $APP_DIR/logs/cron-solicitudes-por-vencer.log 2>&1
 
 # Spartanoshub - Saludo de cumpleanos (diario, 08:15)
 15 8 * * * set -a && . $APP_DIR/.env && set +a && echo "header = \"x-cron-secret: \$CRON_SECRET\"" | curl -s --config - -X POST "$CRON_URL/cumpleanos" -m 120 >> $APP_DIR/logs/cron-cumpleanos.log 2>&1

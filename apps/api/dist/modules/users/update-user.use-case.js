@@ -52,11 +52,13 @@ const typeorm_2 = require("typeorm");
 const user_entity_1 = require("./user.entity");
 const client_entity_1 = require("../clients/client.entity");
 const user_role_enum_1 = require("../organizations/user-role.enum");
+const sessions_service_1 = require("../../core/auth/sessions.service");
 const bcrypt = __importStar(require("bcryptjs"));
 let UpdateUserUseCase = class UpdateUserUseCase {
-    constructor(usersRepo, clientsRepo) {
+    constructor(usersRepo, clientsRepo, sessions) {
         this.usersRepo = usersRepo;
         this.clientsRepo = clientsRepo;
+        this.sessions = sessions;
     }
     async execute(data) {
         const user = await this.usersRepo.findOne({ where: { id: data.id, organizationId: data.organizationId } });
@@ -99,12 +101,14 @@ let UpdateUserUseCase = class UpdateUserUseCase {
             user.phone = data.phone.replace(/[^\d+]/g, '') || undefined;
         if (data.crmProfile !== undefined)
             user.crmProfile = data.crmProfile || null;
+        let cerrarSesiones = false;
         if (typeof data.isActive === 'boolean') {
             const desactivando = user.isActive && data.isActive === false;
             user.isActive = data.isActive;
             if (desactivando) {
                 user.passwordChangedAt = new Date();
                 user.refreshToken = null;
+                cerrarSesiones = true;
             }
         }
         if (data.role)
@@ -114,6 +118,7 @@ let UpdateUserUseCase = class UpdateUserUseCase {
             user.mustChangePassword = true;
             user.passwordChangedAt = new Date();
             user.refreshToken = null;
+            cerrarSesiones = true;
         }
         if (data.workMode !== undefined)
             user.workMode = data.workMode;
@@ -137,6 +142,8 @@ let UpdateUserUseCase = class UpdateUserUseCase {
             throw new common_1.BadRequestException('Las cuentas cliente requieren una empresa asignada');
         }
         const saved = await this.usersRepo.save(user);
+        if (cerrarSesiones)
+            await this.sessions.revokeAll(user.id, sessions_service_1.REVOKE_REASONS.ADMIN);
         if (typeof data.isActive === 'boolean') {
             const persisted = await this.usersRepo.findOne({
                 where: { id: user.id, organizationId: data.organizationId },
@@ -155,5 +162,6 @@ exports.UpdateUserUseCase = UpdateUserUseCase = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        sessions_service_1.SessionsService])
 ], UpdateUserUseCase);

@@ -19,6 +19,7 @@ import {
   type OrganizationModuleKey,
 } from '@espartanos/shared';
 import { api } from '../../core/api';
+import { ROLE_LABELS } from '../../core/role-labels';
 import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { QueVeUnaPersona } from './QueVeUnaPersona';
@@ -65,13 +66,26 @@ interface Props {
   capacidades?: Partial<Record<string, boolean>> | null;
   /** La agencia puede retirar a la última persona que administra, con motivo; la empresa no. */
   esAgencia?: boolean;
+  /**
+   * Soporte: se mira la configuración de la empresa y no se toca.
+   *
+   * Es el modo de Dirección comercial. Si la agencia cambiara los perfiles de un local sin
+   * dejar rastro se rompe el contrato de encargo: el responsable de los datos es el restaurante
+   * y la agencia actúa según sus instrucciones. Mirar para poder ayudar sí; decidir por él, no.
+   *
+   * Esconde lo que escribe y deja lo que explica, que es «qué ve esta persona»: sin eso la vista
+   * no sirve para responder la pregunta por la que se abre.
+   */
+  soloLectura?: boolean;
   onCerrar: () => void;
 }
 
-export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = false, onCerrar }: Props): JSX.Element {
+export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = false, soloLectura = false, onCerrar }: Props): JSX.Element {
   const q = `?clientId=${encodeURIComponent(clientId)}`;
   const qc = useQueryClient();
   const [editando, setEditando] = useState<PerfilFila | 'nuevo' | null>(null);
+  /* El perfil del que se parte al crear otro: «como Anfitrión, pero además…». */
+  const [partiendoDe, setPartiendoDe] = useState<PerfilFila | null>(null);
   const [borrando, setBorrando] = useState<PerfilFila | null>(null);
   const [quitando, setQuitando] = useState<Persona | null>(null);
   const [mirando, setMirando] = useState<Persona | null>(null);
@@ -135,23 +149,42 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = 
               <strong>{perfil.nombre}</strong>{' '}
               <small>{perfil.personas === 0 ? 'Nadie lo usa' : `${perfil.personas} persona${perfil.personas === 1 ? '' : 's'}`}</small>
               {perfil.descripcion && <small> — {perfil.descripcion}</small>}{' '}
-              <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditando(perfil)}>Editar</button>{' '}
-              <button type="button" className="btn btn-outline btn-sm" onClick={() => setBorrando(perfil)}>Borrar</button>
+              {!soloLectura && <>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditando(perfil)}>Editar</button>{' '}
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => setBorrando(perfil)}>Borrar</button>{' '}
+                {/* Casi todos los perfiles de un local son otro con un permiso más o uno menos. */}
+                <button type="button" className="btn btn-outline btn-sm" title={`Crea uno nuevo con las mismas áreas y niveles que ${perfil.nombre}`} onClick={() => { setPartiendoDe(perfil); setEditando('nuevo'); }}>Partir de este</button>
+              </>}
             </li>
           ))}
         </ul>
-        <div className="modal-actions">
-          <button type="button" className="btn btn-outline" onClick={() => sugeridos.mutate()} disabled={sugeridos.isPending}>Agregar los sugeridos</button>
-          <button type="button" className="btn btn-primary" onClick={() => setEditando('nuevo')}>+ Nuevo perfil</button>
-        </div>
+        {soloLectura ? (
+          <p className="page-subtitle">Estás viendo la configuración de {empresa} para poder ayudar. Los perfiles los decide quien administra el local.</p>
+        ) : (
+          <div className="modal-actions">
+            <button type="button" className="btn btn-outline" onClick={() => sugeridos.mutate()} disabled={sugeridos.isPending}>Agregar los sugeridos</button>
+            <button type="button" className="btn btn-primary" onClick={() => setEditando('nuevo')}>+ Nuevo perfil</button>
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="perfiles-equipo">
         <h3 id="perfiles-equipo">Quién tiene qué perfil</h3>
         <ul className="lista-simple">
-          {(equipo.data ?? []).filter((persona) => persona.role === 'client').map((persona) => (
+          {/*
+            * Sin filtrar por cargo: en esta empresa trabaja su propia gente y la de la agencia
+            * cedida a ella, y las dos necesitan perfil. El filtro `role === 'client'` dejaba
+            * fuera a la segunda, así que un anfitrión de la agencia que atiende el local no podía
+            * recibir el nivel de datos protegidos que su trabajo pide.
+            *
+            * El alcance ya lo puso el servidor: `GET /users?clientId=` devuelve a quien pertenece
+            * a la empresa y a quien la atiende por asignación, y a quien administra sólo su propia
+            * empresa le sigue devolviendo nada más que las cuentas de ella.
+            */}
+          {(equipo.data ?? []).map((persona) => (
             <li key={persona.id}>
               <strong>{persona.name}</strong> <small>{persona.email}</small>
+              {persona.role !== 'client' && <small className="etiqueta-de-agencia"> · {ROLE_LABELS[persona.role] ?? 'agencia'}</small>}
               {(() => {
                 const vuelta = (reingresos.data?.data ?? []).find((fila) => fila.userId === persona.id);
                 if (!vuelta) return null;
@@ -169,26 +202,26 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = 
                 aria-label={`Perfil de ${persona.name}`}
                 value={perfilDe.get(persona.id) ?? ''}
                 onChange={(evento) => asignar.mutate({ userId: persona.id, perfilId: evento.target.value || null })}
-                disabled={asignar.isPending}
+                disabled={asignar.isPending || soloLectura}
               >
                 <option value="">Sin perfil</option>
                 {lista.map((perfil) => <option key={perfil.id} value={perfil.id}>{perfil.nombre}</option>)}
               </select>{' '}
               <button type="button" className="btn btn-outline btn-sm" onClick={() => setMirando(persona)}>Qué ve</button>{' '}
-              <button
+              {!soloLectura && <button
                 type="button"
                 className="btn btn-outline btn-sm"
                 disabled={esUltima(persona.id) && !esAgencia}
                 title={esUltima(persona.id) ? (esAgencia ? 'Es la única que administra el equipo: retirarla exige motivo y queda en auditoría.' : 'Es la única persona que administra el equipo. Nombra primero a otra.') : undefined}
                 onClick={() => setQuitando(persona)}
-              >Quitar del equipo</button>
-              {esUltima(persona.id) && !esAgencia && <small className="field-hint"> Es la única que administra el equipo: nombra primero a otra.</small>}
+              >Quitar del equipo</button>}
+              {!soloLectura && esUltima(persona.id) && !esAgencia && <small className="field-hint"> Es la única que administra el equipo: nombra primero a otra.</small>}
             </li>
           ))}
         </ul>
       </section>
 
-      <Invitar q={q} perfiles={lista} onListo={(texto) => { refrescar(); setMensaje({ tono: 'success', texto }); }} onError={fallo} />
+      {!soloLectura && <Invitar q={q} perfiles={lista} onListo={(texto) => { refrescar(); setMensaje({ tono: 'success', texto }); }} onError={fallo} />}
 
       {(pendientes.data?.data ?? []).length > 0 && (
         <section aria-labelledby="perfiles-pendientes">
@@ -210,12 +243,13 @@ export function PerfilesDelEquipo({ clientId, empresa, capacidades, esAgencia = 
 
       {editando && (
         <EditorDePerfil
-          key={editando === 'nuevo' ? 'nuevo' : editando.id}
+          key={editando === 'nuevo' ? `nuevo:${partiendoDe?.id ?? ''}` : editando.id}
           q={q}
           perfil={editando === 'nuevo' ? null : editando}
+          partirDe={editando === 'nuevo' ? partiendoDe : null}
           capacidades={capacidades}
-          onCerrar={() => setEditando(null)}
-          onGuardado={() => { setEditando(null); refrescar(); setMensaje({ tono: 'success', texto: 'Perfil guardado.' }); }}
+          onCerrar={() => { setEditando(null); setPartiendoDe(null); }}
+          onGuardado={() => { setEditando(null); setPartiendoDe(null); refrescar(); setMensaje({ tono: 'success', texto: 'Perfil guardado.' }); }}
         />
       )}
 
@@ -349,11 +383,23 @@ function BorrarPerfil({ q, perfil, otros, onCerrar, onBorrado, onError }: { q: s
   );
 }
 
-function EditorDePerfil({ q, perfil, capacidades, onCerrar, onGuardado }: { q: string; perfil: PerfilFila | null; capacidades?: Partial<Record<string, boolean>> | null; onCerrar: () => void; onGuardado: () => void }): JSX.Element {
+/**
+ * Crear o editar un perfil.
+ *
+ * `partirDe` sólo se mira al crear: hereda las áreas y los niveles de datos protegidos de otro
+ * perfil y deja el nombre vacío, porque el nombre es lo que lo distingue. Casi todos los perfiles
+ * de un local son otro con un permiso más o uno menos, y reconstruir cuarenta y cuatro áreas a
+ * mano para cambiar una es cómo se terminan concediendo de más por cansancio.
+ *
+ * Guardar sigue siendo `POST`: partir de otro cambia con qué valores nace el formulario, no qué
+ * hace el botón.
+ */
+function EditorDePerfil({ q, perfil, partirDe, capacidades, onCerrar, onGuardado }: { q: string; perfil: PerfilFila | null; partirDe?: PerfilFila | null; capacidades?: Partial<Record<string, boolean>> | null; onCerrar: () => void; onGuardado: () => void }): JSX.Element {
+  const base = perfil ?? partirDe ?? null;
   const [nombre, setNombre] = useState(perfil?.nombre ?? '');
   const [descripcion, setDescripcion] = useState(perfil?.descripcion ?? '');
-  const [areas, setAreas] = useState<Record<string, NivelDeArea>>({ ...(perfil?.areas ?? {}) });
-  const [datos, setDatos] = useState<Record<string, NivelDeDatosProtegidos>>({ ...(perfil?.datosProtegidos ?? {}) });
+  const [areas, setAreas] = useState<Record<string, NivelDeArea>>({ ...(base?.areas ?? {}) });
+  const [datos, setDatos] = useState<Record<string, NivelDeDatosProtegidos>>({ ...(base?.datosProtegidos ?? {}) });
   const [acepta, setAcepta] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState<string | null>(null);

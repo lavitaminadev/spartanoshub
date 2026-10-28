@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var PerfilesController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PerfilesController = void 0;
 const common_1 = require("@nestjs/common");
@@ -27,7 +28,7 @@ const invitaciones_service_1 = require("./invitaciones.service");
 const perfiles_service_1 = require("./perfiles.service");
 const requiere_area_decorator_1 = require("../../../core/authorization/requiere-area.decorator");
 const CARGOS = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.CLIENT];
-let PerfilesController = class PerfilesController {
+let PerfilesController = PerfilesController_1 = class PerfilesController {
     constructor(perfiles, invitaciones, administracion, accesos) {
         this.perfiles = perfiles;
         this.invitaciones = invitaciones;
@@ -43,6 +44,14 @@ let PerfilesController = class PerfilesController {
         if (!alcance.soloEmpresa)
             await this.accesos.assertClient(organizationId, req.user, empresa);
         return { organizationId, clientId: empresa, actorId: req.user.id, esAgencia: !alcance.soloEmpresa, ip: req.ip };
+    }
+    async contextoParaEscribir(req, clientId) {
+        const ctx = await this.contexto(req, clientId);
+        const cargo = req.user.role;
+        if (ctx.esAgencia && !PerfilesController_1.ADMINISTRAN.includes(cargo)) {
+            throw new common_1.ForbiddenException('Desde tu cargo esta configuración se consulta, no se cambia: la decide quien administra el local.');
+        }
+        return ctx;
     }
     async listar(req, clientId) {
         return { data: await this.perfiles.listar(await this.contexto(req, clientId)) };
@@ -61,39 +70,40 @@ let PerfilesController = class PerfilesController {
         return this.perfiles.textoDeConfidencialidad(ctx.organizationId);
     }
     async sugeridos(req, clientId) {
-        const ctx = await this.contexto(req, clientId);
+        const ctx = await this.contextoParaEscribir(req, clientId);
         return { copiados: await this.perfiles.sembrarSugeridos(ctx.organizationId, ctx.clientId) };
     }
     async pendientes(req, clientId) {
         return { data: await this.invitaciones.pendientes(await this.contexto(req, clientId)) };
     }
     async invitar(req, dto, clientId) {
-        const ctx = await this.contexto(req, clientId);
+        const ctx = await this.contextoParaEscribir(req, clientId);
         const respuesta = await this.invitaciones.invitar(ctx, dto, req.user.id);
         return { ...respuesta, mensaje: 'Invitación enviada' };
     }
     async cancelar(req, id, clientId) {
-        await this.invitaciones.cancelar(await this.contexto(req, clientId), id);
+        await this.invitaciones.cancelar(await this.contextoParaEscribir(req, clientId), id);
         return { cancelada: true };
     }
     async asignar(req, userId, dto, clientId) {
-        await this.perfiles.asignar(await this.contexto(req, clientId), userId, dto.perfilId ?? null);
+        await this.perfiles.asignar(await this.contextoParaEscribir(req, clientId), userId, dto.perfilId ?? null);
         return { userId, perfilId: dto.perfilId ?? null };
     }
     async quitar(req, userId, motivo, vetar, clientId) {
-        return this.perfiles.quitarDelEquipo(await this.contexto(req, clientId), userId, motivo, vetar === '1' || vetar === 'true');
+        return this.perfiles.quitarDelEquipo(await this.contextoParaEscribir(req, clientId), userId, motivo, vetar === '1' || vetar === 'true');
     }
     async crear(req, dto, clientId) {
-        return this.perfiles.crear(await this.contexto(req, clientId), entrada(dto));
+        return this.perfiles.crear(await this.contextoParaEscribir(req, clientId), entrada(dto));
     }
     async editar(req, id, dto, clientId) {
-        return this.perfiles.actualizar(await this.contexto(req, clientId), id, entrada(dto));
+        return this.perfiles.actualizar(await this.contextoParaEscribir(req, clientId), id, entrada(dto));
     }
     async borrar(req, id, reasignarA, clientId) {
-        return this.perfiles.borrar(await this.contexto(req, clientId), id, reasignarA || undefined);
+        return this.perfiles.borrar(await this.contextoParaEscribir(req, clientId), id, reasignarA || undefined);
     }
 };
 exports.PerfilesController = PerfilesController;
+PerfilesController.ADMINISTRAN = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR];
 __decorate([
     (0, common_1.Get)(),
     (0, requiere_area_decorator_1.RequiereArea)('users.equipo', 'ver'),
@@ -262,7 +272,7 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], PerfilesController.prototype, "borrar", null);
-exports.PerfilesController = PerfilesController = __decorate([
+exports.PerfilesController = PerfilesController = PerfilesController_1 = __decorate([
     (0, swagger_1.ApiTags)('Perfiles'),
     (0, common_1.Controller)('perfiles'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
