@@ -419,6 +419,8 @@
 /* Nota que explica por qué unas preguntas no se editan. */
 .schedule-nota { display:block; grid-column:1/-1; margin:2px 0 8px; color:var(--muted); font-size:11px; line-height:1.45; }
 .publish-meta-state .btn { margin-top:8px; width:max-content; }
+/* El aviso que reemplaza al enlace cuando quien lee no puede abrir Conexiones. */
+.publish-meta-ayuda { margin-top:6px; font-style:italic; }
 
 /*
  * La cabecera del constructor no empuja la página.
@@ -842,3 +844,6 @@
 .correos-reserva-lista > li.es-propio .correo-reserva-cabecera > span { color: var(--primary, #cc0a55); }
 .correo-reserva-editor { display: grid; gap: 8px; margin-top: 10px; }
 .correo-reserva-acciones { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* La excepción va separada del resto de los consentimientos: no es un texto más, es su ausencia. */
+.consentimiento-excepcion { display:grid; gap:8px; margin-top:12px; padding:11px 13px; border:1px dashed var(--border); border-radius: var(--radius-md); background:var(--soft); }

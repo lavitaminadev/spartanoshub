@@ -122,6 +122,9 @@ let PublicSurveyFlowService = PublicSurveyFlowService_1 = class PublicSurveyFlow
             rating,
             siguiente: (0, flujo_de_encuesta_1.siguientePaso)(rating, Number(survey.googleReview?.minRating)),
             reviewUrl: urlDeResena(String(survey.googleReview?.url || '')),
+            mensajeDeNotaBaja: typeof survey.googleReview?.lowRatingMessage === 'string'
+                ? survey.googleReview.lowRatingMessage.trim() || null
+                : null,
             nombre: persona?.nombre ? persona.nombre.trim().split(/\s+/)[0] : null,
         };
     }

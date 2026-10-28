@@ -3,6 +3,7 @@ import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, VERSION_BENEFICIOS_RED, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
+import { tipoDeCaptacion } from '@espartanos/shared';
 import { camposProtegidosDe, columnasAQuitar, estaProtegido } from '@espartanos/shared';
 import type { NivelesDeDatos } from '../../../core/client-scope/nivel-de-datos.service';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
@@ -30,6 +31,7 @@ import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { evaluarCambioDeZona, type ZonaDelLocal } from './cambio-de-zona';
 import { describirCambio } from './describir-cambio';
 import { MUESTRA_MINIMA_POR_DIA, noShowPorLocalYDia, resumirAsistenciaDelComensal } from './historial-de-asistencia';
+import { MUESTRA_MINIMA_POR_ORIGEN, asistenciaPorOrigen } from './asistencia-por-origen';
 import { FORM_FIELD_TYPES, ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
@@ -263,6 +265,26 @@ export class ReservationsService {
   private minutesOverlaps(aStartMin: number, aEndMin: number, bStartMin: number, bEndMin: number) { return aStartMin < bEndMin && aEndMin > bStartMin; }
   private configs(form: ReservationForm) { return { services: (form.servicesConfig || []) as ServiceConfig[], resources: (form.resourcesConfig || []) as ResourceConfig[] }; }
 
+  /**
+   * Una página publicada le pide al comensal que acepte, o declara por qué no.
+   *
+   * Son las dos únicas salidas, y la segunda deja constancia: sin motivo escrito, una página sin
+   * casilla no se distingue de un descuido, y esa diferencia es lo que hay que poder mostrar.
+   * Quien toma la excepción queda en la bitácora por la vía normal del `PATCH`.
+   *
+   * Se comprueba al publicar y no al guardar: un borrador se arma por partes.
+   */
+  private assertConsentimientoDeclarado(form: Pick<ReservationForm, 'fieldSchema'|'consentimientoNoAplica'|'motivoSinConsentimiento'>) {
+    if (form.consentimientoNoAplica) {
+      if (!form.motivoSinConsentimiento?.trim()) throw new BadRequestException('Escribe por qué esta página no pide la aceptación de tratamiento de datos');
+      return;
+    }
+    const fields = (form.fieldSchema || []) as FieldConfig[];
+    if (!fields.some((field) => field.type === 'consent' && field.required)) {
+      throw new BadRequestException('El formulario requiere una aceptación de tratamiento de datos');
+    }
+  }
+
   private validateConfiguration(form: Pick<ReservationForm, 'timezone'|'fieldSchema'|'designConfig'|'scheduleConfig'|'servicesConfig'|'resourcesConfig'|'durationMinutes'|'bufferMinutes'|'capacityPerSlot'>) {
     assertTimeZone(form.timezone);
     const fields = form.fieldSchema as FieldConfig[];
@@ -276,7 +298,9 @@ export class ReservationsService {
       fieldIds.add(field.id);
     }
     if (!fields.some((field) => field.id === 'name' && field.required)) throw new BadRequestException('El nombre debe permanecer como campo obligatorio');
-    if (!fields.some((field) => field.type === 'consent' && field.required)) throw new BadRequestException('El formulario requiere una aceptación de tratamiento de datos');
+    // La aceptación de tratamiento de datos no se exige acá: se exige al publicar
+    // (`assertConsentimientoDeclarado`). Un borrador a medio armar se guarda sin ella; lo que no
+    // puede salir al público es una página que no se la pida a nadie.
     const validateWindows = (windows: unknown, label: string) => {
       if (!Array.isArray(windows) || windows.length > 40) throw new BadRequestException(`${label} no es válida`);
       for (const window of windows as ScheduleWindow[]) if (!Number.isInteger(window.day) || window.day < 0 || window.day > 6 || this.minutes(window.start) < 0 || this.minutes(window.end) <= this.minutes(window.start)) throw new BadRequestException(`Existe una ventana horaria inválida en ${label}`);
@@ -522,7 +546,69 @@ export class ReservationsService {
         : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
       scheduleConfig: { windows: [1,2,3,4,5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: false, calendarEnabled: false, metaCapiEnabled: false,
     });
+    this.aplicarRubro(form, dto.rubro, dto.tipoDeCaptacion);
     this.validateConfiguration(form); return this.forms.save(form);
+  }
+
+  /**
+   * Deja el formulario con los valores del rubro elegido, si se eligió uno.
+   *
+   * Es un punto de partida y no una reja: se aplica **una vez**, al crear, y desde ahí el local
+   * cambia lo que quiera. Por eso no hay nada que lo vuelva a mirar después; lo único que queda es
+   * de qué rubro nació, para poder contarlos.
+   *
+   * Un rubro o un tipo que no existe se ignora en silencio a propósito: el catálogo vive en
+   * código y puede encogerse entre despliegues, y un formulario a medio crear que falla porque el
+   * preset ya no está sería peor que uno creado con los valores de siempre.
+   */
+  private aplicarRubro(form: ReservationForm, rubro?: string | null, tipo?: string | null): void {
+    const preset = tipoDeCaptacion(rubro, tipo);
+    if (!preset) return;
+
+    form.rubro = rubro ?? null;
+    form.tipoDeCaptacion = tipo ?? null;
+
+    /*
+     * Los tres campos de contacto conservan los identificadores del sistema.
+     *
+     * `name`, `phone` y `email` son los que el formulario público vuelca en `guestName`,
+     * `guestPhone` y `guestEmail`. Un campo llamado `nombre` se guardaría como una respuesta más
+     * y la reserva quedaría sin nombre, que es el dato con el que se atiende a la persona.
+     */
+    const IDENTIFICADOR: Record<string, string> = { nombre: 'name', telefono: 'phone', correo: 'email' };
+    const TIPO_DE_CAMPO: Record<string, string> = {
+      texto: 'text', texto_largo: 'textarea', telefono: 'phone', correo: 'email',
+      numero: 'number', seleccion: 'select', consentimiento: 'consent',
+    };
+
+    form.fieldSchema = preset.campos.map((campo) => {
+      const id = IDENTIFICADOR[campo.clave] ?? campo.clave;
+      return {
+        id,
+        type: TIPO_DE_CAMPO[campo.tipo] ?? 'text',
+        label: campo.etiqueta,
+        required: campo.obligatorio,
+        // `system` es lo que impide borrar en el constructor los tres campos sin los que no se
+        // puede atender una reserva. Sólo esos tres lo llevan; el resto del preset se puede quitar.
+        ...(IDENTIFICADOR[campo.clave] ? { system: true } : {}),
+      };
+    }) as typeof form.fieldSchema;
+
+    /*
+     * Sin agenda no se reservan horas: el formulario sólo recoge.
+     *
+     * Se traduce a lo que el producto ya entiende —duración y capacidad en cero— en vez de añadir
+     * un modo nuevo: `validateConfiguration` y el cálculo de cupos ya tratan el cero como «no
+     * ofrece bloques», y un cuarto modo obligaría a revisar los dos.
+     */
+    form.durationMinutes = preset.duracionMinutos;
+    form.capacityPerSlot = preset.capacidad;
+
+    form.designConfig = {
+      ...(form.designConfig ?? {}),
+      submitLabel: preset.llamado,
+      confirmationMessage: preset.confirmacion,
+    } as typeof form.designConfig;
   }
 
   listForms(organizationId: string, clientId?: string, clientIds?: string[]) { return this.forms.find({ where: this.scope(organizationId, clientId, clientIds), order: { updatedAt: 'DESC' } }); }
@@ -608,6 +694,9 @@ export class ReservationsService {
       if (!resuelto.accessToken) throw new BadRequestException(`El Pixel ${form.metaPixelId} no tiene token de Conversions API. Regístralo en Integraciones antes de asignarlo a este local.`);
     }
     if (form.status === 'published' && ((form.scheduleConfig as { windows?: unknown[] }).windows?.length || 0) === 0) throw new BadRequestException('No puedes publicar sin disponibilidad');
+    // También sobre lo ya publicado: quitarle la casilla a una página viva la dejaría recogiendo
+    // datos sin pedir nada, y eso no es un borrador a medias sino una página en funcionamiento.
+    if (form.status === 'published') this.assertConsentimientoDeclarado(form);
     // Publicar exige saber quién responde por los datos. Lo ya publicado sigue funcionando y el editor avisa.
     if (form.status === 'published' && !estabaPublicado) {
       const faltan = await this.faltantesLegales(form);
@@ -724,7 +813,7 @@ export class ReservationsService {
     // Un formulario publicado con configuracion invalida no debe mostrarle un error de validacion
     // al visitante: se registra para poder corregirlo y la pagina responde como no disponible.
     await this.completarDatosLegales(form, manager?.query.bind(manager));
-    try { this.validateConfiguration(form); } catch (err) {
+    try { this.validateConfiguration(form); this.assertConsentimientoDeclarado(form); } catch (err) {
       this.logger.error(`Formulario publicado ${form.id} (${slug}) tiene configuración inválida: ${err instanceof Error ? err.message : err}`);
       throw new NotFoundException('Este formulario no está disponible');
     }
@@ -1233,6 +1322,22 @@ export class ReservationsService {
       network: String(design.networkConsentText || base.red),
       sensibles: base.sensibles,
     };
+  }
+
+  /**
+   * Qué se guarda como aceptación de la reserva: la del comensal, o por qué no se le pidió.
+   *
+   * Cuando la página declara que no aplica, la fecha queda en `null` —nadie aceptó nada, y
+   * estampar una haría pasar por consentimiento algo que no lo es— y el texto dice el motivo.
+   * Así la evidencia distingue «no correspondía, por esto» de un campo que nunca se llenó.
+   */
+  private evidenciaDeLaReserva(form: ReservationForm, acepto: boolean) {
+    if (form.consentimientoNoAplica) {
+      return { reservationConsentAt: null, reservationConsentText: `[no aplica] ${form.motivoSinConsentimiento ?? ''}`.trim() };
+    }
+    return acepto
+      ? { reservationConsentAt: new Date(), reservationConsentText: this.consentTexts(form).reservation }
+      : { reservationConsentAt: null, reservationConsentText: null };
   }
 
   /** Fecha y texto del consentimiento para datos sensibles, sólo si se enviaron y se autorizaron. */
@@ -2391,7 +2496,7 @@ export class ReservationsService {
       // Las señales de medición se guardan con la solicitud para que, al convertirla en reserva,
       // la asistencia pueda informarse a Meta como la de cualquier reserva con medición aceptada.
       details: { ...(dto.details ?? {}), ...(hayDatosSensibles ? { datosSensibles: { aceptadoEn: new Date().toISOString(), texto: `[${VERSION_DATOS_SENSIBLES}] ${consent.sensibles}` } } : {}), ...(dto.measurementConsent ? { medicion: { aceptadaEn: new Date().toISOString(), version: dto.measurementConsentVersion || VERSION_MEDICION, texto: TEXTO_MEDICION, fbc: dto.fbc || (dto.fbclid ? `fb.1.${Date.now()}.${dto.fbclid}` : undefined), fbp: dto.fbp, ip: ipAddress, userAgent } } : {}) },
-      reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+      ...this.evidenciaDeLaReserva(form, true),
       marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentText: dto.marketingConsent ? consent.marketing : null,
       groupMarketingConsentAt: dto.groupMarketingConsent ? new Date() : null, groupMarketingConsentText: dto.groupMarketingConsent ? consent.redBeneficios : null,
       networkConsentAt: dto.networkConsent ? new Date() : null, networkConsentText: dto.networkConsent ? consent.network : null,
@@ -2437,7 +2542,7 @@ export class ReservationsService {
         serviceId: dto.serviceId, resourceId: dto.resourceId, answers: dto.answers,
         birthDate: this.fechaDeNacimientoDe(form, dto.answers || {}),
         ...this.documentoDe(form, dto.answers || {}),
-        consentVersion: dto.consentVersion, reservationConsentAt: new Date(), reservationConsentText: consent.reservation,
+        consentVersion: dto.consentVersion, ...this.evidenciaDeLaReserva(form, true),
         marketingConsentAt: dto.marketingConsent ? new Date() : null, marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null, measurementConsentAt: dto.measurementConsent ? new Date() : null,
         measurementConsentVersion: dto.measurementConsent ? dto.measurementConsentVersion || VERSION_MEDICION : null, measurementConsentText: dto.measurementConsent ? TEXTO_MEDICION : null,
@@ -2696,8 +2801,7 @@ export class ReservationsService {
           ...(dto.howFound ? { howFound: dto.howFound } : {}),
         },
         consentVersion: dto.consentVersion,
-        reservationConsentAt: dto.reservationConsent ? new Date() : null,
-        reservationConsentText: dto.reservationConsent ? consent.reservation : null,
+        ...this.evidenciaDeLaReserva(form, Boolean(dto.reservationConsent)),
         marketingConsentAt: dto.marketingConsent ? new Date() : null,
         marketingConsentVersion: dto.marketingConsent ? dto.marketingConsentVersion || null : null,
         marketingConsentText: dto.marketingConsent ? consent.marketing : null,
@@ -3497,6 +3601,30 @@ export class ReservationsService {
       dias: ventana,
       muestraMinimaPorDia: MUESTRA_MINIMA_POR_DIA,
       locales: noShowPorLocalYDia(reservas, (locales ?? []).map((local) => ({ id: local.id, nombre: local.name, clientId: local.clientId, timezone: local.timezone || 'America/Santiago' }))),
+    };
+  }
+
+  /**
+   * De qué origen vinieron las reservas cerradas, y cuántas personas se sentaron.
+   *
+   * Cierra la cadena que hoy queda a medias: Meta y Google informan clics, la caja informa
+   * consumo, y entre ambas nadie sabe si quien reservó llegó. El dato que lo une ya está
+   * escrito en cada reserva —`originDetected`, `utmCampaign`, `status`—; esto sólo lo cuenta.
+   *
+   * Se piden sólo las columnas que se cuentan. La reserva lleva el teléfono, el documento y las
+   * respuestas del comensal, y un informe agregado no tiene por qué traerlos a memoria.
+   */
+  async asistenciaPorOrigen(organizationId: string, clientId?: string, clientIds?: string[], dias = 90, ahora = new Date()) {
+    const ventana = Math.min(Math.max(Math.trunc(dias) || 90, 7), 365);
+    const desde = new Date(ahora.getTime() - ventana * 86_400_000);
+    const reservas = await this.reservations.find({
+      where: { ...this.scope(organizationId, clientId, clientIds), status: In(['attended', 'no_show']), startsAt: Between(desde, ahora) },
+      select: ['status', 'utmSource', 'originDetected', 'utmCampaign', 'partySize', 'reminderSentAt', 'guestConfirmedAt'],
+    });
+    return {
+      dias: ventana,
+      muestraMinima: MUESTRA_MINIMA_POR_ORIGEN,
+      origenes: asistenciaPorOrigen(reservas),
     };
   }
 

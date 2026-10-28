@@ -19,14 +19,34 @@ describe('configuración recuperable de módulos', () => {
    *
    * Antes las dos coincidían porque 22 módulos venían apagados de fábrica, y esa coincidencia
    * escondía que respondían preguntas diferentes.
+   *
+   * El ejemplo pasó de `content` a `surveys`. Los once módulos de empresa que se liberaron nacen
+   * apagados —ahí `defaultEnabled` y la preselección vuelven a coincidir, por un motivo distinto—,
+   * así que para seguir mostrando que son dos preguntas hace falta uno que el producto entregue
+   * encendido y que no esté en la base mínima de una agencia.
    */
   it('el catálogo ofrece más de lo que preselecciona la base de agencia', () => {
     const features = buildAgencyCoreOrganizationFeatures();
-    const content = ORGANIZATION_MODULE_CATALOG.find((module) => module.key === 'content');
+    const marketing = ORGANIZATION_MODULE_CATALOG.find((module) => module.key === 'marketing');
 
-    expect(content?.lifecycle).toBe('active');
-    expect(content?.defaultEnabled).toBe(true);
-    expect(features.content).toBe(false);
+    expect(marketing?.lifecycle).toBe('active');
+    expect(marketing?.defaultEnabled).toBe(true);
+    expect(features.marketing).toBe(false);
+  });
+
+  /*
+   * Y los once liberados: activos en el catálogo, apagados de fábrica.
+   *
+   * Es la mitad que sostiene la decisión de abrirlos sin entregarlos. Si alguien los pusiera en
+   * `defaultEnabled: true`, el producto los ofrecería y una organización nueva los recibiría
+   * encendidos el mismo día, que es justo lo que no se quiso.
+   */
+  it('los módulos de empresa liberados están activos y nacen apagados', () => {
+    for (const clave of ['content', 'production', 'meetings', 'documents', 'approvals', 'intake']) {
+      const modulo = ORGANIZATION_MODULE_CATALOG.find((item) => item.key === clave);
+      expect(modulo?.lifecycle, clave).toBe('active');
+      expect(modulo?.defaultEnabled, clave).toBe(false);
+    }
   });
 
   /**

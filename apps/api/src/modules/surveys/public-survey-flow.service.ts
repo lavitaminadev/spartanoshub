@@ -29,6 +29,15 @@ export interface RespuestaIniciada {
   reviewUrl: string | null;
   /** Nombre de pila, si la invitación vino de una reserva. Para saludar, nada más. */
   nombre: string | null;
+  /**
+   * Lo que el local quiere que lea quien dejó una nota baja, si lo escribió.
+   *
+   * Se captura en el asistente de encuestas y se guardaba sin que nada lo mostrara: la página
+   * decía una frase fija, igual para todos. Quien escribe «Gracias por avisarnos, el jefe de turno
+   * te va a llamar hoy» está prometiendo algo concreto, y esa promesa es el motivo por el que la
+   * persona eligió el canal privado en vez de Google.
+   */
+  mensajeDeNotaBaja: string | null;
 }
 
 function hashDelToken(token: string): string {
@@ -166,6 +175,11 @@ export class PublicSurveyFlowService {
       rating,
       siguiente: siguientePaso(rating, Number(survey.googleReview?.minRating)),
       reviewUrl: urlDeResena(String(survey.googleReview?.url || '')),
+      // `googleReview` es json suelto en la entidad, así que el texto se valida acá: lo que no sea
+      // una cadena se trata como ausente, y entonces la página dice lo de siempre.
+      mensajeDeNotaBaja: typeof survey.googleReview?.lowRatingMessage === 'string'
+        ? survey.googleReview.lowRatingMessage.trim() || null
+        : null,
       nombre: persona?.nombre ? persona.nombre.trim().split(/\s+/)[0] : null,
     };
   }

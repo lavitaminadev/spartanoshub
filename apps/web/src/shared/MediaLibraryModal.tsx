@@ -4,6 +4,7 @@ import { api } from '../core/api';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { LoadingSpinner } from './LoadingSpinner';
+import { QueryErrorState } from './QueryErrorState';
 import { VitaIcons } from './Icons';
 
 interface CloudinaryResource {
@@ -32,7 +33,7 @@ export function MediaLibraryModal({ open, onClose, onSelect }: MediaLibraryProps
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const qc = useQueryClient();
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['cloudinary-resources'],
     queryFn: () => api.get<{ resources: CloudinaryResource[]; nextCursor?: string }>('/cloudinary/resources'),
     enabled: open,
@@ -63,7 +64,7 @@ export function MediaLibraryModal({ open, onClose, onSelect }: MediaLibraryProps
     <Modal open={open} onClose={onClose} title="Biblioteca de imágenes">
       <div className="media-library">
         {isLoading && <LoadingSpinner text="Cargando imágenes..." />}
-        {isError && <div className="alert alert-error">{error instanceof Error ? error.message : 'Error al cargar imágenes'}</div>}
+        {isError && <QueryErrorState title="No pudimos abrir la biblioteca" message="Las imágenes siguen guardadas. Revisa la conexión e intenta nuevamente." error={error} onRetry={() => void refetch()} retrying={isFetching} />}
         {!isLoading && !isError && resources.length === 0 && (
           <div className="media-library-empty">
             <span><VitaIcons.image /></span>

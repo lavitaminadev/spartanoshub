@@ -32,6 +32,12 @@ exports.MODULE_LIFECYCLE_LABELS = {
  *
  * `lifecycle` responde "el producto lo ofrece hoy".
  * `defaultEnabled` responde "si creo una organizacion nueva, este modulo parte encendido".
+ *
+ * Los doce modulos cuyo sujeto es una empresa atendida parten **apagados**. Hasta ahora decian
+ * `true` y no se notaba, porque `INITIAL_OPERATION_MODULES` rechazaba la ruta antes de mirarlos;
+ * al liberar esa reja, dejarlos en `true` los habria encendido de golpe para todo cargo que la
+ * matriz alcanza. Apagados, encenderlos es un acto: Desarrollo en Accesos y seguridad -> Modulos
+ * para la organizacion, y la capacidad contratada para cada empresa.
  */
 exports.ORGANIZATION_MODULE_CATALOG = [
     // Base minima: sin estos modulos la aplicacion no se puede usar. No es una preferencia
@@ -62,7 +68,7 @@ exports.ORGANIZATION_MODULE_CATALOG = [
     // arranca.
     { key: 'crm', lifecycle: 'active', defaultEnabled: true },
     { key: 'commercialPipeline', lifecycle: 'active', defaultEnabled: true },
-    { key: 'production', lifecycle: 'active', defaultEnabled: true },
+    { key: 'production', lifecycle: 'active', defaultEnabled: false },
     /**
      * Puerta de entrada del trabajo: recibir una solicitud, revisarla y asignarla.
      *
@@ -73,7 +79,7 @@ exports.ORGANIZATION_MODULE_CATALOG = [
      * No se separa la logica de dominio: una solicitud sigue convirtiendose en piezas. Lo que se
      * separa es cuando cada parte queda disponible.
      */
-    { key: 'intake', lifecycle: 'active', defaultEnabled: true },
+    { key: 'intake', lifecycle: 'active', defaultEnabled: false },
     /*
      * Disponibles en el codigo y apagados de fabrica.
      *
@@ -91,16 +97,16 @@ exports.ORGANIZATION_MODULE_CATALOG = [
      */
     { key: 'clientMetricsPanel', lifecycle: 'active', defaultEnabled: true },
     { key: 'multiClientOnboarding', lifecycle: 'active', defaultEnabled: true },
-    { key: 'udBudget', lifecycle: 'active', defaultEnabled: true },
+    { key: 'udBudget', lifecycle: 'active', defaultEnabled: false },
     { key: 'gamification', lifecycle: 'active', defaultEnabled: true },
-    { key: 'billing', lifecycle: 'active', defaultEnabled: true },
-    { key: 'contracts', lifecycle: 'active', defaultEnabled: true },
+    { key: 'billing', lifecycle: 'active', defaultEnabled: false },
+    { key: 'contracts', lifecycle: 'active', defaultEnabled: false },
     { key: 'catalog', lifecycle: 'active', defaultEnabled: true },
-    { key: 'content', lifecycle: 'active', defaultEnabled: true },
-    { key: 'briefs', lifecycle: 'active', defaultEnabled: true },
-    { key: 'meetings', lifecycle: 'active', defaultEnabled: true },
-    { key: 'documents', lifecycle: 'active', defaultEnabled: true },
-    { key: 'approvals', lifecycle: 'active', defaultEnabled: true },
+    { key: 'content', lifecycle: 'active', defaultEnabled: false },
+    { key: 'briefs', lifecycle: 'active', defaultEnabled: false },
+    { key: 'meetings', lifecycle: 'active', defaultEnabled: false },
+    { key: 'documents', lifecycle: 'active', defaultEnabled: false },
+    { key: 'approvals', lifecycle: 'active', defaultEnabled: false },
     /*
      * Audiovisual no puede apagarse mientras el intake acepte solicitudes de su area.
      *
@@ -108,7 +114,7 @@ exports.ORGANIZATION_MODULE_CATALOG = [
      * unicamente en esta pantalla. Apagarla deja a la direccion audiovisual sin donde aprobarlo
      * y, con ello, sin poder convertir ninguna solicitud de su area.
      */
-    { key: 'audiovisual', lifecycle: 'active', defaultEnabled: true },
+    { key: 'audiovisual', lifecycle: 'active', defaultEnabled: false },
     { key: 'knowledge', lifecycle: 'active', defaultEnabled: true },
     { key: 'onboarding', lifecycle: 'active', defaultEnabled: true },
     { key: 'operations', lifecycle: 'active', defaultEnabled: true },
@@ -180,6 +186,43 @@ exports.INITIAL_OPERATION_MODULES = new Set([
      * nadie que no la tuviera ya concedida.
      */
     'marketing',
+    /*
+     * Los doce módulos cuyo sujeto es una empresa atendida.
+     *
+     * Se liberan de **esta** reja y de ninguna otra. Siguen invisibles hasta que alguien los
+     * encienda, porque las tres de debajo no se mueven:
+     *
+     * - el interruptor de la organización (`organization.features`) los tiene en `false`, y lo
+     *   enciende Desarrollo en Accesos y seguridad → Módulos;
+     * - la capacidad contratada de cada empresa nace apagada, así que aun con el interruptor puesto
+     *   el panel de un local no aparece hasta que se le contrata;
+     * - y el permiso del cargo y el área del perfil siguen decidiendo quién pasa.
+     *
+     * Lo que esta lista bloqueaba era otra cosa: que la ruta se rechazara **antes** de mirar nada,
+     * de modo que encenderle el módulo a una empresa no servía de nada y no había forma de probarlo
+     * sin ser Desarrollo.
+     */
+    'production',
+    'audiovisual',
+    'content',
+    'approvals',
+    'meetings',
+    'documents',
+    'briefs',
+    'billing',
+    'contracts',
+    'intake',
+    'udBudget',
+    /*
+     * `commercialPipeline` **no** entra, aunque sea uno de los doce.
+     *
+     * `/automations` cuelga de su misma clave —no tiene módulo propio en el catálogo—, así que
+     * liberarla abre también Automatizaciones, que no está terminada. Lo encontró
+     * `phase-scope.test.ts` al cambiar la lista, y es exactamente para eso que ese cerco existe.
+     *
+     * Para liberarla hay que darle antes a `/automations` su propia clave. Mientras comparta ésta,
+     * abrir el embudo comercial significa abrir dos cosas, y una no está lista.
+     */
 ]);
 /** Desarrollo conserva visibilidad total; los demás parten con CRM/Reservas mínimos. */
 function isModuleInInitialOperationScope(module, role) {

@@ -80,9 +80,21 @@ describe('PermissionGuard', () => {
     expect(resolver.can).toHaveBeenCalledWith('org-1', 'user-1', 'designer', 'crm', 'manage', undefined);
   });
 
-  it('rechaza un módulo futuro antes de consultar permisos', async () => {
+  /*
+   * `knowledge` y no `billing`: el ejemplo cambió, la afirmación no.
+   *
+   * Los doce módulos cuyo sujeto es una empresa atendida —Facturación entre ellos— salieron de
+   * `INITIAL_OPERATION_MODULES` por decisión del dueño, y a partir de ahí los cierra el
+   * interruptor de la organización. La puerta de despliegue sigue puesta sobre los que de verdad
+   * no están terminados, y Base de conocimiento es el caso claro: no tiene ni una ruta para
+   * recibir un documento.
+   *
+   * Lo que se fija es que el rechazo ocurre **antes** de consultar permisos. Un módulo sin
+   * terminar no debe gastar una consulta ni, peor, depender de que la matriz diga lo correcto.
+   */
+  it('rechaza un módulo sin liberar antes de consultar permisos', async () => {
     const resolver = resolverThatAnswers(true);
-    const guard = new PermissionGuard(reflectorWith({ [REQUIRES_FEATURE_KEY]: 'billing' }), resolver);
+    const guard = new PermissionGuard(reflectorWith({ [REQUIRES_FEATURE_KEY]: 'knowledge' }), resolver);
 
     await expect(guard.canActivate(executionContext('GET'))).rejects.toThrow(ForbiddenException);
     expect(resolver.can).not.toHaveBeenCalled();

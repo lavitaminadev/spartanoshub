@@ -179,12 +179,12 @@ export function MetricasDelCupon({ couponId, codigo, alCerrar }: {
                 <tbody>
                   {ultimos.map((canje) => (
                     <tr key={`${canje.fecha}-${canje.persona ?? ''}`}>
-                      <td>{new Date(canje.fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{canje.canal === 'local' ? 'En el local' : 'Con reserva'}</td>
-                      <td>{canje.persona || <small className="tabla-nota">Sin anotar</small>}</td>
-                      <td>{canje.monto === null ? <small className="tabla-nota">—</small> : pesos(Number(canje.monto))}</td>
-                      <td>{canje.descuento === null ? <small className="tabla-nota">—</small> : pesos(Number(canje.descuento))}</td>
-                      <td>{canje.nota || <small className="tabla-nota">—</small>}</td>
+                      <td data-label="Cuándo">{new Date(canje.fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                      <td data-label="Cómo">{canje.canal === 'local' ? 'En el local' : 'Con reserva'}</td>
+                      <td data-label="Quién">{canje.persona || <small className="tabla-nota">Sin anotar</small>}</td>
+                      <td data-label="Consumo">{canje.monto === null ? <small className="tabla-nota">—</small> : pesos(Number(canje.monto))}</td>
+                      <td data-label="Descuento">{canje.descuento === null ? <small className="tabla-nota">—</small> : pesos(Number(canje.descuento))}</td>
+                      <td data-label="Nota">{canje.nota || <small className="tabla-nota">—</small>}</td>
                     </tr>
                   ))}
                 </tbody>

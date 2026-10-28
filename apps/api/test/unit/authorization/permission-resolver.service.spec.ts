@@ -260,12 +260,25 @@ describe('control de liberación', () => {
     expect((await enPausa.permissionsFor('org-1', 'dev-1', UserRole.DEV)).production).toBe('none');
   });
 
-  it('un módulo futuro permanece reservado a desarrollo aunque esté activo', async () => {
+  /*
+   * El interruptor de la organización, no el cargo, es lo que cierra un módulo de empresa.
+   *
+   * Antes esta prueba fijaba que Producción quedaba reservada a Desarrollo aunque su ciclo de vida
+   * fuera `active`: eso describía `INITIAL_OPERATION_MODULES`, retirada de los doce módulos de
+   * empresa por decisión del dueño. Lo que se fija ahora es que apagarla en la organización cierra
+   * el módulo **a todos**, Desarrollo incluido, que es lo que vuelve el interruptor una reja de
+   * verdad y no una preferencia de menú.
+   */
+  it('apagada en la organización, Producción se cierra también para desarrollo', async () => {
+    const resolver = makeResolverConEstado('production', 'active', { production: false });
+    const dev = await resolver.permissionsFor('org-1', 'dev-1', UserRole.DEV);
+    expect(dev.production).toBe('none');
+  });
+
+  it('encendida y activa, desarrollo entra', async () => {
     const resolver = makeResolverConEstado('production', 'active');
     const dev = await resolver.permissionsFor('org-1', 'dev-1', UserRole.DEV);
-    const director = await resolver.permissionsFor('org-1', 'u1', UserRole.ART_DIRECTOR);
     expect(dev.production).not.toBe('none');
-    expect(director.production).toBe('none');
   });
 
   it('la pantalla de permisos muestra lo mismo que aplica el servidor', async () => {
@@ -280,8 +293,8 @@ describe('control de liberación', () => {
 
 describe('módulos futuros fuera de la operación inicial', () => {
   /** Resolutor con un estado distinto para cada módulo, que es el caso que motivó separarlos. */
-  function conEstados(estados: Record<string, string>) {
-    const organizations = { findOne: vi.fn().mockResolvedValue({ id: 'org-1', features: { intake: true, production: true } }) };
+  function conEstados(estados: Record<string, string>, features: Record<string, boolean> = { intake: true, production: true }) {
+    const organizations = { findOne: vi.fn().mockResolvedValue({ id: 'org-1', features }) };
     const parameters = {
       getManyForOrganization: vi.fn(async (keys: string[]) => new Map(keys.map((key) => {
         const module = key.split('.').pop() as string;
@@ -297,20 +310,40 @@ describe('módulos futuros fuera de la operación inicial', () => {
     );
   }
 
-  it('Intake activo no se libera al equipo antes de su lanzamiento explícito', async () => {
-    const resolver = conEstados({ intake: 'active', production: 'development' });
+  /*
+   * Lo que cierra estos módulos ya no es la lista de despliegue: es el interruptor de la
+   * organización, y lo enciende Desarrollo en Accesos y seguridad → Módulos.
+   *
+   * Estas dos pruebas fijaban que Intake y Producción resolvieran `none` para el equipo aunque su
+   * ciclo de vida fuera `active`. Eso describía `INITIAL_OPERATION_MODULES`, que se retiró de los
+   * doce módulos de empresa por decisión del dueño: abrirlos, con todo apagado hasta que se
+   * encienda. Fijar esa afirmación hoy sería fijar la puerta que ya no está.
+   *
+   * Lo que se fija ahora es el interruptor, que es donde se mudó la decisión: **apagado, cerrado**
+   * —sin importar que el ciclo de vida diga `active`—, y es lo único que impide que liberar la
+   * superficie entregue los doce módulos de golpe.
+   */
+  it('el módulo en desarrollo sigue cerrado al equipo aunque la organización lo encienda', async () => {
+    const resolver = conEstados({ intake: 'development', production: 'development' });
     const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.OPERATIONS_DIRECTOR);
 
     expect(permisos.intake).toBe('none');
     expect(permisos.production).toBe('none');
   });
 
-  it('Producción activa tampoco se filtra al equipo antes de su lanzamiento', async () => {
-    const resolver = conEstados({ intake: 'development', production: 'active' });
+  it('con el interruptor de la organización apagado, el módulo activo tampoco se entrega', async () => {
+    const resolver = conEstados({ intake: 'active', production: 'active' }, { intake: false, production: false });
     const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.OPERATIONS_DIRECTOR);
 
     expect(permisos.intake).toBe('none');
     expect(permisos.production).toBe('none');
+  });
+
+  it('encendido y activo, el equipo que la matriz alcanza ya entra', async () => {
+    const resolver = conEstados({ intake: 'active', production: 'active' });
+    const permisos = await resolver.permissionsFor('org-1', 'u1', UserRole.OPERATIONS_DIRECTOR);
+
+    expect(permisos.production).not.toBe('none');
   });
 
   it('desarrollo conserva acceso para validar ambos módulos antes de liberarlos', async () => {

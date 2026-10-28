@@ -32,5 +32,6 @@ export * from './constants';
 export * from './reglas-de-campo';
 export * from './campos-personalizados';
 export * from './areas';
+export * from './catalogo-de-rubros';
 export * from './datos-protegidos';
 //# sourceMappingURL=index.d.ts.map

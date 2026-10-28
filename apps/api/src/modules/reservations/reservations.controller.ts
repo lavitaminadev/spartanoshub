@@ -12,6 +12,8 @@ import { AccountAccessService } from '../../core/client-scope/account-access.ser
 import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { AuditService } from '../../core/audit/audit.service';
 import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../core/client-scope/nivel-de-datos.service';
+import { CATALOGO_DE_RUBROS } from '@espartanos/shared';
+import { SinEmpresa } from '../../core/client-scope/empresa.decorator';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { UserRole } from '../organizations/user-role.enum';
@@ -29,6 +31,9 @@ import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 @Controller('reservations')
 @ModuleScope('reservations')
 export class ReservationsController {
+  /** Cargos que pueden declarar que una página no pide aceptación de tratamiento de datos. */
+  private static readonly DECLARAN_LA_EXCEPCION = [UserRole.ADMIN, UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR];
+
   constructor(
     private readonly service: ReservationsService,
     private readonly accountAccess: AccountAccessService,
@@ -153,6 +158,20 @@ export class ReservationsController {
     return this.service.pixelesDelFormulario(req.organizationId, clientId);
   }
 
+  /**
+   * Los rubros y sus tipos de captación, para el selector al crear un formulario.
+   *
+   * Sale del catálogo en código, igual para toda la organización, y no toca la base: no lleva
+   * empresa ni alcance porque no dice nada de nadie, sólo con qué valores puede nacer un
+   * formulario. Quien crea formularios es quien lo necesita, así que lleva los mismos cargos.
+   */
+  @Get('catalogo-de-rubros')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  @SinEmpresa('el catálogo es el mismo para toda la organización y no describe a ninguna empresa')
+  catalogoDeRubros() {
+    return { data: CATALOGO_DE_RUBROS };
+  }
+
   @Get('forms')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async forms(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
@@ -195,6 +214,17 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReservationFormDto) {
     const scope = await this.scope(req);
+    /*
+     * Dejar una página sin aceptación es una decisión de la agencia, no de la operación diaria.
+     *
+     * Compromete a quien responde por los datos —el local—, así que la toman los tres cargos que
+     * responden por el encargo. Al resto se le descarta el campo en vez de rechazarle el guardado
+     * entero: lo demás que venga en ese `PATCH` es configuración legítima suya.
+     */
+    if (!ReservationsController.DECLARAN_LA_EXCEPCION.includes(req.user.role as UserRole)) {
+      delete dto.consentimientoNoAplica;
+      delete dto.motivoSinConsentimiento;
+    }
     if (req.user.role === UserRole.CLIENT) {
       const allowed: UpdateReservationFormDto = {
         timezone: dto.timezone,
@@ -778,6 +808,22 @@ export class ReservationsController {
   async noShow(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
     return this.service.noShowPorLocalYDia(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
+  }
+
+  /**
+   * Del anuncio al comensal que llegó.
+   *
+   * Exige `reservations.medicion` y no `historial`: responde una pregunta de medición, no de
+   * operación, y quien atiende el turno no necesita saber qué campaña trajo a cada mesa.
+   *
+   * No entrega ni un dato de ninguna persona: son conteos por origen y campaña.
+   */
+  @Get('analytics/por-origen')
+  @RequiereArea('reservations.medicion', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async asistenciaPorOrigen(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
+    const scope = await this.requestedScope(req, query.clientId);
+    return this.service.asistenciaPorOrigen(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
   }
 
   @Get('analytics/occupancy')
