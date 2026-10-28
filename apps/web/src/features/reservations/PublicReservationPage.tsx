@@ -1168,7 +1168,7 @@ export function PublicReservationPage() {
           </div>}
           {sinLugarParaElGrupo && <div className="no-slots sin-cupo-grupo">
             <strong>Para {guest.partySize} persona{guest.partySize === 1 ? '' : 's'} no quedan horarios en estas fechas</strong>
-            <p>{faltaCupoParaElGrupo && cupoMaximoVisto > 0 ? `Hay horarios con espacio para hasta ${cupoMaximoVisto} persona${cupoMaximoVisto === 1 ? '' : 's'}. ` : ''}Puedes pedirle la mesa al local y te responde{design.whatsappBusinessNumber ? ', o escribirle directo' : ''}.</p>
+            <p>{faltaCupoParaElGrupo && cupoMaximoVisto > 0 ? `Hay horarios con espacio para hasta ${cupoMaximoVisto} persona${cupoMaximoVisto === 1 ? '' : 's'}. ` : ''}Puedes pedírsela al local y te responde{design.whatsappBusinessNumber ? ', o escribirle directo' : ''}.</p>
             {/*
               * La solicitud va primero: queda en la bandeja del equipo, avisa y se puede seguir.
               * WhatsApp es más rápido para quien reserva, pero la conversación queda en un teléfono.

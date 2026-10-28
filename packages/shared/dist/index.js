@@ -48,5 +48,6 @@ __exportStar(require("./constants"), exports);
 __exportStar(require("./reglas-de-campo"), exports);
 __exportStar(require("./campos-personalizados"), exports);
 __exportStar(require("./areas"), exports);
+__exportStar(require("./catalogo-de-rubros"), exports);
 __exportStar(require("./datos-protegidos"), exports);
 //# sourceMappingURL=index.js.map

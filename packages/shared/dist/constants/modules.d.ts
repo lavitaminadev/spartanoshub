@@ -22,6 +22,12 @@ export interface ProductModuleDefinition<Key extends string = string> {
  *
  * `lifecycle` responde "el producto lo ofrece hoy".
  * `defaultEnabled` responde "si creo una organizacion nueva, este modulo parte encendido".
+ *
+ * Los doce modulos cuyo sujeto es una empresa atendida parten **apagados**. Hasta ahora decian
+ * `true` y no se notaba, porque `INITIAL_OPERATION_MODULES` rechazaba la ruta antes de mirarlos;
+ * al liberar esa reja, dejarlos en `true` los habria encendido de golpe para todo cargo que la
+ * matriz alcanza. Apagados, encenderlos es un acto: Desarrollo en Accesos y seguridad -> Modulos
+ * para la organizacion, y la capacidad contratada para cada empresa.
  */
 export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
     readonly key: "dashboard";
@@ -62,11 +68,11 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "production";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "intake";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "clientMetricsPanel";
     readonly lifecycle: "active";
@@ -78,7 +84,7 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "udBudget";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "gamification";
     readonly lifecycle: "active";
@@ -86,11 +92,11 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "billing";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "contracts";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "catalog";
     readonly lifecycle: "active";
@@ -98,27 +104,27 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "content";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "briefs";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "meetings";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "documents";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "approvals";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "audiovisual";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
 }, {
     readonly key: "knowledge";
     readonly lifecycle: "active";

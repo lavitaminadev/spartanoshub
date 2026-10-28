@@ -98,6 +98,18 @@ __decorate([
     (0, class_validator_1.IsIn)(['appointment', 'group', 'request', 'survey']),
     __metadata("design:type", String)
 ], CreateReservationFormDto.prototype, "mode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], CreateReservationFormDto.prototype, "rubro", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], CreateReservationFormDto.prototype, "tipoDeCaptacion", void 0);
 class UpdateReservationFormDto {
 }
 exports.UpdateReservationFormDto = UpdateReservationFormDto;
@@ -200,6 +212,17 @@ __decorate([
     (0, class_validator_1.MaxLength)(120),
     __metadata("design:type", String)
 ], UpdateReservationFormDto.prototype, "campaignId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateReservationFormDto.prototype, "consentimientoNoAplica", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(300),
+    __metadata("design:type", String)
+], UpdateReservationFormDto.prototype, "motivoSinConsentimiento", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

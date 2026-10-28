@@ -62,6 +62,15 @@ export class CreateReservationFormDto {
   @IsString() @Matches(/\S/, { message: 'El nombre es obligatorio' }) @MaxLength(180) name: string;
   @IsOptional() @IsString() @MaxLength(190) publicSlug?: string;
   @IsOptional() @IsIn(['appointment', 'group', 'request', 'survey']) mode?: string;
+  /*
+   * De qué rubro y tipo de captación parte el formulario.
+   *
+   * Sólo deciden con qué valores nace —duración, capacidad, campos, texto del botón— y no cambian
+   * ninguna reja. Se validan contra el catálogo en el servicio y no acá: una clave que ya no está
+   * se ignora, en vez de dejar al local sin poder crear su formulario.
+   */
+  @IsOptional() @IsString() @MaxLength(40) rubro?: string;
+  @IsOptional() @IsString() @MaxLength(40) tipoDeCaptacion?: string;
 }
 export class UpdateReservationFormDto {
   @IsOptional() @IsString() @MaxLength(180) name?: string;
@@ -80,6 +89,14 @@ export class UpdateReservationFormDto {
   @IsOptional() @IsArray() servicesConfig?: unknown[];
   @IsOptional() @IsArray() resourcesConfig?: unknown[];
   @IsOptional() @IsString() @MaxLength(120) campaignId?: string;
+  /**
+   * La página no le pide aceptación de tratamiento de datos al comensal.
+   *
+   * Es una excepción declarada y la fija sólo Desarrollo, Administración o Dirección comercial:
+   * el controlador la descarta para los demás cargos. Exige motivo.
+   */
+  @IsOptional() @IsBoolean() consentimientoNoAplica?: boolean;
+  @IsOptional() @IsString() @MaxLength(300) motivoSinConsentimiento?: string;
   @IsOptional() @IsBoolean() crmEnabled?: boolean;
   @IsOptional() @IsBoolean() calendarEnabled?: boolean;
   @IsOptional() @IsBoolean() metaCapiEnabled?: boolean;

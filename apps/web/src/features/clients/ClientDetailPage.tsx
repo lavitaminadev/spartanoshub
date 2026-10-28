@@ -28,6 +28,13 @@ interface ClientOverview {
     whatsappGroup?: string;
     startedAt?: string;
     renewalAt?: string;
+    /**
+     * Lo que esta empresa tiene contratado. El servidor ya lo manda; faltaba leerlo.
+     *
+     * Los doce módulos cuyo sujeto es una empresa atendida nacen **apagados**, así que una clave
+     * ausente es «no contratado» y no «no sé»: se comprueba con `=== true` y no con `!== false`.
+     */
+    capabilities?: Partial<Record<string, boolean>>;
   };
   stats: {
     pendingPieces: number;
@@ -133,10 +140,29 @@ export function ClientDetailPage() {
     const allowedByRole = !roles?.length || hasRoleAccess(user?.role, roles);
     return allowedByRole && isPathEnabled(item.to, user?.features, user?.permissions, user?.moduleLifecycle, user?.role, user?.capabilities);
   });
-  /** Módulos de agencia que alimentan los paneles de esta ficha. */
-  const showProduction = isModuleInPhaseScope('production', user?.moduleLifecycle);
-  const showMeetings = isModuleInPhaseScope('meetings', user?.moduleLifecycle);
-  const showDocuments = isModuleInPhaseScope('documents', user?.moduleLifecycle);
+  /*
+   * Módulos que alimentan los paneles de esta ficha: las **dos** rejas, no una.
+   *
+   * `isModuleInPhaseScope` dice si el producto entrega el módulo; `capabilities`, si **esta
+   * empresa** lo tiene contratado. Faltaba la segunda, así que la ficha de un local sin Producción
+   * mostraba igual su panel de piezas: un panel vacío que invita a preguntar por qué no hay nada,
+   * cuando la respuesta es que ese servicio no se contrató.
+   *
+   * `=== true` y no `!== false`: los doce módulos de empresa nacen apagados, de modo que una clave
+   * ausente significa «no contratado». Con `!== false` una empresa recién creada los vería todos.
+   */
+  const contratado = (modulo: string) => client.capabilities?.[modulo] === true;
+  const showProduction = isModuleInPhaseScope('production', user?.moduleLifecycle) && contratado('production');
+  const showMeetings = isModuleInPhaseScope('meetings', user?.moduleLifecycle) && contratado('meetings');
+  const showDocuments = isModuleInPhaseScope('documents', user?.moduleLifecycle) && contratado('documents');
+  /*
+   * El presupuesto de UD no lleva capacidad, y es correcto que no la lleve.
+   *
+   * No está en `CAPACIDADES_DE_MODULO`: lo que se contrata son las UD mismas, y este panel es la
+   * vista que la agencia tiene de ellas en la ficha del local. La capacidad que existe es
+   * `budgetVisibility`, y decide otra cosa —si la empresa ve su saldo en **su** portal—, así que
+   * usarla acá le escondería a la agencia el presupuesto que ella administra.
+   */
   const showUdBudget = isModuleInPhaseScope('udBudget', user?.moduleLifecycle);
   /*
    * Ajustar lo contratado pide dirección de operaciones, no cualquiera que vea el panel.

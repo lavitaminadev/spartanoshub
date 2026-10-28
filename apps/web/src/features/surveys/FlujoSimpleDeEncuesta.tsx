@@ -32,6 +32,8 @@ interface Iniciada {
   token: string;
   rating: number;
   siguiente: 'mensaje-al-equipo' | 'ofrecer-encuesta';
+  /** Lo que el local escribió para una nota baja. Sin él se dice lo de siempre. */
+  mensajeDeNotaBaja?: string | null;
   reviewUrl: string | null;
   nombre: string | null;
 }
@@ -201,7 +203,15 @@ export function FlujoSimpleDeEncuesta({
         <h2 className="flujo-encuesta-pregunta">{mensajeEnviado ? 'Tu mensaje ya le llegó al equipo' : 'Gracias por contarnos'}</h2>
         {notaBaja
           ? <>
-            <p>{mensajeEnviado ? 'Lo van a leer con atención.' : 'Tu nota quedó registrada.'}</p>
+            {/*
+              * El texto del local manda sobre el nuestro.
+              *
+              * Quien escribe «el jefe de turno te llama hoy» promete algo concreto, y esa promesa
+              * es por lo que la persona eligió el canal privado en vez de Google. Nuestra frase
+              * queda para el local que no escribió nada.
+            */}
+            <p>{iniciada?.mensajeDeNotaBaja
+              ?? (mensajeEnviado ? 'Lo van a leer con atención.' : 'Tu nota quedó registrada.')}</p>
             {/* Disponible también con nota baja, pero en segundo plano: se ofreció primero el canal privado. */}
             {resena ? <a className="flujo-encuesta-resena-discreta" href={resena} target="_blank" rel="noopener noreferrer">Si igual quieres, también puedes opinar en Google</a> : null}
           </>
