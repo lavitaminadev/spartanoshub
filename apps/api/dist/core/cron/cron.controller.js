@@ -28,6 +28,7 @@ const leads_parados_job_1 = require("../jobs/cron/leads-parados.job");
 const cupon_post_visita_job_1 = require("../jobs/cron/cupon-post-visita.job");
 const recordatorio_de_tareas_job_1 = require("../jobs/cron/recordatorio-de-tareas.job");
 const resumen_diario_job_1 = require("../jobs/cron/resumen-diario.job");
+const solicitudes_por_vencer_job_1 = require("../jobs/cron/solicitudes-por-vencer.job");
 const saludo_de_cumpleanos_job_1 = require("../jobs/cron/saludo-de-cumpleanos.job");
 const recordatorio_de_reservas_job_1 = require("../jobs/cron/recordatorio-de-reservas.job");
 const encuesta_post_visita_job_1 = require("../jobs/cron/encuesta-post-visita.job");
@@ -43,7 +44,7 @@ const automation_runner_service_1 = require("../../modules/automations/automatio
 const automation_schedule_job_1 = require("../../modules/automations/automation-schedule.job");
 const webhook_delivery_service_1 = require("../../modules/automations/webhook-delivery.service");
 let CronController = class CronController {
-    constructor(capiOutbox, campanas, googleOutbox, stale, leadsParados, recordatorios, resumen, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks, corridas, cuponPostVisita) {
+    constructor(capiOutbox, campanas, googleOutbox, stale, leadsParados, recordatorios, resumen, solicitudesPorVencer, cumpleanos, recordatorioReservas, encuestaPostVisita, operationalAlerts, cycles, collections, purge, reservationIntegrations, xp, autoClose, metaRecovery, automations, automationScheduleJob, webhooks, corridas, cuponPostVisita) {
         this.capiOutbox = capiOutbox;
         this.campanas = campanas;
         this.googleOutbox = googleOutbox;
@@ -51,6 +52,7 @@ let CronController = class CronController {
         this.leadsParados = leadsParados;
         this.recordatorios = recordatorios;
         this.resumen = resumen;
+        this.solicitudesPorVencer = solicitudesPorVencer;
         this.cumpleanos = cumpleanos;
         this.recordatorioReservas = recordatorioReservas;
         this.encuestaPostVisita = encuestaPostVisita;
@@ -225,6 +227,14 @@ let CronController = class CronController {
     async resumenGet(secret) {
         this.verifySecret(secret);
         return this.runLocked('resumen-diario', () => this.resumen.handle());
+    }
+    async solicitudesPorVencerPost(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('solicitudes-por-vencer', () => this.solicitudesPorVencer.handle());
+    }
+    async solicitudesPorVencerGet(secret) {
+        this.verifySecret(secret);
+        return this.runLocked('solicitudes-por-vencer', () => this.solicitudesPorVencer.handle());
     }
     async cumpleanosPost(secret) {
         this.verifySecret(secret);
@@ -473,6 +483,22 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CronController.prototype, "resumenGet", null);
 __decorate([
+    (0, common_1.Post)('solicitudes-por-vencer'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "solicitudesPorVencerPost", null);
+__decorate([
+    (0, common_1.Get)('solicitudes-por-vencer'),
+    (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
+    __param(0, (0, common_1.Headers)('x-cron-secret')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CronController.prototype, "solicitudesPorVencerGet", null);
+__decorate([
     (0, common_1.Post)('cumpleanos'),
     (0, throttler_1.Throttle)({ default: { limit: 6, ttl: 60000 } }),
     __param(0, (0, common_1.Headers)('x-cron-secret')),
@@ -699,7 +725,7 @@ __decorate([
 exports.CronController = CronController = __decorate([
     (0, common_1.Controller)('cron'),
     (0, public_decorator_1.Public)(),
-    __param(21, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
+    __param(22, (0, typeorm_1.InjectRepository)(cron_run_entity_1.CronRun)),
     __metadata("design:paramtypes", [meta_conversion_outbox_service_1.MetaConversionOutboxService,
         envios_de_campana_service_1.EnviosDeCampanaService,
         google_conversion_outbox_service_1.GoogleConversionOutboxService,
@@ -707,6 +733,7 @@ exports.CronController = CronController = __decorate([
         leads_parados_job_1.LeadsParadosJob,
         recordatorio_de_tareas_job_1.RecordatorioDeTareasJob,
         resumen_diario_job_1.ResumenDiarioJob,
+        solicitudes_por_vencer_job_1.SolicitudesPorVencerJob,
         saludo_de_cumpleanos_job_1.SaludoDeCumpleanosJob,
         recordatorio_de_reservas_job_1.RecordatorioDeReservasJob,
         encuesta_post_visita_job_1.EncuestaPostVisitaJob,

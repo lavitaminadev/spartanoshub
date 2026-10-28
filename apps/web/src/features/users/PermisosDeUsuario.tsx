@@ -105,12 +105,17 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
     queryFn: () => api.get(`/users/${usuario.id}/client-access${limitadoASuEmpresa ? qs : ''}`),
   });
 
-  // Las acciones se ajustan sólo desde la agencia (el servidor no se las abre al portal): pedirlas
-  // desde una empresa era un 403 seguro en cada apertura de la ficha.
+  /*
+   * Las acciones finas, también para quien administra su empresa.
+   *
+   * El servidor las abrió al cargo cliente con el mismo encierro que el nivel de módulo —sólo
+   * cuentas de la empresa que administra, y nunca los módulos con los que se administra el
+   * sistema—, de modo que ya no son un 403 seguro. Antes podía subirle el nivel entero a alguien
+   * y no abrirle una acción suelta, que es el ajuste más acotado de los dos.
+   */
   const acciones = useQuery<{ acciones: AccionEfectiva[] }>({
     queryKey: ['acciones-de-usuario', usuario.id, empresaDelPermiso],
     queryFn: () => api.get(`/users/${usuario.id}/actions${qs}`),
-    enabled: !limitadoASuEmpresa,
   });
   const cambiarAccion = useMutation({
     mutationFn: ({ accion, valor }: { accion: string; valor: 'nivel' | 'si' | 'no' }) => valor === 'nivel'

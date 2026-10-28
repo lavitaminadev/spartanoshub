@@ -13,6 +13,7 @@ import { LeadsParadosJob } from '../jobs/cron/leads-parados.job';
 import { CuponPostVisitaJob } from '../jobs/cron/cupon-post-visita.job';
 import { RecordatorioDeTareasJob } from '../jobs/cron/recordatorio-de-tareas.job';
 import { ResumenDiarioJob } from '../jobs/cron/resumen-diario.job';
+import { SolicitudesPorVencerJob } from '../jobs/cron/solicitudes-por-vencer.job';
 import { SaludoDeCumpleanosJob } from '../jobs/cron/saludo-de-cumpleanos.job';
 import { RecordatorioDeReservasJob } from '../jobs/cron/recordatorio-de-reservas.job';
 import { EncuestaPostVisitaJob } from '../jobs/cron/encuesta-post-visita.job';
@@ -41,6 +42,7 @@ export class CronController {
     private readonly leadsParados: LeadsParadosJob,
     private readonly recordatorios: RecordatorioDeTareasJob,
     private readonly resumen: ResumenDiarioJob,
+    private readonly solicitudesPorVencer: SolicitudesPorVencerJob,
     private readonly cumpleanos: SaludoDeCumpleanosJob,
     private readonly recordatorioReservas: RecordatorioDeReservasJob,
     private readonly encuestaPostVisita: EncuestaPostVisitaJob,
@@ -310,6 +312,27 @@ export class CronController {
   async resumenGet(@Headers('x-cron-secret') secret: string) {
     this.verifySecret(secret);
     return this.runLocked('resumen-diario', () => this.resumen.handle());
+  }
+
+  /*
+   * Los plazos de las solicitudes de derechos.
+   *
+   * Una vez al día basta: el plazo se mide en días y el aviso sale sólo cuando hay algo en riesgo.
+   * `porVencer()` calculaba esto desde que existe y no tenía ningún llamador, así que el plazo se
+   * pasaba sin que nadie se enterara.
+   */
+  @Post('solicitudes-por-vencer')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async solicitudesPorVencerPost(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('solicitudes-por-vencer', () => this.solicitudesPorVencer.handle());
+  }
+
+  @Get('solicitudes-por-vencer')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  async solicitudesPorVencerGet(@Headers('x-cron-secret') secret: string) {
+    this.verifySecret(secret);
+    return this.runLocked('solicitudes-por-vencer', () => this.solicitudesPorVencer.handle());
   }
 
   @Post('cumpleanos')

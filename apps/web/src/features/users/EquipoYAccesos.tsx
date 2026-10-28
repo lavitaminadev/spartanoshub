@@ -280,6 +280,16 @@ export function EquipoYAccesos() {
   const puedeVerPermisos = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '') || administraSuEmpresa;
   const puedeEditarPermisos = puedeVerPermisos;
   const esOperaciones = currentUser?.role === 'operations_director';
+  /*
+   * Soporte: mira la configuración de una empresa sin tocarla.
+   *
+   * Dirección comercial llega a esta pantalla y puede elegir cualquier empresa en el filtro, así
+   * que podía cambiarle los perfiles a un local. Si la agencia cambia la configuración de una
+   * empresa sin dejar rastro se rompe el contrato de encargo: el responsable de los datos es el
+   * restaurante y la agencia actúa según sus instrucciones. Quien administra —Administración,
+   * Desarrollo y Dirección de operaciones— sigue pudiendo, porque administrar es su trabajo.
+   */
+  const enSoporte = currentUser?.role === 'commercial_director';
 
   const openCreateModal = () => {
     setFeedback(null);
@@ -632,7 +642,7 @@ export function EquipoYAccesos() {
         onConfirm={() => void confirmBulkAccess()}
       />
       <Modal open={verPerfiles && Boolean(empresaMirada)} onClose={() => setVerPerfiles(false)} title="Perfiles e invitaciones">
-        {verPerfiles && empresaMirada && <PerfilesDelEquipo clientId={empresaMirada} empresa={clientMap.get(empresaMirada) || empresaActiva.nombre || "esta empresa"} capacidades={usuarioEnEmpresa?.capabilities} esAgencia={!administraSuEmpresa} onCerrar={() => setVerPerfiles(false)} />}
+        {verPerfiles && empresaMirada && <PerfilesDelEquipo clientId={empresaMirada} empresa={clientMap.get(empresaMirada) || empresaActiva.nombre || "esta empresa"} capacidades={usuarioEnEmpresa?.capabilities} esAgencia={!administraSuEmpresa} soloLectura={enSoporte} onCerrar={() => setVerPerfiles(false)} />}
       </Modal>
       {permisosDe && <PermisosDeUsuario usuario={permisosDe} empresas={clients} puedeEditar={puedeEditarPermisos && permisosDe.id !== currentUser?.id && !(esOperaciones && ['admin', 'operations_director', 'dev'].includes(permisosDe.role))} limitadoAOperaciones={esOperaciones} limitadoASuEmpresa={administraSuEmpresa} miEmpresa={(administraSuEmpresa && empresaActiva.clientId) || currentUser?.clientId || ''} serviciosDeLaEmpresa={usuarioEnEmpresa?.capabilities} onCerrar={() => setPermisosDe(null)} />}
       <Modal open={Boolean(resetTarget)} onClose={() => { setResetTarget(null); setResetResult(null); }} title={`Resetear clave de ${resetTarget?.name ?? ''}`}>
