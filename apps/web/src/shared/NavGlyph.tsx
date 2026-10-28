@@ -66,6 +66,9 @@ const GLYPHS: Record<string, string> = {
   // Administración
   'Accesos y seguridad': 'AS',
   Usuarios: 'US',
+  // La misma pantalla para quien administra un local. 'ME' y no el respaldo `label.slice(0, 2)`,
+  // que daría 'MI' y se lee como la inicial de otra cosa.
+  'Mi equipo': 'ME',
   'Correos enviados': 'CE',
   Suscriptores: 'SU',
   // 'CA' ya es de Catálogo, y el respaldo `label.slice(0, 2)` daría justo ése.

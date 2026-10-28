@@ -54,10 +54,12 @@ const bcrypt = __importStar(require("bcryptjs"));
 const user_entity_1 = require("./user.entity");
 const user_role_enum_1 = require("../organizations/user-role.enum");
 const email_service_1 = require("../../core/notifications/email.service");
+const sessions_service_1 = require("../../core/auth/sessions.service");
 let ResetUserPasswordUseCase = class ResetUserPasswordUseCase {
-    constructor(users, email) {
+    constructor(users, email, sessions) {
         this.users = users;
         this.email = email;
+        this.sessions = sessions;
     }
     async execute(params) {
         const user = await this.users.findOne({ where: { id: params.id, organizationId: params.organizationId } });
@@ -78,7 +80,8 @@ let ResetUserPasswordUseCase = class ResetUserPasswordUseCase {
         return { userId: user.id, emailSent };
     }
     async generarYEnviar(user, params) {
-        if (params.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR && [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(user.role)) {
+        const SOBRE_LA_MATRIZ = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR];
+        if (params.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR && SOBRE_LA_MATRIZ.includes(user.role)) {
             throw new common_1.ForbiddenException('No puedes resetear esta cuenta');
         }
         const temporaryPassword = (0, crypto_1.randomBytes)(18).toString('base64url');
@@ -87,6 +90,7 @@ let ResetUserPasswordUseCase = class ResetUserPasswordUseCase {
         user.passwordChangedAt = new Date();
         user.refreshToken = null;
         await this.users.save(user);
+        await this.sessions.revokeAll(user.id, sessions_service_1.REVOKE_REASONS.ADMIN);
         const appUrl = (process.env.APP_PUBLIC_URL || 'http://localhost:5173').replace(/\/$/, '');
         const emailSent = params.sendEmail !== false && await this.email.sendTemporaryPassword(user.name, user.email, temporaryPassword, `${appUrl}/login`, user.organizationId);
         return { userId: user.id, temporaryPassword, emailSent, mustChangePassword: true };
@@ -97,5 +101,6 @@ exports.ResetUserPasswordUseCase = ResetUserPasswordUseCase = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        sessions_service_1.SessionsService])
 ], ResetUserPasswordUseCase);

@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersModule = void 0;
 const authorization_module_1 = require("../../core/authorization/authorization.module");
+const auth_module_1 = require("../../core/auth/auth.module");
 const user_permission_override_entity_1 = require("../../core/authorization/user-permission-override.entity");
 const administradores_de_empresa_service_1 = require("./administradores-de-empresa.service");
 const account_access_module_1 = require("../../core/client-scope/account-access.module");
@@ -39,7 +40,7 @@ let UsersModule = class UsersModule {
 exports.UsersModule = UsersModule;
 exports.UsersModule = UsersModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, user_client_access_entity_1.UserClientAccess, consent_version_entity_1.ConsentVersion, consent_entity_1.DataConsent, perfil_de_empresa_entity_1.PerfilDeEmpresa, perfil_asignacion_entity_1.PerfilAsignacion, invitacion_de_equipo_entity_1.InvitacionDeEquipo]), email_module_1.EmailModule, notifications_module_1.NotificationsModule, audit_module_1.AuditModule, authorization_module_1.AuthorizationModule, account_access_module_1.AccountAccessModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, client_entity_1.Client, user_permission_override_entity_1.UserPermissionOverride, user_client_access_entity_1.UserClientAccess, consent_version_entity_1.ConsentVersion, consent_entity_1.DataConsent, perfil_de_empresa_entity_1.PerfilDeEmpresa, perfil_asignacion_entity_1.PerfilAsignacion, invitacion_de_equipo_entity_1.InvitacionDeEquipo]), email_module_1.EmailModule, notifications_module_1.NotificationsModule, audit_module_1.AuditModule, authorization_module_1.AuthorizationModule, account_access_module_1.AccountAccessModule, auth_module_1.AuthModule],
         controllers: [users_controller_1.UsersController, perfiles_controller_1.PerfilesController, invitaciones_publicas_controller_1.InvitacionesPublicasController],
         providers: [create_user_use_case_1.CreateUserUseCase, list_users_use_case_1.ListUsersUseCase, update_user_use_case_1.UpdateUserUseCase, reset_user_password_use_case_1.ResetUserPasswordUseCase, administracion_del_equipo_service_1.AdministracionDelEquipoService, administradores_de_empresa_service_1.AdministradoresDeEmpresaService, perfiles_service_1.PerfilesService, invitaciones_service_1.InvitacionesService],
         exports: [typeorm_1.TypeOrmModule, administradores_de_empresa_service_1.AdministradoresDeEmpresaService, perfiles_service_1.PerfilesService],

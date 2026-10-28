@@ -62,6 +62,8 @@ const PATH_CONTROLLER: Record<string, string | null> = {
   '/reservations/waitlist': 'reservations/reservations.controller.ts',
   '/reservations/analytics': 'reservations/reservations.controller.ts',
   '/users': 'users/users.controller.ts',
+  // «Mi equipo»: la misma pantalla sobre el alcance de un local, así que el mismo controlador.
+  '/mi-equipo': 'users/users.controller.ts',
   // Pantallas compuestas: agregan datos de varios modulos y no tienen un controlador unico.
   '/dashboard': null,
   '/direction': null,

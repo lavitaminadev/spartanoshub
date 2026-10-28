@@ -10,7 +10,9 @@ import { UserRole } from '../../../src/modules/organizations/user-role.enum';
 function caso(persona: Record<string, unknown>, enviado = true) {
   const users = { findOne: vi.fn(async () => ({ id: 'u-1', name: 'Diego', email: 'diego@casa.cl', organizationId: 'org', ...persona })), save: vi.fn(async (u: unknown) => u) };
   const email = { sendTemporaryPassword: vi.fn(async () => enviado) };
-  return { uso: new ResetUserPasswordUseCase(users as never, email as never), users, email };
+  // Resetear la clave cierra las sesiones abiertas: el doble deja comprobar que se llamó.
+  const sessions = { revokeAll: vi.fn(async () => 0) };
+  return { uso: new ResetUserPasswordUseCase(users as never, email as never, sessions as never), users, email, sessions };
 }
 
 describe('reenviar acceso', () => {
@@ -38,5 +40,34 @@ describe('reenviar acceso', () => {
     const { uso, users } = caso({ role: UserRole.ADMIN, mustChangePassword: true });
     await expect(uso.reenviarAcceso({ id: 'u-1', organizationId: 'org', actorRole: UserRole.COMMERCIAL_DIRECTOR })).rejects.toThrow(ForbiddenException);
     expect(users.save).not.toHaveBeenCalled();
+  });
+
+  /*
+   * La pantalla dice «se cerrarán las sesiones activas». Esto es lo que lo sostiene.
+   *
+   * `passwordChangedAt` sólo invalida los access tokens ya emitidos; las filas de
+   * `user_sessions` siguen vivas y `refreshToken()` emite uno nuevo para cualquiera de ellas sin
+   * volver a mirar la contraseña. Sin revocarlas, resetear la clave de una cuenta tomada no la
+   * recupera, y la frase de la pantalla es falsa.
+   */
+  it('resetear la clave cierra las sesiones abiertas', async () => {
+    const { uso, sessions } = caso({ role: UserRole.CLIENT, mustChangePassword: true });
+    await uso.execute({ id: 'u-1', organizationId: 'org', actorRole: UserRole.ADMIN });
+    expect(sessions.revokeAll).toHaveBeenCalledWith('u-1', 'cerrada_por_administracion');
+  });
+
+  /*
+   * Los cuatro cargos que pueden abrir o cambiar la matriz de accesos.
+   *
+   * Dirección comercial faltaba, y es quien ahora consulta la matriz: resetear su clave es
+   * quedarse con su cuenta, y desde ahí con lo que esa cuenta alcanza.
+   */
+  it('dirección de operaciones no resetea a dirección comercial ni a desarrollo', async () => {
+    for (const cargo of [UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR]) {
+      const { uso, users } = caso({ role: cargo, mustChangePassword: true });
+      await expect(uso.execute({ id: 'u-1', organizationId: 'org', actorRole: UserRole.OPERATIONS_DIRECTOR }))
+        .rejects.toThrow(ForbiddenException);
+      expect(users.save).not.toHaveBeenCalled();
+    }
   });
 });

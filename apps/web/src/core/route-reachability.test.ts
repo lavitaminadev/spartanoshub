@@ -70,13 +70,34 @@ describe('puertas de entrada a cada ruta', () => {
       .map((archivo) => readFileSync(archivo, 'utf8'))
       .join('\n');
 
+    /*
+     * Los bloques `navigation: [...]` de los manifiestos, delimitados contando corchetes.
+     *
+     * Hacía falta porque un manifiesto puede declarar varias entradas, y cada una lleva su
+     * `roles: [...]`: una expresión que no cruce un `]` ve la primera entrada y ninguna más, así
+     * que una ruta con menú propio en la segunda se reportaba como ruta sin puerta. Se acota al
+     * bloque de navegación a propósito: un `path:` de `routes:` declara la ruta, que es justo lo
+     * que esta prueba no acepta como entrada.
+     */
+    const navegacionDeLosManifiestos = [...manifiestos.matchAll(/navigation:\s*\[/g)].map((coincidencia) => {
+      const desde = coincidencia.index! + coincidencia[0].length;
+      let profundidad = 1;
+      let i = desde;
+      while (i < manifiestos.length && profundidad > 0) {
+        if (manifiestos[i] === '[') profundidad++;
+        else if (manifiestos[i] === ']') profundidad--;
+        i++;
+      }
+      return manifiestos.slice(desde, i);
+    }).join('\n');
+
     // Sólo cuenta el destino de un enlace real: `to`, `href` o `navigate`. Una llamada a la API
     // que comparte prefijo con la ruta (`api.get('/crm/contacts')`) no lleva a nadie a la pantalla.
     const escapar = (ruta: string) => ruta.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const tieneEnlace = (ruta: string) => new RegExp(
       `(?:\\b(?:to|href)\\s*[=:]\\s*\\{?\\s*|navigate\\(\\s*)['"\`]${escapar(ruta)}(?![\\w/-])`,
     ).test(resto)
-      || new RegExp(`navigation:[^\\]]*?path:\\s*['"\`]${escapar(ruta)}['"\`]`).test(manifiestos);
+      || new RegExp(`path:\\s*['"\`]${escapar(ruta)}['"\`]`).test(navegacionDeLosManifiestos);
     const sinPuerta = rutas.filter((ruta) => !tieneEnlace(ruta));
     const nuevas = sinPuerta.filter((ruta) => !SIN_ENTRADA_CONOCIDA.has(ruta));
     const yaConectadas = [...SIN_ENTRADA_CONOCIDA].filter((ruta) => !sinPuerta.includes(ruta));

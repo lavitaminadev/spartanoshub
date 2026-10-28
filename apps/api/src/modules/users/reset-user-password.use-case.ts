@@ -6,12 +6,14 @@ import * as bcrypt from 'bcryptjs';
 import { User } from './user.entity';
 import { UserRole } from '../organizations/user-role.enum';
 import { EmailService } from '../../core/notifications/email.service';
+import { REVOKE_REASONS, SessionsService } from '../../core/auth/sessions.service';
 
 @Injectable()
 export class ResetUserPasswordUseCase {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly email: EmailService,
+    private readonly sessions: SessionsService,
   ) {}
 
   async execute(params: { id: string; organizationId: string; actorRole: UserRole; sendEmail?: boolean }) {
@@ -39,7 +41,15 @@ export class ResetUserPasswordUseCase {
   }
 
   private async generarYEnviar(user: User, params: { actorRole: UserRole; sendEmail?: boolean }) {
-    if (params.actorRole === UserRole.OPERATIONS_DIRECTOR && [UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR].includes(user.role)) {
+    /*
+     * A quién no puede resetear Dirección de operaciones.
+     *
+     * Los cuatro cargos de la lista pueden abrir la matriz de accesos o cambiarla. Resetear la
+     * clave de uno de ellos es quedarse con su cuenta, y desde ahí con los permisos de todos: el
+     * límite no está en lo que el cargo ve, sino en lo que puede conceder.
+     */
+    const SOBRE_LA_MATRIZ = [UserRole.ADMIN, UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR, UserRole.OPERATIONS_DIRECTOR];
+    if (params.actorRole === UserRole.OPERATIONS_DIRECTOR && SOBRE_LA_MATRIZ.includes(user.role)) {
       throw new ForbiddenException('No puedes resetear esta cuenta');
     }
 
@@ -52,6 +62,16 @@ export class ResetUserPasswordUseCase {
     user.passwordChangedAt = new Date();
     user.refreshToken = null;
     await this.users.save(user);
+
+    /*
+     * Y las sesiones abiertas se cierran, que es lo que la pantalla promete.
+     *
+     * `passwordChangedAt` sólo invalida los access tokens ya entregados, y `refreshToken` es la
+     * columna vieja de `users`: las filas de `user_sessions` siguen vivas, y `refreshToken()`
+     * emite un access token nuevo para cualquiera de ellas sin volver a mirar la contraseña. Sin
+     * esto, resetear la clave de una cuenta tomada no la recupera.
+     */
+    await this.sessions.revokeAll(user.id, REVOKE_REASONS.ADMIN);
 
     const appUrl = (process.env.APP_PUBLIC_URL || 'http://localhost:5173').replace(/\/$/, '');
     const emailSent = params.sendEmail !== false && await this.email.sendTemporaryPassword(

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import type { JuegoDeAreas, JuegoDeDatos } from '@espartanos/shared';
@@ -44,6 +44,30 @@ export class PerfilesController {
     // El 404 de la agencia sobre una empresa que no alcanza no confirma que exista.
     if (!alcance.soloEmpresa) await this.accesos.assertClient(organizationId, req.user, empresa);
     return { organizationId, clientId: empresa, actorId: req.user.id, esAgencia: !alcance.soloEmpresa, ip: req.ip };
+  }
+
+  /** Cargos de la agencia cuyo trabajo es administrar, y que por tanto escriben en cualquier empresa. */
+  private static readonly ADMINISTRAN = [UserRole.ADMIN, UserRole.DEV, UserRole.OPERATIONS_DIRECTOR];
+
+  /**
+   * El mismo contexto, para una ruta que escribe.
+   *
+   * Dirección comercial mira la configuración de un local para poder ayudar, y no la decide. Si la
+   * agencia cambiara los perfiles de una empresa sin que ella lo pida se rompe el contrato de
+   * encargo: el responsable de los datos es el restaurante y la agencia trata por cuenta suya,
+   * según sus instrucciones.
+   *
+   * No lo cubre `@RequiereArea`: `alcanzaArea` devuelve `true` a quien no tiene perfil en esa
+   * empresa —a propósito, para no dejar sin servicio a quien todavía no lo tiene—, y la gente de
+   * la agencia normalmente no tiene perfil en los locales. La reja tiene que estar acá.
+   */
+  private async contextoParaEscribir(req: AuthenticatedRequest, clientId?: string): Promise<ContextoDePerfiles> {
+    const ctx = await this.contexto(req, clientId);
+    const cargo = req.user.role as UserRole;
+    if (ctx.esAgencia && !PerfilesController.ADMINISTRAN.includes(cargo)) {
+      throw new ForbiddenException('Desde tu cargo esta configuración se consulta, no se cambia: la decide quien administra el local.');
+    }
+    return ctx;
   }
 
   @Get()
@@ -99,7 +123,7 @@ export class PerfilesController {
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Copiar los perfiles sugeridos de los módulos que la empresa tiene encendidos' })
   async sugeridos(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    const ctx = await this.contexto(req, clientId);
+    const ctx = await this.contextoParaEscribir(req, clientId);
     return { copiados: await this.perfiles.sembrarSugeridos(ctx.organizationId, ctx.clientId) };
   }
 
@@ -117,7 +141,7 @@ export class PerfilesController {
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Invitar por correo, eligiendo el perfil en el mismo paso' })
   async invitar(@Req() req: AuthenticatedRequest, @Body() dto: InvitarDto, @Query('clientId') clientId?: string) {
-    const ctx = await this.contexto(req, clientId);
+    const ctx = await this.contextoParaEscribir(req, clientId);
     const respuesta = await this.invitaciones.invitar(ctx, dto, req.user.id);
     return { ...respuesta, mensaje: 'Invitación enviada' };
   }
@@ -127,7 +151,7 @@ export class PerfilesController {
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Cancelar una invitación pendiente' })
   async cancelar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query('clientId') clientId?: string) {
-    await this.invitaciones.cancelar(await this.contexto(req, clientId), id);
+    await this.invitaciones.cancelar(await this.contextoParaEscribir(req, clientId), id);
     return { cancelada: true };
   }
 
@@ -136,7 +160,7 @@ export class PerfilesController {
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Asignar un perfil a una persona de la empresa' })
   async asignar(@Req() req: AuthenticatedRequest, @Param('userId') userId: string, @Body() dto: AsignarPerfilDto, @Query('clientId') clientId?: string) {
-    await this.perfiles.asignar(await this.contexto(req, clientId), userId, dto.perfilId ?? null);
+    await this.perfiles.asignar(await this.contextoParaEscribir(req, clientId), userId, dto.perfilId ?? null);
     return { userId, perfilId: dto.perfilId ?? null };
   }
 
@@ -152,7 +176,7 @@ export class PerfilesController {
     @Query('vetar') vetar?: string,
     @Query('clientId') clientId?: string,
   ) {
-    return this.perfiles.quitarDelEquipo(await this.contexto(req, clientId), userId, motivo, vetar === '1' || vetar === 'true');
+    return this.perfiles.quitarDelEquipo(await this.contextoParaEscribir(req, clientId), userId, motivo, vetar === '1' || vetar === 'true');
   }
 
   @Post()
@@ -160,7 +184,7 @@ export class PerfilesController {
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Crear un perfil' })
   async crear(@Req() req: AuthenticatedRequest, @Body() dto: PerfilDto, @Query('clientId') clientId?: string) {
-    return this.perfiles.crear(await this.contexto(req, clientId), entrada(dto));
+    return this.perfiles.crear(await this.contextoParaEscribir(req, clientId), entrada(dto));
   }
 
   @Put(':id')
@@ -168,7 +192,7 @@ export class PerfilesController {
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Editar un perfil; cambia lo que ven quienes lo usan' })
   async editar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PerfilDto, @Query('clientId') clientId?: string) {
-    return this.perfiles.actualizar(await this.contexto(req, clientId), id, entrada(dto));
+    return this.perfiles.actualizar(await this.contextoParaEscribir(req, clientId), id, entrada(dto));
   }
 
   @Delete(':id')
@@ -176,7 +200,7 @@ export class PerfilesController {
   @Roles(...CARGOS)
   @ApiOperation({ summary: 'Borrar un perfil; si alguien lo usa hay que decir a quién pasan' })
   async borrar(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query('reasignarA') reasignarA?: string, @Query('clientId') clientId?: string) {
-    return this.perfiles.borrar(await this.contexto(req, clientId), id, reasignarA || undefined);
+    return this.perfiles.borrar(await this.contextoParaEscribir(req, clientId), id, reasignarA || undefined);
   }
 }
 

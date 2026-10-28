@@ -53,7 +53,9 @@ export function ProtectedRoute({ children, path, allowedRoles }: ProtectedRouteP
   // El equipo de la propia empresa y los correos que salen a su nombre son del cliente cuando
   // tiene el permiso, así que esas pantallas también conservan su ruta canónica. Quien no lo
   // tenga recibe el bloqueo normal unas líneas más abajo: esto abre la puerta, no da la llave.
-  const esRutaDeEmpresa = path === '/users' || path === '/correos';
+  // `/mi-equipo` es la ruta propia del cargo cliente; `/users` se conserva porque un enlace
+  // guardado o escrito a mano no debe acabar en el portal: el cuerpo recorta por cargo igual.
+  const esRutaDeEmpresa = path === '/users' || path === '/mi-equipo' || path === '/correos';
   if (user.role === 'client' && path && !path.startsWith('/portal') && !isPersonalRoute && !isClientCrmRoute && !esRutaDeEmpresa) {
     return <Navigate to="/portal" replace />;
   }

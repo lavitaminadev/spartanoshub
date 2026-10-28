@@ -25,7 +25,7 @@ export const CLIENT_NAV: ClientPortalEntry[] = [
   { label: 'Encuestas', path: '/portal/surveys', icon: 'EN', module: 'surveys', capability: 'surveys' },
   // Sin servicio asociado: administrar el propio equipo no es algo que se contrate, es un
   // permiso que la agencia entrega empresa por empresa.
-  { label: 'Equipo', path: '/users', icon: 'EQ', module: 'users' },
+  { label: 'Mi equipo', path: '/mi-equipo', icon: 'EQ', module: 'users' },
   // Los avisos que salen a nombre de la empresa. Se muestra si tiene alguno de los tres
   // servicios: son ellos los que generan correo.
   // Los avisos que salen a nombre de la empresa. Pide las dos cosas: que tenga alguno de los
@@ -65,9 +65,9 @@ export const PORTAL_CARDS = [
     capability: 'surveys',
   },
   {
-    title: 'Equipo',
+    title: 'Mi equipo',
     description: 'Crea las cuentas de tu empresa y decide qué ve cada persona.',
-    link: '/users',
+    link: '/mi-equipo',
     action: 'Administrar equipo',
     module: 'users',
   },

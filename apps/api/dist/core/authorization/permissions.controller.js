@@ -60,6 +60,9 @@ let PermissionsController = class PermissionsController {
         const user = await this.findUser(id, req.organizationId);
         if (clientId)
             await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        if (req.user.role === user_role_enum_1.UserRole.CLIENT) {
+            await this.assertCanManageUserPermissionException(req, user, undefined, undefined, clientId || undefined);
+        }
         return { userId: user.id, acciones: await this.acciones.explicar(req.organizationId, user.id, user.role, clientId || undefined) };
     }
     async ajustarAccion(id, accion, dto, req) {
@@ -454,7 +457,7 @@ let PermissionsController = class PermissionsController {
 exports.PermissionsController = PermissionsController;
 __decorate([
     (0, common_1.Get)('users/:id/actions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Acciones permitidas de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -465,7 +468,7 @@ __decorate([
 ], PermissionsController.prototype, "accionesDeUsuario", null);
 __decorate([
     (0, common_1.Put)('users/:id/actions/:accion'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Ajustar una acción de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('accion')),
@@ -477,7 +480,7 @@ __decorate([
 ], PermissionsController.prototype, "ajustarAccion", null);
 __decorate([
     (0, common_1.Delete)('users/:id/actions/:accion'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Quitar el ajuste de una acción' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('accion')),
