@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { refetchWhenIdle } from '../../core/refetch-policy';
 import { ROLE_LABELS } from '../../core/role-labels';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../core/api';
+import { api, isForbiddenError } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { Modal } from '../../shared/Modal';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
@@ -36,7 +36,23 @@ export function GovernancePage() {
   const [podDraft, setPodDraft] = useState({ name: '', description: '', leaderId: '', monthlyCapacityUd: 80, memberIds: [] as string[], clientIds: [] as string[] });
   const [archivePodId, setArchivePodId] = useState<string | null>(null);
 
-  const workflowsQuery = useQuery<Workflow[]>({ queryKey: ['workflows'], queryFn: () => api.get('/process-templates'), refetchInterval: refetchWhenIdle(60_000) });
+  /*
+   * Un 403 no mejora esperando: se deja de preguntar.
+   *
+   * `/process-templates` la atienden Administración y Dirección de operaciones. Para cualquier
+   * otro cargo el refresco repetía el mismo rechazo cada minuto durante toda la sesión, llenaba
+   * la consola y gastaba una petición por minuto sin que la respuesta pudiera cambiar. La
+   * pantalla ya explica el bloqueo con `ForbiddenState`; lo que sobraba era insistir.
+   */
+  const [flujosVedados, setFlujosVedados] = useState(false);
+  const workflowsQuery = useQuery<Workflow[]>({
+    queryKey: ['workflows'],
+    queryFn: () => api.get<Workflow[]>('/process-templates').catch((error: unknown) => {
+      if (isForbiddenError(error)) setFlujosVedados(true);
+      throw error;
+    }),
+    refetchInterval: refetchWhenIdle(60_000, () => flujosVedados),
+  });
   const podsQuery = useQuery<Pod[]>({ queryKey: ['pods'], queryFn: () => api.get('/pods') });
   const usersQuery = useQuery<UserOption[]>({ queryKey: ['governance-users'], queryFn: () => api.get('/users?isActive=true') });
   const clientsQuery = useQuery<{ data: ClientOption[] }>({ queryKey: ['clients'], queryFn: () => api.get('/clients') });

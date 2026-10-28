@@ -22,6 +22,7 @@ import { User } from '../users/user.entity';
 import { Empresa } from '../../core/client-scope/empresa.decorator';
 import { esUnaEmpresa, type AmbitoDeEmpresa } from '../../core/client-scope/empresa-resuelta';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { AccountAccessService } from '../../core/client-scope/account-access.service';
 
 @ApiTags('Reuniones')
 @Controller('meetings')
@@ -37,6 +38,7 @@ export class MeetingsController {
     private createMeeting: CreateMeetingUseCase,
     private listMeetings: ListMeetingsUseCase,
     private calendar: GoogleCalendarService,
+    private readonly accountAccess: AccountAccessService,
   ) {}
 
   @Post()
@@ -70,7 +72,19 @@ export class MeetingsController {
       if (!assignedClientIds.includes(clientId)) throw new NotFoundException('Client not found');
       assignedClientIds = undefined;
     }
-    const meetings = await this.listMeetings.execute(req.organizationId!, type, clientId, assignedClientIds);
+    /*
+     * Sin empresa elegida, la lista es la del alcance, no la de la organización.
+     *
+     * Esta ruta responde por todo lo que la cuenta alcanza cuando no se declara empresa, y esa
+     * es la lista que tiene que acotar la consulta: sin ella, `clientId` indefinido deja el
+     * `where` en la organización entera y un director ve las reuniones de clientes que no
+     * atiende. Las demás rutas agregadas ya recibían esta lista; ésta no.
+     *
+     * `undefined` es «sin límite» y sólo lo devuelven los cargos globales; `[]` es «ninguna
+     * empresa», y entonces la consulta no devuelve nada, que es la respuesta correcta.
+     */
+    const alcance = assignedClientIds ?? (clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId!, req.user));
+    const meetings = await this.listMeetings.execute(req.organizationId!, type, clientId, alcance);
     if (meetings.length === 0) return [];
     const actionItems = await this.actionItemRepo.find({
       where: { meetingId: In(meetings.map((meeting) => meeting.id)) },

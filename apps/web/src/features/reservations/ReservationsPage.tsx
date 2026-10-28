@@ -209,10 +209,6 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     queryFn: () => api.get('/reservations/catalogo-de-rubros'),
     staleTime: Infinity,
   });
-  /** El tipo elegido, para decir con qué valores nacerá antes de crearlo. */
-  const presetElegido = (catalogoDeRubros.data?.data ?? [])
-    .find((rubro) => rubro.clave === formData.rubro)?.tipos
-    .find((tipo) => tipo.clave === formData.tipoDeCaptacion) ?? null;
   const [formData, setFormData] = useState({
     clientId: initialClientId,
     name: '',
@@ -229,6 +225,17 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
     pixelAccessToken: '',
     existingPixelId: '',
   });
+  /**
+   * El tipo elegido, para decir con qué valores nacerá el formulario antes de crearlo.
+   *
+   * Va después de `formData` y no antes: lo lee dentro de un `find`, y una referencia dentro de
+   * un cierre a una constante declarada más abajo compila sin queja y revienta en tiempo de
+   * ejecución en cuanto el catálogo llega ya cargado —con la caché de consultas restaurada,
+   * desde el primer render—.
+   */
+  const presetElegido = (catalogoDeRubros.data?.data ?? [])
+    .find((rubro) => rubro.clave === formData.rubro)?.tipos
+    .find((tipo) => tipo.clave === formData.tipoDeCaptacion) ?? null;
   const [formFilters, setFormFilters] = useState<{ search: string; status: string; flow: 'all' | 'appointment' | 'group' }>({
     search: '',
     status: '',
