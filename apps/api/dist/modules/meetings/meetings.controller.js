@@ -36,8 +36,9 @@ const user_entity_1 = require("../users/user.entity");
 const empresa_decorator_1 = require("../../core/client-scope/empresa.decorator");
 const empresa_resuelta_1 = require("../../core/client-scope/empresa-resuelta");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 let MeetingsController = class MeetingsController {
-    constructor(repo, actionItemRepo, clientRepo, userRepo, createMeeting, listMeetings, calendar) {
+    constructor(repo, actionItemRepo, clientRepo, userRepo, createMeeting, listMeetings, calendar, accountAccess) {
         this.repo = repo;
         this.actionItemRepo = actionItemRepo;
         this.clientRepo = clientRepo;
@@ -45,6 +46,7 @@ let MeetingsController = class MeetingsController {
         this.createMeeting = createMeeting;
         this.listMeetings = listMeetings;
         this.calendar = calendar;
+        this.accountAccess = accountAccess;
     }
     async create(dto, req) {
         await this.assertClientAccess(req, dto.clientId);
@@ -70,7 +72,8 @@ let MeetingsController = class MeetingsController {
                 throw new common_1.NotFoundException('Client not found');
             assignedClientIds = undefined;
         }
-        const meetings = await this.listMeetings.execute(req.organizationId, type, clientId, assignedClientIds);
+        const alcance = assignedClientIds ?? (clientId ? undefined : await this.accountAccess.allowedClientIds(req.organizationId, req.user));
+        const meetings = await this.listMeetings.execute(req.organizationId, type, clientId, alcance);
         if (meetings.length === 0)
             return [];
         const actionItems = await this.actionItemRepo.find({
@@ -312,5 +315,6 @@ exports.MeetingsController = MeetingsController = __decorate([
         typeorm_2.Repository,
         create_meeting_use_case_1.CreateMeetingUseCase,
         list_meetings_use_case_1.ListMeetingsUseCase,
-        google_calendar_service_1.GoogleCalendarService])
+        google_calendar_service_1.GoogleCalendarService,
+        account_access_service_1.AccountAccessService])
 ], MeetingsController);

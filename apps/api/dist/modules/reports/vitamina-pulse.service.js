@@ -130,6 +130,7 @@ let VitaminaPulseService = class VitaminaPulseService {
             coverage,
             status: statusFor(score),
             stage,
+            sinEmpresas: !clientId && Array.isArray(clientIds) && clientIds.length === 0,
             generatedAt: new Date().toISOString(),
             dimensions,
             actions: actions.slice(0, 5),
