@@ -18,6 +18,10 @@ export class ReservationForm {
    */
   @Column({ type: 'varchar', length: 40, nullable: true }) rubro?: string | null;
   @Column({ name: 'tipo_de_captacion', type: 'varchar', length: 40, nullable: true }) tipoDeCaptacion?: string | null;
+  /** La página no le pide aceptación al comensal: excepción declarada, no ausencia. */
+  @Column({ name: 'consentimiento_no_aplica', type: 'boolean', default: false }) consentimientoNoAplica: boolean;
+  /** Por qué no la pide. Obligatorio cuando la marca está puesta. */
+  @Column({ name: 'motivo_sin_consentimiento', type: 'varchar', length: 300, nullable: true }) motivoSinConsentimiento?: string | null;
   @Column({ type: 'varchar', length: 80, default: 'America/Santiago' }) timezone: string;
   @Column({ name: 'duration_minutes', type: 'smallint', default: 60 }) durationMinutes: number;
   @Column({ name: 'buffer_minutes', type: 'smallint', default: 0 }) bufferMinutes: number;

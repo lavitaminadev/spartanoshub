@@ -185,6 +185,8 @@ export function ReservationBuilderPage() {
   const navegar = useNavigate();
   const { user } = useAuth();
   const clientMode = user?.role === 'client';
+  /** Quién puede declarar que una página no pide aceptación: el servidor fija la misma lista. */
+  const puedeDeclararExcepcion = user?.role === 'admin' || user?.role === 'dev' || user?.role === 'commercial_director';
   const qc = useQueryClient();
   const requestedStep = STEP_BY_SECTION[new URLSearchParams(location.search).get('section') || ''];
   const [step, setStep] = useState(clientMode && requestedStep === 3 ? 4 : requestedStep ?? 0);
@@ -977,6 +979,19 @@ export function ReservationBuilderPage() {
         <label className="toggle-row"><input type="checkbox" checked={draft.designConfig?.beneficiosDelGrupo === 'true'} onChange={(e) => cambiarAjuste('beneficiosDelGrupo', String(e.target.checked))} /> <span>Ofrecer también los beneficios de los demás locales de la red<small className="toggle-nota bloque">Agrega una <strong>segunda casilla</strong> aparte de la de este local: «Quiero además beneficios de los demás locales de [red]». Son dos permisos distintos, con dos bajas distintas: quien marque sólo una recibe sólo esos correos. Esa lista la administra la agencia. Usa el nombre de la red de abajo.</small></span></label>
         {draft.designConfig?.networkConsentEnabled === 'true' && <div className="form-row"><label>Nombre de la red<input className="input" value={String(draft.designConfig?.networkBrandName || '')} onChange={(e) => cambiarAjuste('networkBrandName', e.target.value)} placeholder="Espartanos" /></label><label>Texto de la autorización<textarea className="input" rows={3} value={String(draft.designConfig?.networkConsentText || '')} onChange={(e) => cambiarAjuste('networkConsentText', e.target.value)} /></label><label>Versión<input className="input" value={String(draft.designConfig?.networkConsentVersion || 'red-v1')} onChange={(e) => cambiarAjuste('networkConsentVersion', e.target.value)} /></label></div>}
         {draft.designConfig?.networkConsentEnabled === 'true' && !draft.designConfig?.privacyUrl && <small className="error-text">Falta la URL de privacidad: sin ella, quien reserva no tiene dónde leer el detalle de ese tratamiento.</small>}
+        {/*
+          * La excepción, para las páginas que no recogen datos de un comensal.
+          *
+          * No quita la obligación: la declara, con motivo, y ese motivo queda escrito en cada
+          * reserva que se tome bajo esta página. Se ofrece sólo a los tres cargos que responden
+          * por el encargo, porque compromete al local frente a sus propios datos; el servidor
+          * descarta el campo para cualquier otro cargo aunque llegue en la petición.
+          */}
+        {puedeDeclararExcepcion && <div className="consentimiento-excepcion">
+          <label className="toggle-row"><input type="checkbox" checked={Boolean(draft.consentimientoNoAplica)} onChange={(event) => change({ consentimientoNoAplica: event.target.checked })} /> <span>Esta página no pide aceptación de tratamiento de datos<small className="toggle-nota bloque">Para páginas internas, pruebas o un evento cerrado. Quien reserve no verá ninguna casilla, y cada reserva guardará este motivo en lugar de una aceptación.</small></span></label>
+          {draft.consentimientoNoAplica && <label>Por qué no la pide <small>(se guarda con cada reserva)</small><input className="input" maxLength={300} value={String(draft.motivoSinConsentimiento || '')} onChange={(event) => change({ motivoSinConsentimiento: event.target.value })} placeholder="Ej. Página interna de pruebas, no recoge datos de comensales reales" /></label>}
+          {draft.consentimientoNoAplica && !String(draft.motivoSinConsentimiento || '').trim() && <small className="error-text">Sin motivo escrito no se puede publicar: una excepción sin motivo no se distingue de un olvido.</small>}
+        </div>}
       </section>
     </div>}
 

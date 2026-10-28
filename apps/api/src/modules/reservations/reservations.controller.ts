@@ -31,6 +31,9 @@ import { RequiereArea } from '../../core/authorization/requiere-area.decorator';
 @Controller('reservations')
 @ModuleScope('reservations')
 export class ReservationsController {
+  /** Cargos que pueden declarar que una página no pide aceptación de tratamiento de datos. */
+  private static readonly DECLARAN_LA_EXCEPCION = [UserRole.ADMIN, UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR];
+
   constructor(
     private readonly service: ReservationsService,
     private readonly accountAccess: AccountAccessService,
@@ -211,6 +214,17 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
   async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReservationFormDto) {
     const scope = await this.scope(req);
+    /*
+     * Dejar una página sin aceptación es una decisión de la agencia, no de la operación diaria.
+     *
+     * Compromete a quien responde por los datos —el local—, así que la toman los tres cargos que
+     * responden por el encargo. Al resto se le descarta el campo en vez de rechazarle el guardado
+     * entero: lo demás que venga en ese `PATCH` es configuración legítima suya.
+     */
+    if (!ReservationsController.DECLARAN_LA_EXCEPCION.includes(req.user.role as UserRole)) {
+      delete dto.consentimientoNoAplica;
+      delete dto.motivoSinConsentimiento;
+    }
     if (req.user.role === UserRole.CLIENT) {
       const allowed: UpdateReservationFormDto = {
         timezone: dto.timezone,

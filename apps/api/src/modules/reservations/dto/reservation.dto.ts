@@ -89,6 +89,14 @@ export class UpdateReservationFormDto {
   @IsOptional() @IsArray() servicesConfig?: unknown[];
   @IsOptional() @IsArray() resourcesConfig?: unknown[];
   @IsOptional() @IsString() @MaxLength(120) campaignId?: string;
+  /**
+   * La página no le pide aceptación de tratamiento de datos al comensal.
+   *
+   * Es una excepción declarada y la fija sólo Desarrollo, Administración o Dirección comercial:
+   * el controlador la descarta para los demás cargos. Exige motivo.
+   */
+  @IsOptional() @IsBoolean() consentimientoNoAplica?: boolean;
+  @IsOptional() @IsString() @MaxLength(300) motivoSinConsentimiento?: string;
   @IsOptional() @IsBoolean() crmEnabled?: boolean;
   @IsOptional() @IsBoolean() calendarEnabled?: boolean;
   @IsOptional() @IsBoolean() metaCapiEnabled?: boolean;
