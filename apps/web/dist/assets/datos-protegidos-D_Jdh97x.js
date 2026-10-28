@@ -1,0 +1,1 @@
+import{Qt as e}from"./vendor-ByPHXZVn.js";import{r as t,t as n}from"./datos-protegidos-_Y4tYKNC.js";var r=e();function i(e){return t(e.guestPhone)||void 0}function a(e){return(0,r.estaProtegido)(e.guestPhone)||(0,r.estaProtegido)(e.guestEmail)?n:e.guestPhone||e.guestEmail||`Sin contacto`}export{i as n,a as t};

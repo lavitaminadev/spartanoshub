@@ -3,6 +3,7 @@ import { fechaDeNacimientoValida } from './fecha-de-nacimiento';
 import { htmlDeVistaPrevia, primeraImagen } from '../../../shared/vista-previa-de-enlace';
 import { VERSION_BENEFICIOS, VERSION_BENEFICIOS_RED, rutValido, MENSAJE_FALTA_CONSENTIMIENTO_SENSIBLE, VERSION_DATOS_SENSIBLES, traeDatosSensibles, TEXTO_MEDICION, VERSION_MEDICION, faltantesDeIdentidadLegal, mensajeDeIdentidadIncompleta, textosDeAceptacionDeReserva } from '@espartanos/shared';
 import { camposVisibles, esMotivoDeCierre, leerDocumento, type ReglaDeCampo } from '@espartanos/shared';
+import { tipoDeCaptacion } from '@espartanos/shared';
 import { camposProtegidosDe, columnasAQuitar, estaProtegido } from '@espartanos/shared';
 import type { NivelesDeDatos } from '../../../core/client-scope/nivel-de-datos.service';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
@@ -30,6 +31,7 @@ import { retryOnDeadlock } from '../../../shared/retry-on-deadlock';
 import { evaluarCambioDeZona, type ZonaDelLocal } from './cambio-de-zona';
 import { describirCambio } from './describir-cambio';
 import { MUESTRA_MINIMA_POR_DIA, noShowPorLocalYDia, resumirAsistenciaDelComensal } from './historial-de-asistencia';
+import { MUESTRA_MINIMA_POR_ORIGEN, asistenciaPorOrigen } from './asistencia-por-origen';
 import { FORM_FIELD_TYPES, ActualizarOperacionDto, CloseReservationDayDto, CreateBlockDto, CreateCouponDto, CreateManualReservationDto, CreateReservationFormDto, ListReservationsDto, PublicFormEventDto, PublicGroupRequestDto, PublicReservationDto, PublicReservationHoldDto, PublicSurveyResponseDto, UpdateCouponDto, UpdateReservationDto, UpdateReservationFormDto } from '../dto/reservation.dto';
 import { META_DEDUPLICATED_EVENTS, META_SERVER_ONLY_EVENTS, metaEventId, type MetaEvent } from '@espartanos/shared';
 import { GoogleCalendarService } from '../../integrations/google/google-calendar.service';
@@ -522,7 +524,69 @@ export class ReservationsService {
         : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
       scheduleConfig: { windows: [1,2,3,4,5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: false, calendarEnabled: false, metaCapiEnabled: false,
     });
+    this.aplicarRubro(form, dto.rubro, dto.tipoDeCaptacion);
     this.validateConfiguration(form); return this.forms.save(form);
+  }
+
+  /**
+   * Deja el formulario con los valores del rubro elegido, si se eligió uno.
+   *
+   * Es un punto de partida y no una reja: se aplica **una vez**, al crear, y desde ahí el local
+   * cambia lo que quiera. Por eso no hay nada que lo vuelva a mirar después; lo único que queda es
+   * de qué rubro nació, para poder contarlos.
+   *
+   * Un rubro o un tipo que no existe se ignora en silencio a propósito: el catálogo vive en
+   * código y puede encogerse entre despliegues, y un formulario a medio crear que falla porque el
+   * preset ya no está sería peor que uno creado con los valores de siempre.
+   */
+  private aplicarRubro(form: ReservationForm, rubro?: string | null, tipo?: string | null): void {
+    const preset = tipoDeCaptacion(rubro, tipo);
+    if (!preset) return;
+
+    form.rubro = rubro ?? null;
+    form.tipoDeCaptacion = tipo ?? null;
+
+    /*
+     * Los tres campos de contacto conservan los identificadores del sistema.
+     *
+     * `name`, `phone` y `email` son los que el formulario público vuelca en `guestName`,
+     * `guestPhone` y `guestEmail`. Un campo llamado `nombre` se guardaría como una respuesta más
+     * y la reserva quedaría sin nombre, que es el dato con el que se atiende a la persona.
+     */
+    const IDENTIFICADOR: Record<string, string> = { nombre: 'name', telefono: 'phone', correo: 'email' };
+    const TIPO_DE_CAMPO: Record<string, string> = {
+      texto: 'text', texto_largo: 'textarea', telefono: 'phone', correo: 'email',
+      numero: 'number', seleccion: 'select', consentimiento: 'consent',
+    };
+
+    form.fieldSchema = preset.campos.map((campo) => {
+      const id = IDENTIFICADOR[campo.clave] ?? campo.clave;
+      return {
+        id,
+        type: TIPO_DE_CAMPO[campo.tipo] ?? 'text',
+        label: campo.etiqueta,
+        required: campo.obligatorio,
+        // `system` es lo que impide borrar en el constructor los tres campos sin los que no se
+        // puede atender una reserva. Sólo esos tres lo llevan; el resto del preset se puede quitar.
+        ...(IDENTIFICADOR[campo.clave] ? { system: true } : {}),
+      };
+    }) as typeof form.fieldSchema;
+
+    /*
+     * Sin agenda no se reservan horas: el formulario sólo recoge.
+     *
+     * Se traduce a lo que el producto ya entiende —duración y capacidad en cero— en vez de añadir
+     * un modo nuevo: `validateConfiguration` y el cálculo de cupos ya tratan el cero como «no
+     * ofrece bloques», y un cuarto modo obligaría a revisar los dos.
+     */
+    form.durationMinutes = preset.duracionMinutos;
+    form.capacityPerSlot = preset.capacidad;
+
+    form.designConfig = {
+      ...(form.designConfig ?? {}),
+      submitLabel: preset.llamado,
+      confirmationMessage: preset.confirmacion,
+    } as typeof form.designConfig;
   }
 
   listForms(organizationId: string, clientId?: string, clientIds?: string[]) { return this.forms.find({ where: this.scope(organizationId, clientId, clientIds), order: { updatedAt: 'DESC' } }); }
@@ -3497,6 +3561,30 @@ export class ReservationsService {
       dias: ventana,
       muestraMinimaPorDia: MUESTRA_MINIMA_POR_DIA,
       locales: noShowPorLocalYDia(reservas, (locales ?? []).map((local) => ({ id: local.id, nombre: local.name, clientId: local.clientId, timezone: local.timezone || 'America/Santiago' }))),
+    };
+  }
+
+  /**
+   * De qué origen vinieron las reservas cerradas, y cuántas personas se sentaron.
+   *
+   * Cierra la cadena que hoy queda a medias: Meta y Google informan clics, la caja informa
+   * consumo, y entre ambas nadie sabe si quien reservó llegó. El dato que lo une ya está
+   * escrito en cada reserva —`originDetected`, `utmCampaign`, `status`—; esto sólo lo cuenta.
+   *
+   * Se piden sólo las columnas que se cuentan. La reserva lleva el teléfono, el documento y las
+   * respuestas del comensal, y un informe agregado no tiene por qué traerlos a memoria.
+   */
+  async asistenciaPorOrigen(organizationId: string, clientId?: string, clientIds?: string[], dias = 90, ahora = new Date()) {
+    const ventana = Math.min(Math.max(Math.trunc(dias) || 90, 7), 365);
+    const desde = new Date(ahora.getTime() - ventana * 86_400_000);
+    const reservas = await this.reservations.find({
+      where: { ...this.scope(organizationId, clientId, clientIds), status: In(['attended', 'no_show']), startsAt: Between(desde, ahora) },
+      select: ['status', 'utmSource', 'originDetected', 'utmCampaign', 'partySize', 'reminderSentAt', 'guestConfirmedAt'],
+    });
+    return {
+      dias: ventana,
+      muestraMinima: MUESTRA_MINIMA_POR_ORIGEN,
+      origenes: asistenciaPorOrigen(reservas),
     };
   }
 

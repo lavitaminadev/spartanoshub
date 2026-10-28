@@ -20,6 +20,7 @@ const vista_previa_de_enlace_1 = require("../../../shared/vista-previa-de-enlace
 const shared_1 = require("@espartanos/shared");
 const shared_2 = require("@espartanos/shared");
 const shared_3 = require("@espartanos/shared");
+const shared_4 = require("@espartanos/shared");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
@@ -45,8 +46,9 @@ const retry_on_deadlock_1 = require("../../../shared/retry-on-deadlock");
 const cambio_de_zona_1 = require("./cambio-de-zona");
 const describir_cambio_1 = require("./describir-cambio");
 const historial_de_asistencia_1 = require("./historial-de-asistencia");
+const asistencia_por_origen_1 = require("./asistencia-por-origen");
 const reservation_dto_1 = require("../dto/reservation.dto");
-const shared_4 = require("@espartanos/shared");
+const shared_5 = require("@espartanos/shared");
 const google_calendar_service_1 = require("../../integrations/google/google-calendar.service");
 const meta_conversion_outbox_service_1 = require("../../integrations/meta/meta-conversion-outbox.service");
 const notification_service_1 = require("../../../core/notifications/notification.service");
@@ -398,8 +400,38 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 : { primaryColor: '#173f35', accentColor: '#ea0f63', backgroundColor: '#f3f5ef', textColor: '#3f4e49', title: dto.name, welcome: 'Elige el horario que mejor te acomode.', backgroundMode: 'gradient', backgroundGradient: 'linear-gradient(135deg, #f3f5ef 0%, #dce9df 100%)', backgroundOpacity: '88', backgroundPosition: 'center', buttonRadius: '12', fieldRadius: '10', fontFamily: 'system-ui', venueTips: DEFAULT_VENUE_TIPS },
             scheduleConfig: { windows: [1, 2, 3, 4, 5].map((day) => ({ day, start: '09:00', end: '18:00' })) }, servicesConfig: [], resourcesConfig: [], crmEnabled: false, calendarEnabled: false, metaCapiEnabled: false,
         });
+        this.aplicarRubro(form, dto.rubro, dto.tipoDeCaptacion);
         this.validateConfiguration(form);
         return this.forms.save(form);
+    }
+    aplicarRubro(form, rubro, tipo) {
+        const preset = (0, shared_3.tipoDeCaptacion)(rubro, tipo);
+        if (!preset)
+            return;
+        form.rubro = rubro ?? null;
+        form.tipoDeCaptacion = tipo ?? null;
+        const IDENTIFICADOR = { nombre: 'name', telefono: 'phone', correo: 'email' };
+        const TIPO_DE_CAMPO = {
+            texto: 'text', texto_largo: 'textarea', telefono: 'phone', correo: 'email',
+            numero: 'number', seleccion: 'select', consentimiento: 'consent',
+        };
+        form.fieldSchema = preset.campos.map((campo) => {
+            const id = IDENTIFICADOR[campo.clave] ?? campo.clave;
+            return {
+                id,
+                type: TIPO_DE_CAMPO[campo.tipo] ?? 'text',
+                label: campo.etiqueta,
+                required: campo.obligatorio,
+                ...(IDENTIFICADOR[campo.clave] ? { system: true } : {}),
+            };
+        });
+        form.durationMinutes = preset.duracionMinutos;
+        form.capacityPerSlot = preset.capacidad;
+        form.designConfig = {
+            ...(form.designConfig ?? {}),
+            submitLabel: preset.llamado,
+            confirmationMessage: preset.confirmacion,
+        };
     }
     listForms(organizationId, clientId, clientIds) { return this.forms.find({ where: this.scope(organizationId, clientId, clientIds), order: { updatedAt: 'DESC' } }); }
     async getForm(organizationId, id, clientId, clientIds) { const form = await this.forms.findOne({ where: { id, ...this.scope(organizationId, clientId, clientIds) } }); if (!form)
@@ -1109,7 +1141,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/book/${encodeURIComponent(form.publicSlug)}`
                 : undefined;
             await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-                eventName: shared_4.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT,
+                eventName: shared_5.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT,
                 eventTime: Math.floor(event.createdAt.getTime() / 1000),
                 actionSource: 'website',
                 eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
@@ -1121,7 +1153,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     client_user_agent: userAgent ?? undefined,
                 },
                 customData: { contentIds: [form.id], contentType: 'reservation' },
-                eventId: (0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
+                eventId: (0, shared_5.metaEventId)(shared_5.META_DEDUPLICATED_EVENTS.INITIATE_CHECKOUT, event.id),
             }, form.clientId);
         }
         catch (err) {
@@ -1984,7 +2016,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             const location = (0, geo_inference_1.inferLocationFromPhone)(request.guestPhone ?? undefined);
             const medicion = (request.details || {}).medicion;
             await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-                eventName: shared_4.META_DEDUPLICATED_EVENTS.LEAD,
+                eventName: shared_5.META_DEDUPLICATED_EVENTS.LEAD,
                 eventTime: Math.floor((request.createdAt ?? new Date()).getTime() / 1000),
                 actionSource: 'website',
                 eventSourceUrl: dto.eventSourceUrl || fallbackUrl || undefined,
@@ -2003,7 +2035,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                     client_user_agent: userAgent ?? undefined,
                 },
                 customData: { contentIds: [form.id], contentType: 'group_request', ...this.valorDeLaReserva(form, request.partySize) },
-                eventId: (0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.LEAD, request.id),
+                eventId: (0, shared_5.metaEventId)(shared_5.META_DEDUPLICATED_EVENTS.LEAD, request.id),
             }, form.clientId);
         }
         catch (err) {
@@ -2203,7 +2235,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         if (result.created && result.booking.measurementConsentAt && result.form.metaCapiEnabled && capabilities.metaConversions) {
             try {
-                await this.enqueueMetaConversion(result.booking, result.form, shared_4.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
+                await this.enqueueMetaConversion(result.booking, result.form, shared_5.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(result.booking.createdAt.getTime() / 1000), eventSourceUrl);
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI enqueue failed for booking ${result.booking.id}: ${err instanceof Error ? err.message : err}`);
@@ -2308,7 +2340,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 client_user_agent: booking.clientUserAgent ?? undefined,
             },
             customData: { contentIds: [form.id], contentType: 'reservation', ...this.valorDeLaReserva(form, booking.partySize) },
-            eventId: (0, shared_4.metaEventId)(eventName, booking.id),
+            eventId: (0, shared_5.metaEventId)(eventName, booking.id),
         }, form.clientId);
     }
     async enqueueMetaSurveyConversion(response, form, dto, ipAddress, userAgent, eventSourceUrl) {
@@ -2321,7 +2353,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const phone = dto.guestPhone?.replace(/[^\d+]/g, '');
         const location = (0, geo_inference_1.inferLocationFromPhone)(phone);
         await this.metaOutbox.enqueue(form.organizationId, pixelId, {
-            eventName: shared_4.META_DEDUPLICATED_EVENTS.LEAD,
+            eventName: shared_5.META_DEDUPLICATED_EVENTS.LEAD,
             eventTime: Math.floor(response.createdAt.getTime() / 1000),
             actionSource: 'website',
             eventSourceUrl: eventSourceUrl || fallbackUrl || undefined,
@@ -2340,7 +2372,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 client_user_agent: userAgent ?? undefined,
             },
             customData: { contentIds: [form.id], contentType: 'survey' },
-            eventId: (0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.LEAD, response.id),
+            eventId: (0, shared_5.metaEventId)(shared_5.META_DEDUPLICATED_EVENTS.LEAD, response.id),
         }, form.clientId);
     }
     async enviarComprobante(form, booking, managementToken) {
@@ -2449,8 +2481,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (items.length === 0)
             return result;
         const eventIds = items.flatMap((item) => [
-            (0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id),
-            (0, shared_4.metaEventId)(shared_4.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id),
+            (0, shared_5.metaEventId)(shared_5.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id),
+            (0, shared_5.metaEventId)(shared_5.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id),
         ]);
         let rows = [];
         try {
@@ -2464,8 +2496,8 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         for (const item of items) {
             const matchFields = [item.guestEmail, item.guestPhone, item.fbc, item.fbp, item.clientIpAddress].filter(Boolean).length;
             result.set(item.id, {
-                schedule: byEvent.get((0, shared_4.metaEventId)(shared_4.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id)) ?? null,
-                attended: byEvent.get((0, shared_4.metaEventId)(shared_4.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id)) ?? null,
+                schedule: byEvent.get((0, shared_5.metaEventId)(shared_5.META_DEDUPLICATED_EVENTS.SCHEDULE, item.id)) ?? null,
+                attended: byEvent.get((0, shared_5.metaEventId)(shared_5.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, item.id)) ?? null,
                 matchFields,
             });
         }
@@ -2559,7 +2591,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const capabilities = formForMeta ? await this.clientCapabilities(organizationId, formForMeta.clientId) : undefined;
         if (statusChangedTo === 'attended' && saved.measurementConsentAt && formForMeta?.metaCapiEnabled && capabilities?.metaConversions) {
             try {
-                await this.enqueueMetaConversion(saved, formForMeta, shared_4.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(Math.min(saved.startsAt.getTime(), Date.now()) / 1000));
+                await this.enqueueMetaConversion(saved, formForMeta, shared_5.META_SERVER_ONLY_EVENTS.RESERVA_ASISTIDA, Math.floor(Math.min(saved.startsAt.getTime(), Date.now()) / 1000));
             }
             catch (err) {
                 this.logger.warn(`Meta CAPI attended event failed for booking ${saved.id}: ${err instanceof Error ? err.message : err}`);
@@ -2590,7 +2622,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 const form = await this.forms.findOne({ where: { id: saved.formId } });
                 const capacidades = form ? await this.clientCapabilities(organizationId, form.clientId) : undefined;
                 if (form?.metaCapiEnabled && capacidades?.metaConversions)
-                    await this.enqueueMetaConversion(saved, form, shared_4.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(Date.now() / 1000));
+                    await this.enqueueMetaConversion(saved, form, shared_5.META_DEDUPLICATED_EVENTS.SCHEDULE, Math.floor(Date.now() / 1000));
                 if (form)
                     await this.enqueueGoogleConversion(saved, form, 'schedule', new Date());
             }
@@ -2636,9 +2668,9 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         if (!reserva)
             throw new common_1.NotFoundException('Reserva no encontrada');
         const datos = {};
-        for (const { campo } of (0, shared_3.camposProtegidosDe)('reservations')) {
+        for (const { campo } of (0, shared_4.camposProtegidosDe)('reservations')) {
             const valor = reserva[campo];
-            if (valor !== null && valor !== undefined && !(0, shared_3.estaProtegido)(valor))
+            if (valor !== null && valor !== undefined && !(0, shared_4.estaProtegido)(valor))
                 datos[campo] = valor;
         }
         return { clientId: reserva.clientId, datos };
@@ -2709,6 +2741,19 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             dias: ventana,
             muestraMinimaPorDia: historial_de_asistencia_1.MUESTRA_MINIMA_POR_DIA,
             locales: (0, historial_de_asistencia_1.noShowPorLocalYDia)(reservas, (locales ?? []).map((local) => ({ id: local.id, nombre: local.name, clientId: local.clientId, timezone: local.timezone || 'America/Santiago' }))),
+        };
+    }
+    async asistenciaPorOrigen(organizationId, clientId, clientIds, dias = 90, ahora = new Date()) {
+        const ventana = Math.min(Math.max(Math.trunc(dias) || 90, 7), 365);
+        const desde = new Date(ahora.getTime() - ventana * 86_400_000);
+        const reservas = await this.reservations.find({
+            where: { ...this.scope(organizationId, clientId, clientIds), status: (0, typeorm_2.In)(['attended', 'no_show']), startsAt: (0, typeorm_2.Between)(desde, ahora) },
+            select: ['status', 'utmSource', 'originDetected', 'utmCampaign', 'partySize', 'reminderSentAt', 'guestConfirmedAt'],
+        });
+        return {
+            dias: ventana,
+            muestraMinima: asistencia_por_origen_1.MUESTRA_MINIMA_POR_ORIGEN,
+            origenes: (0, asistencia_por_origen_1.asistenciaPorOrigen)(reservas),
         };
     }
     preferenciasDeLaPersona(previas, actual) {
@@ -2941,7 +2986,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
     }
     async *streamCsv(organizationId, niveles, clientId, clientIds, from, to, limit) {
         const BATCH = 500;
-        const quitar = new Set((0, shared_3.columnasAQuitar)('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
+        const quitar = new Set((0, shared_4.columnasAQuitar)('reservations', niveles.deTodas(clientId ? [clientId] : clientIds)));
         const baseQuery = () => {
             const qb = this.reservations.createQueryBuilder('r').where('r.organization_id = :organizationId', { organizationId });
             if (clientId)
@@ -3049,7 +3094,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         const items = await qb.orderBy('r.starts_at', 'DESC').take(50000).getMany();
         const form = await this.forms.findOne({ where: { id: formId, organizationId } });
         const esquema = form?.fieldSchema ?? [];
-        const quitar = new Set((0, shared_3.columnasAQuitar)('reservations', niveles.de(form?.clientId ?? clientId)));
+        const quitar = new Set((0, shared_4.columnasAQuitar)('reservations', niveles.de(form?.clientId ?? clientId)));
         const clavesRespuesta = quitar.has('answers') ? [] : [...new Set(items.flatMap((item) => Object.keys((item.answers || {}))))].sort();
         const etiquetaDe = (clave) => esquema.find((campo) => campo.id === clave)?.label || RESPUESTAS_DEL_SISTEMA[clave] || clave;
         const valorDe = (item, clave) => {

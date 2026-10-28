@@ -96,10 +96,28 @@ describe('los módulos por empresa', () => {
   });
 });
 
-describe('mientras la puerta de despliegue siga puesta', () => {
-  it('sigue cerrada a quien no es desarrollo, tenga o no la empresa la capacidad', async () => {
+/*
+ * La puerta de despliegue se retiró de los doce módulos de empresa, y la reja no se movió.
+ *
+ * Antes esta prueba fijaba que Producción estaba cerrada a todo el que no fuera Desarrollo, tenga
+ * o no la empresa la capacidad. Eso describía la puerta de despliegue, que ya no está ahí: lo que
+ * cierra el módulo ahora es el interruptor de la organización, y lo que decide por empresa es la
+ * capacidad contratada.
+ *
+ * Lo que la prueba fija pasa a ser lo que de verdad importa: **la capacidad sigue mandando**. Que
+ * el producto entregue el módulo no le da acceso a una empresa que no lo contrató, y era el riesgo
+ * real de liberar la superficie.
+ */
+describe('liberada la puerta de despliegue, la capacidad sigue mandando', () => {
+  it('una empresa que no contrató Producción no entra, ni siquiera con cargo de administración', async () => {
+    const capacidades = capacidadesDe({ sin: {} });
+    const guard = new PermissionGuard(reflector('production'), permisos, capacidades);
+    await expect(guard.canActivate(contexto('sin', 'admin'))).rejects.toThrow(ForbiddenException);
+  });
+
+  it('y la que sí la contrató, entra', async () => {
     const capacidades = capacidadesDe({ con: { production: true } });
     const guard = new PermissionGuard(reflector('production'), permisos, capacidades);
-    await expect(guard.canActivate(contexto('con', 'admin'))).rejects.toThrow('aún no está disponible');
+    await expect(guard.canActivate(contexto('con', 'admin'))).resolves.toBe(true);
   });
 });

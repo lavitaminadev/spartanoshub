@@ -7,6 +7,7 @@ import { PanelCompartir } from '../../shared/PanelCompartir';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../core/api';
+import type { Rubro } from '@espartanos/shared';
 import { VistasGuardadas } from '../../shared/VistasGuardadas';
 import { Modal } from '../../shared/Modal';
 import { AjustesDelDia } from './AjustesDelDia';
@@ -222,10 +223,27 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * vez de operar sobre el de la sesión. Con un solo local la elección ya viene resuelta.
    */
   const empresaEnUso = clientFilter;
+  /*
+   * El catálogo de rubros: sale de código en el servidor, igual para toda la organización.
+   *
+   * No lleva empresa ni cambia nunca durante la sesión, así que se pide una vez y se queda.
+   */
+  const catalogoDeRubros = useQuery<{ data: Rubro[] }>({
+    queryKey: ['catalogo-de-rubros'],
+    queryFn: () => api.get('/reservations/catalogo-de-rubros'),
+    staleTime: Infinity,
+  });
+  /** El tipo elegido, para decir con qué valores nacerá antes de crearlo. */
+  const presetElegido = (catalogoDeRubros.data?.data ?? [])
+    .find((rubro) => rubro.clave === formData.rubro)?.tipos
+    .find((tipo) => tipo.clave === formData.tipoDeCaptacion) ?? null;
   const [formData, setFormData] = useState({
     clientId: initialClientId,
     name: '',
     mode: 'appointment',
+    // De qué rubro parte el formulario. Vacío = los valores de siempre.
+    rubro: '',
+    tipoDeCaptacion: '',
     calendarSaveEnabled: true,
     metaCapiEnabled: false,
     ga4MeasurementId: '',
@@ -415,7 +433,12 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         });
         metaReadyForFlow = true;
       }
-      const created = await api.post<ReservationForm>('/reservations/forms', { clientId: formData.clientId, name: formData.name, mode: formData.mode });
+      const created = await api.post<ReservationForm>('/reservations/forms', {
+        clientId: formData.clientId, name: formData.name, mode: formData.mode,
+        // El servidor aplica el preset si las dos claves existen, y las ignora si no.
+        rubro: formData.rubro || undefined,
+        tipoDeCaptacion: formData.tipoDeCaptacion || undefined,
+      });
       const patch: Partial<ReservationForm> & { designConfig?: Record<string, unknown> } = {};
       if (metaReadyForFlow) patch.metaCapiEnabled = formData.metaCapiEnabled;
       if (formData.ga4MeasurementId.trim()) patch.ga4MeasurementId = formData.ga4MeasurementId.trim();
@@ -1005,6 +1028,30 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           <p className="page-subtitle">Elige la empresa: la primera reserva toma su nombre y puedes cambiarlo. Su página permite reservar con hora y también pedir eventos o grupos.</p>
           <label>Empresa o cliente<select className="input" required value={formData.clientId} onChange={(event) => updateCreateClient(event.target.value)}><option value="">Selecciona un cliente</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
           <label>Nombre de la reserva<input className="input" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Ej. Casa Costanera - Providencia" /></label>
+          {/*
+            * El rubro decide con qué valores nace el formulario, y nada más.
+            *
+            * Sin esto hay que fijar a mano duración, capacidad, campos y texto del botón en cada
+            * formulario nuevo: nueve decisiones que dentro de un rubro son casi siempre las
+            * mismas. Se puede dejar vacío, y entonces nace como siempre.
+          */}
+          <div className="form-row">
+            <label>Rubro <small>(opcional)</small>
+              <select className="input" value={formData.rubro} onChange={(event) => setFormData({ ...formData, rubro: event.target.value, tipoDeCaptacion: '' })}>
+                <option value="">Sin preset: configuro yo</option>
+                {(catalogoDeRubros.data?.data ?? []).map((rubro) => <option key={rubro.clave} value={rubro.clave}>{rubro.nombre}</option>)}
+              </select>
+            </label>
+            {formData.rubro && (
+              <label>Tipo de captación
+                <select className="input" value={formData.tipoDeCaptacion} onChange={(event) => setFormData({ ...formData, tipoDeCaptacion: event.target.value })}>
+                  <option value="">Elige el tipo</option>
+                  {(catalogoDeRubros.data?.data ?? []).find((rubro) => rubro.clave === formData.rubro)?.tipos.map((tipo) => <option key={tipo.clave} value={tipo.clave}>{tipo.nombre}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+          {presetElegido && <p className="page-subtitle">Nace con {presetElegido.duracionMinutos ? `${presetElegido.duracionMinutos} minutos por reserva` : 'sin agenda de horas'}{presetElegido.capacidad ? `, ${presetElegido.capacidad} persona${presetElegido.capacidad === 1 ? '' : 's'} por bloque` : ''} y {presetElegido.campos.length} campos. Todo se puede cambiar después.</p>}
         </>}
         {createStep === 1 && <>
           <p className="page-subtitle">Define medición, Analytics y si ofrecerás guardado en calendario.</p>

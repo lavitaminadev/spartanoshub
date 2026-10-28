@@ -10,6 +10,14 @@ export class ReservationForm {
   @Column({ name: 'public_slug', type: 'varchar', length: 190 }) publicSlug: string;
   @Column({ type: 'varchar', length: 24, default: 'draft' }) status: string;
   @Column({ type: 'varchar', length: 30, default: 'appointment' }) mode: string;
+  /**
+   * De qué rubro y tipo de captación nació. Nulo en los formularios anteriores al catálogo.
+   *
+   * No es una reja ni cambia nada en ejecución: el preset se aplicó al crear, y desde ahí el local
+   * cambia lo que quiera. Queda para saber qué es cada formulario y poder contarlos por rubro.
+   */
+  @Column({ type: 'varchar', length: 40, nullable: true }) rubro?: string | null;
+  @Column({ name: 'tipo_de_captacion', type: 'varchar', length: 40, nullable: true }) tipoDeCaptacion?: string | null;
   @Column({ type: 'varchar', length: 80, default: 'America/Santiago' }) timezone: string;
   @Column({ name: 'duration_minutes', type: 'smallint', default: 60 }) durationMinutes: number;
   @Column({ name: 'buffer_minutes', type: 'smallint', default: 0 }) bufferMinutes: number;

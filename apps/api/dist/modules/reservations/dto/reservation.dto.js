@@ -98,6 +98,18 @@ __decorate([
     (0, class_validator_1.IsIn)(['appointment', 'group', 'request', 'survey']),
     __metadata("design:type", String)
 ], CreateReservationFormDto.prototype, "mode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], CreateReservationFormDto.prototype, "rubro", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", String)
+], CreateReservationFormDto.prototype, "tipoDeCaptacion", void 0);
 class UpdateReservationFormDto {
 }
 exports.UpdateReservationFormDto = UpdateReservationFormDto;

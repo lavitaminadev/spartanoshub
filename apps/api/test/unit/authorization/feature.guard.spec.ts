@@ -106,12 +106,33 @@ describe('normalizeOrganizationFeatures', () => {
   it('descarta los valores que no son booleanos y usa el del catálogo', () => {
     // Un texto donde debería ir un booleano es un dato corrupto, no una intención: se ignora y
     // manda el valor por defecto en vez de interpretarlo.
-    expect(normalizeOrganizationFeatures({ production: 'si' } as never).production).toBe(true);
-    expect(normalizeOrganizationFeatures({ production: false }).production).toBe(false);
+    // Se comprueba con uno que nace encendido y con uno que nace apagado, para que el descarte
+    // del dato corrupto no se confunda con el valor por defecto.
+    expect(normalizeOrganizationFeatures({ reservations: 'si' } as never).reservations).toBe(true);
+    expect(normalizeOrganizationFeatures({ production: 'si' } as never).production).toBe(false);
+    expect(normalizeOrganizationFeatures({ reservations: false }).reservations).toBe(false);
+    expect(normalizeOrganizationFeatures({ production: true }).production).toBe(true);
   });
 
-  it('enciende el catálogo completo por defecto', () => {
-    const apagados = ORGANIZATION_FEATURE_KEYS.filter((key) => !DEFAULT_ORGANIZATION_FEATURES[key]);
-    expect(apagados, `módulos apagados de fábrica: ${apagados.join(', ')}`).toEqual([]);
+  /*
+   * Los doce módulos cuyo sujeto es una empresa atendida nacen apagados; el resto, encendido.
+   *
+   * Antes esta prueba fijaba que **ninguno** naciera apagado, y era correcta mientras
+   * `INITIAL_OPERATION_MODULES` rechazara esas rutas antes de mirar nada: el `true` no se notaba.
+   * Al liberar esa reja, el `true` los habría encendido de golpe para todo cargo que la matriz
+   * alcanza, así que el defecto pasó a ser `false` y encenderlos es un acto de Desarrollo.
+   *
+   * La lista va escrita y no derivada a propósito: si mañana alguien apaga de fábrica un módulo
+   * que el equipo usa a diario, esto falla y hay que venir a explicarlo acá.
+   */
+  it('nacen apagados exactamente los once módulos de empresa liberados', () => {
+    const apagados = ORGANIZATION_FEATURE_KEYS.filter((key) => !DEFAULT_ORGANIZATION_FEATURES[key]).sort();
+    expect(apagados).toEqual([
+      'approvals', 'audiovisual', 'billing', 'briefs', 'content',
+      'contracts', 'documents', 'intake', 'meetings', 'production', 'udBudget',
+    ]);
+    // `commercialPipeline` no está: sigue detrás de la puerta de despliegue porque `/automations`
+    // comparte su clave, así que su valor por defecto no se nota y se dejó como estaba.
+    expect(DEFAULT_ORGANIZATION_FEATURES.commercialPipeline).toBe(true);
   });
 });

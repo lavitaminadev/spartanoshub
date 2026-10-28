@@ -25,6 +25,8 @@ const account_access_service_1 = require("../../core/client-scope/account-access
 const client_capability_service_1 = require("../../core/client-scope/client-capability.service");
 const audit_service_1 = require("../../core/audit/audit.service");
 const nivel_de_datos_service_1 = require("../../core/client-scope/nivel-de-datos.service");
+const shared_1 = require("@espartanos/shared");
+const empresa_decorator_1 = require("../../core/client-scope/empresa.decorator");
 const roles_decorator_1 = require("../../core/authorization/roles.decorator");
 const requires_permission_decorator_1 = require("../../core/authorization/requires-permission.decorator");
 const user_role_enum_1 = require("../organizations/user-role.enum");
@@ -111,6 +113,9 @@ let ReservationsController = class ReservationsController {
             throw new common_1.ForbiddenException('Indica la empresa del local');
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         return this.service.pixelesDelFormulario(req.organizationId, clientId);
+    }
+    catalogoDeRubros() {
+        return { data: shared_1.CATALOGO_DE_RUBROS };
     }
     async forms(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
@@ -421,6 +426,10 @@ let ReservationsController = class ReservationsController {
         const scope = await this.requestedScope(req, query.clientId);
         return this.service.noShowPorLocalYDia(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
     }
+    async asistenciaPorOrigen(req, query) {
+        const scope = await this.requestedScope(req, query.clientId);
+        return this.service.asistenciaPorOrigen(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
+    }
     async occupancy(req, query) {
         const scope = await this.requestedScope(req, query.clientId);
         if (query.formId)
@@ -481,6 +490,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "pixelesDisponibles", null);
+__decorate([
+    (0, common_1.Get)('catalogo-de-rubros'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    (0, empresa_decorator_1.SinEmpresa)('el catálogo es el mismo para toda la organización y no describe a ninguna empresa'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ReservationsController.prototype, "catalogoDeRubros", null);
 __decorate([
     (0, common_1.Get)('forms'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
@@ -926,6 +943,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "noShow", null);
+__decorate([
+    (0, common_1.Get)('analytics/por-origen'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, reservation_dto_1.ReservationScopeDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "asistenciaPorOrigen", null);
 __decorate([
     (0, common_1.Get)('analytics/occupancy'),
     (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),

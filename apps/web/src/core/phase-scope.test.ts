@@ -45,20 +45,31 @@ describe('alcance de fase', () => {
    * al alcance de fase», con un ciclo de vida guardado en configuración—; lo que desapareció es que
    * venga impuesto desde el código.
    */
-  it('la operación inicial reserva los módulos futuros para desarrollo', () => {
+  /*
+   * Los ejemplos cambian, la afirmación no.
+   *
+   * `content` y `billing` salieron de `INITIAL_OPERATION_MODULES` con los otros diez módulos de
+   * empresa, por decisión del dueño: abrirlos y dejarlos apagados hasta que se enciendan. Desde
+   * ahí los cierra el interruptor de la organización, no esta lista. Detrás de la puerta de
+   * despliegue quedan los que de verdad no están terminados, y son los que se fijan acá.
+   */
+  it('la operación inicial reserva para desarrollo los módulos sin terminar', () => {
     expect(OUT_OF_SCOPE_MODULES).toEqual({});
-    for (const module of ['content', 'billing', 'gamification', 'adsInsights']) {
+    for (const module of ['gamification', 'knowledge', 'direction', 'adsInsights']) {
       expect(isModuleInPhaseScope(module, undefined, 'admin'), module).toBe(false);
       expect(isModuleInPhaseScope(module, undefined, 'dev'), module).toBe(true);
     }
   });
 
-  it('reserva el pipeline comercial para desarrollo', () => {
-    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'admin')).toBe(false);
-    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'dev')).toBe(true);
-  });
-
-  it('reserva Automatizaciones para desarrollo aunque Dirección Comercial administre el CRM', () => {
+  /*
+   * El embudo comercial se queda detrás de la puerta, y la razón es `/automations`.
+   *
+   * Es uno de los doce módulos de empresa y aun así no se liberó: `/automations` cuelga de su
+   * misma clave —no tiene módulo propio en el catálogo—, así que abrirlo abriría también
+   * Automatizaciones, que no está terminada. Esta prueba es la que lo encontró al cambiar la
+   * lista. Para liberarlo hay que darle antes a `/automations` su propia clave.
+   */
+  it('reserva el pipeline comercial para desarrollo, porque Automatizaciones comparte su clave', () => {
     expect(isModuleInPhaseScope('commercialPipeline', undefined, 'commercial_director')).toBe(false);
     expect(isModuleInPhaseScope('commercialPipeline', undefined, 'admin')).toBe(false);
     expect(isModuleInPhaseScope('commercialPipeline', undefined, 'dev')).toBe(true);
@@ -99,13 +110,23 @@ describe('navegación bajo el alcance de fase', () => {
    * más abajo: `surveys` con su interruptor, y el bloque de Desarrollo con el ciclo de vida
    * guardado en configuración.
    */
-  it('las rutas futuras quedan fuera de alcance para administración', () => {
-    const antesOcultas = ['/content', '/approvals', '/briefs', '/audiovisual',
-      '/meetings', '/billing', '/contracts', '/catalog', '/gamification', '/knowledge',
-      '/onboarding', '/direction', '/operations', '/documents'];
-
-    for (const path of antesOcultas) {
+  /*
+   * La lista se partió en dos cuando se liberaron los once módulos de empresa.
+   *
+   * Las que siguen cerradas son las que no están terminadas, y las que se abrieron pasan esta
+   * puerta sin que eso sea acceso: su interruptor en la organización nace apagado. Mantenerlas
+   * aquí como «fuera de alcance» habría sido fijar una puerta que ya no está ahí.
+   */
+  it('las rutas sin terminar quedan fuera de alcance para administración', () => {
+    for (const path of ['/catalog', '/gamification', '/knowledge', '/onboarding', '/direction', '/operations']) {
       expect(visible(path), path).toBe(false);
+    }
+  });
+
+  it('las once liberadas pasan la puerta de despliegue, y las cierra su interruptor', () => {
+    for (const path of ['/content', '/approvals', '/briefs', '/audiovisual', '/meetings',
+      '/billing', '/contracts', '/documents', '/intake', '/production']) {
+      expect(visible(path), path).toBe(true);
     }
   });
 
@@ -146,15 +167,21 @@ describe('navegación bajo el alcance de fase', () => {
    */
   it('el permiso explícito no alcanza para reabrir una ruta cerrada en configuración', () => {
     expect(isPathEnabled('/content', { content: true }, { content: 'manage' }, { content: 'development' }, 'admin')).toBe(false);
-    // Y con el módulo abierto, el permiso vuelve a mandar.
-    expect(isPathEnabled('/content', { content: true }, { content: 'manage' }, { content: 'active' }, 'admin')).toBe(false);
+    /*
+     * Y con el módulo abierto, el permiso vuelve a mandar.
+     *
+     * Esta segunda línea esperaba `false` y lo decía el comentario de al lado: lo cerraba la
+     * puerta de despliegue, no el ciclo de vida. Liberados los once, la prueba dice por fin lo
+     * que su comentario siempre afirmó, y la primera línea —la que importa— no cambió.
+     */
+    expect(isPathEnabled('/content', { content: true }, { content: 'manage' }, { content: 'active' }, 'admin')).toBe(true);
   });
 
-  it('reserva la puerta de entrada a producción y su tablero', () => {
+  it('la puerta de entrada a producción y su tablero ya pasan, cada uno con su clave', () => {
     // Decisión del 2026-08-09: el plan de plataforma pone las solicitudes como primer
-    // entregable. Si se vuelve a ocultar, mover la clave y actualizar esta expectativa.
+    // entregable. Lo que las cierra ahora es el interruptor de cada módulo, no esta lista.
     for (const path of ['/intake', '/production']) {
-      expect(visible(path), path).toBe(false);
+      expect(visible(path), path).toBe(true);
     }
     // `/intake` pasó a su propio módulo: recibir y coordinar solicitudes se libera antes que el
     // tablero de piezas, y mientras compartían clave no se podía liberar lo uno sin lo otro.

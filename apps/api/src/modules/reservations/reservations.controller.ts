@@ -12,6 +12,8 @@ import { AccountAccessService } from '../../core/client-scope/account-access.ser
 import { ClientCapabilityService } from '../../core/client-scope/client-capability.service';
 import { AuditService } from '../../core/audit/audit.service';
 import { NivelDeDatosService, recortarFilasPorEmpresa } from '../../core/client-scope/nivel-de-datos.service';
+import { CATALOGO_DE_RUBROS } from '@espartanos/shared';
+import { SinEmpresa } from '../../core/client-scope/empresa.decorator';
 import { Roles } from '../../core/authorization/roles.decorator';
 import { RequiresPermission } from '../../core/authorization/requires-permission.decorator';
 import { UserRole } from '../organizations/user-role.enum';
@@ -151,6 +153,20 @@ export class ReservationsController {
     if (!clientId) throw new ForbiddenException('Indica la empresa del local');
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     return this.service.pixelesDelFormulario(req.organizationId, clientId);
+  }
+
+  /**
+   * Los rubros y sus tipos de captación, para el selector al crear un formulario.
+   *
+   * Sale del catálogo en código, igual para toda la organización, y no toca la base: no lleva
+   * empresa ni alcance porque no dice nada de nadie, sólo con qué valores puede nacer un
+   * formulario. Quien crea formularios es quien lo necesita, así que lleva los mismos cargos.
+   */
+  @Get('catalogo-de-rubros')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  @SinEmpresa('el catálogo es el mismo para toda la organización y no describe a ninguna empresa')
+  catalogoDeRubros() {
+    return { data: CATALOGO_DE_RUBROS };
   }
 
   @Get('forms')
@@ -778,6 +794,22 @@ export class ReservationsController {
   async noShow(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
     const scope = await this.requestedScope(req, query.clientId);
     return this.service.noShowPorLocalYDia(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
+  }
+
+  /**
+   * Del anuncio al comensal que llegó.
+   *
+   * Exige `reservations.medicion` y no `historial`: responde una pregunta de medición, no de
+   * operación, y quien atiende el turno no necesita saber qué campaña trajo a cada mesa.
+   *
+   * No entrega ni un dato de ninguna persona: son conteos por origen y campaña.
+   */
+  @Get('analytics/por-origen')
+  @RequiereArea('reservations.medicion', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async asistenciaPorOrigen(@Req() req: AuthenticatedRequest, @Query() query: ReservationScopeDto) {
+    const scope = await this.requestedScope(req, query.clientId);
+    return this.service.asistenciaPorOrigen(req.organizationId, scope.clientId, scope.clientIds, query.days ? Number(query.days) : 90);
   }
 
   @Get('analytics/occupancy')
