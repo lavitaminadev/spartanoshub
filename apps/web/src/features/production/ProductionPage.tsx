@@ -614,16 +614,16 @@ export function ProductionPage() {
             <tbody>
               {pieces?.map((piece) => (
                 <tr key={piece.id}>
-                  <td>{piece.title}</td>
-                  <td>{piece.clientName}</td>
-                  <td>{pieceTypeLabel(piece.type)}</td>
-                  <td><StatusBadge status={piece.status} /></td>
-                  <td>N{piece.difficultyLevel ?? 1}</td>
-                  <td>{piece.udAmount}</td>
-                  <td>{piece.correctionCount}</td>
-                  <td>{piece.assignedTo ? userMap.get(piece.assignedTo) ?? piece.assignedTo : 'Sin asignar'}</td>
-                  <td>{piece.dueDate ? new Date(piece.dueDate).toLocaleDateString() : 'Sin fecha'}</td>
-                  <td>{renderActions(piece)}</td>
+                  <td data-label="Título">{piece.title}</td>
+                  <td data-label="Cliente">{piece.clientName}</td>
+                  <td data-label="Tipo">{pieceTypeLabel(piece.type)}</td>
+                  <td data-label="Estado"><StatusBadge status={piece.status} /></td>
+                  <td data-label="Nivel">N{piece.difficultyLevel ?? 1}</td>
+                  <td data-label="UD">{piece.udAmount}</td>
+                  <td data-label="Correcciones">{piece.correctionCount}</td>
+                  <td data-label="Asignado a">{piece.assignedTo ? userMap.get(piece.assignedTo) ?? piece.assignedTo : 'Sin asignar'}</td>
+                  <td data-label="Vence">{piece.dueDate ? new Date(piece.dueDate).toLocaleDateString() : 'Sin fecha'}</td>
+                  <td data-label="Acciones">{renderActions(piece)}</td>
                 </tr>
               ))}
             </tbody>

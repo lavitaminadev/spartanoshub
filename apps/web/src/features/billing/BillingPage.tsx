@@ -79,9 +79,9 @@ export function BillingPage() {
         {chargeNotes.length === 0 ? <EmptyState icon="money" title="Sin cobros pendientes" description="No hay cobros adicionales por valorizar en este momento." /> : (
           <div className="table-wrapper"><table className="data-table"><thead><tr><th>Motivo</th><th>Estado</th><th>Monto CLP</th><th>Acción</th></tr></thead><tbody>
             {chargeNotes.map((note) => <tr key={note.id}>
-              <td>{note.reason}</td><td><StatusBadge status={note.status} /></td>
-              <td>{note.amount ? `$${Number(note.amount).toLocaleString('es-CL')}` : <input className="input input-compact" aria-label={`Monto para ${note.reason}`} type="number" min="1" value={prices[note.id] ?? ''} onChange={(event) => setPrices({ ...prices, [note.id]: event.target.value })} />}</td>
-              <td>{note.status === 'pending_pricing' ? <button className="btn btn-primary btn-sm" disabled={!Number(prices[note.id]) || priceMutation.isPending} onClick={() => priceMutation.mutate({ id: note.id, amount: Number(prices[note.id]) })}>Confirmar valor</button> : 'Lista para facturar'}</td>
+              <td data-label="Motivo">{note.reason}</td><td data-label="Estado"><StatusBadge status={note.status} /></td>
+              <td data-label="Monto CLP">{note.amount ? `$${Number(note.amount).toLocaleString('es-CL')}` : <input className="input input-compact" aria-label={`Monto para ${note.reason}`} type="number" min="1" value={prices[note.id] ?? ''} onChange={(event) => setPrices({ ...prices, [note.id]: event.target.value })} />}</td>
+              <td data-label="Acción">{note.status === 'pending_pricing' ? <button className="btn btn-primary btn-sm" disabled={!Number(prices[note.id]) || priceMutation.isPending} onClick={() => priceMutation.mutate({ id: note.id, amount: Number(prices[note.id]) })}>Confirmar valor</button> : 'Lista para facturar'}</td>
             </tr>)}
           </tbody></table></div>
         )}

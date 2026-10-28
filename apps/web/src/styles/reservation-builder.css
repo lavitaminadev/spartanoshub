@@ -419,6 +419,8 @@
 /* Nota que explica por qué unas preguntas no se editan. */
 .schedule-nota { display:block; grid-column:1/-1; margin:2px 0 8px; color:var(--muted); font-size:11px; line-height:1.45; }
 .publish-meta-state .btn { margin-top:8px; width:max-content; }
+/* El aviso que reemplaza al enlace cuando quien lee no puede abrir Conexiones. */
+.publish-meta-ayuda { margin-top:6px; font-style:italic; }
 
 /*
  * La cabecera del constructor no empuja la página.

@@ -737,7 +737,15 @@ export function ReservationBuilderPage() {
               <small>{draft.metaReady
                 ? `Cuenta conectada${draft.pixelName ? `: ${draft.pixelName}` : ''}. Las reservas se informarán automáticamente.`
                 : 'Se puede publicar igual, pero las reservas no llegarán a Meta hasta completar la integración.'}</small>
-              {!draft.metaReady && <Link className="btn btn-outline btn-sm" to="/integrations">Conectar la cuenta de Meta</Link>}
+              {/*
+                * La puerta sólo se ofrece a quien la puede abrir.
+                *
+                * Conexiones es un módulo de la agencia: a una cuenta de empresa la ruta la rebota
+                * al portal sin decir nada, y un enlace que cambia de pantalla sin explicar se lee
+                * como un sistema roto. Al cliente se le dice el estado y a quién pedirlo.
+                */}
+              {!draft.metaReady && !clientMode && <Link className="btn btn-outline btn-sm" to="/integrations">Conectar la cuenta de Meta</Link>}
+              {!draft.metaReady && clientMode && <small className="publish-meta-ayuda">La conexión con Meta la lleva Espartanos: pídesela a tu contacto y queda hecha desde ahí.</small>}
               {draft.metaReady && draft.metaCapiEnabled && <SaludDeMedicion formId={id} />}
             </div>}
 
