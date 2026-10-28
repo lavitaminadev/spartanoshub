@@ -76,9 +76,7 @@ export async function resolverEmpresa(
   // llegue por otra vía: es la que no se le puede quitar.
   const suyas = [...new Set([...(user.clientId ? [user.clientId] : []), ...alcance.alcanzables])];
   if (suyas.length === 1) return suyas[0] as EmpresaResuelta;
-  if (suyas.length === 0) {
-    throw new BadRequestException('Tu cuenta no tiene ninguna empresa asignada');
-  }
+  if (suyas.length === 0) throw new SinEmpresasAlcanzables();
   throw new VariasEmpresasAlcanzables();
 }
 
@@ -94,6 +92,24 @@ export async function resolverEmpresa(
 export class VariasEmpresasAlcanzables extends BadRequestException {
   constructor() {
     super('Elige la empresa sobre la que trabajas');
+  }
+}
+
+/**
+ * La cuenta no alcanza ninguna empresa: no está en ningún pod, no lleva cuentas y no tiene
+ * asignaciones.
+ *
+ * Es un estado normal de una cuenta recién creada, no un error de quien la usa. Para una ruta
+ * que trabaja sobre una empresa sigue siendo un 400 —no hay sobre qué trabajar—, pero para las
+ * que suman sobre el alcance la respuesta correcta es «cero», no un fallo: ya acotan por la
+ * lista de empresas alcanzables, y una lista vacía no devuelve filas.
+ *
+ * Tiene clase propia por lo mismo que `VariasEmpresasAlcanzables`: distinguirlo por el texto
+ * del error es atarse a una frase que cambia sin avisar.
+ */
+export class SinEmpresasAlcanzables extends BadRequestException {
+  constructor() {
+    super('Tu cuenta no tiene ninguna empresa asignada');
   }
 }
 

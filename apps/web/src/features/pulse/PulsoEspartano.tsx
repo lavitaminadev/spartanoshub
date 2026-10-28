@@ -18,6 +18,8 @@ interface PulseData {
   actions: PulseAction[];
   commitments: { team: number; client: number };
   impact: ImpactItem[];
+  /** El cero es porque la cuenta no alcanza ninguna empresa, no porque no haya pasado nada. */
+  sinEmpresas?: boolean;
 }
 
 type PulseResponse = Partial<PulseData>;
@@ -36,6 +38,13 @@ export function PulsoEspartano({ compact = false }: { compact?: boolean }) {
   const { data: response, isLoading, error } = useQuery<PulseResponse>({ queryKey: ['vitamina-pulse'], queryFn: () => api.get('/reporting/pulse') });
   if (isLoading) return <section className="pulse-shell pulse-loading" aria-label="Cargando Pulso Espartano"><div className="skeleton-line wide" /><div className="skeleton-line" /><div className="skeleton-line short" /></section>;
   if (error || !response) return <section className="pulse-shell"><span className="page-eyebrow">PULSO VITAMINA</span><h2>Pulso temporalmente no disponible</h2><p className="page-subtitle">Intenta de nuevo en unos minutos.</p></section>;
+  /*
+   * Un vacío que se arregla pidiendo algo, no trabajando: se dice qué falta y quién lo hace.
+   *
+   * Dibujar el pulso en cero sería decirle a alguien que su operación va mal cuando lo que pasa
+   * es que todavía no le asignaron empresas, y «sin evidencia» no deja a dónde ir.
+   */
+  if (response.sinEmpresas) return <section className="pulse-shell"><span className="page-eyebrow">PULSO VITAMINA</span><h2>Todavía no tienes empresas asignadas</h2><p className="page-subtitle">El pulso resume las empresas que atiendes, y tu cuenta aún no alcanza ninguna. Se arregla sumándote a un pod o asignándote un cliente: lo hace Desarrollo desde «Gobierno del producto», o Administración desde «Equipo y accesos». Pídeselo a tu contacto y esta pantalla se llena sola.</p></section>;
   const data: PulseData = {
     score: typeof response.score === 'number' && Number.isFinite(response.score) ? Math.min(100, Math.max(0, response.score)) : null,
     coverage: typeof response.coverage === 'number' && Number.isFinite(response.coverage) ? Math.min(100, Math.max(0, response.coverage)) : 0,
