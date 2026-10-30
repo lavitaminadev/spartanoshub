@@ -17,7 +17,7 @@
  */
 
 import axios, { type AxiosAdapter } from 'axios';
-import { VERSION_DOCUMENTOS_LEGALES } from '@espartanos/shared';
+import { VERSION_DOCUMENTOS_LEGALES, MUESTRA, componerCorreo } from '@espartanos/shared';
 import { ORGANIZATION_MODULE_CATALOG, WEB_ONLY_MODULE_CATALOG } from '@espartanos/shared';
 
 /** Verdadero solo bajo `npm run dev:visual`. */
@@ -78,23 +78,95 @@ function rolDeRevision(): string {
   try { return window.sessionStorage.getItem(CLAVE_ROL_VISUAL) || 'admin'; } catch { return 'admin'; }
 }
 
-/** Perfil con acceso total, usado para responder `/auth/me`. */
+/**
+ * Las empresas del catálogo visual con los servicios que tiene contratado cada una.
+ *
+ * Es la misma lista que responde `/clients`, la que llena el selector de empresa y la que filtra
+ * las plantillas de correo: una sola fuente, para que la pantalla de Correos no pueda contradecir
+ * al selector.
+ *
+ * Cada una contrata algo distinto a propósito. Con todas iguales no se puede ver en pantalla lo
+ * que cambia al no tener un servicio, que es la reja que más confunde: la capacidad contratada.
+ * Apagado es `false` explícito; sin la clave, el servidor lo da por encendido.
+ */
+const EMPRESAS_VISUALES = [
+  { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } },
+  { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false } },
+  { id: 'visual-client-3', name: 'Pastelería Alameda', capabilities: { reservations: true, crm: false, surveys: false } },
+  { id: 'visual-client-4', name: 'Hotel Mirador del Valle', capabilities: { reservations: false, crm: true, surveys: false } },
+  { id: 'visual-client-5', name: 'Café Plaza', capabilities: { reservations: false, crm: false, surveys: false } },
+];
+
+const CLAVE_EMPRESA_VISUAL = 'espartanos.modo-visual.empresa';
+
+/**
+ * La empresa desde la que se revisa, con `?empresa=`, y que dura toda la revisión.
+ *
+ * Sólo cambia algo con `?rol=client`: una cuenta de agencia alcanza todas las empresas, y es el
+ * portal de una empresa el que muestra lo que deja fuera un servicio sin contratar.
+ */
+function empresaDeRevision() {
+  const pedida = new URLSearchParams(window.location.search).get('empresa')?.trim();
+  if (pedida) {
+    try { window.sessionStorage.setItem(CLAVE_EMPRESA_VISUAL, pedida); } catch { /* sin almacenamiento */ }
+  }
+  let guardada = pedida;
+  if (!guardada) {
+    try { guardada = window.sessionStorage.getItem(CLAVE_EMPRESA_VISUAL) ?? undefined; } catch { guardada = undefined; }
+  }
+  return EMPRESAS_VISUALES.find((empresa) => empresa.id === guardada || empresa.name.toLowerCase() === guardada?.toLowerCase())
+    ?? EMPRESAS_VISUALES[0];
+}
+
+/**
+ * Los módulos que dependen de un servicio contratado, y de cuál.
+ *
+ * Fuera de estos tres, un módulo apagado lo está por el interruptor de la organización o por el
+ * permiso del cargo, que son rejas distintas y no se simulan desde la empresa.
+ */
+const MODULO_POR_SERVICIO: Record<string, 'reservations' | 'crm' | 'surveys'> = {
+  reservations: 'reservations',
+  crm: 'crm',
+  commercialPipeline: 'crm',
+  surveys: 'surveys',
+};
+
+/**
+ * Perfil que responde `/auth/me`.
+ *
+ * Con un cargo de agencia lleva todo encendido: lo que se revisa ahí son las pantallas. Con
+ * `?rol=client` lleva lo que esa empresa contrató y nada más, porque el portal de una empresa sin
+ * CRM no debe ofrecer CRM ni en el menú ni en una ruta escrita a mano.
+ */
+const EMPRESA_EN_REVISION = empresaDeRevision();
+const ROL_EN_REVISION = rolDeRevision();
+
+function featuresDeLaRevision(): Record<string, boolean> {
+  const todas = forEveryModule(true);
+  if (ROL_EN_REVISION !== 'client') return todas;
+  for (const [modulo, servicio] of Object.entries(MODULO_POR_SERVICIO)) {
+    if (!EMPRESA_EN_REVISION.capabilities[servicio]) todas[modulo] = false;
+  }
+  return todas;
+}
+
 const VISUAL_USER = {
   id: 'visual-user',
   name: 'Modo Visual',
   email: 'visual@espartanos.local',
-  role: rolDeRevision(),
+  role: ROL_EN_REVISION,
   organizationId: 'visual-org',
   mustChangePassword: false,
   mustCompleteProfile: false,
   mustAcceptTerms: false,
-  features: forEveryModule(true),
+  features: featuresDeLaRevision(),
   moduleLifecycle: forEveryModule('active'),
   permissions: forEveryModule('manage'),
-  // Con `?rol=client` el portal muestra los servicios de una empresa con todo contratado.
-  clientId: 'visual-client',
-  clientName: 'Casa Costanera',
-  capabilities: { reservations: true, crm: true, surveys: true },
+  clientId: EMPRESA_EN_REVISION.id,
+  clientName: EMPRESA_EN_REVISION.name,
+  capabilities: ROL_EN_REVISION === 'client'
+    ? EMPRESA_EN_REVISION.capabilities
+    : { reservations: true, crm: true, surveys: true },
 };
 
 /**
@@ -469,7 +541,7 @@ const visualEmpresasDeUsuario: Record<string, Array<{ clientId: string; source: 
  * 21.719 el responsable de ese dato es el local, no quien lo pegó acá.
  */
 const visualLeadConCampos: Record<string, any> = {
-  id: 'l1', name: 'Rodrigo Soto Lara', phone: '+56900000001', email: 'comensal1@example.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z',
+  id: 'l1', name: 'Rodrigo Soto Lara', phone: '+56900000001', email: 'contacto@donsalvador.cl', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z',
   customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' },
 };
 const visualCrmFields: Array<Record<string, any>> = [
@@ -569,26 +641,6 @@ const MODULO_DE_CORREO_VISUAL: Array<[string, Array<'reservations' | 'surveys' |
 function modulosDeCorreoVisual(clave: string): Array<'reservations' | 'surveys' | 'crm' | 'agencia'> {
   return MODULO_DE_CORREO_VISUAL.find(([prefijo]) => clave.startsWith(prefijo))?.[1] ?? ['reservations'];
 }
-
-/**
- * Las empresas del catálogo visual con los servicios que tiene contratado cada una.
- *
- * Es la misma lista que responde `/clients` y la que filtra las plantillas de correo: una sola
- * fuente, para que la pantalla de Correos no pueda contradecir al selector de empresa.
- *
- * Casa Costanera no tiene CRM y Bar Ruperto no tiene Encuestas a propósito: así se puede comprobar
- * en pantalla que Correos oculta los avisos de un servicio que esa empresa no contrató. Dos
- * empresas, porque con una sola no se revisa que alguien atienda más de una.
- */
-const EMPRESAS_VISUALES = [
-  { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } },
-  { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false } },
-  // Tres más para revisar a quien atiende muchas empresas y los servicios apagados: solo Reservas,
-  // solo CRM y ninguno. Apagado es «false» explícito; sin la clave, el servidor lo da por encendido.
-  { id: 'visual-client-3', name: 'Pastelería Alameda', capabilities: { reservations: true, crm: false, surveys: false } },
-  { id: 'visual-client-4', name: 'Hotel Mirador del Valle', capabilities: { reservations: false, crm: true, surveys: false } },
-  { id: 'visual-client-5', name: 'Café Plaza', capabilities: { reservations: false, crm: false, surveys: false } },
-];
 
 /**
  * Las plantillas que esa empresa puede editar de verdad.
@@ -727,7 +779,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   // Tres envíos de ejemplo para revisar la pantalla de diagnóstico de correo.
   [/\/registro-de-correos/, () => ([
     { id: 'rc-1', destinatario: 'ana@casacostanera.cl', asunto: 'Acceso temporal a Espartanos', resultado: 'enviado', motivo: null, createdAt: new Date(Date.now() - 3 * 60_000).toISOString() },
-    { id: 'rc-2', destinatario: 'comensal3@example.com', asunto: 'Lead nuevo: Javi Meza (meta lead ads)', resultado: 'rechazado', motivo: 'El servidor de correo no lo aceptó', createdAt: new Date(Date.now() - 90 * 60_000).toISOString() },
+    { id: 'rc-2', destinatario: 'matias@cafedelpuerto.cl', asunto: 'Lead nuevo: Javi Meza (meta lead ads)', resultado: 'rechazado', motivo: 'El servidor de correo no lo aceptó', createdAt: new Date(Date.now() - 90 * 60_000).toISOString() },
     { id: 'rc-3', destinatario: 'diego@casacostanera.cl', asunto: 'Tu reserva en Casa Costanera', resultado: 'omitido', motivo: 'El correo de salida está apagado (SMTP_ENABLED)', createdAt: new Date(Date.now() - 26 * 60 * 60_000).toISOString() },
   ])],
   // Sin servidor de correo el reenvío no sale, como en producción con SMTP apagado.
@@ -996,7 +1048,39 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     origenes: ['import', 'reserva', 'captacion'],
   })],
   // Las empresas de una cuenta de portal: la misma lista, por la ruta que sí alcanza.
-  [/\/portal\/empresas/, () => ({ data: EMPRESAS_VISUALES })],
+  /*
+   * Cómo queda un correo, con el mismo generador que lo envía.
+   *
+   * Importa `componerCorreo` de `@espartanos/shared`, que es el que arma el HTML del envío real,
+   * así que esto no imita el correo: lo genera. Una imitación deja de parecerse en cuanto alguien
+   * cambia el armazón, y nadie se enteraría hasta que el dueño compare con su bandeja.
+   *
+   * Las variables son las de muestra del servidor, con el local y la persona de esta revisión
+   * puestos encima: el correo que se ve nombra la misma reserva que las demás pantallas.
+   */
+  [/\/settings\/correos\/vista-previa/, (config) => {
+    const { asunto = '', cuerpo = '' } = visualRequestBody(config) as { asunto?: string; cuerpo?: string };
+    return componerCorreo(String(asunto), String(cuerpo), {
+      ...MUESTRA,
+      local: `${EMPRESA_EN_REVISION.name} - Providencia`,
+      nombre: 'Camila Rojas',
+      correo: 'camila@example.test',
+      telefono: '+56 9 8123 4567',
+      codigo: 'CC-1042',
+      personas: 2,
+      cupon: 'VUELVE20',
+    });
+  }],
+  /*
+   * Las empresas que alcanza la cuenta del portal: una sola.
+   *
+   * Una cuenta de empresa está atada a la suya, así que devolver las cinco hacía que el portal
+   * abriera preguntando con cuál trabajar —una pregunta que ningún cliente real ve— y tapaba lo
+   * que el paso venía a mostrar. Desde la agencia siguen siendo las cinco.
+   */
+  [/\/portal\/empresas/, () => ({
+    data: ROL_EN_REVISION === 'client' ? [EMPRESA_EN_REVISION] : EMPRESAS_VISUALES,
+  })],
   /*
    * El resumen del portal, con los tres bloques contratados.
    *
@@ -1005,9 +1089,18 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * presupuesto trae reservado y consumido distintos de cero: con todo en cero no se verían ni
    * el aviso de lo comprometido ni la resta que da lo disponible.
    */
+  /*
+   * El portal responde por los servicios que esa empresa contrató, como el servidor.
+   *
+   * La tarjeta se dibuja si viene su bloque, de modo que mandar los dos siempre hacía que una
+   * empresa sin CRM viera «Abrir CRM» y entrara a una pantalla que su cuenta no alcanza. Lo que
+   * decide no es la tarjeta: es qué manda el servidor, y acá se responde igual.
+   */
   [/\/portal\/inicio/, () => ({
-    crm: { leadsDelMes: 12, pendientes: [{ key: 'sin_contactar', count: 3, level: 'critico' }, { key: 'calificados_sin_visita', count: 0, level: 'alto' }] },
-    reservas: { proximasDosDias: 4, sinConfirmar: 1 },
+    crm: EMPRESA_EN_REVISION.capabilities.crm
+      ? { leadsDelMes: 12, pendientes: [{ key: 'sin_contactar', count: 3, level: 'critico' }, { key: 'calificados_sin_visita', count: 0, level: 'alto' }] }
+      : null,
+    reservas: EMPRESA_EN_REVISION.capabilities.reservations ? { proximasDosDias: 4, sinConfirmar: 1 } : null,
     presupuesto: {
       contratado: 40, reservado: 7.5, consumido: 12.25, disponible: 20.25, mes: '2026-10', cerrado: false,
       // Un consumo, una reserva y una devolución: las tres formas que toma la lista.
@@ -1020,6 +1113,45 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     },
   })],
   [/\/clients(?:\?|$)/, () => ({ data: EMPRESAS_VISUALES })],
+  /*
+   * La ficha de una empresa arma su propia respuesta, con la forma que lee la vista.
+   *
+   * El vacio genérico la tumba: `ClientDetailPage` entra directo a `client`, `stats` y `ud`, y sin
+   * esos contenedores la pantalla cae en el aviso de error en vez de mostrar la ficha.
+   */
+  [/\/clients\/options\/managers$/, () => ([
+    { id: 'u-2', name: 'Valentina Soto', role: 'community_manager' },
+    { id: 'u-3', name: 'Matías Fuentes', role: 'designer' },
+  ])],
+  [/\/clients\/[^/?]+\/overview$/, (config) => {
+    const id = (config?.url ?? '').split('/clients/')[1]?.split('/')[0] ?? 'visual-client';
+    const empresa = EMPRESAS_VISUALES.find((e) => e.id === id) ?? EMPRESAS_VISUALES[0];
+    return {
+      client: {
+        id: empresa.id, name: empresa.name, legalName: `${empresa.name} SpA`, industry: 'Gastronomía',
+        status: 'active', retainerAmount: 1850000, currency: 'CLP', defaultUdBudget: 40,
+        communityManagerId: 'u-2', whatsappGroup: 'Equipo Casa Costanera',
+        startedAt: '2026-03-01T00:00:00Z', renewalAt: '2027-03-01T00:00:00Z',
+        capabilities: empresa.capabilities,
+      },
+      stats: {
+        pendingPieces: 4, contentGrids: 2, meetings: 9, upcomingMeetings: 1, documents: 0,
+        reservationForms: 1, publishedForms: 1, contracts: 0, activeContracts: 0, briefs: 0, approvedBriefs: 0,
+      },
+      ud: { contracted: 40, reserved: 12, consumed: 21 },
+      pieceStatuses: [
+        { status: 'in_progress', total: 3 }, { status: 'review', total: 1 }, { status: 'done', total: 11 },
+      ],
+      recentPieces: [
+        { id: 'p-1', title: 'Carta de otoño · parrilla semanal', status: 'in_progress', deadlineAt: '2026-11-04T18:00:00Z', udAmount: 4 },
+        { id: 'p-2', title: 'Reel terraza', status: 'review', deadlineAt: '2026-11-06T18:00:00Z', udAmount: 6 },
+      ],
+      recentMeetings: [
+        { id: 'm-1', title: 'Revisión mensual', type: 'estrategica', status: 'completed', scheduledAt: '2026-10-21T15:00:00Z' },
+        { id: 'm-2', title: 'Parrilla de noviembre', type: 'operativa', status: 'scheduled', scheduledAt: '2026-11-03T15:00:00Z' },
+      ],
+    };
+  }],
   /*
    * Datos de ejemplo del CRM.
    *
@@ -1080,15 +1212,24 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   ])],
   [/\/crm\/leads(\?|$)/, () => ({
     data: [
-      { id: 'l1', customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' }, name: 'Rodrigo Soto Lara', phone: '+56900000001', email: 'comensal1@example.com', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z' },
-      { id: 'l2', name: 'Francisca Rojas Pinto', phone: '+56900000002', email: 'comensal2@example.com', status: 'contacted', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: 'u1', clientId: null, estimatedAmount: 7800000, createdAt: '2026-08-17T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
-      { id: 'l3', name: 'Matias Vega Cortes', phone: '+56900000003', email: 'comensal3@example.com', status: 'quote_sent', source: 'Formulario web', campaignName: null, assignedTo: 'u1', clientId: null, estimatedAmount: 12000000, createdAt: '2026-08-14T02:15:20.676Z', updatedAt: '2026-08-10T02:15:20.676Z' },
-      { id: 'l4', name: 'Javiera Munoz', phone: '+56900000004', email: 'comensal4@example.com', status: 'meeting_scheduled', source: 'Referido', campaignName: null, assignedTo: 'u2', clientId: null, estimatedAmount: 9200000, createdAt: '2026-08-11T02:15:20.676Z', updatedAt: '2026-08-18T02:15:20.676Z' },
-      { id: 'l5', name: 'Camila Herrera', phone: '+56900000005', email: 'comensal5@example.com', status: 'negotiation', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u2', clientId: null, estimatedAmount: 15600000, createdAt: '2026-07-31T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
-      { id: 'l6', name: 'Valeria Paredes', phone: '+56900000006', email: 'comensal6@example.com', status: 'won', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, estimatedAmount: 8100000, createdAt: '2026-07-21T02:15:20.676Z', updatedAt: '2026-08-16T02:15:20.676Z' },
-      { id: 'l7', name: 'Elena Bravo Diaz', phone: '+56900000007', email: 'comensal7@example.com', status: 'lost', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, discardReason: 'Precio', estimatedAmount: 0, createdAt: '2026-07-26T02:15:20.676Z', updatedAt: '2026-08-13T02:15:20.676Z' },
+      { id: 'l1', customFields: { canal: 'WhatsApp', presupuesto_mensual: 800000, rubro_antiguo: 'Gastronomía' }, name: 'Rodrigo Soto Lara', phone: '+56900000001', email: 'contacto@donsalvador.cl', status: 'new', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: null, clientId: null, estimatedAmount: 4500000, createdAt: '2026-08-20T02:15:20.676Z', updatedAt: '2026-08-20T02:15:20.676Z' },
+      { id: 'l2', name: 'Francisca Rojas Pinto', phone: '+56900000002', email: 'francisca@sushinorte.cl', status: 'contacted', source: 'Meta Ads', campaignName: 'Primavera', assignedTo: 'u1', clientId: null, estimatedAmount: 7800000, createdAt: '2026-08-17T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
+      { id: 'l3', name: 'Matias Vega Cortes', phone: '+56900000003', email: 'matias@cafedelpuerto.cl', status: 'quote_sent', source: 'Formulario web', campaignName: null, assignedTo: 'u1', clientId: null, estimatedAmount: 12000000, createdAt: '2026-08-14T02:15:20.676Z', updatedAt: '2026-08-10T02:15:20.676Z' },
+      { id: 'l4', name: 'Javiera Munoz', phone: '+56900000004', email: 'javiera@pizzeriaroma.cl', status: 'meeting_scheduled', source: 'Referido', campaignName: null, assignedTo: 'u2', clientId: null, estimatedAmount: 9200000, createdAt: '2026-08-11T02:15:20.676Z', updatedAt: '2026-08-18T02:15:20.676Z' },
+      { id: 'l5', name: 'Camila Herrera', phone: '+56900000005', email: 'camila@brasasyvino.cl', status: 'negotiation', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u2', clientId: null, estimatedAmount: 15600000, createdAt: '2026-07-31T02:15:20.676Z', updatedAt: '2026-08-19T02:15:20.676Z' },
+      { id: 'l6', name: 'Valeria Paredes', phone: '+56900000006', email: 'valeria@elmercadito.cl', status: 'won', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, estimatedAmount: 8100000, createdAt: '2026-07-21T02:15:20.676Z', updatedAt: '2026-08-16T02:15:20.676Z' },
+      { id: 'l7', name: 'Elena Bravo Diaz', phone: '+56900000007', email: 'elena@tostaduriasur.cl', status: 'lost', source: 'Meta Ads', campaignName: 'Invierno', assignedTo: 'u1', clientId: null, discardReason: 'Precio', estimatedAmount: 0, createdAt: '2026-07-26T02:15:20.676Z', updatedAt: '2026-08-13T02:15:20.676Z' },
+      /*
+       * Los dos del embudo de audiencia, que son comensales y no prospectos.
+       *
+       * Llevan `clientId` y no llevan monto: lo que se vende no es a ellos, son la audiencia de
+       * un local. Sin ninguno en el ejemplo, el CRM parecía servir sólo para vender la agencia y
+       * no se veía que una reserva deja un contacto detrás.
+       */
+      { id: 'l8', name: 'Camila Rojas', phone: '+56 9 8123 4567', email: 'camila@example.test', status: 'won', source: 'Reserva', campaignName: null, assignedTo: null, clientId: 'visual-client', domain: 'audience', estimatedAmount: 0, createdAt: '2026-10-12T21:30:00Z', updatedAt: new Date().toISOString() },
+      { id: 'l9', name: 'Sebastián Vera', phone: '+56 9 7444 1122', email: 'sebastian@example.test', status: 'won', source: 'Reserva', campaignName: null, assignedTo: null, clientId: 'visual-client', domain: 'audience', estimatedAmount: 0, createdAt: '2026-10-11T20:05:00Z', updatedAt: '2026-10-11T20:05:00Z' },
     ],
-    total: 7,
+    total: 9,
   })],
   [/\/crm\/ingest-sources/, () => ([
     { id: 's1', name: 'Meta Ads', source: 'meta_ads', isActive: true, tokenHint: '...4a2f91', receivedCount: 24, lastReceivedAt: '2026-08-20T02:15:20.676Z', lastError: null, url: '' },
@@ -1268,9 +1409,24 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     const canjes = canal ? CANJES_VISUALES.filter((canje) => canje.canal === canal) : CANJES_VISUALES;
     return { codigo: 'VUELVE20', total: canjes.length, canjes };
   }],
+  /*
+   * Buscar por código responde un cupón suelto, no la lista: va antes del patrón sin anclar.
+   * Un código que empieza con «NO» vuelve no canjeable, para poder revisar los dos lados.
+   */
+  [/\/reservations\/coupons\/buscar/, (config) => {
+    const codigo = (new URL(config?.url ?? '', 'http://x').searchParams.get('codigo') ?? 'VUELVE20').toUpperCase();
+    const canjeable = !codigo.startsWith('NO');
+    return {
+      id: 'cup-1', code: codigo, discountType: 'percentage', value: 20,
+      usos: 38, maxUsos: 0, validUntil: null,
+      canjeable,
+      impedimento: canjeable ? null : 'Este cupón ya se usó el número de veces permitido.',
+      avisos: canjeable ? ['Este cupón se puede usar 1 vez por persona.'] : [],
+    };
+  }],
   [/\/reservations\/coupons/, () => ([
     { id: 'cup-1', code: 'VUELVE20', discountType: 'percentage', value: 20, maxUses: 0, usageCount: 38, active: true, createdAt: '2026-08-01T12:00:00Z', uso: { enviados: 214, usados: 38, volvieronDelCorreo: 31 } },
-    { id: 'cup-2', code: 'VERANO20', discountType: 'percentage', value: 20, maxUses: 100, usageCount: 12, validUntil: '2026-12-31T00:00:00Z', active: true, createdAt: '2026-06-15T12:00:00Z', uso: { enviados: 0, usados: 12, volvieronDelCorreo: 0 } },
+    { id: 'cup-2', code: 'VERANO20', discountType: 'percentage', value: 20, maxUses: 100, usageCount: 12, validFrom: '2026-06-15T00:00:00Z', validUntil: '2026-12-31T00:00:00Z', active: true, createdAt: '2026-06-15T12:00:00Z', uso: { enviados: 0, usados: 12, volvieronDelCorreo: 0 } },
     { id: 'cup-3', code: 'CADUCADO', discountType: 'amount', value: 5000, maxUses: 50, usageCount: 3, validUntil: '2026-09-01T00:00:00Z', active: false, createdAt: '2026-05-02T12:00:00Z', uso: { enviados: 40, usados: 3, volvieronDelCorreo: 1 } },
   ])],
   /* Las casillas del equipo de un local, repartidas por tipo de aviso. */
@@ -1612,6 +1768,19 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       usoCupon: true,
     },
   })],
+  /*
+   * El cupón que escribe el comensal antes de reservar.
+   *
+   * Los dos resultados, porque el campo sólo se entiende viendo el que falla: el válido deja el
+   * aviso en verde y el inválido explica por qué, que es lo que lee quien está reservando.
+   */
+  [/\/public\/reservations\/[^/?]+\/coupon-validate$/, (config) => {
+    const codigo = String(visualRequestBody(config).code ?? '').trim().toUpperCase();
+    if (codigo === 'VUELVE20') return { valid: true, discountType: 'percentage', value: 20 };
+    if (codigo === 'VERANO20') return { valid: true, discountType: 'percentage', value: 20 };
+    if (codigo === 'CADUCADO') throw new Error('Este cupón venció el 01-09-2026.');
+    throw new Error('Ese código no existe o no aplica a este local.');
+  }],
   [/\/public\/reservations\/[^/?]+\/group-request$/, () => ({ id: 'visual-group-1', status: 'pending', kind: 'group_request' })],
   /*
    * La página para suscribirse sin reservar.
@@ -1956,7 +2125,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   })],
   [/\/users$/, () => ({
     data: [
-      { id: 'user-admin', name: 'Camila Riquelme', role: 'admin', isActive: true },
+      { id: 'user-admin', name: 'Fernanda Riquelme', role: 'admin', isActive: true },
       { id: 'user-ops', name: 'María Paredes', role: 'operations_director', isActive: true },
       { id: 'user-cm', name: 'Valentina Rojas', role: 'community_manager', isActive: true },
     ],
@@ -1964,7 +2133,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   })],
   [/\/users\?isActive=true$/, () => {
     const sampleUsers = [
-      { id:'user-admin', name:'Camila Riquelme', role:'admin', isActive:true },
+      { id:'user-admin', name:'Fernanda Riquelme', role:'admin', isActive:true },
       { id:'user-cm', name:'Valentina Rojas', role:'community_manager', isActive:true },
       { id:'user-designer', name:'Joaquín Muñoz', role:'designer', isActive:true },
       { id:'user-av', name:'Diego Venegas', role:'audiovisual', isActive:true },

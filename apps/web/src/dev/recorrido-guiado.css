@@ -1,0 +1,437 @@
+/*
+ * El panel del manual, sobre los tokens del sistema.
+ *
+ * Va al costado y no al pie porque lo que tiene que decir no cabe en dos renglones: la explicación
+ * de una vista son cuatro bloques, y un pie que creciera hasta caberlos taparía justo la pantalla
+ * que está explicando. Al costado el alto deja de ser un problema y el ancho se le resta al
+ * documento, de modo que la aplicación se sigue viendo entera.
+ *
+ * El ancho y el alto salen de medir el panel —`--manual-ancho` y `--manual-alto`, que escribe el
+ * componente con un `ResizeObserver`—. Los valores de reserva son sólo para el instante anterior a
+ * la primera medición.
+ */
+
+body:has(.manual-panel.es-lateral),
+body:has(.manual-panel.es-portada),
+body:has(.manual-panel.es-desvio) {
+  padding-right: var(--manual-ancho, 380px);
+}
+
+/*
+ * Las barras fijas de la aplicación se anclan al borde derecho de la ventana, que el panel ocupa.
+ * Sin esto quedarían debajo, y son justo las que llevan el botón de guardar.
+ */
+body:has(.manual-panel) .settings-save-bar,
+body:has(.manual-panel) .crm-bulk-bar,
+body:has(.manual-panel) .toast-container {
+  right: calc(var(--manual-ancho, 380px) + 24px);
+}
+
+.manual-panel {
+  position: fixed;
+  z-index: 1500;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  width: 380px;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: var(--white);
+  box-shadow: -14px 0 40px rgb(21 19 23 / 10%);
+}
+
+.manual-progreso {
+  height: 3px;
+  flex: none;
+  background: var(--soft);
+}
+
+.manual-progreso i {
+  display: block;
+  height: 100%;
+  background: var(--terracotta);
+  transition: width .25s ease;
+}
+
+.manual-cabecera {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 11px;
+  border-bottom: 1px solid var(--line);
+}
+
+.manual-etiqueta,
+.manual-posicion {
+  flex: 1;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.manual-volver,
+.manual-plegar,
+.manual-cerrar,
+.manual-enlace {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.manual-volver:hover,
+.manual-plegar:hover,
+.manual-cerrar:hover,
+.manual-enlace:hover {
+  color: var(--ink);
+}
+
+.manual-volver {
+  font-weight: 700;
+}
+
+.manual-cerrar {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.manual-enlace {
+  color: var(--terracotta);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* El cuerpo es lo único que se desplaza: la cabecera y los botones de avance quedan a la vista. */
+.manual-cuerpo {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px 16px 18px;
+}
+
+.manual-cuerpo h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.18;
+}
+
+.manual-ruta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0 0;
+  flex-wrap: wrap;
+}
+
+.manual-ruta code {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.manual-sin-datos {
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.manual-bloque {
+  margin-top: 17px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.manual-bloque h3 {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.manual-bloque p,
+.manual-bloque li {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.manual-bloque p {
+  margin: 0;
+}
+
+.manual-bloque ul {
+  margin: 0;
+  padding-left: 17px;
+}
+
+.manual-bloque li + li {
+  margin-top: 7px;
+}
+
+/* Lo que mide se distingue del resto: es el bloque que más se lee y el que más se malinterpreta. */
+.manual-bloque.es-medicion {
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--soft);
+}
+
+.manual-bloque.es-medicion h3 {
+  color: var(--terracotta);
+}
+
+.manual-matiz {
+  margin: -3px 0 7px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.manual-otro-lado {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  text-align: left;
+  cursor: pointer;
+}
+
+.manual-otro-lado:hover {
+  border-color: var(--terracotta);
+}
+
+.manual-otro-lado strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.manual-otro-lado small,
+.manual-flujos small,
+.manual-todo small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.manual-bloque.es-retroalimentacion textarea {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.manual-acciones {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+  flex-wrap: wrap;
+}
+
+.manual-anotado {
+  display: grid;
+  gap: 5px;
+  justify-items: start;
+}
+
+.manual-anotado em {
+  color: var(--ink);
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.manual-bloque.es-final {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--terracotta);
+  border-radius: var(--radius-md);
+}
+
+.manual-aviso {
+  margin: 9px 0 0;
+  color: var(--terracotta);
+  font-size: 12px;
+}
+
+.manual-pie {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.manual-pie .btn {
+  flex: 1;
+}
+
+/* La portada: elegir antes de ver nada. */
+.manual-intro {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.manual-flujos {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.manual-flujos li + li {
+  margin-top: 7px;
+}
+
+.manual-flujos button,
+.manual-todo {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  text-align: left;
+  cursor: pointer;
+}
+
+.manual-flujos button:hover,
+.manual-todo:hover {
+  border-color: var(--terracotta);
+  background: var(--soft);
+}
+
+.manual-flujo-nombre {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.manual-tilde {
+  color: var(--terracotta);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.manual-flujos em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.manual-todo {
+  margin-top: 14px;
+  border-style: dashed;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.manual-reabrir {
+  position: fixed;
+  z-index: 1500;
+  right: 18px;
+  bottom: 18px;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: 0 6px 20px rgb(21 19 23 / 12%);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/*
+ * En pantalla angosta el panel pasa al pie y se puede plegar a su cabecera.
+ *
+ * Al costado no cabe sin dejar la aplicación en una columna ilegible, así que abajo ocupa como
+ * mucho dos tercios de la pantalla y se pliega cuando lo que hace falta es mirar la vista.
+ */
+@media (max-width: 900px) {
+  body:has(.manual-panel) {
+    padding-right: 0;
+  }
+
+  /*
+   * Sólo el panel de una vista le deja hueco al documento.
+   *
+   * La portada y el desvío no explican nada de lo que hay detrás —se está eligiendo, no mirando—,
+   * y reservarles la mitad de la pantalla dejaría la aplicación en una franja inútil.
+   */
+  body:has(.manual-panel.es-lateral) {
+    padding-bottom: calc(var(--manual-alto, 320px) + 10px);
+  }
+
+  body:has(.manual-panel) .settings-save-bar,
+  body:has(.manual-panel) .crm-bulk-bar,
+  body:has(.manual-panel) .toast-container {
+    right: 16px;
+  }
+
+  body:has(.manual-panel) .settings-save-bar,
+  body:has(.manual-panel) .crm-bulk-bar {
+    bottom: calc(var(--manual-alto, 320px) + 14px);
+    left: 16px;
+  }
+
+  .manual-panel {
+    top: auto;
+    width: auto;
+    max-height: 78vh;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    box-shadow: 0 -8px 28px rgb(21 19 23 / 12%);
+  }
+
+  /* Explicando una vista, el panel se queda con la mitad: la otra mitad es lo que hay que mirar. */
+  .manual-panel.es-lateral {
+    max-height: 52vh;
+  }
+
+  .manual-panel.esta-plegado .manual-cuerpo,
+  .manual-panel.esta-plegado .manual-pie {
+    display: none;
+  }
+
+  .manual-cuerpo h2 {
+    font-size: 19px;
+  }
+}
+
+/* En pantalla ancha no hay nada que plegar: el panel no le quita alto a la vista. */
+@media (min-width: 901px) {
+  .manual-plegar {
+    display: none;
+  }
+}
