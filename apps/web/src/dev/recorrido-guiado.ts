@@ -127,13 +127,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/crm/pipeline',
     titulo: 'El avance del embudo',
     flujos: ['comercial'],
-    rol: 'commercial_director',
+    rol: 'dev',
     queVes: 'Las mismas etapas, pero mirando el movimiento: qué entró, qué avanzó y qué sigue donde estaba.',
     porQueExiste: 'El tablero dice dónde está cada trato hoy. Esta vista dice si se están moviendo, que es otra pregunta y la que importa a fin de mes.',
     queHace: [
       'Las etapas y su orden salen de la misma configuración que el tablero: cambiarlas en un sitio las cambia en los dos.',
     ],
     comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección comercial, que es quien la usará, le responde «no tienes acceso».',
       'Un embudo con mucho en las primeras etapas y poco al final puede ser un mes bueno que empieza o uno malo que ya se decidió. La diferencia la da compararlo con el mes anterior, no la foto.',
     ],
   },
@@ -160,7 +161,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/crm/opportunities',
     titulo: 'Las oportunidades',
     flujos: ['comercial'],
-    rol: 'commercial_director',
+    rol: 'dev',
     queVes: 'Los tratos que ya tienen forma: qué servicio, por cuánto, con qué fecha de cierre esperada.',
     porQueExiste: 'Un prospecto interesado y un trato con propuesta sobre la mesa no se trabajan igual. Separarlos evita que lo serio se pierda entre lo que todavía es una conversación.',
     queHace: [
@@ -168,6 +169,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Lleva fecha de cierre esperada y etapa propias, aparte de las del prospecto.',
     ],
     comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección comercial, que es quien la usará, le responde «no tienes acceso».',
       'El cierre esperado ponderado no es una previsión de caja: es la misma lista castigada según cuánta confianza da cada etapa. Sirve para comparar un mes con otro, no para prometerle un número a nadie.',
     ],
   },
@@ -274,13 +276,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/onboarding',
     titulo: 'La puesta en marcha',
     flujos: ['comercial'],
-    rol: 'admin',
+    rol: 'dev',
     queVes: 'La lista de pasos para dejar operando a un cliente nuevo, con lo hecho y lo que falta.',
     porQueExiste: 'La puesta en marcha se hacía de memoria y cada vez se olvidaba algo distinto. Lo que se olvida acá reaparece semanas después como «esto no funciona».',
     queHace: [
       'Los pasos están en el orden en que dependen unos de otros: los datos legales van antes que la página de reserva, porque publicar sin ellos lo rechaza el sistema.',
     ],
     comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
       'Es la misma lista que mira el cliente para saber en qué va lo suyo, así que cada paso está escrito para que lo entienda él y no el equipo.',
     ],
   },
@@ -342,7 +345,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/correos',
     titulo: 'Los correos del local',
     flujos: ['publicar'],
-    rol: 'operations_director',
+    rol: 'dev',
     queVes: 'Veinte plantillas de correo editables, cada una para un momento: confirmación, recordatorio, cambio, cancelación, invitación a la encuesta, cupón.',
     porQueExiste: 'El correo es casi todo el contacto del local con el comensal después de reservar. Si lo escribe el sistema con palabras genéricas, el local suena como un software.',
     queHace: [
@@ -352,6 +355,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Si un ajuste no responde, el correo sale con el texto de fábrica del mismo catálogo, no vacío.',
     ],
     comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección de operaciones, que es quien la usará, le responde «no tienes acceso».',
       'La vista previa de la maqueta genera el HTML con el mismo código que arma el correo real, así que lo que se ve acá es lo que llegaría.',
     ],
   },
@@ -359,9 +363,13 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/integrations',
     titulo: 'La medición de la publicidad',
     flujos: ['publicar', 'resultados'],
-    rol: 'operations_director',
+    rol: 'dev',
     queVes: 'El centro de medición: la conexión con Meta, el pixel que atribuye reservas a la publicidad y la biblioteca de imágenes.',
     porQueExiste: 'Sin esto, el local paga publicidad y no sabe cuántas reservas trajo.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección de operaciones, que es quien la usará, le responde «no tienes acceso».',
+      'Sin datos de muestra: se mira la estructura.',
+    ],
     queHace: [
       'El pixel se asigna por empresa, y la pantalla lista cuáles son elegibles.',
       'Hay un estado de salud de la conexión, aparte de la conexión misma.',
@@ -658,7 +666,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/campanas',
     titulo: 'El envío masivo',
     flujos: ['volver'],
-    rol: 'operations_director',
+    rol: 'dev',
     queVes: 'Las campañas de correo a la audiencia del local, con su avance y su resultado.',
     porQueExiste: 'Es lo que convierte una lista de comensales en gente que vuelve. Y es donde más fácil se infringe la ley, así que el sistema lo acota.',
     queHace: [
@@ -668,6 +676,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Se puede medir el retorno de una campaña.',
     ],
     comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección de operaciones, que es quien la usará, le responde «no tienes acceso».',
       'El retorno se cuenta en reservas, no en aperturas: una campaña muy abierta que no llenó una mesa no sirvió de nada.',
     ],
   },
@@ -704,7 +713,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/production',
     titulo: 'La cadena de producción',
     flujos: ['producir'],
-    rol: 'creative_director',
+    rol: 'dev',
     queVes: 'Todo el trabajo en curso: quién lo hace, de qué depende, para cuándo y en qué va.',
     porQueExiste: 'La capacidad del equipo es el límite real de la agencia. Sin verla, se promete lo que no se puede entregar y se descubre el día del vencimiento.',
     queHace: [
@@ -713,6 +722,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Las correcciones son una etapa de la cadena, no un estado aparte.',
     ],
     comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección creativa, que es quien la usará, le responde «no tienes acceso».',
       'Capacidad contra carga no mide productividad: mide cuánto más se puede aceptar sin incumplir lo ya prometido.',
     ],
   },
@@ -720,10 +730,13 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/production/visual-pieza',
     titulo: 'Una pieza por dentro',
     flujos: ['producir'],
-    rol: 'creative_director',
+    rol: 'dev',
     muestra: 'parcial',
     queVes: 'El detalle de un trabajo: su estado, sus fechas, de qué depende y lo que se ha comentado sobre él.',
     porQueExiste: 'La discusión sobre una pieza acababa en un chat aparte del trabajo. Lo que se decidió sobre ella tiene que vivir con ella.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección creativa, que es quien la usará, le responde «no tienes acceso».',
+    ],
     queHace: [
       'Lleva un hilo de comentarios atado a la pieza.',
       'Muestra sus dependencias y sus fechas en la misma pantalla que su avance.',
@@ -745,9 +758,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/meetings',
     titulo: 'Las reuniones y sus acuerdos',
     flujos: ['producir'],
-    rol: 'creative_director',
+    rol: 'dev',
     queVes: 'Las reuniones con el cliente, con su acta: decisiones y acuerdos, no un relato de lo que se habló.',
     porQueExiste: 'Lo acordado en una reunión y no escrito se vuelve a discutir en la siguiente.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección creativa, que es quien la usará, le responde «no tienes acceso».',
+    ],
     queHace: [
       'Las decisiones y acuerdos van en su propio campo, aparte de las notas.',
       'El estado distingue programada, completada y cancelada.',
@@ -860,9 +876,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/reports',
     titulo: 'El informe mensual',
     flujos: ['resultados'],
-    rol: 'admin',
+    rol: 'dev',
     queVes: 'Lo que se le entrega al cliente cada mes, armado con los datos del mes.',
     porQueExiste: 'El informe se hacía a mano copiando cifras de varias pantallas a una presentación. Ahí es donde se cometen los errores que el cliente sí nota.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
+    ],
     queHace: [
       'Los informes se guardan por empresa y por periodo: se puede volver a abrir el de un mes anterior.',
       'Las cifras se toman de los módulos, no se escriben a mano.',
@@ -872,7 +891,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/direction',
     titulo: 'Lo que todavía no se mide',
     flujos: ['resultados'],
-    rol: 'admin',
+    rol: 'dev',
     queVes: 'La pantalla de dirección, declarando qué métricas aún no tienen fuente de datos.',
     porQueExiste: 'Es una decisión del producto: una métrica sin instrumentación se marca como pendiente en vez de estimarse. Un número inventado contamina todas las decisiones que se toman con él.',
     queHace: [
@@ -880,6 +899,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Una métrica corregida se señala como tal.',
     ],
     comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección, que es quien la usará, le responde «no tienes acceso».',
       'Es la pantalla que mejor explica el criterio de la casa: no inventamos lo que aún no se mide.',
     ],
   },
@@ -1006,7 +1026,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/security',
     titulo: 'Privacidad y datos protegidos',
     flujos: ['gobierno'],
-    rol: 'admin',
+    rol: 'dev',
     queVes: 'El nivel de datos protegidos por módulo y por persona, y el registro de quién pidió ver una alergia.',
     porQueExiste: 'Una alergia o una dieta es un dato de salud. Que lo vea cualquiera es un problema legal, y que no lo vea nadie impide atender la mesa.',
     queHace: [
@@ -1015,6 +1035,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'El nivel más restrictivo gana cuando una petición alcanza a varias empresas.',
     ],
     comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
       'Bajo registro recorta lo mismo que oculto: la diferencia no es cuánto se ve, es que quede constancia de haberlo pedido.',
     ],
   },
@@ -1062,9 +1083,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/settings',
     titulo: 'La configuración',
     flujos: ['gobierno'],
-    rol: 'admin',
+    rol: 'dev',
     queVes: 'El índice de lo configurable: accesos y seguridad, correos, biblioteca de imágenes, datos de la agencia.',
     porQueExiste: 'Separar el ajuste del trabajo diario. Lo que se toca una vez al año no debe estar donde lo que se usa cada noche.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
+    ],
     queHace: [
       'Cada tarjeta lleva a su propia pantalla.',
       'Los ajustes de la agencia y los de una empresa atendida son juegos distintos.',
@@ -1091,14 +1115,16 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/catalog',
     titulo: 'El catálogo de servicios',
     flujos: ['enObra'],
-    rol: 'admin',
+    rol: 'dev',
     muestra: 'vacia',
     queVes: 'Los servicios que vende la agencia y los paquetes que los agrupan.',
     porQueExiste: 'Es de donde salen los contratos y las oportunidades. Sin un catálogo, cada propuesta inventa su propio nombre para lo mismo.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
+    ],
     queHace: [
       'Separa servicios sueltos de paquetes.',
     ],
-    comoSeLee: ['Sin datos de muestra: se mira la estructura.'],
   },
   {
     ruta: '/billing',
@@ -1148,34 +1174,43 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/operations',
     titulo: 'Estructura operativa',
     flujos: ['enObra'],
-    rol: 'operations_director',
+    rol: 'dev',
     muestra: 'vacia',
     queVes: 'La capacidad asignada y la carga por persona, con los ciclos mensuales y los objetivos.',
     porQueExiste: 'Es la vista con la que se decide si se puede tomar un cliente más, antes de prometerlo.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección de operaciones, que es quien la usará, le responde «no tienes acceso».',
+      'Sin datos de muestra: se mira la estructura.',
+    ],
     queHace: ['Cruza el equipo con su carga activa y con los objetivos del ciclo.'],
-    comoSeLee: ['Sin datos de muestra: se mira la estructura.'],
   },
   {
     ruta: '/knowledge',
     titulo: 'Base de conocimiento',
     flujos: ['enObra'],
-    rol: 'admin',
+    rol: 'dev',
     muestra: 'vacia',
     queVes: 'Lo que la agencia sabe y quiere no volver a explicar.',
     porQueExiste: 'El conocimiento de cómo se hacen las cosas vive en las personas que llevan más tiempo, y se va con ellas.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a el equipo, que es quien la usará, le responde «no tienes acceso».',
+      'Sin datos de muestra: se mira la estructura.',
+    ],
     queHace: ['Guarda artículos consultables por el equipo.'],
-    comoSeLee: ['Sin datos de muestra: se mira la estructura.'],
   },
   {
     ruta: '/gamification',
     titulo: 'Ranking del equipo',
     flujos: ['enObra'],
-    rol: 'admin',
+    rol: 'dev',
     muestra: 'vacia',
     queVes: 'El ranking interno y las disputas sobre su puntuación.',
     porQueExiste: 'Medir el trabajo del equipo con un puntaje sólo funciona si se puede reclamar. Las disputas son parte del diseño, no un añadido.',
+    comoSeLee: [
+      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
+      'Sin datos de muestra: se mira la estructura.',
+    ],
     queHace: ['Lleva un ranking y un registro de disputas sobre él.'],
-    comoSeLee: ['Sin datos de muestra: se mira la estructura.'],
   },
 ];
 

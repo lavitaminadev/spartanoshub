@@ -1000,7 +1000,14 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   [/\/auth\/refresh$/, () => ({ accessToken: syntheticJwt() })],
   [/\/auth\/login$/, () => ({ accessToken: syntheticJwt(), user: VISUAL_USER })],
   [/\/auth\/me$/, () => VISUAL_USER],
-  [/\/me\/permissions$/, () => ({ permissions: forEveryModule('manage') })],
+  /*
+   * El patrón admite la consulta: `auth.tsx` pide `/me/permissions?clientId=…` al mirar una empresa.
+   *
+   * Anclado en `$` la petición no casaba y caía en el vacío genérico, que trae `permissions: {}`.
+   * Un mapa de permisos vacío deniega todos los módulos, así que el portal del cliente respondía
+   * «no tienes acceso» en pantallas que sí tiene contratadas.
+   */
+  [/\/me\/permissions(?:\?|$)/, () => ({ permissions: forEveryModule('manage') })],
   [/\/auth\/logout$/, () => ({})],
   [/\/notifications\/unread/, () => ({ unread: visualNotifications.filter((item) => !item.read).length })],
   [/\/notifications\/[^/?]+\/read$/, (config) => {
@@ -1190,14 +1197,38 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
      */
     contacto: { sinContactar: 28, contactados: 14, horasAlPrimerContacto: 6.4 },
   })],
-  [/\/crm\/home$/, () => ({
+  [/\/crm\/home(?:\?|$)/, () => ({
     month: { leads: 42, ventas: 4, monto: 32400000 },
     urgentCount: 3,
     coolingDays: 7,
+    /*
+     * Cada aviso lleva `items`, que es lo que la pantalla recorre, además de `sample` y `level`.
+     *
+     * Con sólo `sample` la vista llamaba a `items.map` sobre un indefinido y el CRM entero caía en
+     * el aviso de error: la forma del ejemplo tiene que seguir a la de la vista, no a la que tuvo.
+     */
     alerts: [
-      { key: 'sin_contactar', count: 9, sample: { id: 'l1', name: 'Ricardo Galvez Lopez', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-20T02:15:20.674Z' } },
-      { key: 'sin_asignar', count: 3, sample: { id: 'l2', name: 'Fabiana Ibanez Escalona', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-19T02:15:20.676Z' } },
-      { key: 'calificados_sin_visita', count: 7, sample: { id: 'l3', name: 'Matias Cancino Caceres', source: 'Formulario web', campaignName: null, createdAt: '2026-08-15T02:15:20.676Z' } },
+      { key: 'sin_contactar', count: 9, level: 'critico',
+        items: [
+          { id: 'l1', name: 'Rodrigo Soto Lara', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-20T02:15:20.674Z' },
+          { id: 'l3', name: 'Matias Vega Cortes', source: 'Formulario web', campaignName: null, createdAt: '2026-08-14T02:15:20.676Z' },
+        ],
+        sample: { id: 'l1', name: 'Rodrigo Soto Lara', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-20T02:15:20.674Z' } },
+      { key: 'sin_asignar', count: 3, level: 'alto',
+        items: [
+          { id: 'l2', name: 'Francisca Rojas Pinto', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-17T02:15:20.676Z' },
+        ],
+        sample: { id: 'l2', name: 'Francisca Rojas Pinto', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-17T02:15:20.676Z' } },
+      { key: 'calificados_sin_visita', count: 7, level: 'alto',
+        items: [
+          { id: 'l5', name: 'Camila Herrera', source: 'Meta Ads', campaignName: 'Invierno', createdAt: '2026-07-31T02:15:20.676Z' },
+        ],
+        sample: { id: 'l5', name: 'Camila Herrera', source: 'Meta Ads', campaignName: 'Invierno', createdAt: '2026-07-31T02:15:20.676Z' } },
+    ],
+    recentLeads: [
+      { id: 'l1', name: 'Rodrigo Soto Lara', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-20T02:15:20.676Z' },
+      { id: 'l2', name: 'Francisca Rojas Pinto', source: 'Meta Ads', campaignName: 'Primavera', createdAt: '2026-08-17T02:15:20.676Z' },
+      { id: 'l4', name: 'Javiera Munoz', source: 'Referido', campaignName: null, createdAt: '2026-08-11T02:15:20.676Z' },
     ],
     team: [
       { userId: 'u1', name: 'Mathias Quintana', open: 14, uncontacted: 3, cooling: 2 },
@@ -1329,7 +1360,7 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
   // El listado se pide tanto con filtros (`?clientId=`) como sin query. Si sólo se
   // simulaba la primera variante, Administración aparecía vacía y no se podía revisar
   // el flujo completo aunque el local de ejemplo sí estaba definido arriba.
-  [/\/uploads\/images$/, (config) => {
+  [/\/uploads\/images(?:\?|$)/, (config) => {
     const file = config?.data instanceof FormData ? config.data.get('file') : null;
     const url = file instanceof Blob ? URL.createObjectURL(file) : '';
     return url ? { url, publicId: `visual/${Date.now()}` } : { url: '', publicId: '' };
@@ -1743,6 +1774,50 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     Object.assign(reserva, cambios, cambios.resourceId !== undefined ? { resourceId: String(cambios.resourceId) || undefined } : {});
     return { ...reserva };
   }],
+  /*
+   * «Qué ve esta persona», desde el equipo del local.
+   *
+   * Dice de dónde sale cada permiso antes que su nivel: lo del perfil, lo concedido aparte y lo
+   * quitado aparte se distinguen, que es lo que permite revisar una concesión sin adivinar.
+   */
+  [/\/perfiles\/que-ve\/[^/?]+/, () => ({
+    userId: 'u-anfitrion',
+    nombre: 'Valentina Soto',
+    correo: 'valentina@casacostanera.cl',
+    perfil: { id: 'perf-anfitrion', nombre: 'Anfitrión' },
+    sinPerfil: false,
+    asignadoPor: 'Ana Pérez',
+    areas: [
+      { clave: 'reservas.agenda', nombre: 'Agenda del día', modulo: 'reservations', nivel: 'hacer', origen: 'perfil', motivo: null, porQuien: null, venceEl: null },
+      { clave: 'reservas.cupones.cobrar', nombre: 'Cobrar cupones', modulo: 'reservations', nivel: 'hacer', origen: 'concedido', motivo: 'Cubre la caja los fines de semana', porQuien: 'Ana Pérez', venceEl: '2026-12-31T00:00:00Z' },
+      { clave: 'reservas.cupones.crear', nombre: 'Crear cupones', modulo: 'reservations', nivel: 'ninguno', origen: 'perfil', motivo: null, porQuien: null, venceEl: null },
+      { clave: 'marketing.audiencia', nombre: 'Audiencia del local', modulo: 'marketing', nivel: 'ninguno', origen: 'quitado', motivo: 'Pidió no tener acceso a datos de contacto', porQuien: 'Ana Pérez', venceEl: null },
+    ],
+    datosProtegidos: [
+      { modulo: 'reservations', nombre: 'Reservas', nivel: 'bajo_registro', incluyeSensibles: true },
+      { modulo: 'marketing', nombre: 'Marketing', nivel: 'oculto', incluyeSensibles: false },
+    ],
+    avisoDeExtrasGlobales: false,
+  })],
+  /*
+   * El historial de asistencia del comensal, que abre la ficha de una reserva.
+   *
+   * Sin respuesta propia, la vista recibe el vacío genérico: ahí `ultimas` no existe, la ficha lee
+   * su `length` y la pantalla entera cae en el aviso de error al pulsar «ver detalle».
+   */
+  [/\/reservations\/[^/?]+\/historial-del-comensal/, () => ({
+    conDesenlace: 4,
+    asistio: 3,
+    noAsistio: 1,
+    canceladas: 1,
+    proporcionNoShow: 0.25,
+    frase: 'Vino 3 de las 4 veces que reservó.',
+    ultimas: [
+      { id: 'h-1', startsAt: '2026-09-18T23:00:00Z', status: 'attended' },
+      { id: 'h-2', startsAt: '2026-08-02T22:30:00Z', status: 'no_show' },
+      { id: 'h-3', startsAt: '2026-06-14T23:00:00Z', status: 'attended' },
+    ],
+  })],
   [/\/reservations\/[^/?]+\/guest-history$/, () => ({
     total: 4,
     attended: 3,
@@ -2156,7 +2231,8 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
    * Sólo con la empresa elegida —\`?clientId=\`—: la encuesta es de cada empresa, y la vista general
    * tiene que decir que se elige empresa primero.
    */
-  [/\/settings(\/correos)?\?clientId=[^&]+$/, (config) => correosDeLaEmpresa([
+  /* Sin anclar al final: la pantalla de correos de una reserva añade `&formId=` tras la empresa. */
+  [/\/settings(\/correos)?\?clientId=/, (config) => correosDeLaEmpresa([
     ...ajustesDeCorreo('client'),
     { key: 'email.post_visit_survey_enabled', label: 'Encuesta después de la visita', description: 'Unas horas después de una reserva asistida.', valueType: 'boolean', value: true, source: 'client' },
     { key: 'email.post_visit_survey_id', label: 'Encuesta después de la visita · encuesta', description: 'Qué encuesta se envía.', valueType: 'text', value: 'visual-survey', source: 'client' },
