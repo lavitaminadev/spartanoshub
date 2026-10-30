@@ -50,4 +50,7 @@ __exportStar(require("./campos-personalizados"), exports);
 __exportStar(require("./areas"), exports);
 __exportStar(require("./catalogo-de-rubros"), exports);
 __exportStar(require("./datos-protegidos"), exports);
+__exportStar(require("./marca"), exports);
+__exportStar(require("./plantilla-de-correo"), exports);
+__exportStar(require("./muestra-de-correo"), exports);
 //# sourceMappingURL=index.js.map

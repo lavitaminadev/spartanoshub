@@ -34,4 +34,7 @@ export * from './campos-personalizados';
 export * from './areas';
 export * from './catalogo-de-rubros';
 export * from './datos-protegidos';
+export * from './marca';
+export * from './plantilla-de-correo';
+export * from './muestra-de-correo';
 //# sourceMappingURL=index.d.ts.map

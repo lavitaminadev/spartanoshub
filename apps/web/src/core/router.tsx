@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { RedireccionDeCanal } from '../shared/EnlaceDeCanal';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
 import { ClientRoute } from './ClientRoute';
@@ -113,9 +113,34 @@ function LoginRoute() {
   return <SafeSuspense><LoginPage /></SafeSuspense>;
 }
 
+/*
+ * La maqueta compartible enruta por el fragmento; la aplicación, por la ruta.
+ *
+ * `BrowserRouter` necesita que el servidor devuelva el index para cualquier ruta, y la maqueta
+ * se publica como archivos estáticos sin esa regla: un enlace a `/reservations` o una recarga
+ * darían 404. Con el fragmento, cada pantalla tiene una dirección que se puede pegar y que
+ * sobrevive a recargar. `?rol=` sigue leyéndose de la consulta, antes del `#`.
+ */
+const Enrutador = import.meta.env.PROD && import.meta.env.VITE_VISUAL === '1' ? HashRouter : BrowserRouter;
+
+/*
+ * El recorrido guiado, sólo en el modo visual.
+ *
+ * Va dentro del enrutador y fuera de `Routes` porque tiene que acompañar también a las pantallas
+ * públicas —la página de reserva y la encuesta—, que viven fuera del armazón de la aplicación.
+ *
+ * La condición es constante en cualquier compilación que no sea la maqueta, así que el empaquetador
+ * elimina el componente y su hoja de estilos: en producción no viaja nada de esto.
+ */
+const EN_MODO_VISUAL = import.meta.env.VITE_VISUAL === '1';
+const RecorridoGuiado = EN_MODO_VISUAL
+  ? lazy(() => import('../dev/RecorridoGuiado').then((m) => ({ default: m.RecorridoGuiado })))
+  : null;
+
 export function AppRouter() {
   return (
-    <BrowserRouter>
+    <Enrutador>
+      {RecorridoGuiado && <Suspense fallback={null}><RecorridoGuiado /></Suspense>}
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/forgot-password" element={<SafeSuspense><ForgotPasswordPage /></SafeSuspense>} />
@@ -246,7 +271,7 @@ export function AppRouter() {
         <Route path="/404" element={<NotFoundPage />} />
         <Route path="*" element={<Navigate to="/404" replace />} />
       </Routes>
-    </BrowserRouter>
+    </Enrutador>
   );
 }
 

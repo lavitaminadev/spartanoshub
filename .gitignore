@@ -48,3 +48,6 @@ diagnostico-permisos.txt
 # ni siquiera por descuido. Se corre con `node scripts/local/demo.cjs`.
 scripts/local/demo.cjs
 auditoria-main/
+
+# La maqueta compartible se compila a demanda; no se versiona.
+apps/web/dist-maqueta/

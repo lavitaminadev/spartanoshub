@@ -561,3 +561,42 @@
   overflow: hidden;
   white-space: nowrap;
 }
+
+
+/*
+ * El resumen de cupones, sobre la tarjeta de cifra del sistema.
+ *
+ * Hereda de `.kpi-card` (`shared-kit.css`): fondo blanco, borde `--line`, la cifra en la
+ * tipografía de titulares y con cifras tabulares, que es lo que alinea los dígitos en columna.
+ * La jerarquía la da el tamaño, no un fondo oscuro: las dos de arriba miden el resultado y las
+ * cuatro de abajo piden una acción.
+ *
+ * El aviso usa `--amber-soft` y `--amber`, los tokens del sistema. Antes estaban escritos a mano
+ * y emparejados con `--lime`, que no es ámbar sino cian.
+ *
+ * Acotado a `.coupon-stats`: `reservation-metric-grid-four` la usan otras pantallas.
+ */
+.coupon-stats { display: grid; gap: 11px; margin-bottom: 16px; }
+.coupon-stats article { display: grid; gap: 3px; padding: 15px 17px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); }
+.coupon-stats span { color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.coupon-stats strong { color: var(--ink); font-family: var(--font-display); font-weight: 500; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.coupon-stats small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+
+.cupon-resumen-destacado { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; }
+.cupon-resumen-destacado article { padding: 19px 21px; }
+.cupon-resumen-destacado strong { font-size: 34px; }
+.cupon-resumen-destacado small { font-size: 11px; }
+
+.cupon-resumen-atencion { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; }
+.cupon-resumen-atencion strong { font-size: 20px; }
+
+/* Lo que pide una acción se marca; lo que está en orden no grita. */
+.cupon-resumen-atencion article.pide-atencion { border-color: var(--amber); background: var(--amber-soft); }
+.cupon-resumen-atencion article.pide-atencion strong { color: var(--amber-deep); }
+.cupon-resumen-atencion article.pide-atencion small { color: var(--amber-deep); }
+
+@media (max-width: 950px) { .cupon-resumen-atencion { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) {
+  .cupon-resumen-destacado, .cupon-resumen-atencion { grid-template-columns: 1fr; }
+  .cupon-resumen-destacado strong { font-size: 28px; }
+}

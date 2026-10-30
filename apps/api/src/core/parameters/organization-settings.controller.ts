@@ -11,7 +11,7 @@ import { Repository } from 'typeorm';
 import { User } from '../../modules/users/user.entity';
 import { componerCorreo } from '../notifications/plantilla-de-correo';
 import { revisarFirmaDelDominio } from '../notifications/firma-del-dominio';
-import { MUESTRA } from './muestra-de-correo';
+import { MUESTRA } from '@espartanos/shared';
 import { UserRole } from '../../modules/organizations/user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { UpdateOrganizationSettingsDto } from './dto/update-organization-settings.dto';
