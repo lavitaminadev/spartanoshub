@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RECORRIDO, FLUJOS, ORDEN_COMPLETO, pasosDelFlujo, type SaltoDePerspectiva } from './recorrido-guiado';
 import {
-  claveDelPaso, componerInforme, entregarInforme, guardarObservacion,
-  leerObservaciones, leerVistas, marcarVista, type Observacion,
+  claveDelPaso, componerInforme, componerResumen, entregarInforme,
+  guardarObservacion, leerObservaciones, leerVistas, marcarVista, type Observacion,
 } from './observaciones-de-la-maqueta';
+import { guardarEnLaNube, hayDondeGuardar } from './nube-de-la-maqueta';
+import { enviarObservaciones } from './envio-de-observaciones';
 import './recorrido-guiado.css';
 
 /**
@@ -28,6 +30,7 @@ const CLAVE_POSICION = 'espartanos.modo-visual.posicion';
 const CLAVE_OCULTO = 'espartanos.modo-visual.panel-oculto';
 const CLAVE_DESVIO = 'espartanos.modo-visual.desvio';
 const CLAVE_PLEGADO = 'espartanos.modo-visual.panel-plegado';
+const CLAVE_NOMBRE = 'espartanos.maqueta.nombre-de-quien-revisa';
 
 const ROL_POR_OMISION = 'admin';
 const EMPRESA_POR_OMISION = 'visual-client';
@@ -92,12 +95,28 @@ export function RecorridoGuiado() {
   const [borrador, setBorrador] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
   const [entregado, setEntregado] = useState<string | null>(null);
+  /*
+   * El nombre se pide una vez y se recuerda.
+   *
+   * Un comentario sin autor no se puede responder ni contrastar, y volver a pedirlo en cada envío
+   * hace que la segunda tanda llegue sin él.
+   */
+  const [nombre, setNombre] = useState(() => {
+    try { return window.localStorage.getItem(CLAVE_NOMBRE) ?? ''; } catch { return ''; }
+  });
+  const [correo, setCorreo] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [mostrarEnvio, setMostrarEnvio] = useState(false);
+  /** Si esta vista puede dejar lo anotado en el artefacto, sin que nadie tenga que enviarlo. */
+  const [enLaNube, setEnLaNube] = useState(false);
   const panel = useRef<HTMLElement>(null);
 
   /* Lo anotado vive en el navegador, que no existe hasta que el componente está montado. */
   useEffect(() => {
     setObservaciones(leerObservaciones());
     setVistas(leerVistas());
+    /* Se pregunta después de pintar: la respuesta tarda y el panel no debe esperarla. */
+    void hayDondeGuardar().then(setEnLaNube);
   }, []);
 
   const orden = useMemo(() => (flujo === 'todo' ? ORDEN_COMPLETO : flujo ? pasosDelFlujo(flujo) : []), [flujo]);
@@ -218,17 +237,51 @@ export function RecorridoGuiado() {
   }, [posicion, flujo, irA, oculto, desvio]);
 
   const anotar = useCallback((estado: 'ok' | 'nota') => {
-    setObservaciones(guardarObservacion(clave, estado, estado === 'nota' ? borrador : undefined));
+    const texto = estado === 'nota' ? borrador : undefined;
+    const mapa = guardarObservacion(clave, estado, texto);
+    setObservaciones(mapa);
     setEscribiendo(false);
+    /* El navegador ya la tiene; la base es un extra que no debe hacer esperar a nadie. */
+    void guardarEnLaNube(clave, mapa[clave]);
   }, [clave, borrador]);
 
-  const enviarObservaciones = useCallback(async () => {
-    const informe = componerInforme(FLUJOS, RECORRIDO);
-    const resultado = await entregarInforme(informe);
+  const enviar = useCallback(async () => {
+    if (!nombre.trim()) return;
+    try { window.localStorage.setItem(CLAVE_NOMBRE, nombre.trim()); } catch { /* sin almacenamiento */ }
+    setEnviando(true);
+    setEntregado(null);
+    const { asunto } = componerResumen(RECORRIDO);
+    const resultado = await enviarObservaciones(nombre.trim(), correo, asunto, componerInforme(FLUJOS, RECORRIDO));
+    setEnviando(false);
+    setEntregado(resultado.mensaje);
+  }, [nombre, correo]);
+
+  /* El archivo, para cuando el envío no sale: lo anotado no se pierde por no tener red. */
+  const descargar = useCallback(async () => {
+    const resultado = await entregarInforme(componerInforme(FLUJOS, RECORRIDO));
     setEntregado(resultado === 'copiado'
       ? 'Copiado al portapapeles y descargado como archivo.'
       : 'Descargado como archivo.');
   }, []);
+
+  const formularioDeEnvio = <div className="manual-envio">
+    <label>
+      Tu nombre
+      <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Para saber quién lo dice" />
+    </label>
+    <label>
+      Tu correo <small>(opcional, para poder responderte)</small>
+      <input value={correo} onChange={(e) => setCorreo(e.target.value)} type="email" placeholder="nombre@ejemplo.cl" />
+    </label>
+    <div className="manual-acciones">
+      <button type="button" className="btn btn-primary btn-sm" disabled={enviando || nombre.trim().length === 0} onClick={() => void enviar()}>
+        {enviando ? 'Enviando…' : 'Enviar al equipo'}
+      </button>
+      <button type="button" className="manual-enlace" onClick={() => void descargar()}>Descargar el archivo</button>
+    </div>
+    {enLaNube && <p className="manual-matiz">Además queda guardado en el artefacto según lo vas anotando.</p>}
+    {entregado && <p className="manual-aviso">{entregado}</p>}
+  </div>;
 
   const conNota = Object.values(observaciones).filter((o) => o.estado === 'nota').length;
 
@@ -301,15 +354,16 @@ export function RecorridoGuiado() {
         </button>
       </div>
       <footer className="manual-pie">
-        <button type="button" className="btn btn-outline btn-sm" onClick={enviarObservaciones}>
-          Enviar observaciones{conNota > 0 ? ` (${conNota})` : ''}
-        </button>
-        <button
-          type="button"
-          className="manual-enlace"
-          onClick={() => { guardar(CLAVE_OCULTO, '1'); setOculto(true); }}
-        >Mirar por mi cuenta</button>
-        {entregado && <p className="manual-aviso">{entregado}</p>}
+        {mostrarEnvio ? formularioDeEnvio : <>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => setMostrarEnvio(true)}>
+            Enviar observaciones{conNota > 0 ? ` (${conNota})` : ''}
+          </button>
+          <button
+            type="button"
+            className="manual-enlace"
+            onClick={() => { guardar(CLAVE_OCULTO, '1'); setOculto(true); }}
+          >Mirar por mi cuenta</button>
+        </>}
       </footer>
     </aside>;
   }
@@ -416,11 +470,11 @@ export function RecorridoGuiado() {
         </p>
         <div className="manual-acciones">
           <button type="button" className="btn btn-primary btn-sm" onClick={volverALaPortada}>Elegir otro flujo</button>
-          <button type="button" className="btn btn-outline btn-sm" onClick={enviarObservaciones}>
+          {!mostrarEnvio && <button type="button" className="btn btn-outline btn-sm" onClick={() => setMostrarEnvio(true)}>
             Enviar observaciones{conNota > 0 ? ` (${conNota})` : ''}
-          </button>
+          </button>}
         </div>
-        {entregado && <p className="manual-aviso">{entregado}</p>}
+        {mostrarEnvio && formularioDeEnvio}
       </section>}
     </div>
 

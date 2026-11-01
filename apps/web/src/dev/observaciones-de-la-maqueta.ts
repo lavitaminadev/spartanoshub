@@ -116,6 +116,37 @@ export function componerInforme(
   return lineas.join('\n');
 }
 
+/**
+ * El informe recortado a lo que alguien escribió, para que quepa en un correo o un mensaje.
+ *
+ * El informe completo lista también las vistas sin abrir, que son útiles en un archivo y ruido en
+ * el cuerpo de un correo. Y una dirección `mailto` larga la recortan algunos clientes sin avisar:
+ * lo que no cabe se pierde en silencio, así que acá va sólo lo que el revisor dijo.
+ */
+export function componerResumen(
+  pasos: { ruta: string; titulo: string }[],
+): { asunto: string; cuerpo: string } {
+  const observaciones = leerObservaciones();
+  const lineas: string[] = [];
+  let conNota = 0;
+
+  for (const paso of pasos) {
+    const o = observaciones[claveDelPaso(paso)];
+    if (!o) continue;
+    if (o.estado === 'ok') { lineas.push(`• ${paso.titulo}: sin observaciones`); continue; }
+    conNota += 1;
+    lineas.push(`• ${paso.titulo} (${paso.ruta}):`, `  ${o.texto ?? 'con observación'}`);
+  }
+
+  const vistas = Object.keys(leerVistas()).length;
+  return {
+    asunto: `Revisión de la maqueta: ${conNota} ${conNota === 1 ? 'observación' : 'observaciones'}`,
+    cuerpo: lineas.length === 0
+      ? 'Revisé la maqueta y no anoté nada todavía.'
+      : [`Revisé ${vistas} de ${pasos.length} vistas.`, '', ...lineas].join('\n'),
+  };
+}
+
 /** Deja el informe en el portapapeles y además lo descarga, porque uno de los dos puede fallar. */
 export async function entregarInforme(texto: string): Promise<'copiado' | 'descargado'> {
   let copiado = false;

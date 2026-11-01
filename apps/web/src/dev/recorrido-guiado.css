@@ -269,6 +269,37 @@ body:has(.manual-panel) .toast-container {
   border-radius: var(--radius-md);
 }
 
+/* El envío: dos campos y los botones, dentro del pie o del cierre de un flujo. */
+.manual-envio {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+}
+
+.manual-envio label {
+  display: grid;
+  gap: 3px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.manual-envio label small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.manual-envio input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
 .manual-aviso {
   margin: 9px 0 0;
   color: var(--terracotta);
