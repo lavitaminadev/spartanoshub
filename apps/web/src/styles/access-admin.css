@@ -163,3 +163,18 @@
 .solicitud-plazo.es-a-tiempo { background: var(--soft); color: var(--muted); }
 .solicitud-plazo.es-por-vencer { background: #fff4d6; color: #6b4d00; }
 .solicitud-plazo.es-vencida { background: var(--danger-bg, #fde8e8); color: var(--danger-deep, #9b1c1c); }
+
+/* Una celda concedida que todavia no rige: la cierra antes la fase o el interruptor. */
+.matrix-cell.celda-no-rige { position: relative; }
+.matrix-cell.celda-no-rige .level-select { opacity: .55; }
+.celda-aviso {
+  display: block;
+  margin-top: 3px;
+  color: var(--terracotta);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: help;
+}

@@ -73,6 +73,7 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
     crm: 'manage',
     reservations: 'edit',
     commercialPipeline: 'manage',
+    automations: 'manage',
     catalog: 'manage',
     contracts: 'manage',
     billing: 'manage',

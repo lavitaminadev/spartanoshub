@@ -127,7 +127,28 @@ export function EquipoYAccesos() {
   const deferredSearch = useDeferredValue(search.trim());
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [clientFilter, setClientFilter] = useState('');
+  /*
+   * El filtro por empresa nace de la elegida en el marco.
+   *
+   * Quien venía administrando un local y entra acá lo ve ya acotado a ese local. Sigue siendo un
+   * filtro propio —acá se limpia junto a los demás, y el vacío lista a todo el equipo— pero deja
+   * de arrancar en blanco cada vez.
+   */
+  /*
+    La empresa sobre la que se administra viaja en cada petición.
+
+    Sin ella, el servidor usaba la de la sesión: cambiar de local en el menú dejaba esta
+    pantalla con el equipo del anterior, y se creaban cuentas en la empresa equivocada.
+  */
+  const empresaActiva = useEmpresaActiva();
+  /*
+   * El filtro por empresa nace de la elegida en el marco.
+   *
+   * Quien venía administrando un local y entra acá lo ve ya acotado a ese local. Sigue siendo un
+   * filtro propio —se limpia junto a los demás, y el vacío lista a todo el equipo— pero deja de
+   * arrancar en blanco cada vez.
+   */
+  const [clientFilter, setClientFilter] = useState(() => empresaActiva.clientId);
   const [form, setForm] = useState<UserFormState>(EMPTY_FORM);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
@@ -137,13 +158,6 @@ export function EquipoYAccesos() {
   const [creatingClient, setCreatingClient] = useState(false);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
   const [pendingBulkAccess, setPendingBulkAccess] = useState<{ rows: UserRow[]; isActive: boolean } | null>(null);
-  /*
-    La empresa sobre la que se administra viaja en cada petición.
-
-    Sin ella, el servidor usaba la de la sesión: cambiar de local en el menú dejaba esta
-    pantalla con el equipo del anterior, y se creaban cuentas en la empresa equivocada.
-  */
-  const empresaActiva = useEmpresaActiva();
   // Los servicios de la empresa que se está mirando, no los de la empresa de la cuenta: con los
   // de la cuenta, en el segundo local se repartían servicios que ese local no tiene contratados.
   const usuarioEnEmpresa = useUsuarioEnEmpresaActiva();

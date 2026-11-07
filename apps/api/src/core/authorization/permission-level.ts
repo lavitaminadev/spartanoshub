@@ -22,3 +22,15 @@ export function satisfies(granted: PermissionLevel, required: PermissionLevel): 
 export function isPermissionLevel(value: string): value is PermissionLevel {
   return (PERMISSION_LEVELS as readonly string[]).includes(value);
 }
+
+/**
+ * Recorta un nivel a otro, sin subirlo nunca.
+ *
+ * Sirve para los estados que limitan lo que se puede hacer con un módulo sin quitarlo de en
+ * medio —mantenimiento—: quien tenía `manage` pasa a mirar, y a quien ya sólo miraba no le
+ * cambia nada. Recortar no es lo mismo que fijar: fijar a `view` le daría lectura a quien no
+ * tenía ninguna.
+ */
+export function recortarNivel(granted: PermissionLevel, tope: PermissionLevel): PermissionLevel {
+  return PERMISSION_LEVELS.indexOf(granted) > PERMISSION_LEVELS.indexOf(tope) ? tope : granted;
+}

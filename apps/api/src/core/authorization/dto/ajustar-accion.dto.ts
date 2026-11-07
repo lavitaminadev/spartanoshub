@@ -1,8 +1,17 @@
-import { IsBoolean, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 /** Abrir (`true`) o cerrar (`false`) una acción para una persona. */
 export class AjustarAccionDto {
   @IsBoolean() allowed: boolean;
+
+  /**
+   * Empresa en la que rige. Omitida: en todas las que esa persona alcanza.
+   *
+   * No tiene valor por omisión a propósito. Quien concede ve el selector de empresa en la
+   * pantalla y lo que elija viaja acá; omitirla es decir «en todas», que es una decisión distinta
+   * y no el descuido de no haber elegido.
+   */
+  @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsString() @MaxLength(300) reason?: string;
 
   /**
