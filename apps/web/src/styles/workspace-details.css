@@ -43,6 +43,18 @@
 .client-ud-legend i.consumed { background: #096f6b; }
 .client-ud-legend b { color: var(--text-dark); font-size: 10px; }
 .client-panel-note { grid-column: 1/-1; margin: 15px 0 0; padding: 10px 12px; border-radius: var(--radius-md); background: var(--soft); color: var(--muted); font-size: 11px; }
+/* El libro de UD del mes: ocupa el ancho del panel, que es de dos columnas. */
+.client-ud-movimientos { grid-column: 1/-1; margin-top: 14px; }
+.client-ud-movimientos > summary { cursor: pointer; color: var(--muted); font-size: 11px; font-weight: 700; }
+.client-ud-movimientos ul { display: grid; gap: 7px; margin: 10px 0 0; padding: 0; list-style: none; }
+.client-ud-movimientos li { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 2px 10px; padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+.client-ud-movimientos li:last-child { padding-bottom: 0; border-bottom: 0; }
+/* Las unidades en su propia columna y tabulares: la lista se recorre de un vistazo. */
+.client-ud-movimientos li > span { grid-row: span 2; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.client-ud-movimientos li > span.ud-baja { color: var(--terracotta); }
+.client-ud-movimientos li > span.ud-sube { color: #0f6b4a; }
+.client-ud-movimientos li strong { color: var(--text-dark); font-size: 12px; }
+.client-ud-movimientos li small { color: var(--muted); font-size: 11px; }
 .client-quick-section { margin: 5px 0 24px; }
 .section-heading > p { color: var(--muted); font-size: 9px; }
 .client-quick-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 9px; }

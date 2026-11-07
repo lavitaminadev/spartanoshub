@@ -46,6 +46,7 @@ import { leerPlantilla } from '../../../core/parameters/plantilla-resuelta';
 import { AuditService } from '../../../core/audit/audit.service';
 import { MetaClientPixelService } from '../../integrations/meta/meta-client-pixel.service';
 import { AltaDeSuscriptorDesdeReserva } from '../../marketing/alta-desde-reserva';
+import { EstadoDeSuscripcion, Suscriptor } from '../../marketing/suscriptor.entity';
 import { origenDeCaptacion } from '../../marketing/origen-de-captacion';
 import { DestinatariosDeAvisosService } from '../../../core/notifications/destinatarios-de-avisos.service';
 import type { TipoDeAviso } from '../../../core/notifications/destinatario-de-avisos.entity';
@@ -249,6 +250,18 @@ export class ReservationsService {
     // Opcional porque una marca ausente no impide nada: el correo sale con la de la agencia
     // sola, que es como salia antes. Exigirla convertiria un adorno en un motivo de fallo.
     @Optional() private readonly marcas?: MarcaDeLaEmpresaService,
+    /*
+     * Los suscriptores, sólo para contarlos.
+     *
+     * Se lee y nunca se escribe desde acá: quien da de alta a alguien es `altaEnLaLista`, con su
+     * consentimiento y su IP. Esto existe para que la empresa pueda ver cuántas personas captó
+     * por sus reservas sin tener que contratar Marketing.
+     *
+     * `@Optional()` por la misma razón que `marcas`: va al final para no desplazar los
+     * argumentos posicionales de las pruebas, y detrás de uno opcional no puede ir uno exigido.
+     * La aplicación siempre lo inyecta; sin él, el resumen responde ceros en lugar de romper.
+     */
+    @Optional() @InjectRepository(Suscriptor) private readonly suscriptores?: Repository<Suscriptor>,
   ) {}
   private readonly logger = new Logger(ReservationsService.name);
 
@@ -2572,12 +2585,56 @@ export class ReservationsService {
    * La vista por local sigue existiendo para la agenda del dia. Esta es la que responde a
    * "que solicitudes tengo pendientes" cuando quien mira no sabe todavia de que local vienen.
    */
-  async listAllGroupRequests(organizationId: string, clientId?: string, clientIds?: string[], formId?: string) {
-    return this.groupRequests.find({
+  /**
+   * Devuelve una página y el total, no las primeras doscientas.
+   *
+   * Antes cortaba en doscientas y la pantalla escribía el largo de lo que había recibido: pasadas
+   * esas doscientas el contador decía menos de las que hay, con el mismo aspecto de cifra exacta.
+   * Con el total aparte, la pantalla puede decir cuántas hay y cuántas está mostrando.
+   */
+  async listAllGroupRequests(
+    organizationId: string,
+    clientId?: string,
+    clientIds?: string[],
+    formId?: string,
+    page = 1,
+    pageSize = 50,
+  ) {
+    const take = Math.min(Math.max(Math.trunc(pageSize) || 50, 1), 200);
+    const paginaActual = Math.max(Math.trunc(page) || 1, 1);
+    const [data, total] = await this.groupRequests.findAndCount({
       where: { ...this.scope(organizationId, clientId, clientIds), ...(formId ? { formId } : {}) },
       order: { createdAt: 'DESC' },
-      take: 200,
+      take,
+      skip: (paginaActual - 1) * take,
     });
+    return { data, total, page: paginaActual, pageSize: take, pages: Math.max(Math.ceil(total / take), 1) };
+  }
+
+  /**
+   * Los motivos de pérdida, contados sobre todas las solicitudes y no sobre una página.
+   *
+   * El panel que los dibuja calculaba los porcentajes con las filas que tenía a la vista, así que
+   * el motivo que más pesaba dependía de cuántas hubiera traído la consulta. Contar acá es lo que
+   * hace que esa comparación signifique algo.
+   */
+  async resumenDeGrupos(organizationId: string, clientId?: string, clientIds?: string[]) {
+    const where = this.scope(organizationId, clientId, clientIds);
+    const [convertidas, cerradas] = await Promise.all([
+      this.groupRequests.count({ where: { ...where, status: 'converted' } }),
+      this.groupRequests.find({ where: { ...where, status: 'closed' }, select: { id: true, closeReason: true } }),
+    ]);
+    const porMotivo = new Map<string, number>();
+    for (const solicitud of cerradas) {
+      if (!solicitud.closeReason) continue;
+      porMotivo.set(solicitud.closeReason, (porMotivo.get(solicitud.closeReason) ?? 0) + 1);
+    }
+    return {
+      convertidas,
+      cerradas: cerradas.length,
+      conMotivo: [...porMotivo.values()].reduce((suma, n) => suma + n, 0),
+      porMotivo: [...porMotivo.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })),
+    };
   }
 
   async listGroupRequests(organizationId: string, formId: string, clientId?: string, clientIds?: string[]) {
@@ -4460,6 +4517,46 @@ export class ReservationsService {
    * del cupón, estamos fuera de su horario— se muestran y se deja decidir a quien atiende, que
    * ve a la persona y sabe si corresponde hacer una excepción.
    */
+  /**
+   * A cuántas personas captadas por sus reservas puede escribirles esta empresa.
+   *
+   * Cada reserva cuyo formulario pide el consentimiento deja un suscriptor a nombre de la empresa,
+   * con el texto que la persona aceptó y su IP. Eso se registra **sin** comprobar si la empresa
+   * tiene Marketing contratado, y es deliberado: el consentimiento lo dio la persona y no se tira
+   * porque falte un contrato. Pero el dato existía a nombre de la empresa y ella no lo podía ver,
+   * de modo que captaba una lista que no era suya hasta que comprara el módulo.
+   *
+   * Esto es lo mínimo que le corresponde: **cuántos** hay y **desde cuándo**. No segmentos, ni
+   * campañas, ni plantillas —eso sigue siendo Marketing y se sigue vendiendo—, y tampoco los
+   * correos uno por uno, que salen por la exportación, con su registro de auditoría.
+   *
+   * @param clientId - La empresa. Sin ella no hay nada que contar: la lista de la agencia no es
+   * de ninguna empresa y no se asoma por acá.
+   */
+  async consentimientosDeReservas(organizationId: string, clientId: string) {
+    if (!this.suscriptores) return { suscritos: 0, pendientes: 0, bajas: 0, ultimos30: 0, desde: null };
+    const treintaDias = new Date(Date.now() - 30 * 86_400_000);
+    const base = { organizationId, clientId };
+    const [suscritos, pendientes, bajas, ultimos30, primero] = await Promise.all([
+      this.suscriptores.count({ where: { ...base, status: EstadoDeSuscripcion.SUSCRITO } }),
+      this.suscriptores.count({ where: { ...base, status: EstadoDeSuscripcion.PENDIENTE } }),
+      this.suscriptores.count({ where: { ...base, status: EstadoDeSuscripcion.BAJA } }),
+      this.suscriptores.count({ where: { ...base, status: EstadoDeSuscripcion.SUSCRITO, consentAt: MoreThan(treintaDias) } }),
+      this.suscriptores.findOne({ where: base, order: { consentAt: 'ASC' }, select: { consentAt: true } }),
+    ]);
+    return {
+      /** Personas a las que se les puede escribir hoy. Es la cifra que importa. */
+      suscritos,
+      /** Aceptaron pero falta confirmar el correo: todavía no se les puede escribir. */
+      pendientes,
+      /** Se dieron de baja. Va a la vista porque es la prueba de que la baja se respeta. */
+      bajas,
+      /** Cuántos de los suscritos llegaron en los últimos treinta días. */
+      ultimos30,
+      desde: primero?.consentAt ?? null,
+    };
+  }
+
   async buscarCuponPorCodigo(organizationId: string, codigo: string, clientIds?: string[]) {
     const coupon = await this.coupons.findOne({
       where: { organizationId, code: codigo.trim().toUpperCase() },
@@ -4532,7 +4629,7 @@ export class ReservationsService {
     organizationId: string,
     couponId: string,
     userId: string,
-    datos: { monto?: number; descuento?: number; persona?: string; nota?: string },
+    datos: { monto?: number; descuento?: number; persona?: string; nota?: string; reservationId?: string },
     clientIds?: string[],
   ) {
     const coupon = await this.coupons.findOne({ where: { id: couponId, organizationId } });
@@ -4541,6 +4638,22 @@ export class ReservationsService {
       throw new ForbiddenException('No tienes acceso a este cupón');
     }
     this.assertCanjeable(coupon);
+    /*
+     * La reserva que se adjunta tiene que ser de la empresa del cupón.
+     *
+     * Sin comprobarlo, un id cualquiera dejaría el canje atribuido a la visita de otro negocio, y
+     * los informes de los dos quedarían mal sin que nada lo dijera. Se responde 404 y no 403: que
+     * una reserva exista pero sea de otra empresa ya es información que no corresponde dar.
+     */
+    if (datos.reservationId) {
+      const reserva = await this.reservations.findOne({
+        where: { id: datos.reservationId, organizationId },
+        select: { id: true, clientId: true },
+      });
+      if (!reserva || !coupon.clientId || reserva.clientId !== coupon.clientId) {
+        throw new NotFoundException('Esa reserva no corresponde a la empresa de este cupón');
+      }
+    }
     return this.dataSource.transaction(async (manager) => {
       /*
        * Se relee con cerrojo dentro de la transacción.
@@ -4563,7 +4676,9 @@ export class ReservationsService {
         clientId: coupon.clientId ?? null,
         couponId: coupon.id,
         codigo: coupon.code,
-        reservationId: null,
+        // Nulo cuando llegó con el código sin haber reservado, que es el caso que este registro
+        // existe para poder anotar.
+        reservationId: datos.reservationId ?? null,
         canal: 'local',
         monto: datos.monto === undefined ? null : String(datos.monto),
         descuento: datos.descuento === undefined ? null : String(datos.descuento),

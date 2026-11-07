@@ -36,24 +36,51 @@ interface ClientOverview {
      */
     capabilities?: Partial<Record<string, boolean>>;
   };
+  /**
+   * Las cifras de los módulos que esta empresa tiene contratados.
+   *
+   * Una clave ausente es «no contratado» y el servidor no la manda; cero es «contratado y sin
+   * movimiento». Los formularios de reserva van siempre, porque Reservas nace encendido.
+   */
   stats: {
-    pendingPieces: number;
-    contentGrids: number;
-    meetings: number;
-    upcomingMeetings: number;
-    documents: number;
+    pendingPieces?: number;
+    contentGrids?: number;
+    meetings?: number;
+    upcomingMeetings?: number;
+    documents?: number;
     reservationForms: number;
     publishedForms: number;
-    contracts: number;
-    activeContracts: number;
-    briefs: number;
-    approvedBriefs: number;
+    contracts?: number;
+    activeContracts?: number;
+    briefs?: number;
+    approvedBriefs?: number;
   };
   ud: { contracted: number; reserved: number; consumed: number };
+  /** En qué se fueron las UD del mes. Con quién lo hizo: acá eso es información útil, no reparto. */
+  udMovements?: Array<{ date: string; type: string; units: number; piece: string | null; reason: string | null; actor: string | null }>;
   pieceStatuses: Array<{ status: string; total: number }>;
   recentPieces: Array<{ id: string; title: string; status: string; deadlineAt?: string; udAmount?: number }>;
   recentMeetings: Array<{ id: string; title: string; type: string; status: string; scheduledAt?: string }>;
 }
+
+/**
+ * Cómo se nombra cada movimiento de UD.
+ *
+ * Los nombres del motor —`consumption`, `release`— describen la operación. Estos describen lo que
+ * le pasó al presupuesto, que es lo que se busca al abrir la lista porque el total no cuadra.
+ */
+const MOVIMIENTOS_UD: Record<string, string> = {
+  budget_assigned: 'Presupuesto asignado',
+  reservation: 'Reservado para una pieza',
+  consumption: 'Pieza terminada',
+  release: 'Devuelto al presupuesto',
+  adjustment: 'Ajuste',
+  extra: 'Unidades extra',
+  rollover: 'Traspaso del mes anterior',
+};
+
+/** Las UD se guardan con dos decimales, pero los enteros se leen mejor sin el «,00». */
+const udTexto = (valor: number) => (Number.isInteger(valor) ? String(valor) : valor.toFixed(2).replace('.', ','));
 
 interface ManagerOption { id: string; name: string; role: string }
 interface DriveResult { rootId: string; rootUrl: string; folders: Record<string, string> }
@@ -126,6 +153,9 @@ export function ClientDetailPage() {
   }
 
   const { client, stats, ud, pieceStatuses, recentPieces, recentMeetings } = overviewQuery.data;
+  // Vacío mientras el servidor desplegado todavía no manda el libro: la lista no se dibuja y el
+  // resto del panel sigue igual.
+  const udMovements = overviewQuery.data.udMovements ?? [];
   const manager = managersQuery.data?.find((item) => item.id === client.communityManagerId)?.name;
   const availableUd = Math.max(0, ud.contracted - ud.reserved - ud.consumed);
   const usedUd = ud.reserved + ud.consumed;
@@ -173,11 +203,26 @@ export function ClientDetailPage() {
   const puedeAjustarUd = user?.role === 'admin' || user?.role === 'operations_director';
   const driveUrl = safeUrl(driveMutation.data?.rootUrl || (client.driveFolderId ? `https://drive.google.com/drive/folders/${client.driveFolderId}` : ''));
   const readiness = [
-    { label: 'Responsable operativo', ready: Boolean(client.communityManagerId), value: manager || (client.communityManagerId ? 'Asignado' : 'Pendiente') },
-    { label: 'Estructura Google Drive', ready: Boolean(client.driveFolderId || driveMutation.data), value: driveUrl ? 'Carpeta preparada' : 'Pendiente' },
-    { label: 'Contrato activo', ready: stats.activeContracts > 0, value: stats.activeContracts ? `${stats.activeContracts} activo` : 'Pendiente' },
-    { label: 'Brief aprobado', ready: stats.approvedBriefs > 0, value: stats.approvedBriefs ? `${stats.approvedBriefs} aprobado` : 'Pendiente' },
+    { label: 'Responsable operativo', aplica: true, ready: Boolean(client.communityManagerId), value: manager || (client.communityManagerId ? 'Asignado' : 'Pendiente') },
+    { label: 'Estructura Google Drive', aplica: true, ready: Boolean(client.driveFolderId || driveMutation.data), value: driveUrl ? 'Carpeta preparada' : 'Pendiente' },
+    /*
+     * Sin la capacidad contratada la señal no se exige, se declara como lo que es.
+     *
+     * Marcarla «Pendiente» acusaría a la cuenta de no tener un contrato cargado en un módulo que
+     * no se le vendió, y dejaría la preparación en 2/4 para siempre sin nada que hacer al
+     * respecto.
+     */
+    { label: 'Contrato activo', aplica: stats.activeContracts !== undefined, ready: (stats.activeContracts ?? 0) > 0, value: stats.activeContracts === undefined ? 'No contratado' : stats.activeContracts ? `${stats.activeContracts} activo` : 'Pendiente' },
+    { label: 'Brief aprobado', aplica: stats.approvedBriefs !== undefined, ready: (stats.approvedBriefs ?? 0) > 0, value: stats.approvedBriefs === undefined ? 'No contratado' : stats.approvedBriefs ? `${stats.approvedBriefs} aprobado` : 'Pendiente' },
   ];
+  /*
+   * La preparación se cuenta sobre lo que a esta empresa le toca.
+   *
+   * Contratos y Briefs se contratan por empresa. Contándolos siempre, una cuenta que no los tiene
+   * se quedaba en 2/4 para siempre, con dos señales en rojo que nadie podía resolver: la ficha
+   * decía «esta cuenta está a medio preparar» de algo que nunca se le vendió.
+   */
+  const aplicables = readiness.filter((item) => item.aplica !== false);
 
   return (
     <div className="page client-360">
@@ -210,9 +255,9 @@ export function ClientDetailPage() {
 
       <div className="client-main-grid">
         <section className="client-panel client-readiness">
-          <header><div><span className="page-eyebrow">CONTROL DE CUENTA</span><h2>Preparación operativa</h2></div><strong>{readiness.filter((item) => item.ready).length}/4</strong></header>
+          <header><div><span className="page-eyebrow">CONTROL DE CUENTA</span><h2>Preparación operativa</h2></div><strong>{aplicables.filter((item) => item.ready).length}/{aplicables.length}</strong></header>
           <div className="client-checklist">
-            {readiness.map((item) => <div className={item.ready ? 'ready' : 'pending'} key={item.label}><i>{item.ready ? '✓' : '!'}</i><span><strong>{item.label}</strong><small>{item.value}</small></span></div>)}
+            {aplicables.map((item) => <div className={item.ready ? 'ready' : 'pending'} key={item.label}><i>{item.ready ? '✓' : '!'}</i><span><strong>{item.label}</strong><small>{item.value}</small></span></div>)}
           </div>
           {canPrepareDrive && !driveUrl && <button className="btn btn-primary" onClick={() => driveMutation.mutate()} disabled={driveMutation.isPending}>{driveMutation.isPending ? 'Preparando carpetas...' : 'Preparar estructura en Drive'}</button>}
           {driveMutation.error && <div className="alert alert-error">{driveMutation.error.message}</div>}
@@ -256,6 +301,30 @@ export function ClientDetailPage() {
               <button type="button" className="btn btn-outline btn-sm" onClick={() => { setNuevasUd(String(ud.contracted)); setMotivoDelAjuste(''); setAjustando(true); }}>Ajustar las UD del mes</button>
             )
           ) : null}
+          {/*
+            En qué se fueron, movimiento por movimiento.
+
+            Los tres totales dicen cuánto queda; esto dice en qué se gastó, que es la pregunta que
+            llega cuando el número no cuadra con lo que la empresa esperaba. Plegado porque la
+            pregunta de cada día es el saldo, no el detalle.
+          */}
+          {udMovements.length > 0 && <details className="client-ud-movimientos">
+            <summary>En qué se usaron ({udMovements.length})</summary>
+            <ul>
+              {udMovements.map((movimiento, indice) => (
+                <li key={`${movimiento.date}-${indice}`}>
+                  <span className={movimiento.units < 0 ? 'ud-baja' : 'ud-sube'}>{movimiento.units < 0 ? '−' : '+'}{udTexto(Math.abs(movimiento.units))} UD</span>
+                  <strong>{movimiento.piece ?? MOVIMIENTOS_UD[movimiento.type] ?? movimiento.type}</strong>
+                  <small>
+                    {formatDate(movimiento.date)}
+                    {movimiento.piece ? ` · ${MOVIMIENTOS_UD[movimiento.type] ?? movimiento.type}` : ''}
+                    {movimiento.actor ? ` · ${movimiento.actor}` : ''}
+                    {movimiento.reason ? ` · ${movimiento.reason}` : ''}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          </details>}
         </section>}
       </div>
 

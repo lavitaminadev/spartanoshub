@@ -407,10 +407,29 @@ export class ReservationsController {
   @Get('group-requests')
   @RequiereArea('reservations.espera_y_grupos', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async allGroupRequests(@Req() req: AuthenticatedRequest, @Query('formId') formId?: string, @Query('clientId') clientId?: string) {
+  async allGroupRequests(
+    @Req() req: AuthenticatedRequest,
+    @Query('formId') formId?: string,
+    @Query('clientId') clientId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
     // La empresa elegida en el filtro acota de verdad; antes se ignoraba y la lista no cambiaba.
     const scope = await this.requestedScope(req, clientId);
-    return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
+    return this.service.listAllGroupRequests(
+      req.organizationId, scope.clientId, scope.clientIds, formId, Number(page) || 1, Number(pageSize) || 50,
+    );
+  }
+
+  /**
+   * El resumen se pide aparte porque se cuenta sobre todas las solicitudes, no sobre una página.
+   */
+  @Get('group-requests/resumen')
+  @RequiereArea('reservations.espera_y_grupos', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async resumenDeGrupos(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    const scope = await this.requestedScope(req, clientId);
+    return this.service.resumenDeGrupos(req.organizationId, scope.clientId, scope.clientIds);
   }
 
   @Get('forms/:id/group-requests')
@@ -628,6 +647,37 @@ export class ReservationsController {
     if (!codigo?.trim()) throw new BadRequestException('Escribe el código del cupón');
     const scope = await this.scope(req);
     return this.service.buscarCuponPorCodigo(req.organizationId, codigo, scope.clientIds);
+  }
+
+  /**
+   * Cuántas personas captadas por sus reservas puede recibir correos de esta empresa.
+   *
+   * Pide `reservations` y **no** `marketing`, que es el punto. Cada reserva cuyo formulario pide
+   * el consentimiento deja un suscriptor a nombre de la empresa, y eso ocurre sin comprobar si
+   * tiene Marketing contratado —el consentimiento lo dio la persona y no se descarta por falta de
+   * contrato—. Pero entonces la empresa captaba una lista que no podía ni mirar.
+   *
+   * Lo que se entrega es el conteo y desde cuándo. Los correos uno por uno, los segmentos, las
+   * campañas y las plantillas siguen siendo Marketing.
+   */
+  @Get('consentimientos')
+  @RequiresPermission('reservations', 'view')
+  @RequiereArea('reservations.reservas', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async consentimientos(@Req() req: AuthenticatedRequest, @Query('clientId') pedida?: string) {
+    const scope = await this.scope(req);
+    /*
+     * Hace falta una empresa concreta, y tiene que estar dentro del alcance.
+     *
+     * Sumar las listas de varias empresas no significa nada: cada consentimiento se dio a un
+     * negocio. `empresaElegida` responde 404 por una que no se alcanza y 400 cuando la cuenta
+     * alcanza varias y no dijo cuál.
+     */
+    const clientId = scope.clientId ?? await this.accountAccess.empresaElegida(req.organizationId, req.user, pedida);
+    if (!clientId) throw new BadRequestException('Elige la empresa de la que quieres ver los consentimientos');
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    await this.capabilities.assert(req.organizationId, clientId, 'reservations');
+    return this.service.consentimientosDeReservas(req.organizationId, clientId);
   }
 
   /** Qué pasó con un cupón: cuándo se usó, por qué camino y cuánto costó. */

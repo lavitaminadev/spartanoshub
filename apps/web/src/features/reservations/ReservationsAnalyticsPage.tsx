@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 import { ReservationResults } from '../dashboard/ReservationResults';
 import { MotivosDePerdida } from './MotivosDePerdida';
 import { NoShowPorDia } from './NoShowPorDia';
+import { ConsentimientosDeReservas } from './ConsentimientosDeReservas';
 import { useEmpresaActiva } from '../../shared/empresa-activa';
 
 /**
@@ -40,5 +41,8 @@ export function ReservationsAnalyticsPage({ clientId }: { clientId?: string } = 
     <ReservationResults clientId={elegida || undefined} headingLevel={1} detalle />
     <MotivosDePerdida clientId={elegida || undefined} />
     <NoShowPorDia clientId={elegida || undefined} />
+    {/* Lo que las reservas dejaron además de la visita. Sin empresa elegida no se muestra: cada
+        consentimiento se dio a un negocio, y sumarlos no diría nada. */}
+    <ConsentimientosDeReservas clientId={elegida || undefined} />
   </>;
 }

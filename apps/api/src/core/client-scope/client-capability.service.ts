@@ -27,6 +27,7 @@ const NOMBRE: Record<string, string> = {
   intake: 'intake',
   reports: 'informes',
   commercialPipeline: 'embudo comercial',
+  automations: 'automatizaciones',
 };
 
 /**

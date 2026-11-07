@@ -16,7 +16,7 @@
  */
 
 import { useState, type JSX } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
 import { triggerToast } from '../../shared/toast-events';
@@ -24,6 +24,8 @@ import { triggerToast } from '../../shared/toast-events';
 interface CuponEncontrado {
   id: string;
   code: string;
+  /** La empresa del cupón: con ella se buscan las reservas a las que puede pertenecer el canje. */
+  clientId: string | null;
   discountType: string;
   value: number;
   usos: number;
@@ -40,9 +42,14 @@ interface DatosDelCanje {
   descuento: string;
   persona: string;
   nota: string;
+  /** La reserva a la que pertenece. Vacío es «llegó con el código sin reservar». */
+  reservationId: string;
 }
 
-const SIN_DATOS: DatosDelCanje = { monto: '', descuento: '', persona: '', nota: '' };
+const SIN_DATOS: DatosDelCanje = { monto: '', descuento: '', persona: '', nota: '', reservationId: '' };
+
+/** Una reserva que trae este mismo código, para poder atribuirle el canje. */
+interface ReservaDelCupon { id: string; customerName?: string | null; startsAt?: string | null; status?: string | null }
 
 export function CanjeEnElLocal({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => void }): JSX.Element {
   const [codigo, setCodigo] = useState('');
@@ -58,6 +65,24 @@ export function CanjeEnElLocal({ abierto, alCerrar }: { abierto: boolean; alCerr
     onError: (error: Error) => { setCupon(null); triggerToast(error.message || 'No se encontró el cupón', 'error'); },
   });
 
+  /*
+   * Las reservas que traen este mismo código.
+   *
+   * El cupón de después de la visita sale por correo a quien reservó, así que la reserva a la que
+   * pertenece un canje casi siempre es una de éstas. Se pregunta por el código y por la empresa
+   * del cupón: el servidor devuelve sólo las que la persona alcanza, y adjuntar una de otra
+   * empresa lo rechaza de todos modos.
+   *
+   * Sin esto el canje se anotaba siempre sin reserva, y «canjeamos cuarenta cupones» no se podía
+   * convertir en «cuarenta de trescientas reservas trajeron cupón».
+   */
+  const reservas = useQuery<{ data: ReservaDelCupon[] }>({
+    queryKey: ['reservas-del-cupon', cupon?.code, cupon?.clientId],
+    enabled: Boolean(cupon?.code && cupon?.clientId),
+    queryFn: () => api.get(`/reservations?${new URLSearchParams({ couponCode: cupon!.code, clientId: cupon!.clientId!, pageSize: '20' })}`),
+  });
+  const reservasDelCupon = reservas.data?.data ?? [];
+
   const canjear = useMutation({
     mutationFn: () => api.post(`/reservations/coupons/${cupon!.id}/canjes`, {
       // Vacío es «no se anotó», que es distinto de cero: cero diría que la persona consumió nada.
@@ -65,6 +90,8 @@ export function CanjeEnElLocal({ abierto, alCerrar }: { abierto: boolean; alCerr
       ...(datos.descuento.trim() ? { descuento: Number(datos.descuento) } : {}),
       ...(datos.persona.trim() ? { persona: datos.persona.trim() } : {}),
       ...(datos.nota.trim() ? { nota: datos.nota.trim() } : {}),
+      // Ausente es «sin reserva», que es un caso real y no un dato que falte.
+      ...(datos.reservationId ? { reservationId: datos.reservationId } : {}),
     }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['coupons'] });
@@ -123,6 +150,29 @@ export function CanjeEnElLocal({ abierto, alCerrar }: { abierto: boolean; alCerr
 
             {cupon.canjeable ? (
               <>
+                {/*
+                  A qué reserva pertenece, cuando pertenece a alguna.
+
+                  Se ofrece primero porque es lo que la persona tiene delante: el cupón salió por
+                  correo después de una visita, así que lo normal es que haya una reserva detrás.
+                  «Sin reserva» va primero de todos modos y es lo que vale por omisión: quien
+                  llegó con el código sin reservar existe, y obligar a elegir una reserva acabaría
+                  con alguien eligiendo la primera de la lista para poder seguir.
+                */}
+                {reservasDelCupon.length > 0 ? (
+                  <label>A qué reserva corresponde<small>Opcional. Es lo que permite saber cuántas reservas trajeron cupón.</small>
+                    <select className="input" value={datos.reservationId}
+                      onChange={(evento) => setDatos({ ...datos, reservationId: evento.target.value })}>
+                      <option value="">Sin reserva (llegó con el código)</option>
+                      {reservasDelCupon.map((reserva) => (
+                        <option key={reserva.id} value={reserva.id}>
+                          {[reserva.customerName || 'Sin nombre', reserva.startsAt ? new Date(reserva.startsAt).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : null]
+                            .filter(Boolean).join(' · ')}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
                 <div className="form-row">
                   <label>Monto consumido<small>Opcional. En pesos.</small>
                     <input className="input" inputMode="numeric" placeholder="Sin anotar" value={datos.monto}
