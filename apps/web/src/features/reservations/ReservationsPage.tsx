@@ -138,7 +138,9 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * era la que no la miraba.
    */
   const empresaActiva = useEmpresaActiva();
-  const initialClientId = clientView ? empresaActiva.clientId : searchParams.get('clientId') ?? '';
+  // La dirección manda —`?clientId=` es un enlace directo desde la ficha de una cuenta— y sin
+  // ella se parte de la empresa que el marco tiene elegida, no de «todas».
+  const initialClientId = clientView ? empresaActiva.clientId : searchParams.get('clientId') ?? empresaActiva.clientId;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const requestedTab = searchParams.get('tab');
@@ -491,12 +493,17 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
    * Hasta ahora solo se veian dentro de la agenda de un dia concreto, asi que una solicitud para
    * dentro de dos meses no aparecia en ninguna parte que alguien mirara a diario.
    */
-  const { data: gruposData = [], isFetching: cargandoGrupos, error: errorGrupos, refetch: recargarGrupos } = useQuery<GroupRequest[]>({
+  const { data: gruposData, isFetching: cargandoGrupos, error: errorGrupos, refetch: recargarGrupos } = useQuery<{ data: GroupRequest[]; total: number }>({
     queryKey: ['group-requests', clientFilter, filters.formId],
     queryFn: () => api.get(`/reservations/group-requests?${new URLSearchParams({ ...(filters.formId ? { formId: filters.formId } : {}), ...(clientFilter ? { clientId: clientFilter } : {}) })}`),
     enabled: tab === 'groups',
   });
-  const grupos = Array.isArray(gruposData) ? gruposData : [];
+  /*
+   * `total` es cuántas hay; `grupos` es cuántas se trajeron. Antes se contaba la segunda y se
+   * rotulaba como la primera, así que pasada la página el número decía de menos sin avisar.
+   */
+  const grupos = Array.isArray(gruposData?.data) ? gruposData.data : [];
+  const gruposEnTotal = gruposData?.total ?? grupos.length;
   /*
    * Llegar desde un aviso con una reserva o una solicitud concreta.
    *
@@ -800,7 +807,10 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
         <select className="input" aria-label="Filtrar solicitudes por página de reserva" value={filters.formId} onChange={(event) => resetFilters({ formId: event.target.value })}><option value="">Todas las páginas de reserva</option>{forms.map((form) => <option value={form.id} key={form.id}>{form.name}</option>)}</select>
         
         <button type="button" className="btn btn-outline btn-sm" disabled={!filters.formId} onClick={() => resetFilters({ formId: '' })}>Limpiar</button>
-        <span className="filter-result-count">{grupos.length} solicitud{grupos.length === 1 ? '' : 'es'}</span>
+        <span className="filter-result-count">
+          {gruposEnTotal} solicitud{gruposEnTotal === 1 ? '' : 'es'}
+          {gruposEnTotal > grupos.length ? ` · se muestran ${grupos.length}` : ''}
+        </span>
       </div>
       {errorGrupos ? <QueryErrorState message={errorGrupos.message} error={errorGrupos} onRetry={() => { void recargarGrupos(); }} />
         : cargandoGrupos && grupos.length === 0 ? <LoadingSpinner text="Buscando solicitudes..." />
