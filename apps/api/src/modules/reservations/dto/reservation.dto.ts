@@ -596,6 +596,17 @@ export class ActualizarOperacionDto {
  * sirviendo para el conteo y para justificar el descuento; uno que no se anotó no sirve para nada.
  */
 export class CanjeDeCuponDto {
+  /**
+   * La reserva a la que pertenece este canje, cuando la persona sí había reservado.
+   *
+   * Es lo que convierte «canjeamos cuarenta cupones» en «cuarenta de trescientas reservas
+   * trajeron cupón». Opcional porque el caso de quien llega con el código sin reservar es real y
+   * tiene que poder anotarse igual: ausente significa eso, no un dato que se olvidó.
+   *
+   * `canal` sigue siendo `local`: dice por dónde se canjeó —el mostrador—, que es otra pregunta
+   * que a qué visita pertenecía.
+   */
+  @IsOptional() @IsUUID() reservationId?: string;
   @IsOptional() @IsInt() @Min(0) @Max(100_000_000) monto?: number;
   @IsOptional() @IsInt() @Min(0) @Max(100_000_000) descuento?: number;
   /** Teléfono, correo o documento con que se reconoció a la persona. */
