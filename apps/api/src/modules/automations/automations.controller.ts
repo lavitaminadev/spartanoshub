@@ -17,7 +17,9 @@ import { AccountAccessService } from '../../core/client-scope/account-access.ser
 @ApiBearerAuth()
 @Controller('automations')
 @Roles(UserRole.DEV)
-@ModuleScope('commercialPipeline')
+// Clave propia: el embudo comercial es una entidad del CRM y esto es un editor de flujos.
+// Compartirla obligaba a abrir las dos a la vez, y sólo una está lista.
+@ModuleScope('automations')
 export class AutomationsController {
   constructor(
     private readonly automations: AutomationsService,

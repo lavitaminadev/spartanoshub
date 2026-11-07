@@ -90,7 +90,10 @@ export function CatalogQuotesTab() {
   const confirmCopy = confirm?.action === 'accept'
     ? { title: 'Aceptar cotización', description: 'Esta acción cerrará la venta y generará automáticamente el cliente, contrato, capacidad UD y onboarding cuando corresponda.', label: 'Aceptar y activar' }
     : confirm?.action === 'send'
-      ? { title: 'Marcar como enviada', description: 'La cotización quedará bloqueada para edición. Si necesita cambios, podrás crear una nueva versión.', label: 'Confirmar envío' }
+      // Dice lo que hace. El sistema **no manda** la cotización: anota que se envió, bloquea la
+      // edición y mueve el prospecto a «cotización enviada». El correo lo manda quien cotiza, y
+      // mientras el botón decía «Enviar» quedaba la duda de si ya había salido.
+      ? { title: 'Marcar como enviada', description: 'Anota que ya la enviaste y bloquea la edición; para cambiarla tendrás que crear una nueva versión. No se manda ningún correo desde acá: la cotización se la haces llegar tú.', label: 'Confirmar' }
       : { title: 'Crear nueva versión', description: 'Se conservará la versión actual y se creará una copia editable con numeración nueva.', label: 'Crear versión' };
 
   return <div className="catalog-panel quote-workspace">
@@ -106,7 +109,7 @@ export function CatalogQuotesTab() {
       { key: 'amount', label: 'Total', sortable: true, render: (row) => money(Number(row.amount), row.currency) },
       { key: 'validUntil', label: 'Vigencia', render: (row) => row.validUntil ? new Date(row.validUntil).toLocaleDateString('es-CL') : 'Sin límite' },
       { key: 'status', label: 'Estado', render: (row) => <StatusBadge status={row.status} /> },
-      { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button className="btn btn-sm btn-outline" onClick={() => setVerVersiones(row)}>Versiones</button>{row.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => openEdit(row)}>Editar</button>}{row.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => setConfirm({ action: 'send', quote: row })}>Enviar</button>}{['draft', 'sent'].includes(row.status) && <button className="btn btn-sm btn-primary" onClick={() => setConfirm({ action: 'accept', quote: row })}>Aceptar</button>}{row.status !== 'draft' && <button className="btn btn-sm btn-outline" onClick={() => setConfirm({ action: 'version', quote: row })}>Nueva versión</button>}</div> },
+      { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button className="btn btn-sm btn-outline" onClick={() => setVerVersiones(row)}>Versiones</button>{row.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => openEdit(row)}>Editar</button>}{row.status === 'draft' && <button className="btn btn-sm btn-outline" onClick={() => setConfirm({ action: 'send', quote: row })}>Marcar enviada</button>}{['draft', 'sent'].includes(row.status) && <button className="btn btn-sm btn-primary" onClick={() => setConfirm({ action: 'accept', quote: row })}>Aceptar</button>}{row.status !== 'draft' && <button className="btn btn-sm btn-outline" onClick={() => setConfirm({ action: 'version', quote: row })}>Nueva versión</button>}</div> },
     ]} />
     <div className="table-pagination"><span>{totalFilas} cotizaciones</span><button className="btn btn-sm btn-outline" disabled={pagina === 0} onClick={() => setPagina(pagina - 1)}>Anterior</button><button className="btn btn-sm btn-outline" disabled={(pagina + 1) * POR_PAGINA >= totalFilas} onClick={() => setPagina(pagina + 1)}>Siguiente</button></div>
     <Modal open={Boolean(verVersiones)} onClose={() => setVerVersiones(null)} title={`Versiones de ${verVersiones?.number ?? ''}`}>{verVersiones && <VersionesDeCotizacion quoteId={verVersiones.id} />}</Modal>

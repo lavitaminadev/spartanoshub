@@ -273,7 +273,10 @@ const PATH_FEATURE: Record<string, string | string[]> = {
   // Debe coincidir con el `@ModuleScope('crm')` del controlador. Declararla sobre
   // `commercialPipeline` mientras el backend guardaba `crm` dejaba la pantalla fuera del menú
   // para dirección de operaciones, que sí tiene `crm` y es quien configura los flujos.
-  '/automations': 'commercialPipeline',
+  // Automatizaciones tiene su propia clave, y está en desarrollo: no aparece en el menú ni
+  // responde la ruta. Antes compartía la del embudo comercial, de modo que liberar el embudo
+  // abría también este editor sin terminar.
+  '/automations': 'automations',
   // Las solicitudes se declaran sobre `production`, igual que su controlador en el backend: es
   // la misma operación vista desde antes. Un módulo aparte obligaría a mantener dos listas de
   // permisos que describen lo mismo.
