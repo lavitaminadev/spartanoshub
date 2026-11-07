@@ -21,14 +21,21 @@ const piece_status_enum_1 = require("./piece-status.enum");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const design_budget_service_1 = require("../design-budget/design-budget.service");
 const xp_service_1 = require("../gamification/xp.service");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 let DeliverPieceUseCase = class DeliverPieceUseCase {
-    constructor(repo, designBudget, xp, eventEmitter) {
+    constructor(repo, designBudget, xp, eventEmitter, accountAccess) {
         this.repo = repo;
         this.designBudget = designBudget;
         this.xp = xp;
         this.eventEmitter = eventEmitter;
+        this.accountAccess = accountAccess;
     }
-    async execute(pieceId, organizationId, actorId) {
+    async execute(pieceId, organizationId, actor) {
+        const actorId = actor?.id;
+        const dePieza = await this.repo.findOne({ where: { id: pieceId, organizationId }, select: { id: true, clientId: true } });
+        if (!dePieza)
+            throw new common_1.NotFoundException('Pieza no encontrada');
+        await this.accountAccess.assertClient(organizationId, actor, dePieza.clientId);
         const saved = await this.repo.manager.transaction(async (manager) => {
             const piece = await manager.findOne(piece_entity_1.Piece, { where: { id: pieceId, organizationId } });
             if (!piece)
@@ -56,5 +63,6 @@ exports.DeliverPieceUseCase = DeliverPieceUseCase = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         design_budget_service_1.DesignBudgetService,
         xp_service_1.XPService,
-        event_emitter_1.EventEmitter2])
+        event_emitter_1.EventEmitter2,
+        account_access_service_1.AccountAccessService])
 ], DeliverPieceUseCase);

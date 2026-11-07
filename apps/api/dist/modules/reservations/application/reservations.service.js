@@ -61,6 +61,7 @@ const plantilla_resuelta_1 = require("../../../core/parameters/plantilla-resuelt
 const audit_service_1 = require("../../../core/audit/audit.service");
 const meta_client_pixel_service_1 = require("../../integrations/meta/meta-client-pixel.service");
 const alta_desde_reserva_1 = require("../../marketing/alta-desde-reserva");
+const suscriptor_entity_1 = require("../../marketing/suscriptor.entity");
 const origen_de_captacion_1 = require("../../marketing/origen-de-captacion");
 const destinatarios_de_avisos_service_1 = require("../../../core/notifications/destinatarios-de-avisos.service");
 const geo_inference_1 = require("../../../shared/geo-inference");
@@ -108,7 +109,7 @@ const TIPOS_DE_EVENTO_LEGIBLES = {
     otro: 'Otro',
 };
 let ReservationsService = ReservationsService_1 = class ReservationsService {
-    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds, altaEnLaLista, destinatariosDeAvisos, canjes, marcas) {
+    constructor(forms, reservations, blocks, events, formEvents, coupons, dataSource, calendar, metaOutbox, clientPixels, notifications, emails, audit, googleOutbox, surveyContacts, groupRequests, parametros, managementTokens, holds, altaEnLaLista, destinatariosDeAvisos, canjes, marcas, suscriptores) {
         this.forms = forms;
         this.reservations = reservations;
         this.blocks = blocks;
@@ -132,6 +133,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         this.destinatariosDeAvisos = destinatariosDeAvisos;
         this.canjes = canjes;
         this.marcas = marcas;
+        this.suscriptores = suscriptores;
         this.logger = new common_1.Logger(ReservationsService_1.name);
     }
     slug(value) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 140); }
@@ -1928,12 +1930,35 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             return item;
         });
     }
-    async listAllGroupRequests(organizationId, clientId, clientIds, formId) {
-        return this.groupRequests.find({
+    async listAllGroupRequests(organizationId, clientId, clientIds, formId, page = 1, pageSize = 50) {
+        const take = Math.min(Math.max(Math.trunc(pageSize) || 50, 1), 200);
+        const paginaActual = Math.max(Math.trunc(page) || 1, 1);
+        const [data, total] = await this.groupRequests.findAndCount({
             where: { ...this.scope(organizationId, clientId, clientIds), ...(formId ? { formId } : {}) },
             order: { createdAt: 'DESC' },
-            take: 200,
+            take,
+            skip: (paginaActual - 1) * take,
         });
+        return { data, total, page: paginaActual, pageSize: take, pages: Math.max(Math.ceil(total / take), 1) };
+    }
+    async resumenDeGrupos(organizationId, clientId, clientIds) {
+        const where = this.scope(organizationId, clientId, clientIds);
+        const [convertidas, cerradas] = await Promise.all([
+            this.groupRequests.count({ where: { ...where, status: 'converted' } }),
+            this.groupRequests.find({ where: { ...where, status: 'closed' }, select: { id: true, closeReason: true } }),
+        ]);
+        const porMotivo = new Map();
+        for (const solicitud of cerradas) {
+            if (!solicitud.closeReason)
+                continue;
+            porMotivo.set(solicitud.closeReason, (porMotivo.get(solicitud.closeReason) ?? 0) + 1);
+        }
+        return {
+            convertidas,
+            cerradas: cerradas.length,
+            conMotivo: [...porMotivo.values()].reduce((suma, n) => suma + n, 0),
+            porMotivo: [...porMotivo.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })),
+        };
     }
     async listGroupRequests(organizationId, formId, clientId, clientIds) {
         await this.getForm(organizationId, formId, clientId, clientIds);
@@ -3388,6 +3413,26 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
         }
         return `﻿${lineas.join('\r\n')}`;
     }
+    async consentimientosDeReservas(organizationId, clientId) {
+        if (!this.suscriptores)
+            return { suscritos: 0, pendientes: 0, bajas: 0, ultimos30: 0, desde: null };
+        const treintaDias = new Date(Date.now() - 30 * 86_400_000);
+        const base = { organizationId, clientId };
+        const [suscritos, pendientes, bajas, ultimos30, primero] = await Promise.all([
+            this.suscriptores.count({ where: { ...base, status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO } }),
+            this.suscriptores.count({ where: { ...base, status: suscriptor_entity_1.EstadoDeSuscripcion.PENDIENTE } }),
+            this.suscriptores.count({ where: { ...base, status: suscriptor_entity_1.EstadoDeSuscripcion.BAJA } }),
+            this.suscriptores.count({ where: { ...base, status: suscriptor_entity_1.EstadoDeSuscripcion.SUSCRITO, consentAt: (0, typeorm_2.MoreThan)(treintaDias) } }),
+            this.suscriptores.findOne({ where: base, order: { consentAt: 'ASC' }, select: { consentAt: true } }),
+        ]);
+        return {
+            suscritos,
+            pendientes,
+            bajas,
+            ultimos30,
+            desde: primero?.consentAt ?? null,
+        };
+    }
     async buscarCuponPorCodigo(organizationId, codigo, clientIds) {
         const coupon = await this.coupons.findOne({
             where: { organizationId, code: codigo.trim().toUpperCase() },
@@ -3453,6 +3498,15 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
             throw new common_1.ForbiddenException('No tienes acceso a este cupón');
         }
         this.assertCanjeable(coupon);
+        if (datos.reservationId) {
+            const reserva = await this.reservations.findOne({
+                where: { id: datos.reservationId, organizationId },
+                select: { id: true, clientId: true },
+            });
+            if (!reserva || !coupon.clientId || reserva.clientId !== coupon.clientId) {
+                throw new common_1.NotFoundException('Esa reserva no corresponde a la empresa de este cupón');
+            }
+        }
         return this.dataSource.transaction(async (manager) => {
             const vigente = await manager.getRepository(reservation_coupon_entity_1.ReservationCoupon).findOne({
                 where: { id: coupon.id, organizationId },
@@ -3467,7 +3521,7 @@ let ReservationsService = ReservationsService_1 = class ReservationsService {
                 clientId: coupon.clientId ?? null,
                 couponId: coupon.id,
                 codigo: coupon.code,
-                reservationId: null,
+                reservationId: datos.reservationId ?? null,
                 canal: 'local',
                 monto: datos.monto === undefined ? null : String(datos.monto),
                 descuento: datos.descuento === undefined ? null : String(datos.descuento),
@@ -3660,6 +3714,8 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
     __param(18, (0, typeorm_1.InjectRepository)(reservation_hold_entity_1.ReservationHold)),
     __param(21, (0, typeorm_1.InjectRepository)(reservation_coupon_redemption_entity_1.ReservationCouponRedemption)),
     __param(22, (0, common_1.Optional)()),
+    __param(23, (0, common_1.Optional)()),
+    __param(23, (0, typeorm_1.InjectRepository)(suscriptor_entity_1.Suscriptor)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -3682,5 +3738,6 @@ exports.ReservationsService = ReservationsService = ReservationsService_1 = __de
         alta_desde_reserva_1.AltaDeSuscriptorDesdeReserva,
         destinatarios_de_avisos_service_1.DestinatariosDeAvisosService,
         typeorm_2.Repository,
-        marca_de_la_empresa_service_1.MarcaDeLaEmpresaService])
+        marca_de_la_empresa_service_1.MarcaDeLaEmpresaService,
+        typeorm_2.Repository])
 ], ReservationsService);

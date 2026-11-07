@@ -18,6 +18,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const client_entity_1 = require("../clients/client.entity");
 const monthly_report_entity_1 = require("./monthly-report.entity");
+const metricas_del_periodo_1 = require("./metricas-del-periodo");
 let MonthlyReportsService = class MonthlyReportsService {
     constructor(reports, clients, dataSource) {
         this.reports = reports;
@@ -42,6 +43,25 @@ let MonthlyReportsService = class MonthlyReportsService {
         const clientMap = new Map(clients.map((client) => [client.id, client.name]));
         return reports.map((report) => ({ ...report, clientName: clientMap.get(report.clientId) ?? 'Cliente' }));
     }
+    async explorar(organizationId, clientId, desde, hasta, comparar, allowedClientIds) {
+        if (allowedClientIds !== undefined && !allowedClientIds.includes(clientId)) {
+            throw new common_1.NotFoundException('Cliente no encontrado');
+        }
+        const client = await this.clients.findOne({ where: { id: clientId, organizationId } });
+        if (!client)
+            throw new common_1.NotFoundException('Cliente no encontrado');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+            throw new common_1.BadRequestException('Las fechas van en formato AAAA-MM-DD');
+        }
+        if (hasta <= desde)
+            throw new common_1.BadRequestException('El fin del rango debe ser posterior al inicio');
+        const referencia = (0, metricas_del_periodo_1.rangoDeComparacion)(desde, hasta, comparar);
+        const [periodo, previo] = await Promise.all([
+            (0, metricas_del_periodo_1.metricasDelPeriodo)(this.dataSource, organizationId, clientId, desde, hasta),
+            referencia ? (0, metricas_del_periodo_1.metricasDelPeriodo)(this.dataSource, organizationId, clientId, referencia.desde, referencia.hasta) : Promise.resolve(null),
+        ]);
+        return { clientId, clientName: client.name, comparar, periodo, comparacion: previo };
+    }
     async generate(organizationId, userId, dto) {
         const client = await this.clients.findOne({ where: { id: dto.clientId, organizationId } });
         if (!client)
@@ -49,27 +69,20 @@ let MonthlyReportsService = class MonthlyReportsService {
         const existing = await this.reports.findOne({ where: { organizationId, clientId: dto.clientId, year: dto.year, month: dto.month } });
         if (existing?.status === 'published')
             throw new common_1.BadRequestException('El reporte publicado debe volver a borrador antes de regenerarse');
-        const start = `${dto.year}-${String(dto.month).padStart(2, '0')}-01`;
-        const endDate = new Date(dto.year, dto.month, 1);
-        const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-01`;
-        const params = [organizationId, dto.clientId, start, end];
-        const [[ads], [bookings], [production], [meetings], [sales]] = await Promise.all([
-            this.dataSource.query('SELECT COALESCE(SUM(spend),0) spend, COALESCE(SUM(impressions),0) impressions, COALESCE(SUM(clicks),0) clicks, COALESCE(SUM(leads),0) leads, COALESCE(SUM(conversions),0) conversions FROM integration_metrics WHERE organization_id = ? AND client_id = ? AND metric_date >= ? AND metric_date < ?', params),
-            this.dataSource.query("SELECT COUNT(*) total, SUM(CASE WHEN status = 'attended' THEN 1 ELSE 0 END) attended, SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) noShow FROM reservations WHERE organization_id = ? AND client_id = ? AND starts_at >= ? AND starts_at < ?", params),
-            this.dataSource.query("SELECT COUNT(*) delivered, COALESCE(SUM(ud_amount),0) ud FROM pieces WHERE organization_id = ? AND client_id = ? AND delivered_at >= ? AND delivered_at < ? AND status = 'delivered'", params),
-            this.dataSource.query("SELECT COUNT(*) total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) completed FROM meetings WHERE organization_id = ? AND client_id = ? AND scheduled_at >= ? AND scheduled_at < ?", params),
-            this.dataSource.query("SELECT COALESCE(SUM(amount),0) total, COUNT(*) count FROM crm_opportunities WHERE organization_id = ? AND client_id = ? AND stage IN ('won','closed_won') AND updated_at >= ? AND updated_at < ?", params),
+        const { desde, hasta } = (0, metricas_del_periodo_1.rangoDelMes)(dto.year, dto.month);
+        const anterior = (0, metricas_del_periodo_1.rangoDeComparacion)(desde, hasta, 'anterior');
+        const [periodo, previo] = await Promise.all([
+            (0, metricas_del_periodo_1.metricasDelPeriodo)(this.dataSource, organizationId, dto.clientId, desde, hasta),
+            (0, metricas_del_periodo_1.metricasDelPeriodo)(this.dataSource, organizationId, dto.clientId, anterior.desde, anterior.hasta),
         ]);
-        const metrics = {
-            impressions: Number(ads?.impressions ?? 0), clicks: Number(ads?.clicks ?? 0), leads: Number(ads?.leads ?? 0), conversions: Number(ads?.conversions ?? 0),
-            bookings: Number(bookings?.total ?? 0), attendedBookings: Number(bookings?.attended ?? 0), noShows: Number(bookings?.noShow ?? 0),
-            deliveredPieces: Number(production?.delivered ?? 0), consumedUd: Number(production?.ud ?? 0), meetings: Number(meetings?.total ?? 0), completedMeetings: Number(meetings?.completed ?? 0), wonOpportunities: Number(sales?.count ?? 0),
-        };
+        const metrics = periodo.metricas;
         const report = existing ?? this.reports.create({ organizationId, clientId: client.id, year: dto.year, month: dto.month, createdBy: userId });
         Object.assign(report, {
             title: `Resultados ${client.name} · ${String(dto.month).padStart(2, '0')}/${dto.year}`,
-            status: 'draft', metrics, adSpend: Number(ads?.spend ?? 0), leads: metrics.leads, bookings: metrics.bookings, conversions: metrics.conversions,
-            salesGenerated: Number(sales?.total ?? 0),
+            status: 'draft', metrics, adSpend: periodo.inversion, leads: metrics.leads, bookings: metrics.bookings, conversions: metrics.conversions,
+            salesGenerated: periodo.ventas,
+            metricsPrevious: previo.metricas,
+            previousPeriodStart: previo.desde,
             executiveSummary: report.executiveSummary || `Durante el período se registraron ${metrics.leads} leads, ${metrics.bookings} reservas y ${metrics.conversions} conversiones atribuidas.`,
             insights: report.insights ?? [],
         });

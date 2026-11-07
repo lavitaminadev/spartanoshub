@@ -31,14 +31,28 @@ let AccionesService = class AccionesService {
             this.permisos.permissionsFor(organizationId, userId, role, clientId),
             this.ajustes.find({ where: { organizationId, userId } }),
         ]);
-        const ahora = Date.now();
-        const porAccion = new Map(filas.filter((fila) => !fila.expiresAt || fila.expiresAt.getTime() > ahora).map((fila) => [fila.action, fila]));
+        const porAccion = this.ajustesVigentes(filas, clientId);
         return acciones_1.ACCIONES.map((accion) => {
             const porNivel = (0, permission_level_1.satisfies)(niveles[accion.modulo] ?? 'none', accion.nivelPorDefecto);
             const ajuste = porAccion.get(accion.clave);
             const permitida = ajuste ? ajuste.allowed && (niveles[accion.modulo] ?? 'none') !== 'none' : porNivel;
-            return { clave: accion.clave, modulo: accion.modulo, nombre: accion.nombre, ayuda: accion.ayuda, permitida, porNivel, origen: ajuste ? 'ajuste' : 'nivel' };
+            return { clave: accion.clave, modulo: accion.modulo, nombre: accion.nombre, ayuda: accion.ayuda, permitida, porNivel, origen: ajuste ? 'ajuste' : 'nivel', empresaDelAjuste: ajuste ? ajuste.clientId ?? null : undefined };
         });
+    }
+    ajustesVigentes(filas, clientId) {
+        const ahora = Date.now();
+        const resultado = new Map();
+        for (const fila of filas) {
+            if (fila.expiresAt && fila.expiresAt.getTime() <= ahora)
+                continue;
+            if (fila.clientId && fila.clientId !== clientId)
+                continue;
+            const anterior = resultado.get(fila.action);
+            if (anterior?.clientId && !fila.clientId)
+                continue;
+            resultado.set(fila.action, fila);
+        }
+        return resultado;
     }
     async puede(organizationId, userId, role, clave, clientId) {
         if (role === user_role_enum_1.UserRole.DEV)

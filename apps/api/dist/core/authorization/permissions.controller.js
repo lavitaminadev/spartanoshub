@@ -70,20 +70,26 @@ let PermissionsController = class PermissionsController {
         if (!definicion)
             throw new common_2.BadRequestException(`Acción desconocida: ${accion}`);
         const user = await this.findUser(id, req.organizationId);
-        await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined);
+        const encerrada = await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined, dto.clientId || undefined);
+        const empresa = encerrada ?? (dto.clientId || undefined);
+        if (empresa)
+            await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
         const venceEl = this.fechaDeTermino(dto.expiresAt);
-        const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
-        const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, expiresAt: venceEl, expiryNotifiedAt: null, grantedBy: req.user.id });
-        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed, expiresAt: venceEl } });
+        const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion, clientId: empresa ?? (0, typeorm_2.IsNull)() } });
+        const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, clientId: empresa ?? null, allowed: dto.allowed, reason: dto.reason ?? null, expiresAt: venceEl, expiryNotifiedAt: null, grantedBy: req.user.id });
+        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed, clientId: empresa ?? null, expiresAt: venceEl } });
         return guardado;
     }
-    async quitarAjusteDeAccion(id, accion, req) {
+    async quitarAjusteDeAccion(id, accion, req, clientId) {
         const definicion = (0, acciones_1.definicionDeAccion)(accion);
         if (!definicion)
             throw new common_2.BadRequestException(`Acción desconocida: ${accion}`);
         const user = await this.findUser(id, req.organizationId);
-        await this.assertCanManageUserPermissionException(req, user, definicion.modulo);
-        const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
+        const encerrada = await this.assertCanManageUserPermissionException(req, user, definicion.modulo, undefined, clientId || undefined);
+        const empresa = encerrada ?? (clientId || undefined);
+        if (empresa)
+            await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
+        const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion, clientId: empresa ?? (0, typeorm_2.IsNull)() } });
         if (!existente)
             return { removed: false, accion };
         await this.ajustesDeAccion.remove(existente);
@@ -436,13 +442,14 @@ let PermissionsController = class PermissionsController {
         if (target.role === user_role_enum_1.UserRole.DEV) {
             throw new common_2.ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
         }
-        if (actorRole !== user_role_enum_1.UserRole.OPERATIONS_DIRECTOR)
+        const CON_LIMITES = [user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR];
+        if (!CON_LIMITES.includes(actorRole))
             return undefined;
-        if ([user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR].includes(target.role)) {
-            throw new common_2.ForbiddenException('Los accesos de Administración y de Dirección de operaciones los ajusta Administración');
+        if ([user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(target.role)) {
+            throw new common_2.ForbiddenException('Los accesos de Administración y de las direcciones los ajusta Administración');
         }
-        if (module && ['users', 'settings', 'integrations'].includes(module)) {
-            throw new common_2.ForbiddenException('Usuarios, Ajustes e Integraciones los ajusta Administración');
+        if (module && ['users', 'settings', 'integrations', 'governance'].includes(module)) {
+            throw new common_2.ForbiddenException('Usuarios, Ajustes, Integraciones y Gobierno los ajusta Administración');
         }
         if (module && level) {
             const propios = await this.permissions.permissionsFor(req.organizationId, req.user.id, actorRole, empresa);
@@ -457,7 +464,7 @@ let PermissionsController = class PermissionsController {
 exports.PermissionsController = PermissionsController;
 __decorate([
     (0, common_1.Get)('users/:id/actions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Acciones permitidas de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -468,7 +475,7 @@ __decorate([
 ], PermissionsController.prototype, "accionesDeUsuario", null);
 __decorate([
     (0, common_1.Put)('users/:id/actions/:accion'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Ajustar una acción de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('accion')),
@@ -480,13 +487,14 @@ __decorate([
 ], PermissionsController.prototype, "ajustarAccion", null);
 __decorate([
     (0, common_1.Delete)('users/:id/actions/:accion'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Quitar el ajuste de una acción' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('accion')),
     __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_1.Query)('clientId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:paramtypes", [String, String, Object, String]),
     __metadata("design:returntype", Promise)
 ], PermissionsController.prototype, "quitarAjusteDeAccion", null);
 __decorate([
@@ -541,7 +549,7 @@ __decorate([
 ], PermissionsController.prototype, "ofRole", null);
 __decorate([
     (0, common_1.Get)('users/:id/permissions'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Detalle de permisos de un usuario' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
@@ -552,7 +560,7 @@ __decorate([
 ], PermissionsController.prototype, "ofUser", null);
 __decorate([
     (0, common_1.Put)('users/:id/permissions/:module'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Definir una excepción de permiso' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),
@@ -564,7 +572,7 @@ __decorate([
 ], PermissionsController.prototype, "upsert", null);
 __decorate([
     (0, common_1.Delete)('users/:id/permissions/:module'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Quitar una excepción de permiso' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('module')),
@@ -576,7 +584,7 @@ __decorate([
 ], PermissionsController.prototype, "remove", null);
 __decorate([
     (0, common_1.Get)('users/:id/client-access'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     (0, swagger_1.ApiOperation)({ summary: 'Cuentas visibles de un usuario y por qué las ve' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),

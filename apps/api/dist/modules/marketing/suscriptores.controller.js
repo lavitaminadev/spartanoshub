@@ -56,10 +56,11 @@ let SuscriptoresController = class SuscriptoresController {
         await this.capacidades.assert(organizationId, clientId, capacidad);
         return clientId;
     }
-    async listar(req, limit, empresa, estado, origen, busqueda) {
+    async listar(req, limit, pagina, empresa, estado, origen, busqueda) {
         const organizationId = req.organizationId || req.user.organizationId;
         const lista = await this.suscriptores.listar(organizationId, {
             limite: limit ? Number(limit) : undefined,
+            pagina: pagina ? Number(pagina) : undefined,
             empresa,
             encerradoEn: await this.encierroDe(req, empresa),
             estado: Object.values(suscriptor_entity_1.EstadoDeSuscripcion).includes(estado) ? estado : undefined,
@@ -145,12 +146,13 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Lista de suscriptores con su procedencia y estado' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('limit')),
-    __param(2, (0, common_1.Query)('empresa')),
-    __param(3, (0, common_1.Query)('estado')),
-    __param(4, (0, common_1.Query)('origen')),
-    __param(5, (0, common_1.Query)('q')),
+    __param(2, (0, common_1.Query)('pagina')),
+    __param(3, (0, common_1.Query)('empresa')),
+    __param(4, (0, common_1.Query)('estado')),
+    __param(5, (0, common_1.Query)('origen')),
+    __param(6, (0, common_1.Query)('q')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String, String, String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], SuscriptoresController.prototype, "listar", null);
 __decorate([

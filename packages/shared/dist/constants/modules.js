@@ -67,7 +67,28 @@ exports.ORGANIZATION_MODULE_CATALOG = [
     // falta. El interruptor por organizacion sigue existiendo; lo que cambia es de que lado
     // arranca.
     { key: 'crm', lifecycle: 'active', defaultEnabled: true },
-    { key: 'commercialPipeline', lifecycle: 'active', defaultEnabled: true },
+    /*
+     * Nace apagado, como los demás módulos cuyo sujeto es una empresa atendida.
+     *
+     * Decía `true` y no se notaba, porque `INITIAL_OPERATION_MODULES` rechazaba su ruta antes de
+     * mirar el interruptor. Al liberarlo, ese `true` lo habría encendido de golpe para toda
+     * organización nueva y para todo cargo que la matriz alcanza.
+     */
+    { key: 'commercialPipeline', lifecycle: 'active', defaultEnabled: false },
+    /**
+     * Automatizaciones, con clave propia y en desarrollo.
+     *
+     * Colgaba de `commercialPipeline`, que es otra cosa: el embudo comercial es una entidad del CRM
+     * y esto es un editor de flujos. Compartir clave tenía una consecuencia concreta: liberar el
+     * embudo abría también Automatizaciones, que no está terminada, así que el embudo no se podía
+     * liberar. Separadas, cada una se abre cuando le toca.
+     *
+     * Nace **apagada** y no cerrada desde el código: el catálogo no esconde nada, porque cerrar un
+     * módulo desde acá obliga a un despliegue para reabrirlo. Mientras el interruptor de la
+     * organización esté apagado, la ruta no responde y la entrada no aparece; encenderla es una
+     * decisión que se toma en Accesos y seguridad, viendo lo que hay.
+     */
+    { key: 'automations', lifecycle: 'active', defaultEnabled: false },
     { key: 'production', lifecycle: 'active', defaultEnabled: false },
     /**
      * Puerta de entrada del trabajo: recibir una solicitud, revisarla y asignarla.
@@ -177,6 +198,16 @@ exports.INITIAL_OPERATION_MODULES = new Set([
     'integrations',
     'surveys',
     /*
+     * Ajustes y Puesta en marcha.
+     *
+     * Se liberan porque están terminados y con datos, y porque cerrarlos sólo lograba que a los
+     * cargos que los usan —administración, quien recibe a un cliente nuevo— les respondiera «no
+     * tienes acceso» en pantallas que son suyas. Las tres rejas de debajo siguen puestas: el
+     * permiso del cargo, el interruptor de la organización y el alcance por cuenta.
+     */
+    'settings',
+    'onboarding',
+    /*
      * Suscriptores y Campañas.
      *
      * Se libera porque ya está completo y porque sin esto no lo ve nadie salvo Desarrollo: el menú
@@ -186,6 +217,24 @@ exports.INITIAL_OPERATION_MODULES = new Set([
      * nadie que no la tuviera ya concedida.
      */
     'marketing',
+    /*
+     * Informes.
+     *
+     * Se libera porque está completo —nueve endpoints y el panel de informes mensuales con su
+     * publicación— y porque la matriz de cargos ya reparte `view` y `edit` entre ocho cargos:
+     * esta lista los dejaba en cero sin que nada lo dijera, y su interruptor de organización nace
+     * encendido por estar en el núcleo de la agencia. Debajo siguen las tres rejas de siempre.
+     */
+    'reports',
+    /*
+     * Panel de métricas de empresa y Alta de varias empresas.
+     *
+     * No tienen ruta ni pantalla propia: son claves de permiso que la matriz ya concede. La lista
+     * las anulaba en silencio, de modo que el permiso concedido no significaba nada. Abrirlas no
+     * agrega ninguna vista.
+     */
+    'clientMetricsPanel',
+    'multiClientOnboarding',
     /*
      * Los doce módulos cuyo sujeto es una empresa atendida.
      *
@@ -214,15 +263,28 @@ exports.INITIAL_OPERATION_MODULES = new Set([
     'intake',
     'udBudget',
     /*
-     * `commercialPipeline` **no** entra, aunque sea uno de los doce.
+     * Embudo comercial.
      *
-     * `/automations` cuelga de su misma clave —no tiene módulo propio en el catálogo—, así que
-     * liberarla abre también Automatizaciones, que no está terminada. Lo encontró
-     * `phase-scope.test.ts` al cambiar la lista, y es exactamente para eso que ese cerco existe.
-     *
-     * Para liberarla hay que darle antes a `/automations` su propia clave. Mientras comparta ésta,
-     * abrir el embudo comercial significa abrir dos cosas, y una no está lista.
+     * Entra ahora porque lo que lo retenía ya no existe: `/automations` colgaba de esta misma clave
+     * y no tenía módulo propio, así que abrir el embudo abría también un editor de flujos sin
+     * terminar. Con `automations` separada y en desarrollo, liberar esto abre lo que dice y nada
+     * más: las oportunidades y el tablero del embudo, que además son capacidad contratada por
+     * empresa y nacen apagados, así que ninguna empresa los ve hasta que se le vendan.
      */
+    'commercialPipeline',
+    /*
+     * Catálogo.
+     *
+     * Entra porque está terminado y porque sin él el alta de un cliente queda a medias: aceptar una
+     * cotización es lo único que crea el contrato con su precio y calcula el presupuesto de UD del
+     * mes. El otro camino —convertir el prospecto desde el CRM— deja la empresa sin contrato y sin
+     * presupuesto, y alguien los pone a mano.
+     *
+     * Lo que hay detrás: servicios y packs, cotizaciones con versiones, y el cierre que crea
+     * cliente, contrato y presupuesto en una transacción. Su interruptor de organización nace
+     * encendido porque el catálogo de servicios es de la agencia, no de una empresa atendida.
+     */
+    'catalog',
 ]);
 /** Desarrollo conserva visibilidad total; los demás parten con CRM/Reservas mínimos. */
 function isModuleInInitialOperationScope(module, role) {

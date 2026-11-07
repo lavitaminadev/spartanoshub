@@ -27,7 +27,7 @@ const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../../modules/users/user.entity");
 const plantilla_de_correo_1 = require("../notifications/plantilla-de-correo");
 const firma_del_dominio_1 = require("../notifications/firma-del-dominio");
-const muestra_de_correo_1 = require("./muestra-de-correo");
+const shared_1 = require("@espartanos/shared");
 const user_role_enum_1 = require("../../modules/organizations/user-role.enum");
 const update_organization_settings_dto_1 = require("./dto/update-organization-settings.dto");
 const organization_settings_service_1 = require("./organization-settings.service");
@@ -53,7 +53,7 @@ function modulosDeCorreo(clave) {
     return exports.MODULO_DE_CORREO.find(([prefijo]) => clave.startsWith(prefijo))?.[1] ?? ['reservations'];
 }
 const organization_features_1 = require("../../modules/organizations/organization-features");
-const shared_1 = require("@espartanos/shared");
+const shared_2 = require("@espartanos/shared");
 const empresaConcreta = (ambito) => ((0, empresa_resuelta_1.esUnaEmpresa)(ambito) ? ambito : undefined);
 let OrganizationSettingsController = class OrganizationSettingsController {
     constructor(settings, permisos, accountAccess, capacidades, correo, usuarios, corridas) {
@@ -78,8 +78,8 @@ let OrganizationSettingsController = class OrganizationSettingsController {
         }
         const sinSalida = organization_features_1.REQUIRED_LIFECYCLE_KEYS
             .filter((module) => {
-            const valor = valores[(0, shared_1.moduleLifecycleSettingKey)(module)];
-            return typeof valor === 'string' && !(0, shared_1.isModuleLifecycleVisible)(valor);
+            const valor = valores[(0, shared_2.moduleLifecycleSettingKey)(module)];
+            return typeof valor === 'string' && !(0, shared_2.isModuleLifecycleVisible)(valor);
         });
         if (sinSalida.length) {
             throw new common_1.BadRequestException(`No se puede esconder ${sinSalida.join(' ni ')}: son la puerta de entrada y el sitio donde se deshace este cambio. ` +
@@ -185,13 +185,13 @@ let OrganizationSettingsController = class OrganizationSettingsController {
     }
     async vistaPreviaDeCorreo(dto, request, ambito) {
         await this.asegurarQuePuedeCorreos(request, empresaConcreta(ambito));
-        return (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
+        return (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? ''), String(dto?.cuerpo ?? ''), shared_1.MUESTRA);
     }
     async probar(request, dto, ambito) {
         const empresa = empresaConcreta(ambito);
         await this.asegurarQuePuedeCorreos(request, empresa);
         const destino = await this.direccionDelDestinatario(request, dto?.destinatarioId, empresa);
-        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? 'Prueba'), String(dto?.cuerpo ?? ''), muestra_de_correo_1.MUESTRA);
+        const { subject, html } = (0, plantilla_de_correo_1.componerCorreo)(String(dto?.asunto ?? 'Prueba'), String(dto?.cuerpo ?? ''), shared_1.MUESTRA);
         const enviado = await this.correo.send(destino, `[Prueba] ${subject}`, html);
         return {
             enviado,

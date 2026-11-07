@@ -238,9 +238,13 @@ let ReservationsController = ReservationsController_1 = class ReservationsContro
         }
         return this.recortada(req, await this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds));
     }
-    async allGroupRequests(req, formId, clientId) {
+    async allGroupRequests(req, formId, clientId, page, pageSize) {
         const scope = await this.requestedScope(req, clientId);
-        return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
+        return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId, Number(page) || 1, Number(pageSize) || 50);
+    }
+    async resumenDeGrupos(req, clientId) {
+        const scope = await this.requestedScope(req, clientId);
+        return this.service.resumenDeGrupos(req.organizationId, scope.clientId, scope.clientIds);
     }
     async groupRequests(req, id) {
         const scope = await this.scope(req);
@@ -332,6 +336,15 @@ let ReservationsController = ReservationsController_1 = class ReservationsContro
             throw new common_1.BadRequestException('Escribe el código del cupón');
         const scope = await this.scope(req);
         return this.service.buscarCuponPorCodigo(req.organizationId, codigo, scope.clientIds);
+    }
+    async consentimientos(req, pedida) {
+        const scope = await this.scope(req);
+        const clientId = scope.clientId ?? await this.accountAccess.empresaElegida(req.organizationId, req.user, pedida);
+        if (!clientId)
+            throw new common_1.BadRequestException('Elige la empresa de la que quieres ver los consentimientos');
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capabilities.assert(req.organizationId, clientId, 'reservations');
+        return this.service.consentimientosDeReservas(req.organizationId, clientId);
     }
     async metricasDeCupon(req, id) {
         const scope = await this.scope(req);
@@ -681,10 +694,22 @@ __decorate([
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('formId')),
     __param(2, (0, common_1.Query)('clientId')),
+    __param(3, (0, common_1.Query)('page')),
+    __param(4, (0, common_1.Query)('pageSize')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "allGroupRequests", null);
+__decorate([
+    (0, common_1.Get)('group-requests/resumen'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.espera_y_grupos', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "resumenDeGrupos", null);
 __decorate([
     (0, common_1.Get)('forms/:id/group-requests'),
     (0, requiere_area_decorator_1.RequiereArea)('reservations.espera_y_grupos', 'ver'),
@@ -833,6 +858,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "buscarCupon", null);
+__decorate([
+    (0, common_1.Get)('consentimientos'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "consentimientos", null);
 __decorate([
     (0, common_1.Get)('coupons/:id/metricas'),
     (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),

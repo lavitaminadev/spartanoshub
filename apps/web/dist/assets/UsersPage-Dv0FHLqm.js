@@ -1,0 +1,1 @@
+import{fn as e}from"./vendor-DFvBbB1d.js";import{t}from"./EquipoYAccesos-CmqjN0ss.js";var n=e();function r(){return(0,n.jsx)(t,{})}export{r as UsersPage};

@@ -30,6 +30,7 @@ const feature_guard_1 = require("../../core/authorization/feature.guard");
 const audit_service_1 = require("../../core/audit/audit.service");
 const user_role_enum_1 = require("./user-role.enum");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
+const requires_recent_auth_decorator_1 = require("../../core/auth/requires-recent-auth.decorator");
 const permission_resolver_service_1 = require("../../core/authorization/permission-resolver.service");
 let OrganizationsController = class OrganizationsController {
     constructor(createOrg, listOrgs, organizations, featureGuard, permissionResolver, audit) {
@@ -141,7 +142,8 @@ __decorate([
     (0, common_1.Put)('features'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN),
+    (0, requires_recent_auth_decorator_1.RequiresRecentAuth)('encender o apagar un módulo de la organización'),
     (0, swagger_1.ApiOperation)({ summary: 'Habilitar o deshabilitar módulos de la organización' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),

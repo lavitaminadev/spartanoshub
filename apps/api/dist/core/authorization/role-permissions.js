@@ -30,6 +30,7 @@ const REPARTO_NO_APLICADO = {
         crm: 'manage',
         reservations: 'edit',
         commercialPipeline: 'manage',
+        automations: 'manage',
         catalog: 'manage',
         contracts: 'manage',
         billing: 'manage',
