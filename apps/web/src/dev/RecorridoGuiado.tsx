@@ -400,17 +400,17 @@ export function RecorridoGuiado() {
       </p>
 
       <section className="manual-bloque">
-        <h3>Qué estás viendo</h3>
+        <h3>¿Qué estoy viendo?</h3>
         <p>{paso.queVes}</p>
       </section>
 
       <section className="manual-bloque">
-        <h3>Por qué existe</h3>
+        <h3>¿Por qué existe?</h3>
         <p>{paso.porQueExiste}</p>
       </section>
 
       <section className="manual-bloque">
-        <h3>Qué hace</h3>
+        <h3>¿Qué hace?</h3>
         <ul>{paso.queHace.map((linea) => <li key={linea}>{linea}</li>)}</ul>
       </section>
 
@@ -421,13 +421,26 @@ export function RecorridoGuiado() {
         lector no tiene cómo saber cuál de las dos está leyendo.
       */}
       {paso.comoSeLee && <section className="manual-bloque es-medicion">
-        <h3>Cómo se lee</h3>
+        <h3>¿Cómo se lee?</h3>
         <p className="manual-matiz">Criterio, no comportamiento.</p>
         <ul>{paso.comoSeLee.map((linea) => <li key={linea}>{linea}</li>)}</ul>
       </section>}
 
+      {/*
+        Lo que la auditoría encontró, con su evidencia.
+
+        Va después de lo que la pantalla hace y antes del salto de perspectiva: primero qué es,
+        luego de qué no fiarse. Se dibuja distinto de todo lo demás porque no es explicación del
+        producto, es deuda suya.
+      */}
+      {paso.queLeFalta && <section className="manual-bloque es-forense">
+        <h3>¿Qué le falta a esta vista?</h3>
+        <p className="manual-matiz">De la auditoría del código, con archivo y línea.</p>
+        <ul>{paso.queLeFalta.map((linea) => <li key={linea}>{linea}</li>)}</ul>
+      </section>}
+
       {paso.tambienDesde && <section className="manual-bloque">
-        <h3>Y desde el otro lado</h3>
+        <h3>¿Y desde el otro lado?</h3>
         {paso.tambienDesde.map((destino) => <button
           key={destino.etiqueta}
           type="button"
@@ -440,7 +453,7 @@ export function RecorridoGuiado() {
       </section>}
 
       <section className="manual-bloque es-retroalimentacion">
-        <h3>Qué te parece esta vista</h3>
+        <h3>¿Qué te parece esta vista?</h3>
         {anotado && !escribiendo
           ? <p className="manual-anotado">
             {anotado.estado === 'ok' ? 'Anotaste que está bien.' : 'Anotaste una observación.'}

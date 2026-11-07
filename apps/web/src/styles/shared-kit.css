@@ -253,3 +253,23 @@
   .filter-search { min-width: 100%; }
   .filter-bar-controls { width: 100%; }
 }
+
+/*
+ * Texto que sólo leen los lectores de pantalla.
+ *
+ * Se usaba en dos sitios —el título de la tabla del explorador y un paso del flujo de encuestas—
+ * sin estar definida en ninguna hoja, así que el texto destinado a describir una tabla aparecía
+ * como una frase suelta encima de ella. Se queda en el flujo del documento: `display: none` lo
+ * sacaría también del lector, que es justo lo contrario de lo que se busca.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip-path: inset(50%);
+}

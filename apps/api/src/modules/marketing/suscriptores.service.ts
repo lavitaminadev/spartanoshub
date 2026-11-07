@@ -462,6 +462,8 @@ export class SuscriptoresService {
    */
   async listar(organizationId: string, filtros: {
     limite?: number;
+    /** Qué página se pide. Sin ella se devolvían siempre las primeras y el resto no se veía. */
+    pagina?: number;
     empresa?: string;
     encerradoEn?: string;
     estado?: EstadoDeSuscripcion;
@@ -470,6 +472,8 @@ export class SuscriptoresService {
   } = {}): Promise<{
     data: Suscriptor[];
     total: number;
+    pagina: number;
+    paginas: number;
     resumen: Array<{ clientId: string | null; suscritos: number; bajas: number; pendientes: number }>;
     /** Las procedencias que existen de verdad, para que el filtro no ofrezca lo que no hay. */
     origenes: string[];
@@ -487,10 +491,13 @@ export class SuscriptoresService {
       ? [{ ...where, email: Like(`%${texto.toLowerCase()}%`) }, { ...where, name: Like(`%${texto}%`) }]
       : where;
 
+    const take = Math.min(Math.max(filtros.limite ?? 200, 1), 1000);
+    const pagina = Math.max(Math.trunc(filtros.pagina ?? 1) || 1, 1);
     const [data, total] = await this.repo.findAndCount({
       where: condiciones,
       order: { createdAt: 'DESC' },
-      take: Math.min(Math.max(filtros.limite ?? 200, 1), 1000),
+      take,
+      skip: (pagina - 1) * take,
     });
 
     /*
@@ -559,7 +566,7 @@ export class SuscriptoresService {
       resumen.set(clave, actual);
     }
 
-    return { data, total, resumen: [...resumen.values()], origenes };
+    return { data, total, pagina, paginas: Math.max(Math.ceil(total / take), 1), resumen: [...resumen.values()], origenes };
   }
 
   /**

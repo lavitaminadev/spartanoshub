@@ -403,6 +403,11 @@ export function SurveyResultsPage(): JSX.Element {
   }, [rangoActivo, rango, periodo]);
   const { data: summary, isLoading: loadingResults, error: resultsError, refetch, isFetching } = useSurveyResults(survey, ventana);
   const filtradas = summary?.respuestas ?? [];
+  /*
+   * El servidor entrega como mucho quinientas respuestas. La tabla ya lo avisaba y el CSV no: se
+   * descargaba un archivo incompleto con nombre de archivo completo, que es peor que no tenerlo.
+   */
+  const respuestasRecortadas = (summary?.totalResponses ?? 0) > filtradas.length;
   /* El servidor avisa cuando recortó quién respondió, y si quien mira puede pedirlo con «Ver». */
   const sePuedePedirDatos = (summary as { datosProtegidos?: { sePuedePedir: boolean } | null } | undefined)?.datosProtegidos?.sePuedePedir === true;
 
@@ -445,7 +450,7 @@ export function SurveyResultsPage(): JSX.Element {
               : periodo === 'todo' ? 'Todas las respuestas' : `Últimos ${periodo} días`;
             if (!abrirInformeDeEncuesta({ survey, resumen: summary, periodo: periodoLegible, promedio, completaron })) triggerToast('El navegador bloqueó la ventana del informe: permite las ventanas emergentes e inténtalo otra vez.', 'error');
           }}>Descargar informe PDF</button>
-          {hayDetalle && <button type="button" className="btn btn-outline" disabled={!filtradas.length} onClick={() => exportarRespuestasCsv(survey, filtradas)}>Respuestas (CSV)</button>}
+          {hayDetalle && <button type="button" className="btn btn-outline" disabled={!filtradas.length} title={respuestasRecortadas ? `El archivo lleva ${filtradas.length} de ${summary?.totalResponses} respuestas: el servidor entrega hasta quinientas.` : undefined} onClick={() => exportarRespuestasCsv(survey, filtradas)}>{respuestasRecortadas ? `Respuestas (CSV · primeras ${filtradas.length})` : "Respuestas (CSV)"}</button>}
           <button type="button" className="btn btn-outline" onClick={() => exportResultsCsv(survey.title, summary)}>Resumen (CSV)</button>
         </div>}
       />
