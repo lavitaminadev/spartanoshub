@@ -12,6 +12,19 @@ export class MonthlyReport {
   @Column({ type: 'varchar', length: 20, default: 'draft' }) status: string;
   @Column({ name: 'executive_summary', type: 'text', nullable: true }) executiveSummary?: string;
   @Column({ type: 'json' }) metrics: Record<string, number>;
+  /**
+   * Las mismas métricas del mes anterior, para que el informe compare sin volver a consultar.
+   *
+   * Se congelan junto a las del período a propósito: un informe publicado en abril debe seguir
+   * mostrando en octubre la comparación que mostró el día que se firmó. Calcularla al abrirlo la
+   * haría cambiar si los datos de marzo se corrigen después, y entonces el documento entregado y
+   * el que se ve dejarían de coincidir.
+   *
+   * Nula en los informes generados antes de esto: la tarjeta muestra el período sin comparación.
+   */
+  @Column({ name: 'metrics_previous', type: 'json', nullable: true }) metricsPrevious?: Record<string, number>;
+  /** Primer día del período con que se compara, `YYYY-MM-DD`; nulo si no se guardó comparación. */
+  @Column({ name: 'previous_period_start', type: 'date', nullable: true }) previousPeriodStart?: string;
   @Column({ type: 'json', nullable: true }) insights?: string[];
   @Column({ type: 'text', nullable: true }) recommendations?: string;
   @Column({ name: 'sales_generated', type: 'decimal', precision: 18, scale: 2, default: 0 }) salesGenerated: number;

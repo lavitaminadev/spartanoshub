@@ -11,6 +11,7 @@ import { ACTIVE_PIECE_STATUS_SQL, isActivePieceStatus } from './active-pieces';
 import { AccountAccessService } from '../../core/client-scope/account-access.service';
 import { MonthlyReportsService } from './monthly-reports.service';
 import { GenerateMonthlyReportDto, UpdateMonthlyReportDto } from './dto/monthly-report.dto';
+import type { ModoDeComparacion } from './metricas-del-periodo';
 import { Empresa } from '../../core/client-scope/empresa.decorator';
 import { esUnaEmpresa, type AmbitoDeEmpresa } from '../../core/client-scope/empresa-resuelta';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
@@ -208,7 +209,14 @@ export class ReportingController {
 
     const [[revRow], [projRow], [avgUdRow], monthlyRows, topRows] = await Promise.all([
       this.dataSource.query(
-        `SELECT COALESCE(SUM(total),0) as total FROM invoices WHERE ${invoiceConditions.join(' AND ')} AND status = 'paid'`,
+        /*
+         * Acotado a la misma ventana que el resto del panel.
+         *
+         * La tarjeta vive bajo «Ventana analítica · Últimos 12 meses» y se compara contra el mes
+         * anterior, así que tiene que ser la suma de las barras que están debajo. Sin el corte
+         * sumaba todas las facturas pagadas de la historia, y el total no cuadraba con la serie.
+         */
+        `SELECT COALESCE(SUM(total),0) as total FROM invoices WHERE ${invoiceConditions.join(' AND ')} AND status = 'paid' AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)`,
         invoiceParams,
       ),
       this.dataSource.query(
@@ -373,6 +381,35 @@ export class ReportingController {
     const clientId = this.resolveClientScope(req, ambito as AmbitoDeEmpresa);
     const clientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
     return this.monthlyReports.list(req.organizationId!, { clientId: clientId ?? undefined, clientIds, clientView: req.user.role === UserRole.CLIENT, year: year ? Number(year) : undefined, month: month ? Number(month) : undefined });
+  }
+
+  /**
+   * El explorador: un rango libre, con comparación opcional.
+   *
+   * Exige una empresa. No la declara y alcanza varias → 400, igual que el resto del producto: las
+   * doce métricas son de una empresa, y sumarlas no significa nada. Una cuenta de portal la trae
+   * resuelta siempre, así que para ella la pregunta es sobre la suya y no puede ser otra.
+   */
+  @Get('explorar')
+  @RequiresPermission('reports', 'view')
+  @Roles(
+    UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.CREATIVE_DIRECTOR,
+    UserRole.OPERATIONS_DIRECTOR, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR,
+    UserRole.AI_LEAD, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT,
+  )
+  @ApiOperation({ summary: 'Métricas de un rango de fechas, con comparación opcional' })
+  async explorar(
+    @Req() req: AuthenticatedRequest,
+    @Empresa() ambito: AmbitoDeEmpresa,
+    @Query('desde') desde: string,
+    @Query('hasta') hasta: string,
+    @Query('comparar') comparar?: string,
+  ) {
+    const clientId = this.resolveClientScope(req, ambito);
+    if (!clientId) throw new ForbiddenException('Indica la empresa del análisis');
+    const modo: ModoDeComparacion = comparar === 'ano_anterior' || comparar === 'ninguna' ? comparar : 'anterior';
+    const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId!, req.user);
+    return this.monthlyReports.explorar(req.organizationId!, clientId, desde, hasta, modo, allowedClientIds);
   }
 
   @Post('monthly-reports/generate')

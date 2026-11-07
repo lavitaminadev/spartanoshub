@@ -4,6 +4,7 @@ import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
 import { Client } from '../clients/client.entity';
 import { MonthlyReport } from './monthly-report.entity';
 import { GenerateMonthlyReportDto, UpdateMonthlyReportDto } from './dto/monthly-report.dto';
+import { metricasDelPeriodo, rangoDeComparacion, rangoDelMes, type ModoDeComparacion } from './metricas-del-periodo';
 
 @Injectable()
 export class MonthlyReportsService {
@@ -27,32 +28,69 @@ export class MonthlyReportsService {
     return reports.map((report) => ({ ...report, clientName: clientMap.get(report.clientId) ?? 'Cliente' }));
   }
 
+  /**
+   * Mide un rango libre y, si se pide, el rango con que se compara.
+   *
+   * No guarda nada. El informe mensual es el documento que se redacta y se firma; esto es la
+   * pregunta suelta —«¿cómo nos fue del 12 de marzo al 4 de abril?»— que antes no se podía hacer
+   * sin esperar al cierre del mes. Comparten `metricasDelPeriodo`, de modo que preguntar acá por
+   * un mes completo da exactamente las cifras del informe de ese mes.
+   *
+   * @param allowedClientIds - Cuentas que alcanza quien consulta; `undefined` es sin límite. Una
+   * empresa fuera del alcance responde 404 y no 403: decir «existe pero no es tuya» ya revela a
+   * quién atiende la agencia.
+   */
+  async explorar(
+    organizationId: string,
+    clientId: string,
+    desde: string,
+    hasta: string,
+    comparar: ModoDeComparacion,
+    allowedClientIds?: string[],
+  ) {
+    if (allowedClientIds !== undefined && !allowedClientIds.includes(clientId)) {
+      throw new NotFoundException('Cliente no encontrado');
+    }
+    const client = await this.clients.findOne({ where: { id: clientId, organizationId } });
+    if (!client) throw new NotFoundException('Cliente no encontrado');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+      throw new BadRequestException('Las fechas van en formato AAAA-MM-DD');
+    }
+    if (hasta <= desde) throw new BadRequestException('El fin del rango debe ser posterior al inicio');
+    const referencia = rangoDeComparacion(desde, hasta, comparar);
+    const [periodo, previo] = await Promise.all([
+      metricasDelPeriodo(this.dataSource, organizationId, clientId, desde, hasta),
+      referencia ? metricasDelPeriodo(this.dataSource, organizationId, clientId, referencia.desde, referencia.hasta) : Promise.resolve(null),
+    ]);
+    return { clientId, clientName: client.name, comparar, periodo, comparacion: previo };
+  }
+
   async generate(organizationId: string, userId: string, dto: GenerateMonthlyReportDto): Promise<MonthlyReport> {
     const client = await this.clients.findOne({ where: { id: dto.clientId, organizationId } });
     if (!client) throw new NotFoundException('Cliente no encontrado');
     const existing = await this.reports.findOne({ where: { organizationId, clientId: dto.clientId, year: dto.year, month: dto.month } });
     if (existing?.status === 'published') throw new BadRequestException('El reporte publicado debe volver a borrador antes de regenerarse');
-    const start = `${dto.year}-${String(dto.month).padStart(2, '0')}-01`;
-    const endDate = new Date(dto.year, dto.month, 1);
-    const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-01`;
-    const params = [organizationId, dto.clientId, start, end];
-    const [[ads], [bookings], [production], [meetings], [sales]] = await Promise.all([
-      this.dataSource.query('SELECT COALESCE(SUM(spend),0) spend, COALESCE(SUM(impressions),0) impressions, COALESCE(SUM(clicks),0) clicks, COALESCE(SUM(leads),0) leads, COALESCE(SUM(conversions),0) conversions FROM integration_metrics WHERE organization_id = ? AND client_id = ? AND metric_date >= ? AND metric_date < ?', params),
-      this.dataSource.query("SELECT COUNT(*) total, SUM(CASE WHEN status = 'attended' THEN 1 ELSE 0 END) attended, SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) noShow FROM reservations WHERE organization_id = ? AND client_id = ? AND starts_at >= ? AND starts_at < ?", params),
-      this.dataSource.query("SELECT COUNT(*) delivered, COALESCE(SUM(ud_amount),0) ud FROM pieces WHERE organization_id = ? AND client_id = ? AND delivered_at >= ? AND delivered_at < ? AND status = 'delivered'", params),
-      this.dataSource.query("SELECT COUNT(*) total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) completed FROM meetings WHERE organization_id = ? AND client_id = ? AND scheduled_at >= ? AND scheduled_at < ?", params),
-      this.dataSource.query("SELECT COALESCE(SUM(amount),0) total, COUNT(*) count FROM crm_opportunities WHERE organization_id = ? AND client_id = ? AND stage IN ('won','closed_won') AND updated_at >= ? AND updated_at < ?", params),
+    /*
+     * El mes se mide con la misma función que el explorador, y se compara contra el mes anterior.
+     *
+     * Antes los cinco agregados vivían acá escritos a mano. Compartirlos es lo que garantiza que el
+     * informe publicado de marzo y el explorador consultado sobre marzo digan la misma cifra: con
+     * dos copias, basta que una cambie para que no haya forma de saber cuál miente.
+     */
+    const { desde, hasta } = rangoDelMes(dto.year, dto.month);
+    const anterior = rangoDeComparacion(desde, hasta, 'anterior')!;
+    const [periodo, previo] = await Promise.all([
+      metricasDelPeriodo(this.dataSource, organizationId, dto.clientId, desde, hasta),
+      metricasDelPeriodo(this.dataSource, organizationId, dto.clientId, anterior.desde, anterior.hasta),
     ]);
-    const metrics = {
-      impressions: Number(ads?.impressions ?? 0), clicks: Number(ads?.clicks ?? 0), leads: Number(ads?.leads ?? 0), conversions: Number(ads?.conversions ?? 0),
-      bookings: Number(bookings?.total ?? 0), attendedBookings: Number(bookings?.attended ?? 0), noShows: Number(bookings?.noShow ?? 0),
-      deliveredPieces: Number(production?.delivered ?? 0), consumedUd: Number(production?.ud ?? 0), meetings: Number(meetings?.total ?? 0), completedMeetings: Number(meetings?.completed ?? 0), wonOpportunities: Number(sales?.count ?? 0),
-    };
+    const metrics = periodo.metricas;
     const report = existing ?? this.reports.create({ organizationId, clientId: client.id, year: dto.year, month: dto.month, createdBy: userId });
     Object.assign(report, {
       title: `Resultados ${client.name} · ${String(dto.month).padStart(2, '0')}/${dto.year}`,
-      status: 'draft', metrics, adSpend: Number(ads?.spend ?? 0), leads: metrics.leads, bookings: metrics.bookings, conversions: metrics.conversions,
-      salesGenerated: Number(sales?.total ?? 0),
+      status: 'draft', metrics, adSpend: periodo.inversion, leads: metrics.leads, bookings: metrics.bookings, conversions: metrics.conversions,
+      salesGenerated: periodo.ventas,
+      metricsPrevious: previo.metricas,
+      previousPeriodStart: previo.desde,
       executiveSummary: report.executiveSummary || `Durante el período se registraron ${metrics.leads} leads, ${metrics.bookings} reservas y ${metrics.conversions} conversiones atribuidas.`,
       insights: report.insights ?? [],
     });

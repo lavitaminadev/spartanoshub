@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { ExploradorDePeriodo } from './ExploradorDePeriodo';
 import { MonthlyReportsPanel } from './MonthlyReportsPanel';
 import { PageHero } from '../../shared/PageHero';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { useAuth } from '../../core/auth';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 import { isModuleInPhaseScope } from '../../core/phase-scope';
 
 interface ReportData {
@@ -62,7 +64,44 @@ export function ReportsPage() {
           {topClients.length ? <div className="ranked-clients">{topClients.map((client, index) => <article key={`${client.name}-${index}`}><b>{String(index + 1).padStart(2, '0')}</b><div><span><strong>{client.name}</strong><small>{money(client.revenue)}</small></span><i><em style={{ width: `${client.revenue * 100 / maxClientRevenue}%` }} /></i></div></article>)}</div> : <div className="panel-empty"><strong>Sin ingresos atribuidos</strong><span>Los clientes aparecerán al existir registros pagados.</span></div>}
         </section>
       </div>
+      <SelectorDeEmpresaParaExplorar showUdMetrics={udBudgetVisible} />
       <MonthlyReportsPanel showUdMetrics={udBudgetVisible} />
     </div>
   );
+}
+
+/**
+ * El explorador, sobre la empresa que el marco tiene elegida.
+ *
+ * El resto de esta página mira la agencia entera: ingresos, concentración, carga. El explorador no
+ * puede, y el servidor responde 400 a un rango sin empresa, así que hace falta una elegida.
+ *
+ * La elección no se pregunta acá: viene de `empresa-activa`, la misma que usan la cabecera, el
+ * inicio y las reservas. Tenía su propio selector, y con eso elegir una empresa en esta página no
+ * cambiaba nada en las otras —y al revés—, de modo que dos pantallas abiertas podían estar
+ * mirando locales distintos sin que nada lo dijera.
+ */
+function SelectorDeEmpresaParaExplorar({ showUdMetrics }: { showUdMetrics: boolean }) {
+  const { clientId, empresas, nombre, elegir, varias } = useEmpresaActiva();
+
+  // Sin encabezado propio: el explorador ya trae el suyo, y puestos los dos la página decía
+  // «Explorar un período» dos veces seguidas.
+  return <section className="report-panel explorador-anfitrion">
+    {clientId
+      ? <>
+          {/* Se nombra la empresa medida: el selector del marco queda arriba y fuera de la vista
+              al desplazarse, y una tabla de cifras sin nombre no se puede leer. */}
+          <p className="explorador-midiendo" role="status">Midiendo <strong>{nombre}</strong></p>
+          <ExploradorDePeriodo clientId={clientId} showUdMetrics={showUdMetrics} />
+        </>
+      : <div className="panel-empty">
+          <strong>Elige una empresa</strong>
+          <span>Las métricas del rango son de una empresa concreta; sumar varias no diría nada.</span>
+          {/* El atajo: elegir acá cambia la empresa del marco, no una sólo de esta página. */}
+          {varias && <select className="input" aria-label="Empresa del análisis" value="" onChange={(evento) => elegir(evento.target.value)}>
+            <option value="">Selecciona una empresa</option>
+            {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
+          </select>}
+        </div>}
+  </section>;
 }
