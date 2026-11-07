@@ -16,6 +16,7 @@ import { AuditService } from '../../core/audit/audit.service';
 import { UserRole } from './user-role.enum';
 import type { AuthenticatedRequest } from '../../shared/types/request';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
+import { RequiresRecentAuth } from '../../core/auth/requires-recent-auth.decorator';
 import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
 
 /**
@@ -91,10 +92,19 @@ export class OrganizationsController {
   @Put('features')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  // Solo desarrollo. Encender un módulo va después de actualizar el servidor y comprobar que
-  // funciona, así que lo hace quien despliega. Administración ajusta quién ve qué —eso sí es
-  // suyo—, pero no decide qué está disponible.
-  @Roles(UserRole.DEV)
+  /*
+   * Desarrollo y administración.
+   *
+   * Era sólo desarrollo, con el argumento de que encender un módulo va después de comprobar que
+   * funciona en el servidor. Sigue siendo cierto, pero el efecto práctico era otro: la pantalla
+   * no mostraba la sección a administración y el interruptor parecía averiado en vez de ajeno.
+   *
+   * Se pide la contraseña otra vez, igual que para cambiar la matriz de cargos: encender un
+   * módulo abre pantallas para toda la organización, y con una sesión robada eso es lo que
+   * impide que el ataque llegue a la configuración.
+   */
+  @Roles(UserRole.DEV, UserRole.ADMIN)
+  @RequiresRecentAuth('encender o apagar un módulo de la organización')
   @ApiOperation({ summary: 'Habilitar o deshabilitar módulos de la organización' })
   async updateFeatures(@Req() req: AuthenticatedRequest, @Body() dto: UpdateOrganizationFeaturesDto) {
     const organizationId = req.organizationId || req.user.organizationId;

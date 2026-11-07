@@ -55,7 +55,7 @@ export class PermissionsController {
   /** Acciones de una persona: lo que da su nivel, su ajuste si existe y el resultado. */
   // Quien administra su empresa también las lee: ajustarlas sin verlas no se puede.
   @Get('users/:id/actions')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Acciones permitidas de un usuario' })
   async accionesDeUsuario(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const user = await this.findUser(id, req.organizationId);
@@ -87,30 +87,50 @@ export class PermissionsController {
    * acotado de los dos.
    */
   @Put('users/:id/actions/:accion')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Ajustar una acción de un usuario' })
   async ajustarAccion(@Param('id') id: string, @Param('accion') accion: string, @Body() dto: AjustarAccionDto, @Req() req: AuthenticatedRequest) {
     const definicion = definicionDeAccion(accion);
     if (!definicion) throw new BadRequestException(`Acción desconocida: ${accion}`);
     const user = await this.findUser(id, req.organizationId);
-    await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined);
+    /*
+     * El mismo encierro que el nivel de módulo, y con la empresa.
+     *
+     * Antes se llamaba sin ella: quien administra una empresa concedía una acción que regía en
+     * todas las de esa persona, incluida la del vecino. Es el mismo argumento que ya pasa el
+     * `upsert` de módulos, doscientas líneas más arriba.
+     */
+    const encerrada = await this.assertCanManageUserPermissionException(req, user, definicion.modulo, dto.allowed ? definicion.nivelPorDefecto : undefined, dto.clientId || undefined);
+    const empresa = encerrada ?? (dto.clientId || undefined);
+    // Quien concede tiene que alcanzar esa empresa: sin esto se daría una acción en cartera ajena.
+    if (empresa) await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
     const venceEl = this.fechaDeTermino(dto.expiresAt);
-    const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
-    const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, allowed: dto.allowed, reason: dto.reason ?? null, expiresAt: venceEl, expiryNotifiedAt: null, grantedBy: req.user.id });
-    await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed, expiresAt: venceEl } });
+    // Se busca el ajuste **de esa empresa**: sin la empresa en la búsqueda, ajustar algo estando
+    // en un local sobreescribía el general, que vale en todos.
+    const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion, clientId: empresa ?? IsNull() } });
+    const guardado = await this.ajustesDeAccion.save({ ...(existente ?? {}), organizationId: req.organizationId, userId: user.id, action: accion, clientId: empresa ?? null, allowed: dto.allowed, reason: dto.reason ?? null, expiresAt: venceEl, expiryNotifiedAt: null, grantedBy: req.user.id });
+    await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: guardado.id, action: existente ? 'updated' : 'created', before: existente ? { allowed: existente.allowed } : undefined, after: { accion, allowed: dto.allowed, clientId: empresa ?? null, expiresAt: venceEl } });
     return guardado;
   }
 
   /** Quita el ajuste: la acción vuelve a seguir el nivel del módulo. Mismo encierro que ponerlo. */
   @Delete('users/:id/actions/:accion')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Quitar el ajuste de una acción' })
-  async quitarAjusteDeAccion(@Param('id') id: string, @Param('accion') accion: string, @Req() req: AuthenticatedRequest) {
+  async quitarAjusteDeAccion(@Param('id') id: string, @Param('accion') accion: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const definicion = definicionDeAccion(accion);
     if (!definicion) throw new BadRequestException(`Acción desconocida: ${accion}`);
     const user = await this.findUser(id, req.organizationId);
-    await this.assertCanManageUserPermissionException(req, user, definicion.modulo);
-    const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion } });
+    const encerrada = await this.assertCanManageUserPermissionException(req, user, definicion.modulo, undefined, clientId || undefined);
+    const empresa = encerrada ?? (clientId || undefined);
+    if (empresa) await this.accountAccess.assertClient(req.organizationId, req.user, empresa);
+    /*
+     * Se retira el ajuste de la empresa que se está mirando, no «el de la acción».
+     *
+     * Sin la empresa en la búsqueda, quitar un ajuste estando en un local borraba el general
+     * —el que vale en todos— y dejaba intacto el del local: lo contrario de lo que se pidió.
+     */
+    const existente = await this.ajustesDeAccion.findOne({ where: { userId: user.id, action: accion, clientId: empresa ?? IsNull() } });
     if (!existente) return { removed: false, accion };
     await this.ajustesDeAccion.remove(existente);
     await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'UserActionOverride', entityId: existente.id, action: 'deleted', before: { accion, allowed: existente.allowed } });
@@ -367,7 +387,7 @@ export class PermissionsController {
    * excepción.
    */
   @Get('users/:id/permissions')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Detalle de permisos de un usuario' })
   async ofUser(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const user = await this.findUser(id, req.organizationId);
@@ -391,7 +411,7 @@ export class PermissionsController {
    * Usar `level: 'none'` deniega de forma explícita un módulo que el cargo sí concede.
    */
   @Put('users/:id/permissions/:module')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Definir una excepción de permiso' })
   async upsert(
     @Param('id') id: string,
@@ -446,7 +466,7 @@ export class PermissionsController {
    * mitad de la atribución y la mitad peligrosa. El encierro lo aplica
    * `assertCanManageUserPermissionException`, que es el mismo en las dos rutas.
    */
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Quitar una excepción de permiso' })
   async remove(@Param('id') id: string, @Param('module') module: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     if (!isOrganizationFeatureKey(module)) throw new BadRequestException(`Módulo desconocido: ${module}`);
@@ -485,7 +505,7 @@ export class PermissionsController {
    * accesos sin reconstruir la decisión: las excepciones se ven como excepciones.
    */
   @Get('users/:id/client-access')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   @ApiOperation({ summary: 'Cuentas visibles de un usuario y por qué las ve' })
   async clientAccessOfUser(@Param('id') id: string, @Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
     const user = await this.findUser(id, req.organizationId);
@@ -749,12 +769,22 @@ export class PermissionsController {
     if (target.role === UserRole.DEV) {
       throw new ForbiddenException('Las excepciones de una cuenta dev solo pueden administrarse con rol dev');
     }
-    if (actorRole !== UserRole.OPERATIONS_DIRECTOR) return undefined;
-    if ([UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR].includes(target.role as UserRole)) {
-      throw new ForbiddenException('Los accesos de Administración y de Dirección de operaciones los ajusta Administración');
+    /*
+     * Las dos direcciones que reparten accesos lo hacen con límites; administración, sin ellos.
+     *
+     * Dirección comercial entró a estas rutas porque tiene `users: manage` en la matriz y llega a
+     * la pantalla: antes recibía 403 en cada llamada y el panel de permisos le fallaba entero.
+     * Entra por **esta** puerta y no por la de administración: sin estos tres límites podría
+     * concederse a sí mismo —a través de otra cuenta— los módulos con los que se administra el
+     * sistema, y eso convierte un permiso de cartera en uno de administrador.
+     */
+    const CON_LIMITES: UserRole[] = [UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR];
+    if (!CON_LIMITES.includes(actorRole)) return undefined;
+    if ([UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR].includes(target.role as UserRole)) {
+      throw new ForbiddenException('Los accesos de Administración y de las direcciones los ajusta Administración');
     }
-    if (module && ['users', 'settings', 'integrations'].includes(module)) {
-      throw new ForbiddenException('Usuarios, Ajustes e Integraciones los ajusta Administración');
+    if (module && ['users', 'settings', 'integrations', 'governance'].includes(module)) {
+      throw new ForbiddenException('Usuarios, Ajustes, Integraciones y Gobierno los ajusta Administración');
     }
     if (module && level) {
       // En la empresa en que se concede: su nivel ahí puede no ser el general.

@@ -125,14 +125,25 @@ describe('normalizeOrganizationFeatures', () => {
    * La lista va escrita y no derivada a propósito: si mañana alguien apaga de fábrica un módulo
    * que el equipo usa a diario, esto falla y hay que venir a explicarlo acá.
    */
-  it('nacen apagados exactamente los once módulos de empresa liberados', () => {
+  it('nacen apagados exactamente los doce módulos de empresa y Automatizaciones', () => {
     const apagados = ORGANIZATION_FEATURE_KEYS.filter((key) => !DEFAULT_ORGANIZATION_FEATURES[key]).sort();
     expect(apagados).toEqual([
-      'approvals', 'audiovisual', 'billing', 'briefs', 'content',
-      'contracts', 'documents', 'intake', 'meetings', 'production', 'udBudget',
+      'approvals', 'audiovisual', 'automations', 'billing', 'briefs',
+      'commercialPipeline', 'content', 'contracts', 'documents', 'intake',
+      'meetings', 'production', 'udBudget',
     ]);
-    // `commercialPipeline` no está: sigue detrás de la puerta de despliegue porque `/automations`
-    // comparte su clave, así que su valor por defecto no se nota y se dejó como estaba.
-    expect(DEFAULT_ORGANIZATION_FEATURES.commercialPipeline).toBe(true);
+  });
+
+  /**
+   * El embudo comercial se liberó, y por eso tuvo que pasar a nacer apagado.
+   *
+   * Decía `true` mientras `INITIAL_OPERATION_MODULES` rechazaba su ruta antes de mirar el
+   * interruptor: el valor no se notaba. Al liberarlo —lo que se pudo hacer recién cuando
+   * `/automations` dejó de compartir su clave— ese `true` habría encendido el embudo de golpe en
+   * toda organización nueva, que es justo lo que las otras once evitaron.
+   */
+  it('el embudo comercial y Automatizaciones nacen apagados, no encendidos', () => {
+    expect(DEFAULT_ORGANIZATION_FEATURES.commercialPipeline).toBe(false);
+    expect(DEFAULT_ORGANIZATION_FEATURES.automations).toBe(false);
   });
 });

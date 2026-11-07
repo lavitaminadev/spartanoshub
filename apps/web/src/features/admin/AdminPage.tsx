@@ -7,6 +7,7 @@ import { ROLE_LABELS } from '../../core/role-labels';
 import { getAllowedRolesForPath, isRoleAllowedForPath } from '../../core/navigation.registry';
 import {
   MODULE_LIFECYCLE_LABELS,
+  isModuleInInitialOperationScope,
   MODULE_LIFECYCLE_STATUSES,
   ORGANIZATION_MODULE_CATALOG,
   buildAgencyCoreOrganizationFeatures,
@@ -146,7 +147,9 @@ export function AdminPage() {
    * una dice qué existe y la otra quién lo ve, y tenerlas bajo la misma condición obligaba a
    * elegir entre ocultarle a administración lo suyo o darle lo que no le toca.
    */
-  const canManageModules = esDesarrollo;
+  // Administración también: encender un módulo abre pantallas para toda la organización, y el
+  // servidor le pide la contraseña otra vez antes de aceptarlo.
+  const canManageModules = esDesarrollo || user?.role === 'admin';
   const [tab, setTab] = useState<'permisos' | 'modulos' | 'excepciones' | 'consentimiento'>('excepciones');
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [dirty, setDirty] = useState(false);
@@ -182,6 +185,28 @@ export function AdminPage() {
   const consentUsersQuery = useQuery<{ items?: Array<{ userId: string; userName: string; acceptedVersion: number | null; acceptedAt?: string; status: 'accepted' | 'pending' | 'expired' }> }>({ queryKey: ['consent-users'], queryFn: () => api.get('/consent/users') });
 
   const matrix = permsQuery.data?.matrix;
+  /**
+   * Por qué una celda concedida no significa nada todavía.
+   *
+   * Las tres rejas se evalúan en este orden —fase, permiso, interruptor— y la matriz es sólo la
+   * del medio. Una celda podía decir «Administrar» mientras la fase o el interruptor cerraban ese
+   * módulo, y la pantalla no lo decía: el permiso se concedía, la persona recibía «no tienes
+   * acceso», y no había forma de saber cuál de las dos lo cerraba ni dónde se corrige.
+   *
+   * @returns El motivo, o `null` cuando la celda rige de verdad.
+   */
+  const porQueNoRige = (modulo: string, cargo: string, nivel: string): string | null => {
+    if (nivel === 'none') return null;
+    if (!isModuleInInitialOperationScope(modulo, cargo)) {
+      return 'El producto no entrega este módulo a este cargo todavía. No se abre desde esta pantalla: es la reja de operación inicial, y se mueve en el código.';
+    }
+    // Sin la lista de interruptores no se afirma nada: quien mira la matriz sin poder ver los
+    // módulos —dirección comercial— no la recibe, y marcar por omisión sería inventar.
+    if (features && features[modulo as keyof typeof features] === false) {
+      return 'Apagado para toda la organización. Se enciende en Accesos y seguridad → Módulos.';
+    }
+    return null;
+  };
   const exceptions = (exceptionsQuery.data as { data?: AccessException[] } | undefined)?.data ?? [];
   const rawUsers = usersQuery.data;
   const users = Array.isArray(rawUsers) ? rawUsers : (rawUsers as { data?: UserOption[] } | undefined)?.data ?? [];
@@ -460,12 +485,16 @@ export function AdminPage() {
           <div className="permission-role-modules">{MODULE_CATALOG.map((mod) => { const level = currentMatrix[mod.key]?.[roleFocus] ?? 'none'; const enabled = level !== 'none'; return <div className="permission-role-row" key={mod.key}><div className="permission-role-module"><strong>{mod.key}</strong><small>{MODULE_LIFECYCLE_LABELS[mod.lifecycle]}</small></div><div className="permission-role-controls"><label className="central-switch"><input type="checkbox" disabled={!canManagePermissions} checked={enabled} onChange={(e) => setCell(mod.key, roleFocus, e.target.checked ? (currentMatrix[mod.key]?.[roleFocus] !== 'none' ? currentMatrix[mod.key]?.[roleFocus] as PermissionLevel : 'view') : 'none')} /><span></span><strong>{enabled ? 'Con acceso' : 'Sin acceso'}</strong></label>{enabled && <select disabled={!canManagePermissions} className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, roleFocus, e.target.value as PermissionLevel)}>{LEVELS.filter((l) => l !== 'none').map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select>}</div></div>; })}</div>
         </div>
       ) : (
+      <>
+      {/* La leyenda antes de la tabla: sin ella, la marca de la celda es un adorno. */}
+      <p className="form-context">Una celda marcada <strong>cerrado</strong> concede el permiso, pero el módulo lo cierra antes otra reja —la fase del producto o el interruptor de la organización— así que todavía no rige. Pasa el cursor por la marca para ver cuál y dónde se corrige.</p>
       <div className="permission-matrix-wrapper">
         <table className="permission-matrix">
           <thead><tr><th className="sticky-col">Módulo</th>{ROLE_KEYS.map((role) => <th key={role} className="matrix-role-col" title={ROLE_LABELS[role]}><span>{ROLE_LABELS[role]}</span></th>)}</tr></thead>
-          <tbody>{MODULE_CATALOG.map((mod) => <tr key={mod.key}><td className="sticky-col module-label"><strong>{mod.key}</strong><small>{MODULE_LIFECYCLE_LABELS[mod.lifecycle]}</small></td>{ROLE_KEYS.map((role) => { const level = currentMatrix[mod.key]?.[role] ?? 'none'; return <td key={role} className="matrix-cell"><select disabled={!canManagePermissions} className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, role, e.target.value as PermissionLevel)}>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select></td>; })}</tr>)}</tbody>
+          <tbody>{MODULE_CATALOG.map((mod) => <tr key={mod.key}><td className="sticky-col module-label"><strong>{mod.key}</strong><small>{MODULE_LIFECYCLE_LABELS[mod.lifecycle]}</small></td>{ROLE_KEYS.map((role) => { const level = currentMatrix[mod.key]?.[role] ?? 'none'; const noRige = porQueNoRige(mod.key, role, level); return <td key={role} className={`matrix-cell${noRige ? ' celda-no-rige' : ''}`} title={noRige ?? undefined}><select disabled={!canManagePermissions} className={`level-select level-${level}`} style={{ backgroundColor: `${LEVEL_COLORS[level]}15`, color: LEVEL_COLORS[level], borderColor: LEVEL_COLORS[level] }} value={level} onChange={(e) => setCell(mod.key, role, e.target.value as PermissionLevel)}>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}</select>{noRige && <abbr className="celda-aviso" title={noRige} aria-label={`Concedido pero cerrado: ${noRige}`}>cerrado</abbr>}</td>; })}</tr>)}</tbody>
         </table>
       </div>
+      </>
       )}
     </section>}
 
