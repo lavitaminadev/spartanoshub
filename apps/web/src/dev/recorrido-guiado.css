@@ -194,6 +194,28 @@ body:has(.manual-panel) .toast-container {
   color: var(--terracotta);
 }
 
+/*
+ * El bloque forense: deuda del producto, no explicación.
+ *
+ * Se distingue de "¿Cómo se lee?" porque son cosas distintas: una es criterio para leer lo que
+ * hay, la otra es lo que está mal. Con el mismo aspecto se leerían como lo mismo.
+ */
+.manual-bloque.es-forense {
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ink);
+  border-radius: var(--radius-md);
+}
+
+.manual-bloque.es-forense h3 {
+  color: var(--ink);
+}
+
+.manual-bloque.es-forense code {
+  font-size: 11px;
+  word-break: break-all;
+}
+
 .manual-matiz {
   margin: -3px 0 7px;
   color: var(--muted);

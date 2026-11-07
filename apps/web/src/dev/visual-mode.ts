@@ -90,11 +90,11 @@ function rolDeRevision(): string {
  * Apagado es `false` explícito; sin la clave, el servidor lo da por encendido.
  */
 const EMPRESAS_VISUALES = [
-  { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true } },
-  { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false } },
-  { id: 'visual-client-3', name: 'Pastelería Alameda', capabilities: { reservations: true, crm: false, surveys: false } },
-  { id: 'visual-client-4', name: 'Hotel Mirador del Valle', capabilities: { reservations: false, crm: true, surveys: false } },
-  { id: 'visual-client-5', name: 'Café Plaza', capabilities: { reservations: false, crm: false, surveys: false } },
+  { id: 'visual-client', name: 'Casa Costanera', capabilities: { reservations: true, crm: false, surveys: true, reports: true } },
+  { id: 'visual-client-2', name: 'Bar Ruperto', capabilities: { reservations: true, crm: true, surveys: false, reports: false } },
+  { id: 'visual-client-3', name: 'Pastelería Alameda', capabilities: { reservations: true, crm: false, surveys: false, reports: true } },
+  { id: 'visual-client-4', name: 'Hotel Mirador del Valle', capabilities: { reservations: false, crm: true, surveys: false, reports: false } },
+  { id: 'visual-client-5', name: 'Café Plaza', capabilities: { reservations: false, crm: false, surveys: false, reports: false } },
 ];
 
 const CLAVE_EMPRESA_VISUAL = 'espartanos.modo-visual.empresa';
@@ -124,7 +124,15 @@ function empresaDeRevision() {
  * Fuera de estos tres, un módulo apagado lo está por el interruptor de la organización o por el
  * permiso del cargo, que son rejas distintas y no se simulan desde la empresa.
  */
-const MODULO_POR_SERVICIO: Record<string, 'reservations' | 'crm' | 'surveys'> = {
+/*
+ * Informes es uno de los doce servicios de empresa, así que se contrata como los demás.
+ *
+ * Decidido el 2026-11-06: el restaurante ve su informe entero. Que lo vea sigue dependiendo de
+ * haberlo contratado, y por eso sólo una de las cinco empresas de la maqueta lo tiene: sin una
+ * que no lo tenga no se puede mostrar en pantalla qué cambia al no contratarlo.
+ */
+const MODULO_POR_SERVICIO: Record<string, 'reservations' | 'crm' | 'surveys' | 'reports'> = {
+  reports: 'reports',
   reservations: 'reservations',
   crm: 'crm',
   commercialPipeline: 'crm',
@@ -1146,6 +1154,25 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
         reservationForms: 1, publishedForms: 1, contracts: 0, activeContracts: 0, briefs: 0, approvedBriefs: 0,
       },
       ud: { contracted: 40, reserved: 12, consumed: 21 },
+      /*
+       * El libro de UD del mes, con quién movió qué.
+       *
+       * Los tres totales de arriba se leen igual con cualquier cifra; esta lista sólo se puede
+       * revisar con movimientos de los cuatro tipos —asignación, reserva, consumo y devolución—,
+       * porque es lo que prueba que el signo y el color salgan del tipo y no de la cantidad.
+       *
+       * Suma: +40 asignadas, −6 y −8 reservadas, −14 y −7 consumidas, +2 devueltas = 7
+       * disponibles, que es la cifra del anillo. Cuadrar importa: una lista que no cuadra con el
+       * total de arriba hace dudar del total, que es justo lo que esta vista viene a resolver.
+       */
+      udMovements: [
+        { date: '2026-11-06T14:20:00Z', type: 'release', units: 2, piece: 'Reel terraza', reason: 'Se bajó a una sola versión', actor: 'Valentina Soto' },
+        { date: '2026-11-05T11:05:00Z', type: 'consumption', units: -7, piece: 'Historias de fin de semana', reason: null, actor: 'Matías Fuentes' },
+        { date: '2026-11-03T16:40:00Z', type: 'reservation', units: -8, piece: 'Carta de otoño · parrilla semanal', reason: null, actor: 'Valentina Soto' },
+        { date: '2026-11-02T09:15:00Z', type: 'consumption', units: -14, piece: 'Campaña día de la madre', reason: null, actor: 'Matías Fuentes' },
+        { date: '2026-11-01T18:00:00Z', type: 'reservation', units: -6, piece: 'Reel terraza', reason: null, actor: 'Valentina Soto' },
+        { date: '2026-11-01T08:00:00Z', type: 'budget_assigned', units: 40, piece: null, reason: 'Contrato base del mes', actor: null },
+      ],
       pieceStatuses: [
         { status: 'in_progress', total: 3 }, { status: 'review', total: 1 }, { status: 'done', total: 11 },
       ],
@@ -1341,8 +1368,28 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
     return { month: mes, capacity, days };
   }],
   [/\/reservations\/forms\/[^/?]+\/group-requests/, () => VISUAL_GROUP_REQUESTS],
-  // La lista también se pide sin local, desde la pestaña Grupos.
-  [/\/reservations\/group-requests(?:\?|$)/, () => VISUAL_GROUP_REQUESTS],
+  /*
+   * El resumen va antes que la lista: el patrón de la lista no está anclado y se la comería.
+   *
+   * Lo cuenta el servidor sobre todas las solicitudes, así que acá se cuenta sobre todo el
+   * ejemplo y no sobre lo que devuelve la página.
+   */
+  [/\/reservations\/group-requests\/resumen/, () => {
+    const cerradas = VISUAL_GROUP_REQUESTS.filter((item) => item.status === 'closed');
+    const porMotivo = new Map<string, number>();
+    for (const item of cerradas) {
+      const motivo = (item as { closeReason?: string | null }).closeReason;
+      if (motivo) porMotivo.set(motivo, (porMotivo.get(motivo) ?? 0) + 1);
+    }
+    return {
+      convertidas: VISUAL_GROUP_REQUESTS.filter((item) => item.status === 'converted').length,
+      cerradas: cerradas.length,
+      conMotivo: [...porMotivo.values()].reduce((suma, n) => suma + n, 0),
+      porMotivo: [...porMotivo.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })),
+    };
+  }],
+  // La lista también se pide sin local, desde la pestaña Grupos. Devuelve página y total.
+  [/\/reservations\/group-requests(?:\?|$)/, () => ({ data: VISUAL_GROUP_REQUESTS, total: VISUAL_GROUP_REQUESTS.length, page: 1, pageSize: 50, pages: 1 })],
   [/\/reservations\/group-requests\/[^/?]+$/, (config) => {
     const id = (config?.url?.match(/\/reservations\/group-requests\/([^/?]+)$/) ?? [])[1];
     const solicitud = VISUAL_GROUP_REQUESTS.find((item) => item.id === id) ?? VISUAL_GROUP_REQUESTS[0];
@@ -2330,6 +2377,48 @@ const ROUTES: Array<[RegExp, (config?: any) => unknown]> = [
       return { id: row.id, status: row.status };
     }
     return visualRequests;
+  }],
+  /*
+   * El explorador de períodos, con cifras coherentes y una comparación que se puede leer.
+   *
+   * El vacío genérico no sirve acá: la vista entra por `periodo.metricas`, y un `periodo` ausente
+   * deja la pantalla sin nada que mostrar. Las cifras previas son distintas a propósito —algunas
+   * arriba y otras abajo— para que la columna de variación tenga signos de los dos tipos y se vea
+   * cómo se lee. `comparar=ninguna` devuelve `comparacion: null`, igual que el servidor.
+   */
+  /*
+   * Lo que las reservas dejaron además de la visita.
+   *
+   * Hace falta un patrón propio: el genérico devuelve un arreglo con un juego fijo de claves, y
+   * esta pantalla lee `suscritos` y `bajas`, que no están ahí. Sin esto el panel se cae en la
+   * maqueta en vez de mostrarse.
+   */
+  [/\/reservations\/consentimientos(\?.*)?$/, () => ({
+    suscritos: 1842,
+    pendientes: 37,
+    bajas: 94,
+    ultimos30: 211,
+    desde: '2025-03-14T12:00:00.000Z',
+  })],
+
+  [/\/reporting\/explorar(\?.*)?$/, (config) => {
+    const parametros = new URLSearchParams((String(config?.url ?? '').split('?')[1] ?? ''));
+    const desde = parametros.get('desde') ?? '2026-10-07';
+    const hasta = parametros.get('hasta') ?? '2026-11-06';
+    const comparar = parametros.get('comparar') ?? 'anterior';
+    return {
+      clientId: 'visual-client',
+      clientName: 'Casa Costanera',
+      comparar,
+      periodo: {
+        desde, hasta, inversion: 1_240_000, ventas: 4_980_000,
+        metricas: { impressions: 184_300, clicks: 6_420, leads: 318, conversions: 94, bookings: 212, attendedBookings: 188, noShows: 24, deliveredPieces: 17, consumedUd: 42, meetings: 4, completedMeetings: 4, wonOpportunities: 11 },
+      },
+      comparacion: comparar === 'ninguna' ? null : {
+        desde: '2026-09-07', hasta: desde, inversion: 1_310_000, ventas: 4_120_000,
+        metricas: { impressions: 171_800, clicks: 5_990, leads: 286, conversions: 71, bookings: 196, attendedBookings: 160, noShows: 36, deliveredPieces: 19, consumedUd: 45, meetings: 5, completedMeetings: 3, wonOpportunities: 8 },
+      },
+    };
   }],
   [/\/service-requests\/status/i, (config) => {
     const url = config?.url ?? '';

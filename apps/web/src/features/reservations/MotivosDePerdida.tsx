@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { MOTIVOS_DE_CIERRE, nombreDelMotivo } from '@espartanos/shared';
 import { api } from '../../core/api';
-import type { GroupRequest } from './types';
+
 
 /**
  * @fileoverview Por qué se pierden los eventos, contado.
@@ -12,34 +12,48 @@ import type { GroupRequest } from './types';
  * que el número que importa es cuál pesa más.
  */
 
+/** Lo que el servidor cuenta sobre todas las solicitudes, no sobre una página. */
+interface Resumen {
+  convertidas: number;
+  cerradas: number;
+  conMotivo: number;
+  porMotivo: Array<{ motivo: string; cantidad: number }>;
+}
+
 interface Props {
   clientId?: string;
 }
 
 export function MotivosDePerdida({ clientId }: Props) {
-  const { data = [] } = useQuery<GroupRequest[]>({
+  /*
+   * El resumen lo cuenta el servidor sobre todas las solicitudes.
+   *
+   * Antes se pedía la lista y se contaba acá, de modo que el motivo que «más pesaba» era el que
+   * más salía entre las filas que hubiera traído la consulta. Comparar causas exige contarlas
+   * todas, o la comparación no dice nada.
+   */
+  const { data } = useQuery<Resumen>({
     queryKey: ['group-requests', 'motivos', clientId ?? ''],
-    queryFn: () => api.get(`/reservations/group-requests${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ''}`),
+    queryFn: () => api.get(`/reservations/group-requests/resumen${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ''}`),
   });
-  const solicitudes = Array.isArray(data) ? data : [];
-  const convertidas = solicitudes.filter((item) => item.status === 'converted').length;
-  const cerradas = solicitudes.filter((item) => item.status === 'closed');
-  if (convertidas + cerradas.length === 0) return null;
+  const convertidas = data?.convertidas ?? 0;
+  const totalCerradas = data?.cerradas ?? 0;
+  if (convertidas + totalCerradas === 0) return null;
 
-  const conMotivo = cerradas.filter((item) => item.closeReason);
+  const cuentaDe = (clave: string) => data?.porMotivo.find((fila) => fila.motivo === clave)?.cantidad ?? 0;
   const porMotivo = MOTIVOS_DE_CIERRE
-    .map((motivo) => ({ ...motivo, cantidad: conMotivo.filter((item) => item.closeReason === motivo.clave).length }))
+    .map((motivo) => ({ ...motivo, cantidad: cuentaDe(motivo.clave) }))
     .filter((motivo) => motivo.cantidad > 0)
     .sort((a, b) => b.cantidad - a.cantidad);
   // Las cerradas antes de pedir motivo se cuentan aparte: no se les inventa uno.
-  const sinMotivo = cerradas.length - conMotivo.length;
+  const sinMotivo = totalCerradas - (data?.conMotivo ?? 0);
   const mayor = porMotivo[0]?.cantidad ?? 0;
 
   return <section className="motivos-de-perdida">
     <header>
       <span className="page-eyebrow">GRUPOS Y EVENTOS</span>
       <h2>Por qué se pierden los eventos</h2>
-      <p className="page-subtitle">{convertidas} {convertidas === 1 ? 'se convirtió' : 'se convirtieron'} en reserva y {cerradas.length} {cerradas.length === 1 ? 'se cerró' : 'se cerraron'} sin ella.</p>
+      <p className="page-subtitle">{convertidas} {convertidas === 1 ? 'se convirtió' : 'se convirtieron'} en reserva y {totalCerradas} {totalCerradas === 1 ? 'se cerró' : 'se cerraron'} sin ella.</p>
     </header>
     {porMotivo.length > 0 ? <ul>
       {porMotivo.map((motivo) => <li key={motivo.clave}>

@@ -118,6 +118,7 @@ export class SuscriptoresController {
   async listar(
     @Req() req: AuthenticatedRequest,
     @Query('limit') limit?: string,
+    @Query('pagina') pagina?: string,
     @Query('empresa') empresa?: string,
     @Query('estado') estado?: string,
     @Query('origen') origen?: string,
@@ -126,6 +127,7 @@ export class SuscriptoresController {
     const organizationId = req.organizationId || req.user.organizationId;
     const lista = await this.suscriptores.listar(organizationId, {
       limite: limit ? Number(limit) : undefined,
+      pagina: pagina ? Number(pagina) : undefined,
       empresa,
       encerradoEn: await this.encierroDe(req, empresa),
       // Sólo los tres estados que existen: un valor inventado en la dirección no filtra nada.

@@ -19,6 +19,22 @@
  * `rol` va declarado en todos los pasos, sin heredarse del anterior. Un paso se puede alcanzar
  * desde su flujo, desde el recorrido completo o desde un salto de perspectiva, de modo que no
  * existe «el paso anterior»: heredar mostraría la pantalla desde el cargo de quien pasara por ahí.
+ *
+ * ## Cada cosa, con un nombre
+ *
+ * El manual explica un producto que ya tiene palabras para lo suyo. Usar dos para lo mismo
+ * —«prospecto» y «trato», pongamos— obliga al lector a decidir en cada frase si está leyendo de
+ * una cosa o de dos, y borra las distinciones donde el producto sí las sostiene.
+ *
+ * - **El comensal** es quien come. Nunca «el cliente»: ése es otro.
+ * - **El cliente** es la empresa que contrata a la agencia, y el nombre del cargo que entra a su
+ *   portal. Cuando hablo del sitio donde se come digo **el local**; cuando hablo de la cuenta, el
+ *   contrato o los datos legales, **la empresa**.
+ * - **El prospecto** es el restaurante que todavía no firma. Cuando ese prospecto tiene propuesta
+ *   y fecha de cierre, lo que se abre es **una oportunidad**. Son dos registros, no dos palabras.
+ * - **El servicio** es lo que una empresa contrató. **El módulo** es la pieza del producto que lo
+ *   sostiene. Un servicio se vende; un módulo se enciende.
+ * - **La agencia** es La Vitamina. «Espartanos» es el sistema, no quien atiende.
  */
 
 /** Un flujo: un trozo del sistema que se entiende por sí solo, de principio a fin. */
@@ -49,6 +65,7 @@ export const FLUJOS: FlujoDelRecorrido[] = [
   { id: 'portal', nombre: 'Lo que ve el cliente', para: 'Las cuatro empresas, cada una con lo que contrató y nada más.' },
   { id: 'gobierno', nombre: 'Quién puede qué', para: 'Permisos, datos protegidos, consentimiento y los derechos del comensal.' },
   { id: 'enObra', nombre: 'Construido y sin datos', para: 'Módulos que existen y están vacíos: se mira la estructura, no el contenido.' },
+  { id: 'decidir', nombre: 'Lo que falta decidir', para: 'Cinco cosas que el sistema hace de una forma y nadie eligió que fueran así.' },
 ];
 
 /** La misma cosa vista por otro cargo o desde otra empresa. */
@@ -81,6 +98,14 @@ export interface PasoDelRecorrido {
   queHace: string[];
   /** Criterio: qué significa una cifra, para qué sirve la pantalla. No es comportamiento. */
   comoSeLee?: string[];
+  /**
+   * Lo que la auditoría encontró en esta pantalla, con su evidencia.
+   *
+   * Sale de `auditoria-main/`, que cuenta por archivo y línea lo que cada vista hace mal o a
+   * medias. El manual explica qué hace una pantalla; sin esto no dice de qué no fiarse, y un
+   * recorrido que sólo enseña lo que funciona no sirve para decidir nada.
+   */
+  queLeFalta?: string[];
   /** La misma cosa vista por otro cargo o otra empresa. */
   tambienDesde?: SaltoDePerspectiva[];
   /** Cuántos datos de muestra tiene la maqueta en esta vista. Por omisión, completos. */
@@ -95,9 +120,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     flujos: ['comercial'],
     rol: 'commercial_director',
     queVes: 'El punto de partida del CRM, con los dos embudos que conviven dentro: el comercial de la agencia y la audiencia de cada local.',
-    porQueExiste: 'Son dos negocios distintos en la misma herramienta. Sin separarlos, un comensal que reservó aparecería como un trato por cerrar.',
+    porQueExiste: 'Son dos negocios distintos en la misma herramienta. Sin separarlos, un comensal que reservó aparecería como una oportunidad por cerrar.',
     queHace: [
-      'Un registro lleva su dominio: comercial si es un restaurante que quiere contratar, audiencia si es un comensal de un local cliente.',
+      'Un registro lleva su dominio: comercial si es un restaurante que quiere contratar, audiencia si es un comensal de un local atendido.',
       'En el comercial, el nombre de la empresa es un campo del propio registro. En audiencia ese campo no significa nada y lo que manda es de qué local es la audiencia.',
     ],
     comoSeLee: [
@@ -110,7 +135,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     flujos: ['comercial'],
     rol: 'commercial_director',
     queVes: 'Siete restaurantes que quieren contratar a la agencia, cada uno en la etapa en que va su conversación. Esto pasa antes de que exista cliente alguno.',
-    porQueExiste: 'El seguimiento comercial vivía en la cabeza de quien atendía y en mensajes sueltos. Cuando esa persona no estaba, nadie sabía por dónde iba un trato.',
+    porQueExiste: 'El seguimiento comercial vivía en la cabeza de quien atendía y en mensajes sueltos. Cuando esa persona no estaba, nadie sabía por dónde iba un prospecto.',
     queHace: [
       'Las columnas son las etapas de la conversación, y una tarjeta se arrastra de una a otra.',
       'Las etapas se llaman como las llama la agencia: el vocabulario se edita en Administración del CRM, no en el código.',
@@ -118,6 +143,11 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ],
     comoSeLee: [
       'La suma de cada columna no es dinero ganado: es lo que habría si todo lo que está ahí cerrara. Sirve para comparar columnas entre sí, no para contarlo como ingreso.',
+    ],
+    queLeFalta: [
+      'El puntaje de calidad se calcula y se guarda en cada prospecto (lead-intake.service.ts:552-649), pero ninguna pantalla lo muestra: sólo está declarado en los tipos (LeadDetailDrawer.tsx).',
+      'Los intentos de contacto se piden y se guardan al descartar (LeadsBoardPage.tsx:406-416) y después no los lee nadie: no entran en el panel del embudo.',
+      'Al descartar en lote, la pantalla afirma que se enviará a Meta como «Calificado» o «Descartado» (LeadsBoardPage.tsx:1525, 1542-1543); el envío se descarta si el prospecto no cumple condiciones, y el aviso no cambia.',
     ],
     tambienDesde: [
       { etiqueta: 'El otro embudo: la audiencia del local', ruta: '/crm/leads', rol: 'admin', queCambia: 'El mismo CRM con comensales en vez de restaurantes. Dos embudos distintos que comparten pantalla.' },
@@ -129,7 +159,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     flujos: ['comercial'],
     rol: 'dev',
     queVes: 'Las mismas etapas, pero mirando el movimiento: qué entró, qué avanzó y qué sigue donde estaba.',
-    porQueExiste: 'El tablero dice dónde está cada trato hoy. Esta vista dice si se están moviendo, que es otra pregunta y la que importa a fin de mes.',
+    porQueExiste: 'El tablero dice dónde está cada prospecto hoy. Esta vista dice si se están moviendo, que es otra pregunta y la que importa a fin de mes.',
     queHace: [
       'Las etapas y su orden salen de la misma configuración que el tablero: cambiarlas en un sitio las cambia en los dos.',
     ],
@@ -153,6 +183,10 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     comoSeLee: [
       'El origen es lo que después permite saber qué camino trae clientes y cuál sólo trae ruido. Un prospecto sin origen no se puede atribuir a nada.',
     ],
+    queLeFalta: [
+      'La lista se pide sin límite y el servidor responde veinte por omisión (CrmRecordsPage.tsx:306, list-leads.use-case.ts). El selector de prospecto se alimenta de esos veinte.',
+      'El servidor acepta filtrar por origen, campaña, anuncio, plataforma, campo propio y fechas (list-leads.dto.ts); la pantalla no ofrece esos controles.',
+    ],
     tambienDesde: [
       { etiqueta: 'La ficha de un comensal', ruta: '/crm/contacts', rol: 'admin', queCambia: 'Una persona que reservó: sin monto, sin etapa comercial.' },
     ],
@@ -162,8 +196,8 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     titulo: 'Las oportunidades',
     flujos: ['comercial'],
     rol: 'dev',
-    queVes: 'Los tratos que ya tienen forma: qué servicio, por cuánto, con qué fecha de cierre esperada.',
-    porQueExiste: 'Un prospecto interesado y un trato con propuesta sobre la mesa no se trabajan igual. Separarlos evita que lo serio se pierda entre lo que todavía es una conversación.',
+    queVes: 'Los prospectos que ya tomaron forma de negocio: qué servicio, por cuánto, con qué fecha de cierre esperada.',
+    porQueExiste: 'Un prospecto interesado y una oportunidad con propuesta sobre la mesa no se trabajan igual. Separarlos evita que lo serio se pierda entre lo que todavía es una conversación.',
     queHace: [
       'Cada oportunidad cuelga de un prospecto: se abre desde su ficha y vuelve a ella.',
       'Lleva fecha de cierre esperada y etapa propias, aparte de las del prospecto.',
@@ -172,17 +206,26 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección comercial, que es quien la usará, le responde «no tienes acceso».',
       'El cierre esperado ponderado no es una previsión de caja: es la misma lista castigada según cuánta confianza da cada etapa. Sirve para comparar un mes con otro, no para prometerle un número a nadie.',
     ],
+    queLeFalta: [
+      'El pipeline abierto dice ahora sobre cuántas oportunidades está sumado cuando hay más de las que trae la consulta. Actividades y contactos siguen contándose sobre las cien que bajan.',
+    ],
   },
   {
     ruta: '/crm/contacts',
     titulo: 'Los contactos',
     flujos: ['comercial'],
     rol: 'commercial_director',
-    queVes: 'Las personas, aparte de las empresas y de los tratos: quién es quién y dónde está.',
-    porQueExiste: 'La persona sobrevive al trato. Si un contacto cambia de restaurante, lo que se sabe de él no se va con el trato que se cayó.',
+    queVes: 'Las personas, aparte de las empresas y de las oportunidades: quién es quién y dónde está.',
+    porQueExiste: 'La persona sobrevive a la oportunidad. Si un contacto cambia de restaurante, lo que se sabe de él no se va con la oportunidad que se cayó.',
     queHace: [
       'Un contacto puede estar atado a una empresa cliente o a ninguna.',
       'Los campos que se guardan de una persona los define la agencia: hay campos propios configurables, no una tabla fija.',
+    ],
+    comoSeLee: [
+      'Un contacto sin empresa no es un error: es una persona que todavía no se sabe dónde encaja, y se queda hasta que encaje.',
+    ],
+    queLeFalta: [
+      'La pantalla pide cien contactos y filtra sobre esos cien (CrmRecordsPage.tsx:382). Con más, los que faltan no aparecen ni se avisa.',
     ],
   },
   {
@@ -191,13 +234,16 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     flujos: ['comercial'],
     rol: 'commercial_director',
     queVes: 'Todo lo que se habló con cada prospecto, en orden, con fecha y autor.',
-    porQueExiste: 'Es la respuesta a «qué le dijimos la última vez» sin preguntarle a un compañero, y lo que permite que otra persona tome un trato sin empezar de cero.',
+    porQueExiste: 'Es la respuesta a «qué le dijimos la última vez» sin preguntarle a un compañero, y lo que permite que otra persona tome un prospecto sin empezar de cero.',
     queHace: [
       'Cada anotación guarda quién la creó y cuándo.',
       'El resultado de la gestión es una columna propia y no una frase dentro del texto, para poder filtrar por él.',
     ],
     comoSeLee: [
       'Los seguimientos vencidos son los únicos renglones de esta pantalla que piden algo hoy. El resto es historia.',
+    ],
+    queLeFalta: [
+      'Las reservas de un prospecto se traen de cincuenta en cincuenta, sin total ni aviso, y se pintan como si fueran el historial completo (lead.controller.ts:397, CrmRecordsPage.tsx:127-129).',
     ],
   },
   {
@@ -209,6 +255,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     porQueExiste: 'Un seguimiento acordado y no agendado se olvida. Visto en calendario también se ve cuándo se prometió más de lo que cabe en un día.',
     queHace: [
       'Cada compromiso cuelga de un prospecto y se abre desde el calendario.',
+    ],
+    comoSeLee: [
+      'Un día con cinco seguimientos y otro vacío no es organización, es que se agendó según quién insistió más. El calendario es donde eso se ve antes de que pase.',
     ],
   },
   {
@@ -227,6 +276,11 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'El puntaje no dice si alguien va a firmar: dice a quién conviene llamar primero cuando hay treinta y una tarde.',
       'Con todas las reglas en cero el puntaje no significa nada, y la lista queda ordenada como si no existiera.',
     ],
+    queLeFalta: [
+      'Al aplicar reglas en lote, el resumen dice cuántas fallaron y no cuáles: el motivo se va al registro del servidor (reglas.service.ts:512).',
+      'Las campañas aceptan fecha de inicio y de fin, se guardan y se devuelven (campaign.entity.ts:42-43), pero no hay dónde verlas ni ponerlas.',
+      'Cinco enlaces de esta pantalla llevan a módulos cerrados: a un cargo sin acceso lo rebotan sin decir por qué (CrmAdminPage.tsx:507, 514, 520, 766, 788).',
+    ],
   },
   {
     ruta: '/crm/dashboard',
@@ -243,6 +297,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Las entradas miden el trabajo de arriba del embudo: campañas, recomendaciones, formulario. Si bajan, el problema está antes del vendedor.',
       'La proporción de los que avanzan mide la conversación. Si baja con las entradas iguales, el problema está en cómo se vende, no en cuánta gente llega.',
     ],
+    queLeFalta: [
+      'Si la conciliación con la pauta publicitaria falla, el servidor devuelve nulo y la pantalla esconde el bloque entero (crm-dashboard.service.ts:103-104, CrmDashboardPage.tsx:558): un error se ve igual que no tener pauta.',
+    ],
   },
   {
     ruta: '/clients',
@@ -255,6 +312,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'La columna de servicios dice qué contrató cada empresa. Casa Costanera tiene Reservas y Encuestas, Hotel Mirador tiene Audiencia y no tiene Reservas, Café Plaza no tiene nada.',
       'Los módulos cuyo sujeto es una empresa atendida nacen apagados: encender uno es una decisión que se toma acá.',
       'Lo que no está contratado no aparece en el menú de esa empresa.',
+    ],
+    comoSeLee: [
+      'Esta pantalla explica casi todo lo que el recorrido muestra después: si una empresa no tiene un servicio, las pantallas de ese servicio no existen para ella. No están atenuadas ni dicen «contrátalo».',
     ],
     tambienDesde: [
       { etiqueta: 'El portal de Café Plaza', ruta: '/portal', rol: 'client', empresa: 'visual-client-5', queCambia: 'Una empresa recién firmada, sin nada encendido: el estado real del primer día.' },
@@ -271,20 +331,25 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Los datos legales —razón social, identificación, domicilio— se guardan en la ficha y los exige el publicador de páginas de reserva.',
       'Los servicios contratados se encienden y apagan desde acá.',
     ],
+    comoSeLee: [
+      'Si los datos legales están incompletos, el problema no se ve acá: aparece después, cuando la página de reserva se niega a publicarse. Por eso la puesta en marcha los pide primero.',
+    ],
   },
   {
     ruta: '/onboarding',
     titulo: 'La puesta en marcha',
     flujos: ['comercial'],
-    rol: 'dev',
+    rol: 'admin',
     queVes: 'La lista de pasos para dejar operando a un cliente nuevo, con lo hecho y lo que falta.',
     porQueExiste: 'La puesta en marcha se hacía de memoria y cada vez se olvidaba algo distinto. Lo que se olvida acá reaparece semanas después como «esto no funciona».',
     queHace: [
       'Los pasos están en el orden en que dependen unos de otros: los datos legales van antes que la página de reserva, porque publicar sin ellos lo rechaza el sistema.',
     ],
     comoSeLee: [
-      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
       'Es la misma lista que mira el cliente para saber en qué va lo suyo, así que cada paso está escrito para que lo entienda él y no el equipo.',
+    ],
+    tambienDesde: [
+      { etiqueta: 'Lo que el cliente ve mientras tanto', ruta: '/portal', rol: 'client', empresa: 'visual-client-5', queCambia: 'Su portal sin nada encendido: es lo que tiene delante durante los días que dura esta lista.' },
     ],
   },
 
@@ -301,6 +366,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Una página en pausa conserva su dirección y deja de aceptar reservas.',
       'La dirección pública se copia desde acá.',
     ],
+    comoSeLee: [
+      'Una página en pausa y una borrada se parecen en la lista y no en sus consecuencias: la pausada conserva el enlace que el local ya repartió por Instagram.',
+    ],
   },
   {
     ruta: '/reservations/forms/visual-form',
@@ -312,6 +380,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     queHace: [
       'Guarda los últimos cambios de la página, de modo que se puede ver quién movió qué.',
       'Muestra el estado de la medición de esa página en concreto, no el de la cuenta entera.',
+    ],
+    comoSeLee: [
+      'Los últimos cambios son lo que se mira cuando el local dice «ayer funcionaba». Casi siempre funcionaba, y alguien tocó algo.',
     ],
   },
   {
@@ -326,6 +397,15 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Las zonas —terraza, salón, barra— llevan cada una su propio cupo.',
       'El texto legal se guarda con versión, y lo que acepta un comensal queda atado a la versión que leyó.',
     ],
+    comoSeLee: [
+      'Cada pregunta que se añade acá baja la proporción de gente que termina de reservar. Preguntar algo tiene un precio, y se paga en la pantalla de números.',
+    ],
+    queLeFalta: [
+      'La pantalla muestra «Retener cupo» con cinco minutos por omisión y el servidor usa diez si el local no lo fija (ReservationBuilderPage.tsx:607, reservations.service.ts:2304).',
+      '«Tolerancia antes de no-show» se guarda y no lo lee nadie: ninguna regla la usa (ReservationBuilderPage.tsx:645).',
+      'La misma idea de tolerancia se guarda con dos claves distintas según dónde se edite (AjustesDelDia.tsx:329-331, ReservationBuilderPage.tsx:645).',
+      '«Nombre de esta campaña» se guarda en la página y lo lee un solo sitio: no llega a las métricas de campaña (reservation-form.entity.ts:26).',
+    ],
     tambienDesde: [
       { etiqueta: 'Verlo publicado, como el comensal', ruta: '/book/casa-costanera', rol: 'client', empresa: 'visual-client', queCambia: 'Lo mismo sin sesión y desde el teléfono: la prueba de que lo que se armó acá es lo que sale a la calle.' },
     ],
@@ -339,6 +419,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     porQueExiste: 'Una empresa puede tener varios locales y cada uno abre a horas distintas. Los ajustes que son del local no pueden vivir dentro de una página de reserva.',
     queHace: [
       'Reúne en una pantalla las páginas de reserva de ese local y sus ajustes de operación.',
+    ],
+    comoSeLee: [
+      'Un local con varias páginas de reserva no es un desorden: suele ser un restaurante con un evento, o una terraza que se gestiona aparte.',
     ],
   },
   {
@@ -370,6 +453,10 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección de operaciones, que es quien la usará, le responde «no tienes acceso».',
       'Sin datos de muestra: se mira la estructura.',
     ],
+    queLeFalta: [
+      'La pantalla anuncia que Google llegará «en futuras fases» y el servidor ya tiene nueve rutas de Google construidas y sin pantalla que las llame (google.controller.ts, IntegrationsPage.tsx:58-60).',
+      'Crear y editar integraciones existe en el servidor y ninguna pantalla lo usa (integrations.controller.ts:29-55).',
+    ],
     queHace: [
       'El pixel se asigna por empresa, y la pantalla lista cuáles son elegibles.',
       'Hay un estado de salud de la conexión, aparte de la conexión misma.',
@@ -394,6 +481,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ],
     comoSeLee: [
       'Que la reserva funcione sin aceptar la medición es deliberado: condicionarla no sería un consentimiento libre.',
+    ],
+    queLeFalta: [
+      '«Te esperamos N minutos; después la mesa queda disponible» (PublicReservationPage.tsx:1065): ninguna regla libera esa mesa. La reserva sigue ocupando cupo hasta su hora de fin.',
+      '«Enviaremos los detalles a tu correo» (PublicReservationPage.tsx:948) sale sólo si la plantilla de confirmación está encendida en esa empresa. Si está apagada, la frase se muestra igual.',
+      'Al fallar la validación el foco no va al primer error, y los mensajes no dicen qué corregir (PublicReservationPage.tsx:555-565, 569).',
+      'Los campos de nombre, teléfono y correo no declaran autocompletado ni tipo de teclado (PublicReservationPage.tsx:1200-1202): en un teléfono se escriben a mano enteros.',
     ],
     tambienDesde: [
       { etiqueta: 'Cómo entra al local', ruta: '/reservations', rol: 'operations_director', queCambia: 'Esta misma reserva en la pantalla del local.' },
@@ -429,6 +522,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Cambiar la hora o el número de personas se valida contra el cupo, excluyendo la propia reserva del conteo.',
       'Si la página ya no está publicada, el cambio se rechaza.',
       'Al cancelar, si eso libera cupo, se dispara el aviso a quienes están en lista de espera de esa hora.',
+    ],
+    comoSeLee: [
+      'Cuantas más cancelaciones lleguen por acá y menos por teléfono, mejor funciona: una cancelación con horas de aviso es una mesa que se vuelve a vender.',
+    ],
+    queLeFalta: [
+      'Al pedir el enlace de gestión, el servidor devuelve como mucho cinco reservas futuras (reservations.service.ts:1710) y la página dice «te enviamos un enlace para gestionarlas». Con seis, llegan cinco.',
     ],
     tambienDesde: [
       { etiqueta: 'Lo mismo, desde el anfitrión', ruta: '/reservations/agenda', rol: 'operations_director', queCambia: 'El cambio aparece en el turno sin que nadie lo transcriba.' },
@@ -471,6 +570,10 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     comoSeLee: [
       'Esta vista va sin datos de muestra: es un formulario, así que se ve entera, pero no hay solicitudes cargadas que consultar.',
     ],
+    queLeFalta: [
+      'La solicitud ofrece «anonimización o supresión de mis datos» y el borrado alcanza usuarios, prospectos, contactos y reservas: no toca suscriptores de marketing ni respuestas de encuesta (service-requests.service.ts:350-408).',
+      'El estado vacío dice «no encontramos solicitudes para ese correo y RUT» cuando la consulta ya se hizo sólo con uno de los dos (SolicitudesPage.tsx:202).',
+    ],
   },
 
   // --------------------------------------------------------------- Atender el servicio
@@ -489,6 +592,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'La reserva de Camila Rojas, hoy a las 20:00, mesa 12 en terraza, es la misma persona que sigue el recorrido entero: reserva, responde la encuesta y vuelve con un cupón.',
       'Los números de arriba son la carga del día, no un resultado: son con qué hay que contar esta noche.',
     ],
+    queLeFalta: [
+      'Los filtros de campaña, origen, medio y cupón se arman con los veinte registros que están a la vista, no con los valores que existen (ReservationsPage.tsx:341-351): filtrar por algo que está en la página 3 no se puede.',
+      'Los botones «Asistió» y «No» de cada fila escriben un estado final: desde ahí no se vuelve (reservations.service.ts:188-194). Un clic equivocado no se deshace en la pantalla.',
+      '«Exportar datos» es por local y no tiene selector: si antes no se eligió un formulario en el filtro, no sirve (ReservationsPage.tsx:679).',
+    ],
+    tambienDesde: [
+      { etiqueta: 'El mismo día, en el portal del local', ruta: '/portal', rol: 'client', empresa: 'visual-client', queCambia: 'El dueño ve su día sin las herramientas del servicio: cuánta gente viene, no a quién sentar dónde.' },
+    ],
   },
   {
     ruta: '/reservations?tab=bookings',
@@ -505,6 +616,11 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     comoSeLee: [
       'La constancia sólo se deja en el nivel «bajo registro». A quien tenga el nivel «directo» el dato le sale sin anotar nada: la trazabilidad depende de cómo esté configurado cada cargo.',
     ],
+    queLeFalta: [
+      'El historial se pide por dos rutas distintas que devuelven formas distintas de lo mismo: la lista usa /history y la ficha usa /historial (ReservationsPage.tsx:372, FichaDeReserva.tsx:55).',
+      'El texto del consentimiento sensible se guarda en cada reserva, pero la pantalla manda null como texto al escribirlo (ReservationsPage.tsx:1060): la prueba que esta vista promete depende de que lo haya escrito otro camino.',
+      '«Cancelar y avisar al cliente» avisa sólo si la reserva tiene correo y la plantilla está encendida (reservations.service.ts:2086, 2092). Una reserva tomada por teléfono se cancela en silencio y el botón no lo dice.',
+    ],
     tambienDesde: [
       { etiqueta: 'Quién miró la alergia', ruta: '/security', rol: 'admin', queCambia: 'El registro de accesos a datos protegidos: la otra mitad de este mismo asunto.' },
     ],
@@ -520,6 +636,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Marcar llegada es una acción de un toque.',
       'Los ajustes del día —cerrar, abrir, mover cupo— están en la misma pantalla del turno.',
     ],
+    comoSeLee: [
+      'Es la única pantalla del sistema que se usa de pie y con gente esperando. Todo lo que no se pueda hacer de un toque, acá no se hace.',
+    ],
+    queLeFalta: [
+      'El total del día, los no-shows y la ocupación los cuenta ahora el servidor: la página sigue trayendo cien filas para dibujar, y las cifras ya no dependen de eso.',
+      'La lista de grupos y eventos corta en cincuenta sin decirlo (reservations.service.ts:2425).',
+      'Los errores al cerrar el turno se muestran genéricos y ocultan el motivo que el servidor sí devuelve (AgendaPage.tsx:259, 339, 352).',
+    ],
   },
   {
     ruta: '/reservations/calendar',
@@ -532,6 +656,16 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Cerrar un día o una zona se hace con un bloqueo, y la página pública ofrece sólo lo que tiene cupo, de modo que no hay un segundo sitio que actualizar.',
       'Los bloqueos sirven para eventos privados: el día existe pero no se ofrece.',
     ],
+    comoSeLee: [
+      'El cupo no es la capacidad física del local: es cuánta gente se puede atender bien. Ponerlo al máximo llena las mesas y vacía las reseñas.',
+    ],
+    queLeFalta: [
+      'El tope del día se define en personas, pero la pantalla lo presenta junto a cuentas de reservas (reservations.service.ts:1064, AvailabilityCalendarPage.tsx:185): dos unidades distintas, una al lado de la otra.',
+      'Cerrar un día manda la fecha sin zona horaria y el servidor la interpreta como UTC (AjustesDelDia.tsx:155-159, reservations.service.ts:692): en Chile eso corre el corte unas horas.',
+    ],
+    tambienDesde: [
+      { etiqueta: 'Qué ve el comensal cuando no hay cupo', ruta: '/book/casa-costanera', rol: 'client', empresa: 'visual-client', queCambia: 'Una zona cerrada acá no aparece allá como cerrada: directamente no se ofrece.' },
+    ],
   },
   {
     ruta: '/reservations?tab=groups',
@@ -543,6 +677,13 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     queHace: [
       'Al entrar una solicitud, el sistema avisa al equipo del local y le manda un acuse a quien la pidió.',
       'Al aceptarla se convierte en una reserva normal.',
+    ],
+    comoSeLee: [
+      'Que no se confirmen solas es la decisión importante: una mesa de dieciocho que entra sin que nadie la mire desarma el servicio de esa noche.',
+    ],
+    queLeFalta: [
+      'El contador ya dice cuántas hay y cuántas se muestran, y los motivos de pérdida los cuenta el servidor sobre todas las solicitudes, no sobre la página.',
+      'Al convertir una solicitud en reserva no se puede elegir servicio: la pantalla no manda ese campo (ReservationsPage.tsx:515).',
     ],
   },
   {
@@ -558,8 +699,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'El aviso sólo sale si la página está publicada, la hora aún no pasó y la plantilla de ese correo está encendida.',
     ],
     comoSeLee: [
-      'Avisar a veinte a la vez hace que gane quien reserve primero, no quien lleve más tiempo esperando: hoy es una carrera, no una cola. Está anotado como decisión pendiente.',
+      'Avisar a veinte a la vez hace que gane quien reserve primero, no quien lleve más tiempo esperando: hoy es una carrera, no una cola. Está en el flujo «Lo que falta decidir», con quién decide.',
       'El largo de la lista es demanda que el local no está atendiendo. Sostenida, es el argumento para abrir otro turno.',
+    ],
+    queLeFalta: [
+      'La página pública promete que el local revisará las solicitudes «en orden de llegada» (PublicReservationPage.tsx:908) y el aviso de cupo sale a los primeros veinte a la vez, sin orden (reservations.service.ts:1914-1934). La promesa está escrita; el orden, no.',
+    ],
+    tambienDesde: [
+      { etiqueta: 'Cómo se anota el comensal', ruta: '/book/casa-costanera', rol: 'client', empresa: 'visual-client', queCambia: 'Desde fuera no se ve ninguna lista: se ve una hora sin cupo y la opción de dejar el contacto.' },
     ],
   },
 
@@ -575,6 +722,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'La invitación la manda una tarea programada unas horas después de la visita, una sola vez por visita.',
       'No se le escribe a quien canceló.',
       'Hay un margen desde que se enciende el aviso, para no encuestar de golpe a todas las visitas anteriores.',
+    ],
+    comoSeLee: [
+      'La encuesta mide lo que pregunta. Si sólo pregunta por la comida, el problema de la espera en la puerta no aparecerá nunca en los resultados.',
+    ],
+    tambienDesde: [
+      { etiqueta: 'La misma encuesta, en el teléfono', ruta: '/survey/visual-survey', rol: 'client', empresa: 'visual-client', queCambia: 'Lo que acá es configuración, allá es un minuto de la noche de alguien.' },
     ],
   },
   {
@@ -608,6 +761,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'El promedio no dice si el local es bueno: dice si cambió respecto de antes. Un cuatro coma dos estable y uno que viene cayendo son situaciones opuestas.',
       'Si responden muy pocos, el promedio es la opinión de cuatro personas y no sirve para decidir nada.',
     ],
+    queLeFalta: [
+      '«Respuestas» cuenta también las respuestas a medias, y la tasa se calcula sobre todos los destinatarios (survey-metrics.ts:129-131, SurveyResultsPage.tsx:471-476): dos cifras que no se refieren a lo mismo, una al lado de la otra.',
+      'El botón de CSV dice cuántas respuestas lleva el archivo cuando el servidor recortó: antes se descargaba incompleto con nombre de completo.',
+      'Las respuestas de texto libre se muestran hasta veinte y no se dice cuántas hay (SurveyResultsPage.tsx:348).',
+    ],
+    tambienDesde: [
+      { etiqueta: 'De dónde salió esta respuesta', ruta: '/reservations?tab=bookings', rol: 'operations_director', queCambia: 'La visita que originó la encuesta, con lo que esa persona pidió al reservar.' },
+    ],
   },
 
   // ------------------------------------------------------------- Traerla de vuelta
@@ -627,13 +788,16 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Los usos no son ventas: son personas que volvieron por este motivo y no por otro.',
       'Muchos enviados y pocos usados es un problema de a quién se le mandó, no del descuento.',
     ],
+    queLeFalta: [
+      'La pantalla no envía al guardar varios campos que el servidor acepta —vigencia por días de la semana, franja horaria, límite por persona— (dto/reservation.dto.ts:448-462, ReservationsPage.tsx:553): existen en el modelo y no se pueden poner desde acá.',
+    ],
   },
   {
     ruta: '/reservations?tab=coupons',
     titulo: 'Quién cobra un cupón',
     flujos: ['volver'],
     rol: 'operations_director',
-    queVes: 'Pulsa «Anotar cupón usado» y escribe un código: esto es lo que ve el cajero con el cliente delante.',
+    queVes: 'Pulsa «Anotar cupón usado» y escribe un código: esto es lo que ve el cajero con el comensal delante.',
     porQueExiste: 'Quien cobra no debería poder crear cupones ni ver la audiencia del local. Son dos permisos distintos a propósito.',
     queHace: [
       'Responde si el código sirve, y si no sirve, por qué.',
@@ -642,6 +806,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     comoSeLee: [
       'Que responda una sola cosa es el punto: con gente esperando no se puede interpretar nada.',
       'En la maqueta, un código que empiece por NO devuelve el caso contrario. Es un atajo de la maqueta para ver los dos lados, no una regla del producto.',
+    ],
+    queLeFalta: [
+      'El aviso «el cupón guardado ya no está activo» se decide con la lista de cupones que está cargada en pantalla (CuponAutomatico.tsx:76-81): si el cupón no venía en esa página, el aviso aparece sin que haya pasado nada.',
     ],
     tambienDesde: [
       { etiqueta: 'Lo mismo, visto por el dueño', ruta: '/reservations?tab=coupons', rol: 'admin', queCambia: 'El dueño ve el costo del descuento y el detalle de todos los canjes; el cajero no.' },
@@ -679,6 +846,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección de operaciones, que es quien la usará, le responde «no tienes acceso».',
       'El retorno se cuenta en reservas, no en aperturas: una campaña muy abierta que no llenó una mesa no sirvió de nada.',
     ],
+    queLeFalta: [
+      '«Llegó a X de Y» cuenta los mensajes que el servidor de correo aceptó, no los que llegaron (email.service.ts:132-135, CampanasPage.tsx:192).',
+      'El pie de baja desaparece si falta la dirección pública de la aplicación o si se apaga el parámetro correspondiente (enlace-de-baja.ts:60-75). La pantalla afirma que cada envío lleva el suyo.',
+      'Con destino «Quienes administran», el aviso de alcance sigue hablando del servicio contratado, que no aplica a ese destino (CampanasPage.tsx:323-326, 428-431).',
+      'El editor arranca con «Espartanos (agencia)» como empresa por omisión (CampanasPage.tsx:53-55): un descuido manda la campaña desde la agencia y no desde el local.',
+    ],
   },
   {
     ruta: '/suscriptores',
@@ -694,6 +867,19 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Declarar ser mayor de edad se guarda como un dato propio.',
       'Los suscritos se pueden descargar.',
     ],
+    comoSeLee: [
+      'Esta pantalla no sirve para conseguir audiencia: sirve para poder demostrar, el día que alguien reclame, que cada contacto dijo que sí y cuándo.',
+    ],
+    queLeFalta: [
+      'Ya se pagina: las filas más allá de las doscientas se pueden mirar, y el filtro vuelve a la primera página al cambiar.',
+      '«Último correo enviado» sólo lo escribe el saludo de cumpleaños (saludo-de-cumpleanos.job.ts:90). Para quien recibió campañas, la fecha es falsa (SuscriptoresPage.tsx:324).',
+      'La descarga corta en cinco mil y luego dice «N direcciones descargadas» con el número de lo que bajó (suscriptores.service.ts:559). Con más de cinco mil, el aviso confirma una descarga incompleta.',
+      'Con «Todas las empresas» elegido, el botón descarga la lista de la agencia, no la unión de las empresas (suscriptores.controller.ts:168).',
+      'La pantalla dice que queda anotado quién descargó; el registro de auditoría sólo guarda escrituras, y esto es una lectura (audit.interceptor.ts).',
+    ],
+    tambienDesde: [
+      { etiqueta: 'Dónde dijo que sí', ruta: '/book/casa-costanera', rol: 'client', empresa: 'visual-client', queCambia: 'El permiso que esta lista guarda se da en una casilla de la página pública, no en una conversación.' },
+    ],
   },
 
   // --------------------------------------------------------- Producir el contenido
@@ -707,6 +893,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     queHace: [
       'Una petición se convierte en trabajo al aceptarla, y ahí se eligen las piezas que saldrán de ella.',
       'El motivo es obligatorio al rechazar: una solicitud rechazada sin motivo se vuelve a pedir igual.',
+    ],
+    comoSeLee: [
+      'Lo que entra por acá se puede priorizar y cobrar. Lo que entra por mensaje directo a alguien del equipo, no: por eso la puerta única importa más que el formulario.',
+    ],
+    queLeFalta: [
+      'La bandeja baja las doscientas más recientes y el servidor devuelve el total; la pantalla lo ignora (intake.service.ts:183-188, IntakePage.tsx:132-134).',
+      'El servidor deja filtrar por estado y la pantalla no lo usa: se filtra sobre lo que bajó (intake.controller.ts:70).',
+      'Hay un recuento por estado en el servidor que ninguna pantalla pide (intake.controller.ts:84).',
     ],
   },
   {
@@ -724,6 +918,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     comoSeLee: [
       'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección creativa, que es quien la usará, le responde «no tienes acceso».',
       'Capacidad contra carga no mide productividad: mide cuánto más se puede aceptar sin incumplir lo ya prometido.',
+    ],
+    queLeFalta: [
+      'Crear una pieza desde un brief está roto en la pantalla: el servidor acepta el brief y copia título y descripción, y la pantalla no lo manda (production.controller.ts:86, ProductionPage.tsx:306).',
+      'Cancelar una pieza existe en el servidor y no tiene botón en ninguna pantalla (ProductionPage.tsx:316, WorkDetailPage.tsx:86).',
+      'El servidor deja filtrar por persona asignada; la pantalla sólo manda estado y empresa (production.controller.ts:109, ProductionPage.tsx:150-151).',
+    ],
+    tambienDesde: [
+      { etiqueta: 'De dónde vino este trabajo', ruta: '/intake', rol: 'creative_director', queCambia: 'La petición del cliente antes de ser trabajo, con lo que pidió en sus palabras.' },
     ],
   },
   {
@@ -752,6 +954,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     queHace: [
       'Las parrillas son por cliente y la planificación es semanal.',
       'Una publicación lleva su formato, su fecha y sus notas internas.',
+    ],
+    comoSeLee: [
+      'La parrilla es lo que el cliente quiere ver antes de aprobar nada: no la pieza suelta, sino en qué orden van a aparecer sus semanas.',
     ],
   },
   {
@@ -799,6 +1004,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'El interruptor está en el listado y no dentro del editor, para poder apagar una automatización problemática de un clic sin abrir su flujo.',
       'Hay un catálogo de automatizaciones ya resueltas, para no empezar en blanco.',
     ],
+    comoSeLee: [
+      'Cada automatización encendida es algo que el sistema hace en nombre de la agencia sin que nadie lo mire ese día. Conviene que la lista sea corta y se entienda entera.',
+    ],
+    queLeFalta: [
+      'El selector de empresas de esta pantalla se alimenta de una lista que devuelve veinte por omisión y como mucho cien (list-clients.use-case.ts:16-17): con más empresas, las que faltan no se pueden elegir.',
+    ],
   },
   {
     ruta: '/automations/auto-1',
@@ -809,6 +1020,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     porQueExiste: 'Para que una automatización se pueda revisar hay que poder leerla. Escondida en el código, nadie fuera de desarrollo sabe qué hace el sistema en su nombre.',
     queHace: [
       'El disparador es un hecho del sistema; las condiciones acotan a qué casos se aplica; la acción es lo que ocurre.',
+    ],
+    comoSeLee: [
+      'Leer una automatización tiene que ser posible para quien no la programó. Si para saber qué hace hay que preguntarle a desarrollo, está mal puesta.',
     ],
   },
   {
@@ -821,6 +1035,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     queHace: [
       'Cada ejecución guarda su resultado y, si falló, el texto del error.',
     ],
+    comoSeLee: [
+      'Una automatización silenciosa que se cayó es peor que no tenerla: todos siguen creyendo que el aviso salió. Esta pantalla es la que convierte esa creencia en un dato.',
+    ],
   },
   {
     ruta: '/registro-de-correos',
@@ -831,6 +1048,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     porQueExiste: 'Es la respuesta a «no me llegó nada». Sin esto, la conversación es la palabra del cliente contra la del equipo.',
     queHace: [
       'Se busca por destinatario o por asunto.',
+    ],
+    comoSeLee: [
+      'Es la pantalla que termina las discusiones. Un rechazo del servidor se ve acá antes de que el cliente lo note, y «no me llegó nada» deja de ser la palabra de uno contra la del otro.',
     ],
   },
 
@@ -871,6 +1091,11 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'El puntaje no es una nota: es un orden de prioridades. Sirve para saber qué dimensión está peor que las otras, no para compararse con otra agencia.',
       'Que la próxima acción sea una sola es deliberado: una lista de diez urgencias no se hace.',
     ],
+    queLeFalta: [
+      'La tarjeta «Ingresos pagados» vive bajo «Últimos 12 meses» y ahora suma esa ventana, no toda la historia: es la suma de las barras de abajo (reports.controller.ts:211).',
+      'El gráfico titulado «Rendimiento por tipo» agrupa por estado, no por tipo (DashboardPage.tsx:292-293).',
+      'El bloque «Ciclo Maestro» son siete pasos escritos a mano: no sale de ningún dato de la cuenta (DashboardPage.tsx:270).',
+    ],
   },
   {
     ruta: '/reports',
@@ -880,11 +1105,69 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     queVes: 'Lo que se le entrega al cliente cada mes, armado con los datos del mes.',
     porQueExiste: 'El informe se hacía a mano copiando cifras de varias pantallas a una presentación. Ahí es donde se cometen los errores que el cliente sí nota.',
     comoSeLee: [
-      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
+      'Ya está liberado: ocho cargos lo alcanzan por matriz y el restaurante ve el informe publicado en su portal. Antes lo abría sólo Desarrollo.',
+      'Es el documento que se cierra, se redacta y se firma. Para preguntar por un rango cualquiera está el explorador, que no guarda nada.',
+    ],
+    queLeFalta: [
+      '«Clientes por ingresos» muestra cinco y no dice que son los cinco primeros (reports.controller.ts:239, ReportsPage.tsx:360).',
+      'Las unidades de dedicación se suman por el mes en que se creó la pieza, no por el de entrega, y se comparan con ingresos del mes (reports.controller.ts:213-231).',
+      'El subtítulo promete «ingresos, carga y distribución real» y en la pantalla no hay carga por persona (ReportsPage.tsx:344).',
     ],
     queHace: [
       'Los informes se guardan por empresa y por periodo: se puede volver a abrir el de un mes anterior.',
       'Las cifras se toman de los módulos, no se escriben a mano.',
+      'Cada indicador trae su variación contra el período anterior, calculada al generarlo y guardada con el informe.',
+    ],
+  },
+  {
+    ruta: '/reports',
+    titulo: 'Explorar un período',
+    flujos: ['resultados'],
+    rol: 'commercial_director',
+    queVes: 'Dos fechas, contra qué comparar, y la misma tabla de métricas del informe para el rango que se pida.',
+    porQueExiste: 'El informe está atado al mes porque es un documento que se firma. La pregunta «cómo nos fue esta quincena» o «el fin de semana largo contra el del año pasado» no tenía dónde hacerse, y se respondía a mano.',
+    queHace: [
+      'Lee los mismos agregados del servidor que el informe mensual, así que preguntar por un mes completo da las cifras de ese informe.',
+      'Comparar «el período anterior» toma los mismos días inmediatamente antes; un mes calendario se compara con el mes calendario anterior, no restando días.',
+      'No guarda nada: es una consulta.',
+    ],
+    comoSeLee: [
+      'La comparación de un mes de 31 días restando su duración se llevaba tres días del mes anterior al anterior. Por eso el mes completo se detecta y se corre por calendario: una prueba lo fija para los siete meses de 31 días.',
+      '«Hasta» no se incluye, y las fechas se leen sobre el día de la actividad: la reserva por su visita, la pieza por su entrega, la oportunidad por su cierre.',
+    ],
+  },
+  {
+    ruta: '/clients',
+    titulo: 'En qué se fueron las UD del mes',
+    flujos: ['resultados'],
+    rol: 'operations_director',
+    queVes: 'La ficha de una empresa, con su presupuesto del mes y el libro de movimientos plegado debajo.',
+    porQueExiste: 'Los tres totales dicen cuánto queda; esto dice en qué se gastó, que es la pregunta que llega cuando el número no cuadra con lo que la empresa esperaba.',
+    queHace: [
+      'Cada movimiento trae su efecto con signo, la pieza si la hubo, el motivo y **quién** lo hizo.',
+      'Se une al presupuesto del mes y no a la fecha del movimiento: un ajuste escrito el día 1 pertenece al mes del presupuesto que toca.',
+    ],
+    comoSeLee: [
+      'El restaurante no ve esto, y es deliberado: las UD son cómo la agencia mide su propia capacidad. En su portal ve el saldo del mes, porque decide si puede pedir otra pieza, y nada más.',
+      'Quién movió qué sí viaja acá y no al portal: para el equipo es la pregunta que sigue, para la empresa es reparto interno.',
+    ],
+  },
+  {
+    ruta: '/reservations/analytics',
+    titulo: 'A quién captaron las reservas',
+    flujos: ['volver'],
+    rol: 'client',
+    empresa: 'visual-client',
+    queVes: 'Cuántas personas aceptaron recibir comunicaciones, cuántas sin confirmar, cuántas de baja y desde cuándo.',
+    porQueExiste: 'Cada reserva cuyo formulario pide el consentimiento deja a esa persona en la lista de la empresa, con el texto que aceptó y su IP. Eso ocurre tenga o no Marketing contratado, así que la empresa captaba una lista que no podía ni mirar.',
+    queHace: [
+      'Pide Reservas y **no** Marketing: es el dato que la empresa captó por sus propias reservas.',
+      'Las bajas se muestran: son la constancia de que cuando alguien se va, se respeta.',
+      'Con la lista en cero el panel no aparece, en vez de decir «0 personas» e invitar a buscar una avería.',
+    ],
+    comoSeLee: [
+      'Escribirles —segmentos, campañas, plantillas— sigue siendo Marketing y se sigue vendiendo. Acá no hay ningún botón de enviar: la cifra responde «qué tengo», no «qué puedo hacer con esto».',
+      'Las que aceptaron sin confirmar el correo van aparte: contarlas como alcanzables sería prometer un alcance que no existe.',
     ],
   },
   {
@@ -933,6 +1216,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Sin Encuestas ni Audiencia, esas secciones no se dibujan: no están atenuadas.',
       'El panel de inicio tampoco arma los bloques de lo no contratado.',
     ],
+    comoSeLee: [
+      'Compara el menú con el paso anterior: esa diferencia es toda la decisión comercial, hecha visible.',
+    ],
   },
   {
     ruta: '/portal',
@@ -946,6 +1232,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Sin Reservas no hay página pública, ni agenda, ni cupones.',
       'La audiencia funciona igual, porque sus contactos pueden venir de una importación y no de una reserva.',
     ],
+    comoSeLee: [
+      'Sirve para ver que el orden de contratación no está impuesto: nadie tiene que empezar por Reservas.',
+    ],
   },
   {
     ruta: '/portal',
@@ -957,6 +1246,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     porQueExiste: 'Este estado existe de verdad y dura días. Si se viera como un error, el cliente nuevo pensaría que el sistema está roto el primer día.',
     queHace: [
       'El portal explica qué falta en vez de mostrar un menú vacío.',
+    ],
+    comoSeLee: [
+      'Es el estado que hay que mirar al revisar la puesta en marcha: es lo que el cliente tiene delante mientras se le configura lo suyo, y dura días.',
     ],
   },
 
@@ -975,6 +1267,13 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     comoSeLee: [
       'Una cuenta sin alcance declarado no es neutra: sin límite, alcanza todo. Un alcance vacío y un alcance sin límite son cosas opuestas.',
     ],
+    queLeFalta: [
+      '«Se cerrarán las sesiones activas y se generará una contraseña temporal» (UsersPage.tsx:604): la contraseña se genera, las sesiones de refresco no se revocan. Quien tuviera la sesión abierta sigue dentro.',
+      'La clave temporal que se entrega no caduca (UsersPage.tsx:577).',
+    ],
+    tambienDesde: [
+      { etiqueta: 'El mismo reparto, dentro de un local', ruta: '/mi-equipo', rol: 'client', empresa: 'visual-client', queCambia: 'La empresa reparte accesos a su gente con las mismas reglas, sobre un alcance mucho más pequeño.' },
+    ],
   },
   {
     ruta: '/mi-equipo',
@@ -987,6 +1286,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     queHace: [
       'Cada perfil se arma con áreas en nivel ver u operar.',
       'Conceder un nivel mayor al propio se rechaza con ese motivo: nadie da lo que no tiene.',
+    ],
+    comoSeLee: [
+      'Que el local reparta sus propios accesos es lo que evita que cada alta de un garzón pase por la agencia. El límite es que nadie da lo que no tiene.',
     ],
     tambienDesde: [
       { etiqueta: 'Lo que ve el cajero', ruta: '/reservations?tab=coupons', rol: 'operations_director', queCambia: 'La pantalla de cobro con lo justo: un código, y sirve o no sirve.' },
@@ -1001,10 +1303,14 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     porQueExiste: 'El permiso de un cargo se decide una vez y afecta a todos los que lo tienen. Verlo en matriz es lo que permite notar que un cargo tiene de más.',
     queHace: [
       'Muestra la matriz de cargos y módulos, y por separado las excepciones por persona.',
+      'Acá están los interruptores de módulo de la organización, y el servidor los reserva a Desarrollo: encender uno va después de desplegar y comprobar que funciona.',
       'Reúne también las versiones de consentimiento y quién aceptó cada una.',
     ],
     comoSeLee: [
       'Es la pantalla donde se nota lo que a nadie se le ocurre revisar: por ejemplo, qué cargos pueden tocar los interruptores de módulo.',
+    ],
+    tambienDesde: [
+      { etiqueta: 'La reja que está por encima de la matriz', ruta: '/governance', rol: 'dev', queCambia: 'Un módulo cerrado ahí no se abre por mucho que la matriz lo conceda.' },
     ],
   },
   {
@@ -1012,14 +1318,15 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     titulo: 'Gobierno del producto',
     flujos: ['gobierno'],
     rol: 'dev',
-    queVes: 'Los interruptores de los módulos del producto y la fase en la que está cada uno.',
-    porQueExiste: 'Es la reja de más arriba: lo que acá está cerrado no se abre con un permiso ni contratándolo. Cierra lo que todavía no está listo para un cliente.',
+    queVes: 'Las plantillas de proceso con que trabaja la agencia y los pods: qué equipo atiende a qué empresas.',
+    porQueExiste: 'La agencia reparte su trabajo por pods: un equipo atiende a unas empresas y no a otras. Sin esto, el alcance de cada persona se decide cuenta por cuenta.',
     queHace: [
-      'Distingue la fase de cada módulo, que es lo que permite trabajar en uno sin que aparezca en el menú de nadie.',
-      'En la matriz de permisos este módulo no está reservado a desarrollo: administración lo ve, y dirección comercial y dirección de operaciones lo gestionan.',
+      'Las plantillas de proceso se editan y se devuelven a su valor de origen.',
+      'Un pod agrupa personas y empresas: es lo que después acota lo que ve cada quien.',
+      'Lo administran dirección comercial y dirección de operaciones; administración lo ve.',
     ],
     comoSeLee: [
-      'Que dos direcciones puedan mover los interruptores contradice la idea de que ésta es la reja de más arriba. Está anotado como decisión pendiente.',
+      'Esta pantalla no enciende ni apaga módulos, aunque se llame gobierno: los interruptores del producto están en la matriz de permisos y los mueve sólo Desarrollo.',
     ],
   },
   {
@@ -1038,6 +1345,10 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
       'Bajo registro recorta lo mismo que oculto: la diferencia no es cuánto se ve, es que quede constancia de haberlo pedido.',
     ],
+    queLeFalta: [
+      'El nivel «directo» entrega el dato sin dejar constancia: sólo «bajo registro» anota quién lo pidió (revelar-protegidos.ts). La trazabilidad que esta pantalla ofrece depende de cómo esté configurado cada cargo.',
+      'El registro de accesos recoge escrituras; una descarga de datos es una lectura y no deja fila (audit.interceptor.ts).',
+    ],
   },
   {
     ruta: '/legal',
@@ -1051,6 +1362,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Publicar una versión nueva no cambia a qué versión quedaron atados los anteriores.',
       'Estos textos son los que muestra la página pública.',
     ],
+    comoSeLee: [
+      'La versión es lo que da valor a todo lo demás: sin ella, un consentimiento es la palabra de la agencia sobre qué decía el texto aquel día.',
+    ],
   },
   {
     ruta: '/legal/terminos',
@@ -1062,6 +1376,9 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     porQueExiste: 'El comensal tiene que poder leer lo que acepta sin salir del sitio ni buscarlo en otra parte.',
     queHace: [
       'Se abre sin sesión, con la versión vigente del documento.',
+    ],
+    comoSeLee: [
+      'Que se abra sin sesión no es un detalle: un texto legal que exige entrar a algo para leerse no se ha publicado de verdad.',
     ],
   },
   {
@@ -1083,14 +1400,12 @@ export const RECORRIDO: PasoDelRecorrido[] = [
     ruta: '/settings',
     titulo: 'La configuración',
     flujos: ['gobierno'],
-    rol: 'dev',
+    rol: 'admin',
     queVes: 'El índice de lo configurable: accesos y seguridad, correos, biblioteca de imágenes, datos de la agencia.',
     porQueExiste: 'Separar el ajuste del trabajo diario. Lo que se toca una vez al año no debe estar donde lo que se usa cada noche.',
-    comoSeLee: [
-      'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Administración, que es quien la usará, le responde «no tienes acceso».',
-    ],
     queHace: [
       'Cada tarjeta lleva a su propia pantalla.',
+      'Administración y Desarrollo entran a la misma pantalla y no ven lo mismo: la identidad de la agencia se edita con cualquiera de los dos, y el panel técnico sólo lo ve Desarrollo.',
       'Los ajustes de la agencia y los de una empresa atendida son juegos distintos.',
     ],
   },
@@ -1108,7 +1423,7 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Un contrato se asocia a una empresa y a paquetes del catálogo de servicios.',
     ],
     comoSeLee: [
-      'Sin datos de muestra: se mira la estructura. Es una de las decisiones pendientes —conectarla o dejarla fuera del sistema—.',
+      'Sin datos de muestra: se mira la estructura. Conectarla o dejarla fuera está en el flujo «Lo que falta decidir».',
     ],
   },
   {
@@ -1182,6 +1497,11 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Hoy sólo la abre Desarrollo: el módulo no está liberado en la reja de operación inicial, así que a Dirección de operaciones, que es quien la usará, le responde «no tienes acceso».',
       'Sin datos de muestra: se mira la estructura.',
     ],
+    queLeFalta: [
+      'La cabecera suma la capacidad semanal como si fuera la del periodo mostrado (get-operations-overview.use-case.ts:265-269, OperationsPage.tsx:192).',
+      'El porcentaje de carga por persona divide piezas entre unidades de capacidad: dos unidades distintas en la misma fracción (OperationsPage.tsx:226, 235).',
+      'El estado de un objetivo —activo, en pausa, terminado— existe en el servidor y la pantalla nunca lo manda ni lo muestra (dto/objective.dto.ts:110).',
+    ],
     queHace: ['Cruza el equipo con su carga activa y con los objetivos del ciclo.'],
   },
   {
@@ -1211,6 +1531,92 @@ export const RECORRIDO: PasoDelRecorrido[] = [
       'Sin datos de muestra: se mira la estructura.',
     ],
     queHace: ['Lleva un ranking y un registro de disputas sobre él.'],
+  },
+
+  // ------------------------------------------------------------ Lo que falta decidir
+  /*
+   * Las decisiones salieron de contrastar el manual con el código, y por eso están acá.
+   *
+   * Tres pasos del recorrido decían «está anotado como decisión pendiente» y no había ninguna
+   * lista: el manual mandaba a un sitio que no existía. Éste es ese sitio, y por eso cada paso
+   * dice qué hace hoy el sistema, qué se decidiría y a quién le toca decidirlo.
+   */
+  {
+    ruta: '/reservations/waitlist',
+    titulo: 'Decidir: la lista de espera no es una cola',
+    flujos: ['decidir'],
+    rol: 'operations_director',
+    queVes: 'La lista de espera, que parece una cola por orden de llegada y no se comporta como una.',
+    porQueExiste: 'Al liberarse un cupo, el sistema escribe a los primeros veinte de esa hora, a todos a la vez. Gana quien reserve primero, no quien lleve más tiempo esperando.',
+    queHace: [
+      'El aviso sale sin orden declarado y sin plazo: no hay turnos ni se pasa al siguiente si uno no responde.',
+      'Se envía sólo si la página está publicada, la hora no ha pasado y la plantilla está encendida.',
+    ],
+    comoSeLee: [
+      'Decidir: si se queda como está —rápido, y el local llena la mesa— o pasa a ser una cola por orden, que es lo que la gente entiende por lista de espera y lo único defendible ante un reclamo.',
+      'Decide: dirección de operaciones, porque es quien responde ante el local. Cambiarlo es trabajo de desarrollo en el aviso de cupo liberado.',
+    ],
+  },
+  {
+    ruta: '/governance',
+    titulo: 'Decidir: catorce pantallas cerradas',
+    flujos: ['decidir'],
+    rol: 'dev',
+    queVes: 'La lista de módulos del producto, con los que la reja de operación inicial mantiene cerrados.',
+    porQueExiste: 'Quedan catorce pantallas del recorrido —informes, campañas, producción, reuniones, seguridad, entre otras— que sólo abre Desarrollo. A los cargos que van a usarlas les responde «no tienes acceso». Ajustes, correos y puesta en marcha ya se liberaron.',
+    queHace: [
+      'La reja se evalúa antes que el permiso y antes que el servicio contratado, así que no hay permiso que la salte.',
+      'El cargo de desarrollo es el único que la atraviesa.',
+    ],
+    comoSeLee: [
+      'Decidir: cuáles de las catorce se liberan y cuándo. No es una sola decisión: cada módulo se libera cuando está listo para que lo use alguien que no sea quien lo programó.',
+      'Decide: el dueño del producto, módulo por módulo. Mientras tanto el manual lo dice en cada paso afectado, para que nadie crea que la maqueta está rota.',
+    ],
+  },
+  {
+    ruta: '/security',
+    titulo: 'Decidir: la alergia que se ve sin dejar rastro',
+    flujos: ['decidir'],
+    rol: 'dev',
+    queVes: 'Los niveles de datos protegidos, con el nivel «directo» entre ellos.',
+    porQueExiste: 'En «bajo registro» se anota quién pidió ver una alergia antes de entregarla. En «directo» el dato sale sin anotar nada, y la trazabilidad depende de cómo esté configurado cada cargo.',
+    queHace: [
+      'Oculto responde 403 y no anota; bajo registro anota antes de entregar y falla cerrado si la anotación falla; directo entrega sin dejar constancia.',
+    ],
+    comoSeLee: [
+      'Decidir: si una nota de salud puede estar alguna vez en «directo», o si el mínimo para ese campo es «bajo registro» para todos los cargos, sin excepción.',
+      'Decide: quien responda por los datos personales ante la ley, no el equipo que atiende las mesas.',
+    ],
+  },
+  {
+    ruta: '/billing',
+    titulo: 'Decidir: facturación y contratos, dentro o fuera',
+    flujos: ['decidir'],
+    rol: 'dev',
+    queVes: 'Facturación, construida y vacía. Al lado, contratos y catálogo, en el mismo estado.',
+    porQueExiste: 'Lo que cada empresa contrató ya vive en el sistema y manda sobre lo que se enciende. Lo que se le cobra, no: vive fuera.',
+    queHace: [
+      'Las pantallas existen y sus rutas responden; no hay nada detrás que las alimente.',
+    ],
+    comoSeLee: [
+      'Decidir: conectarlas —y entonces el sistema sabe qué se cobró y puede cruzarlo con lo que se entregó— o retirarlas del menú, para que nadie entre y crea que se rompió.',
+      'Decide: administración, porque es quien hoy factura por fuera y sabe qué costaría traerlo.',
+    ],
+  },
+  {
+    ruta: '/approvals',
+    titulo: 'Decidir: lo construido que nadie usa',
+    flujos: ['decidir'],
+    rol: 'dev',
+    queVes: 'Aprobaciones, briefs, documentos, conocimiento, ranking: siete pantallas sin datos de muestra en este recorrido.',
+    porQueExiste: 'Están construidas y vacías. Una pantalla vacía no dice si está esperando datos, esperando una decisión o esperando que alguien la borre.',
+    queHace: [
+      'Cada una responde en su ruta y muestra su estado vacío.',
+    ],
+    comoSeLee: [
+      'Decidir, para cada una: se termina y se usa, se deja visible como está, o se retira hasta que haya alguien que la necesite.',
+      'Decide: dirección creativa y administración, según de quién sea la pantalla. Lo que no se decide se queda en el menú ocupando sitio y restando confianza al resto.',
+    ],
   },
 ];
 
