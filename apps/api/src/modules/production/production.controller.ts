@@ -207,7 +207,7 @@ export class ProductionController {
   @Roles(UserRole.COMMUNITY_MANAGER, UserRole.ART_DIRECTOR, UserRole.AV_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Cancelar pieza y devolver sus unidades segun la regla configurada' })
   cancel(@Param('id') id: string, @Body() dto: CancelPieceDto, @Req() req: AuthenticatedRequest) {
-    return this.cancelPiece.execute(id, req.organizationId, dto.reason, dto.origin, req.user.id);
+    return this.cancelPiece.execute(id, req.organizationId, dto.reason, dto.origin, req.user);
   }
 
   @Post(':id/deliver')
@@ -215,7 +215,7 @@ export class ProductionController {
   @Roles(UserRole.ART_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN)
   @ApiOperation({ summary: 'Entregar pieza al cliente' })
   deliver(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.deliverPiece.execute(id, req.organizationId, req.user.id);
+    return this.deliverPiece.execute(id, req.organizationId, req.user);
   }
 
   @Post(':id/approve')
