@@ -89,7 +89,19 @@ export function CrmLayout(): JSX.Element {
   // Se recuerda por persona: quien atiende una sola cuenta no debería tener que elegirla cada
   // vez que entra, y quien las ve todas rara vez cambia de cuenta dentro de la misma jornada.
   const scopeKey = storageKey('crm-cuenta', user?.id ?? 'anon');
-  const [cuentaElegida, setCuentaElegida] = useState<string>(() => readStoredJson<string>(scopeKey, CUENTA_AGENCIA));
+  /*
+   * Nace de la empresa elegida en el marco, y vuelve a ella al cambiar.
+   *
+   * El CRM no puede delegarla del todo: su desplegable tiene una opción que no es una empresa
+   * —«Espartanos», el embudo comercial de la agencia—, y `empresa-activa` sólo conoce empresas.
+   * Así que mantiene su estado y lo mantiene **de acuerdo**: entra con la que ya estaba elegida,
+   * y al elegir otra la escribe donde la leen el inicio, las reservas y los informes. Antes cada
+   * pantalla preguntaba por separado y dos abiertas podían mirar locales distintos.
+   *
+   * «Espartanos» no es ninguna empresa, así que se comparte como el vacío: para el equipo interno
+   * el vacío significa «todas las que alcanzo», que es la misma vista de agencia.
+   */
+  const [cuentaElegida, setCuentaElegida] = useState<string>(() => empresaActiva.clientId || readStoredJson<string>(scopeKey, CUENTA_AGENCIA));
   /*
    * Qué empresa mira una cuenta de portal.
    *
@@ -119,6 +131,9 @@ export function CrmLayout(): JSX.Element {
     if (esPortalCliente) { empresaActiva.elegir(value); return; }
     setCuentaElegida(value);
     writeStoredJson(scopeKey, value);
+    // Y se comparte: «Espartanos» viaja como el vacío, que para el equipo interno es su cartera
+    // entera. `elegir` descarta cualquier id que la persona no alcance.
+    empresaActiva.elegir(value === CUENTA_AGENCIA ? '' : value);
   };
 
   const nombrePorId = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);

@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { AvisoDeMantenimiento } from './AvisoDeMantenimiento';
 import { useAuth } from '../core/auth';
 import { useMenuCompacto } from './useMenuCompacto';
 import { roleLabel } from '../core/role-labels';
@@ -194,6 +195,11 @@ export function Layout(): JSX.Element {
             tanto con esta cabecera. Sin el selector acá, cambiar de local en el portal y pasar a
             Correos dejaba la duda de sobre cuál se estaba escribiendo. Sólo con más de una
             empresa; el resto de las cuentas ve el título de siempre.
+
+            Y vale igual para el equipo: quien lleva tres cuentas elige una vez y la eligen con él
+            el inicio, las reservas y los informes, en vez de volver a preguntarla cada pantalla.
+            Para el equipo «Todas las empresas» es una opción de verdad —comparar cuentas es parte
+            del trabajo— y es la de por omisión; en el portal esa opción no se ofrece.
           */}
           {empresaActiva.varias
             ? <label className="workspace-empresa">
@@ -204,6 +210,7 @@ export function Layout(): JSX.Element {
                   value={empresaActiva.clientId}
                   onChange={(evento) => empresaActiva.elegir(evento.target.value)}
                 >
+                  {empresaActiva.admiteTodas && <option value="">Todas las empresas</option>}
                   {empresaActiva.empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
                 </select>
               </label>
@@ -264,7 +271,7 @@ export function Layout(): JSX.Element {
             </div>
           </div>
         </header>
-        <main className="main-content"><Outlet /></main>
+        <main className="main-content"><AvisoDeMantenimiento /><Outlet /></main>
         <ContextHelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
       </div>
     </div>

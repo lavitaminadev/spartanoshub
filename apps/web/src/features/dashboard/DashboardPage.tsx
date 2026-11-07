@@ -18,6 +18,7 @@ import { reservationTotals, useReservationMetrics } from './use-reservation-metr
 import { ConversionQueue } from './ConversionQueue';
 import { OperationalHome } from './OperationalHome';
 import { PageHero } from '../../shared/PageHero';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 
 interface DashboardData {
   activeClients: number;
@@ -150,19 +151,15 @@ export function DashboardPage() {
   */
   const puedeVerInformes = moduleAllowed('dashboard');
   /*
-    Empresa por la que responde el panel.
+    Empresa por la que responde el panel: la del marco, no una propia de esta pantalla.
 
     Era el único sitio del sistema donde cambiar de empresa no cambiaba una sola cifra: respondía
-    siempre por la organización entera. Al lado del CRM, que sí lo hace, se leía como que el dato
-    estaba mal. Vacío significa «todas las que alcanzo», que es lo que mostraba antes.
+    siempre por la organización entera. Después tuvo su propio selector, y con eso elegir acá no
+    cambiaba nada en reservas ni en informes: tres pantallas preguntando lo mismo por separado.
+    Ahora la elección vive en `empresa-activa`, se hace una vez en la cabecera y la respetan todas.
+    Vacío significa «todas las que alcanzo», que es lo que este panel mostraba antes.
   */
-  const [empresa, setEmpresa] = useState('');
-  const { data: cartera } = useQuery<{ data: Array<{ id: string; name: string }> }>({
-    queryKey: ['clients-min'],
-    queryFn: () => api.get('/clients'),
-    enabled: puedeVerInformes && moduleAllowed('clients'),
-  });
-  const empresas = cartera?.data ?? [];
+  const { clientId: empresa } = useEmpresaActiva();
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<DashboardData>({
     // La empresa forma parte de la clave: con otra elegida son otras cifras, no las mismas
@@ -204,18 +201,7 @@ export function DashboardPage() {
         title="Dashboard"
         subtitle="Visión general de la operación."
         actions={<>
-          {/* Solo con más de una empresa: un selector de un elemento no ofrece ninguna decisión. */}
-          {empresas.length > 1 ? (
-            <select
-              className="input"
-              aria-label="Empresa"
-              value={empresa}
-              onChange={(evento) => setEmpresa(evento.target.value)}
-            >
-              <option value="">Todas las empresas</option>
-              {empresas.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{cuenta.name}</option>)}
-            </select>
-          ) : null}
+          {/* El selector vive en la cabecera del marco, que lo comparte con las demás pantallas. */}
           <span className="date-chip">{new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
           <button className="btn btn-outline btn-sm" onClick={() => setConfigureOpen(true)}>Configurar widgets</button>
         </>}
