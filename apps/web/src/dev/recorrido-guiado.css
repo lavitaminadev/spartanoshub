@@ -194,6 +194,21 @@ body:has(.manual-panel) .toast-container {
   color: var(--terracotta);
 }
 
+.manual-bloque.es-acciones-visibles {
+  border-left-color: #176b5a;
+  background: #f1fbf7;
+}
+
+:root.maqueta-muestra-acciones main button:not(:disabled),
+:root.maqueta-muestra-acciones main a,
+:root.maqueta-muestra-acciones main input:not(:disabled),
+:root.maqueta-muestra-acciones main select:not(:disabled),
+:root.maqueta-muestra-acciones main textarea:not(:disabled) {
+  outline: 2px solid #0a8a70 !important;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgb(10 138 112 / 14%) !important;
+}
+
 /*
  * El bloque forense: deuda del producto, no explicación.
  *

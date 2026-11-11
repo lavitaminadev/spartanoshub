@@ -115,6 +115,7 @@ export function RecorridoGuiado() {
   const [correo, setCorreo] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [mostrarEnvio, setMostrarEnvio] = useState(false);
+  const [mostrarAcciones, setMostrarAcciones] = useState(false);
   /** Si esta vista puede dejar lo anotado en el artefacto, sin que nadie tenga que enviarlo. */
   const [enLaNube, setEnLaNube] = useState(false);
   const panel = useRef<HTMLElement>(null);
@@ -178,6 +179,11 @@ export function RecorridoGuiado() {
     setBorrador('');
     setEscribiendo(false);
   }, [flujo, clave]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('maqueta-muestra-acciones', mostrarAcciones);
+    return () => document.documentElement.classList.remove('maqueta-muestra-acciones');
+  }, [mostrarAcciones]);
 
   const irA = useCallback((siguiente: number, flujoDestino: string) => {
     const lista = pasosDeSeleccion(flujoDestino);
@@ -439,6 +445,14 @@ export function RecorridoGuiado() {
       <section className="manual-bloque">
         <h3>¿Qué hace?</h3>
         <ul>{paso.queHace.map((linea) => <li key={linea}>{linea}</li>)}</ul>
+      </section>
+
+      <section className="manual-bloque es-acciones-visibles">
+        <h3>Pruébalo en pantalla</h3>
+        <p>Resalta los controles reales disponibles en esta vista. Puedes usarlos con datos de demostración.</p>
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => setMostrarAcciones((actual) => !actual)}>
+          {mostrarAcciones ? 'Ocultar acciones' : 'Resaltar acciones'}
+        </button>
       </section>
 
       {/*
