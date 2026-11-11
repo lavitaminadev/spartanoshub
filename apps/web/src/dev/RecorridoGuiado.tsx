@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RECORRIDO, FLUJOS, ORDEN_COMPLETO, pasosDelFlujo, type SaltoDePerspectiva } from './recorrido-guiado';
+import { RECORRIDO, FLUJOS, ORDEN_COMPLETO, ROLES_DEL_RECORRIDO, pasosDelFlujo, pasosDelRol, type SaltoDePerspectiva } from './recorrido-guiado';
 import {
   claveDelPaso, componerInforme, componerResumen, entregarInforme,
   guardarObservacion, leerObservaciones, leerVistas, marcarVista, type Observacion,
@@ -34,6 +34,8 @@ const CLAVE_NOMBRE = 'espartanos.maqueta.nombre-de-quien-revisa';
 
 const ROL_POR_OMISION = 'admin';
 const EMPRESA_POR_OMISION = 'visual-client';
+const FLUJOS_EXTERNOS = FLUJOS.filter((flujo) => !['enObra', 'decidir'].includes(flujo.id));
+const PASOS_EXTERNOS = new Set(FLUJOS_EXTERNOS.flatMap((flujo) => pasosDelFlujo(flujo.id)));
 
 /** El router de la maqueta compilada enruta por el fragmento; el de desarrollo, por la ruta. */
 const ENRUTA_POR_FRAGMENTO = import.meta.env.PROD;
@@ -83,6 +85,12 @@ function recargarEn(ruta: string, rol: string, empresa: string): void {
     : `${origin}${camino}${consulta}`;
 }
 
+function pasosDeSeleccion(seleccion: string): number[] {
+  if (seleccion === 'todo') return ORDEN_COMPLETO.filter((indice) => PASOS_EXTERNOS.has(indice));
+  if (seleccion.startsWith('rol:')) return pasosDelRol(seleccion.slice(4)).filter((indice) => PASOS_EXTERNOS.has(indice));
+  return pasosDelFlujo(seleccion).filter((indice) => PASOS_EXTERNOS.has(indice));
+}
+
 export function RecorridoGuiado() {
   const navigate = useNavigate();
   const [flujo, setFlujo] = useState(() => leer(CLAVE_FLUJO) ?? '');
@@ -119,7 +127,7 @@ export function RecorridoGuiado() {
     void hayDondeGuardar().then(setEnLaNube);
   }, []);
 
-  const orden = useMemo(() => (flujo === 'todo' ? ORDEN_COMPLETO : flujo ? pasosDelFlujo(flujo) : []), [flujo]);
+  const orden = useMemo(() => (flujo ? pasosDeSeleccion(flujo) : []), [flujo]);
   const indice = orden[Math.min(posicion, Math.max(orden.length - 1, 0))] ?? 0;
   const paso = RECORRIDO[indice];
   const clave = paso ? claveDelPaso(paso) : '';
@@ -172,7 +180,7 @@ export function RecorridoGuiado() {
   }, [flujo, clave]);
 
   const irA = useCallback((siguiente: number, flujoDestino: string) => {
-    const lista = flujoDestino === 'todo' ? ORDEN_COMPLETO : pasosDelFlujo(flujoDestino);
+    const lista = pasosDeSeleccion(flujoDestino);
     if (lista.length === 0) return;
     const destino = Math.min(Math.max(siguiente, 0), lista.length - 1);
     const pasoDestino = RECORRIDO[lista[destino]];
@@ -265,6 +273,7 @@ export function RecorridoGuiado() {
   }, []);
 
   const formularioDeEnvio = <div className="manual-envio">
+    <p className="manual-matiz">Tu mensaje se enviará al equipo revisor mediante un servicio de formularios externo.</p>
     <label>
       Tu nombre
       <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Para saber quién lo dice" />
@@ -275,7 +284,7 @@ export function RecorridoGuiado() {
     </label>
     <div className="manual-acciones">
       <button type="button" className="btn btn-primary btn-sm" disabled={enviando || nombre.trim().length === 0} onClick={() => void enviar()}>
-        {enviando ? 'Enviando…' : 'Enviar al equipo'}
+        {enviando ? 'Enviando…' : 'Enviar comentario'}
       </button>
       <button type="button" className="manual-enlace" onClick={() => void descargar()}>Descargar el archivo</button>
     </div>
@@ -320,19 +329,33 @@ export function RecorridoGuiado() {
 
   /* La portada: se elige qué conocer antes de ver nada. */
   if (!flujo) {
-    return <aside ref={panel} className="manual-panel es-portada" aria-label="Manual de la aplicación">
+    return <aside ref={panel} className="manual-panel es-portada" aria-label="Recorrido guiado de la maqueta">
       <header className="manual-cabecera">
-        <span className="manual-etiqueta">Manual de la aplicación</span>
+        <span className="manual-etiqueta">Recorrido guiado de la maqueta</span>
         {cerrar}
       </header>
       <div className="manual-cuerpo">
-        <h2>Qué quieres conocer</h2>
+        <h2>Cómo quieres revisar</h2>
         <p className="manual-intro">
-          {RECORRIDO.length} vistas reales del sistema, explicadas una por una. Elige un flujo y se recorre
-          sólo ese; puedes volver acá en cualquier momento y cambiar.
+          Revisa pantallas y recorridos representativos de EspartanosHUB. Los nombres, empresas, personas y datos
+          son ficticios y se usan sólo para demostración; esta maqueta no opera información de producción.
         </p>
+        <h3 className="manual-subtitulo">Revisar desde un rol</h3>
+        <ul className="manual-roles">
+          {ROLES_DEL_RECORRIDO.filter((rol) => pasosDeSeleccion(`rol:${rol.id}`).length > 0).map((rol) => {
+            const suyos = pasosDeSeleccion(`rol:${rol.id}`);
+            return <li key={rol.id}>
+              <button type="button" onClick={() => irA(0, `rol:${rol.id}`)}>
+                <span className="manual-flujo-nombre">{rol.nombre}</span>
+                <small>{rol.para}</small>
+                <em>{suyos.length} vistas para revisar</em>
+              </button>
+            </li>;
+          })}
+        </ul>
+        <h3 className="manual-subtitulo">Revisar por flujo</h3>
         <ul className="manual-flujos">
-          {FLUJOS.map((item) => {
+          {FLUJOS_EXTERNOS.map((item) => {
             const suyos = pasosDelFlujo(item.id);
             const abiertos = suyos.filter((i) => vistas[claveDelPaso(RECORRIDO[i])]).length;
             const completo = abiertos === suyos.length;
@@ -349,14 +372,14 @@ export function RecorridoGuiado() {
           })}
         </ul>
         <button type="button" className="manual-todo" onClick={() => irA(0, 'todo')}>
-          Todo el sistema, de corrido
-          <small>Los {FLUJOS.length} flujos en fila, {ORDEN_COMPLETO.length} vistas sin repetir ninguna.</small>
+          Todos los recorridos, de corrido
+          <small>{FLUJOS_EXTERNOS.length} flujos y {pasosDeSeleccion('todo').length} vistas, sin repetir ninguna.</small>
         </button>
       </div>
       <footer className="manual-pie">
         {mostrarEnvio ? formularioDeEnvio : <>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => setMostrarEnvio(true)}>
-            Enviar observaciones{conNota > 0 ? ` (${conNota})` : ''}
+            Enviar comentarios{conNota > 0 ? ` (${conNota})` : ''}
           </button>
           <button
             type="button"
@@ -368,7 +391,11 @@ export function RecorridoGuiado() {
     </aside>;
   }
 
-  const nombreDelFlujo = flujo === 'todo' ? 'Todo el sistema' : FLUJOS.find((f) => f.id === flujo)?.nombre ?? '';
+  const nombreDelFlujo = flujo === 'todo'
+    ? 'Todo el sistema'
+    : flujo.startsWith('rol:')
+      ? ROLES_DEL_RECORRIDO.find((rol) => rol.id === flujo.slice(4))?.nombre ?? 'Rol'
+      : FLUJOS.find((f) => f.id === flujo)?.nombre ?? '';
   const ultimo = posicion >= orden.length - 1;
 
   return <aside
@@ -426,19 +453,6 @@ export function RecorridoGuiado() {
         <ul>{paso.comoSeLee.map((linea) => <li key={linea}>{linea}</li>)}</ul>
       </section>}
 
-      {/*
-        Lo que la auditoría encontró, con su evidencia.
-
-        Va después de lo que la pantalla hace y antes del salto de perspectiva: primero qué es,
-        luego de qué no fiarse. Se dibuja distinto de todo lo demás porque no es explicación del
-        producto, es deuda suya.
-      */}
-      {paso.queLeFalta && <section className="manual-bloque es-forense">
-        <h3>¿Qué le falta a esta vista?</h3>
-        <p className="manual-matiz">De la auditoría del código, con archivo y línea.</p>
-        <ul>{paso.queLeFalta.map((linea) => <li key={linea}>{linea}</li>)}</ul>
-      </section>}
-
       {paso.tambienDesde && <section className="manual-bloque">
         <h3>¿Y desde el otro lado?</h3>
         {paso.tambienDesde.map((destino) => <button
@@ -484,7 +498,7 @@ export function RecorridoGuiado() {
         <div className="manual-acciones">
           <button type="button" className="btn btn-primary btn-sm" onClick={volverALaPortada}>Elegir otro flujo</button>
           {!mostrarEnvio && <button type="button" className="btn btn-outline btn-sm" onClick={() => setMostrarEnvio(true)}>
-            Enviar observaciones{conNota > 0 ? ` (${conNota})` : ''}
+            Enviar comentarios{conNota > 0 ? ` (${conNota})` : ''}
           </button>}
         </div>
         {mostrarEnvio && formularioDeEnvio}

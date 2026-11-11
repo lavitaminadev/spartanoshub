@@ -46,6 +46,33 @@ export interface FlujoDelRecorrido {
   para: string;
 }
 
+/** Un cargo real y la parte del producto que hoy puede revisarse desde su perspectiva. */
+export interface RolDelRecorrido {
+  id: string;
+  nombre: string;
+  para: string;
+}
+
+/*
+ * No se infieren permisos desde el nombre del cargo. Esta lista sólo organiza las vistas que el
+ * recorrido ya documentó con ese rol. Si un cargo no tiene pasos propios, la maqueta lo declara
+ * como trabajo pendiente en lugar de hacerle parecer accesible una pantalla de otro cargo.
+ */
+export const ROLES_DEL_RECORRIDO: RolDelRecorrido[] = [
+  { id: 'admin', nombre: 'Administración', para: 'Configura empresas, servicios, personas y las reglas que sostienen la operación.' },
+  { id: 'dev', nombre: 'Desarrollo', para: 'Revisa integraciones, estructura técnica y módulos que aún están en habilitación.' },
+  { id: 'commercial_director', nombre: 'Dirección comercial', para: 'Capta restaurantes, trabaja oportunidades y mide el embudo comercial.' },
+  { id: 'creative_director', nombre: 'Dirección creativa', para: 'Ordena pedidos, prioridades, entregas y aprobaciones de contenido.' },
+  { id: 'operations_director', nombre: 'Dirección de operaciones', para: 'Coordina el servicio del local, reservas, incidencias y seguimiento operativo.' },
+  { id: 'art_director', nombre: 'Dirección de arte', para: 'Revisa la dirección visual de las piezas y entregas de contenido.' },
+  { id: 'av_director', nombre: 'Dirección audiovisual', para: 'Revisa el trabajo audiovisual cuando el módulo está habilitado.' },
+  { id: 'ai_lead', nombre: 'Liderazgo IA', para: 'Coordina los recursos de inteligencia artificial aplicados al contenido.' },
+  { id: 'community_manager', nombre: 'Community manager', para: 'Gestiona la comunicación y las publicaciones de los clientes.' },
+  { id: 'designer', nombre: 'Diseño', para: 'Desarrolla y prepara piezas visuales para los clientes.' },
+  { id: 'audiovisual', nombre: 'Audiovisual', para: 'Produce y organiza piezas audiovisuales para los clientes.' },
+  { id: 'client', nombre: 'Cliente', para: 'Ve sólo su empresa, sus servicios contratados y la información que la agencia le comparte.' },
+];
+
 /**
  * Los flujos, en el orden en que pasan las cosas.
  *
@@ -1635,6 +1662,14 @@ export function pasosDelFlujo(flujo: string): number[] {
     else if (paso.flujos.includes(flujo)) prestados.push(i);
   });
   return [...propios, ...prestados];
+}
+
+/** Las vistas documentadas desde un cargo concreto, en el mismo orden del recorrido general. */
+export function pasosDelRol(rol: string): number[] {
+  return RECORRIDO.reduce<number[]>((orden, paso, i) => {
+    if (paso.rol === rol) orden.push(i);
+    return orden;
+  }, []);
 }
 
 /**
