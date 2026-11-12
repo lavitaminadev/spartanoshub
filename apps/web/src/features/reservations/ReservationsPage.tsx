@@ -917,9 +917,9 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
           {['Datos', 'Medición (opcional)', 'Revisar'].map((label, index) => <button key={label} type="button" className={index === createStep ? 'active' : index < createStep ? 'done' : ''} onClick={() => { if (index <= createStep || createStepReady[createStep]) setCreateStep(index); }}><strong>{String(index + 1).padStart(2, '0')}</strong><span>{label}</span></button>)}
         </div>
         {createStep === 0 && <>
-          <p className="page-subtitle">Elige la empresa: la primera reserva toma su nombre y puedes cambiarlo. Su página permite reservar con hora y también pedir eventos o grupos.</p>
-          <label>Empresa o cliente<select className="input" required value={formData.clientId} onChange={(event) => updateCreateClient(event.target.value)}><option value="">Selecciona un cliente</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
-          <label>Nombre de la reserva<input className="input" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Ej. Casa Costanera - Providencia" /></label>
+          <p className="page-subtitle">Elige la empresa: la primera página toma su nombre y puedes cambiarlo. Su página permite reservar con hora y también pedir eventos o grupos.</p>
+          <label>Empresa<select className="input" required value={formData.clientId} onChange={(event) => updateCreateClient(event.target.value)}><option value="">Selecciona una empresa</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+          <label>Nombre de la página<input className="input" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Ej. Casa Costanera - Providencia" /></label>
           {/*
             * El rubro decide con qué valores nace el formulario, y nada más.
             *
