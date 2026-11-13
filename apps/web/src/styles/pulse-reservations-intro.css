@@ -697,7 +697,7 @@
 .public-other-flow.public-evento-cta { flex-direction: row; align-items: center; gap: 12px; border-style: solid; }
 .public-other-flow.public-evento-cta > div { display: flex; flex-direction: column; gap: 3px; }
 .public-other-flow.public-evento-cta button { width: auto; }
-@media (max-width: 480px) { .public-other-flow.public-evento-cta { flex-direction: column; align-items: stretch; } .public-other-flow.public-evento-cta button { width: 100%; } }
+@media (max-width: 480px) { .public-other-flow.public-evento-cta { flex-direction: column; align-items: stretch; } .public-other-flow.public-evento-cta button { width: 100%; } .public-other-flow.public-evento-cta > div { flex-basis: auto; } }
 .schedule-capacity .tipos-de-evento .input { min-height: 40px; padding: 8px 12px; font-size: 14px !important; font-weight: 400; }
 .schedule-capacity .tipos-de-evento .btn { min-height: 36px; }
 
