@@ -323,6 +323,7 @@
 .booking-medicion-aviso > div { display:flex; gap:8px; margin-left:auto; }
 .booking-medicion-aviso .btn { min-height:40px; }
 @media (max-width:640px) { .booking-medicion-aviso { bottom:8px; font-size:12px; } .booking-medicion-aviso > div { width:100%; } .booking-medicion-aviso .btn { flex:1; } }
+.public-booking:has(> .booking-medicion-aviso) {padding-bottom: 240px;}
 
 /* Fotos de la grilla: completas por defecto; recortadas iguales sólo si el local lo elige. */
 .booking-ocasiones-grilla { align-items:start; }
