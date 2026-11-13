@@ -226,7 +226,7 @@ export function AgendaPage() {
       <div>
         <span className="page-eyebrow">OPERACIÓN DIARIA</span>
         <h1>Agenda del servicio</h1>
-        <p className="page-subtitle">Vista del día agrupada por zona, tal como cada cliente configura su local.</p>
+        <p className="page-subtitle">Vista del día agrupada por zona, según cómo está configurado el local.</p>
       </div>
       {/* Bajar el cupo o apagar una zona se decide mirando la agenda, no dentro del constructor. */}
       {activeForm && <button type="button" className="btn btn-outline btn-sm" onClick={() => setAjustesAbiertos(true)}>Ajustes del día</button>}
@@ -235,8 +235,8 @@ export function AgendaPage() {
     {activeForm && <AjustesDelDia abierto={ajustesAbiertos} onCerrar={() => setAjustesAbiertos(false)} local={activeForm} base={clientMode ? '/portal/reservations' : '/reservations'} />}
 
     <div className="agenda-controls">
-      {!clientMode && <select className="input" aria-label="Cliente" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
-        <option value="">Selecciona un cliente</option>
+      {!clientMode && <select className="input" aria-label="Empresa" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
+        <option value="">Selecciona una empresa</option>
         {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
       </select>}
       <select className="input" aria-label="Página de reserva" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
@@ -257,7 +257,7 @@ export function AgendaPage() {
     </div>
 
     {!clientId
-      ? <EmptyState icon="calendar" title="Elige una cuenta" description="Selecciona una empresa y su página de reserva para ver la agenda del día." />
+      ? <EmptyState icon="calendar" title="Elige una empresa" description="Selecciona una empresa y su página de reserva para ver la agenda del día." />
       : forms.length === 0 && !loadingForms
         ? <EmptyState icon="calendar" title="Sin páginas de reserva configuradas" description="Activa Reservas para una empresa antes de abrir la agenda." />
         : <>

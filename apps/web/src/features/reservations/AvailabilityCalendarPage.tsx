@@ -124,8 +124,8 @@ export function AvailabilityCalendarPage() {
     </div>
 
     <div className="availability-toolbar">
-      {!clientMode && <select className="input" aria-label="Selecciona un cliente" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
-        <option value="">Selecciona un cliente</option>
+      {!clientMode && <select className="input" aria-label="Selecciona una empresa" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
+        <option value="">Selecciona una empresa</option>
         {clients.map((client: Client) => <option key={client.id} value={client.id}>{client.name}</option>)}
       </select>}
       <select className="input" aria-label="Selecciona una página de reserva" value={formId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
