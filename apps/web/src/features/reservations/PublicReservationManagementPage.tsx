@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../core/api';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';
+import { ConfirmarAccion } from '../../shared/ConfirmarAccion';
 import { plainDateInZone } from './local-time';
+import { consecuenciaDeCancelar } from './consecuencia-de-cancelar';
 
 type Managed = {
   referenceCode: string; guestName: string; startsAt: string; partySize: number; status: string;
@@ -26,6 +28,7 @@ export function PublicReservationManagementPage() {
   const [personas, setPersonas] = useState<number | null>(null);
   const [dia, setDia] = useState('');
   const [hora, setHora] = useState('');
+  const [confirmaCancelar, setConfirmaCancelar] = useState(false);
 
   const item = booking.data;
   const personasElegidas = personas ?? item?.partySize ?? 1;
@@ -111,9 +114,18 @@ export function PublicReservationManagementPage() {
           <button type="button" className="btn btn-outline" onClick={() => { setCambiando(false); setDia(''); setHora(''); setPersonas(null); reschedule.reset(); }}>Volver</button>
         </div>
       </form>}
-      <button className="btn btn-outline" disabled={cancel.isPending} onClick={() => { if (window.confirm('¿Cancelar esta reserva? El cupo quedará disponible.')) cancel.mutate(); }}>{cancel.isPending ? 'Cancelando...' : 'Cancelar reserva'}</button>
+      <button className="btn btn-outline" disabled={cancel.isPending} onClick={() => setConfirmaCancelar(true)}>{cancel.isPending ? 'Cancelando...' : 'Cancelar reserva'}</button>
     </div> : <p>Esta reserva ya no admite cambios en línea.</p>}
     {reschedule.isSuccess && !cambiando && <p className="success-text" role="status">Cambio guardado. El local ya fue avisado.</p>}
     {motivoDelError && <p className="error-text">{motivoDelError}</p>}
+     {confirmaCancelar && <ConfirmarAccion
+      titulo="Cancelar tu reserva"
+      consecuencia={consecuenciaDeCancelar(item)}
+      confirmar="Confirmar cancelación"
+      volver="Regresar a la reserva"
+      enCurso={cancel.isPending}
+      onConfirmar={() => cancel.mutate(undefined, { onSettled: () => setConfirmaCancelar(false) })}
+      onCancelar={() => setConfirmaCancelar(false)}
+    />}
   </section><PieLegal /></main>;
 }
