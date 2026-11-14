@@ -1066,6 +1066,7 @@ export function PublicReservationPage() {
     </details>}
     <div className="public-booking-layout">
       <section className="public-booking-intro">{design.logoUrl && visible(design.showLogo) && <img className="public-booking-logo" src={optimizedUrl(design.logoUrl, 480)} alt="Logo de la empresa" />}{visible(design.showEyebrow) && <span>{requestMode ? 'SOLICITUD DE EVENTO' : eyebrowText}</span>}<h1>{requestMode ? 'Solicita tu evento' : design.title || form.name}</h1>{visible(design.showWelcome) && <p>{requestMode ? 'Cuéntanos tu evento y el local te contactará para coordinar fecha y detalles.' : design.welcome || 'Elige el horario que mejor te acomode.'}</p>}
+      {!requestMode && !isSurvey && <a href="#reservar" className="btn btn-primary public-booking-atajo">Reservar ahora</a>}
         {/*
           * Lo que hay que saber antes de elegir una hora.
           *
@@ -1095,7 +1096,7 @@ export function PublicReservationPage() {
           </div>
         </div>}
       </section>
-      <form ref={tarjetaRef} noValidate className={`public-booking-card ${isSurvey ? 'is-survey' : ''}`} onSubmit={(event) => { event.preventDefault(); if (step === 3) { submit.mutate(); } else if (step === 2) { goToConfirm(); } else { goToForm(); } }}>
+      <form ref={tarjetaRef} id="reservar" noValidate className={`public-booking-card ${isSurvey ? 'is-survey' : ''}`} onSubmit={(event) => { event.preventDefault(); if (step === 3) { submit.mutate(); } else if (step === 2) { goToConfirm(); } else { goToForm(); } }}>
         {/* Se oculta desplazándolo fuera de pantalla y no con `display:none`, que los bots
             reconocen como campo técnico y omiten. `aria-hidden` y `tabIndex={-1}` lo dejan
             fuera del alcance de lectores de pantalla y de la navegación con teclado. */}

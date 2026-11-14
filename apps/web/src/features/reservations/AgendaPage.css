@@ -21,7 +21,6 @@
 
 .agenda-date-label {
   color: var(--txt-secondary);
-  text-transform: capitalize;
 }
 
 .agenda-summary {
