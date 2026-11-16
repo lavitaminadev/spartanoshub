@@ -133,7 +133,7 @@ let ReportingController = class ReportingController {
             topParams.push(...allowedClientIds);
         }
         const [[revRow], [projRow], [avgUdRow], monthlyRows, topRows] = await Promise.all([
-            this.dataSource.query(`SELECT COALESCE(SUM(total),0) as total FROM invoices WHERE ${invoiceConditions.join(' AND ')} AND status = 'paid'`, invoiceParams),
+            this.dataSource.query(`SELECT COALESCE(SUM(total),0) as total FROM invoices WHERE ${invoiceConditions.join(' AND ')} AND status = 'paid' AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)`, invoiceParams),
             this.dataSource.query(`SELECT COUNT(*) as total FROM pieces WHERE ${pieceConditions.join(' AND ')} AND ${active_pieces_1.ACTIVE_PIECE_STATUS_SQL}`, pieceParams),
             this.dataSource.query(`SELECT COALESCE(AVG(default_ud_budget),0) as avg FROM clients WHERE ${clientConditions.join(' AND ')}`, clientParams),
             this.dataSource.query(`SELECT months.month,
@@ -243,6 +243,14 @@ let ReportingController = class ReportingController {
         const clientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
         return this.monthlyReports.list(req.organizationId, { clientId: clientId ?? undefined, clientIds, clientView: req.user.role === user_role_enum_1.UserRole.CLIENT, year: year ? Number(year) : undefined, month: month ? Number(month) : undefined });
     }
+    async explorar(req, ambito, desde, hasta, comparar) {
+        const clientId = this.resolveClientScope(req, ambito);
+        if (!clientId)
+            throw new common_1.ForbiddenException('Indica la empresa del análisis');
+        const modo = comparar === 'ano_anterior' || comparar === 'ninguna' ? comparar : 'anterior';
+        const allowedClientIds = await this.accountAccess.allowedClientIds(req.organizationId, req.user);
+        return this.monthlyReports.explorar(req.organizationId, clientId, desde, hasta, modo, allowedClientIds);
+    }
     async generateMonthlyReport(req, dto) {
         await this.accountAccess.assertClient(req.organizationId, req.user, dto.clientId);
         return this.monthlyReports.generate(req.organizationId, req.user.id, dto);
@@ -316,6 +324,20 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], ReportingController.prototype, "listMonthlyReports", null);
+__decorate([
+    (0, common_1.Get)('explorar'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reports', 'view'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.ART_DIRECTOR, user_role_enum_1.UserRole.AV_DIRECTOR, user_role_enum_1.UserRole.AI_LEAD, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Métricas de un rango de fechas, con comparación opcional' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, empresa_decorator_1.Empresa)()),
+    __param(2, (0, common_1.Query)('desde')),
+    __param(3, (0, common_1.Query)('hasta')),
+    __param(4, (0, common_1.Query)('comparar')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ReportingController.prototype, "explorar", null);
 __decorate([
     (0, common_1.Post)('monthly-reports/generate'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.CREATIVE_DIRECTOR, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER),

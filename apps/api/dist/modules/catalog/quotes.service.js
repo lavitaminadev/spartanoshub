@@ -22,6 +22,7 @@ const client_status_enum_1 = require("../clients/client-status.enum");
 const contract_entity_1 = require("../contracts/contract.entity");
 const lead_entity_1 = require("../crm/leads/lead.entity");
 const lead_status_enum_1 = require("../crm/leads/lead-status.enum");
+const lead_fit_status_enum_1 = require("../crm/leads/lead-fit-status.enum");
 const cotizaciones_historial_1 = require("./cotizaciones-historial");
 const quote_entity_1 = require("./quote.entity");
 const quote_status_enum_1 = require("./quote-status.enum");
@@ -112,9 +113,15 @@ let QuotesService = class QuotesService {
                 const lead = await manager.findOne(lead_entity_1.Lead, { where: { id: quote.leadId, organizationId } });
                 if (!lead)
                     throw new common_1.NotFoundException('Lead no encontrado');
-                client = await manager.save(client_entity_1.Client, manager.create(client_entity_1.Client, { organizationId, leadId: lead.id, name: lead.name, status: client_status_enum_1.ClientStatus.ONBOARDING, retainerAmount: quote.amount }));
+                if (lead.convertedToClientId) {
+                    client = await manager.findOne(client_entity_1.Client, { where: { id: lead.convertedToClientId, organizationId } });
+                }
+                if (!client) {
+                    client = await manager.save(client_entity_1.Client, manager.create(client_entity_1.Client, { organizationId, leadId: lead.id, name: lead.name, status: client_status_enum_1.ClientStatus.ONBOARDING, retainerAmount: quote.amount }));
+                }
                 lead.status = lead_status_enum_1.LeadStatus.WON;
-                lead.convertedAt = new Date();
+                lead.fitStatus = lead_fit_status_enum_1.LeadFitStatus.SOLD;
+                lead.convertedAt = lead.convertedAt ?? new Date();
                 lead.convertedToClientId = client.id;
                 await manager.save(lead_entity_1.Lead, lead);
                 quote.clientId = client.id;

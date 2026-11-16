@@ -20,6 +20,11 @@ __decorate([
 ], AjustarAccionDto.prototype, "allowed", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], AjustarAccionDto.prototype, "clientId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(300),
     __metadata("design:type", String)

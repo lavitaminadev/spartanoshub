@@ -31,6 +31,14 @@ __decorate([
     __metadata("design:type", String)
 ], UserActionOverride.prototype, "action", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'client_id', type: 'varchar', length: 36, nullable: true }),
+    __metadata("design:type", Object)
+], UserActionOverride.prototype, "clientId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'client_scope', type: 'varchar', length: 36, insert: false, update: false, select: false, nullable: true }),
+    __metadata("design:type", String)
+], UserActionOverride.prototype, "clientScope", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'boolean' }),
     __metadata("design:type", Boolean)
 ], UserActionOverride.prototype, "allowed", void 0);
@@ -60,5 +68,5 @@ __decorate([
 ], UserActionOverride.prototype, "updatedAt", void 0);
 exports.UserActionOverride = UserActionOverride = __decorate([
     (0, typeorm_1.Entity)('user_action_overrides'),
-    (0, typeorm_1.Index)('UQ_user_action_override', ['userId', 'action'], { unique: true })
+    (0, typeorm_1.Index)('UQ_user_action_override_client', ['userId', 'action', 'clientScope'], { unique: true })
 ], UserActionOverride);

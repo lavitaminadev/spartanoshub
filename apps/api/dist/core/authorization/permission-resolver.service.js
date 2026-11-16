@@ -50,12 +50,12 @@ let PermissionResolverService = PermissionResolverService_1 = class PermissionRe
             this.roleLevelsOf(organizationId),
         ]);
         const overrideByModule = this.activeOverrides(overrides, clientId);
-        const permissions = Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((module) => [
-            module,
-            this.alcanzaElModulo(role, module, lifecycleMap[module], features[module])
-                ? overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? (0, role_permissions_1.roleLevel)(role, module)
-                : 'none',
-        ]));
+        const permissions = Object.fromEntries(organization_features_1.ORGANIZATION_FEATURE_KEYS.map((module) => {
+            if (!this.alcanzaElModulo(role, module, lifecycleMap[module], features[module]))
+                return [module, 'none'];
+            const nivel = overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? (0, role_permissions_1.roleLevel)(role, module);
+            return [module, lifecycleMap[module] === 'maintenance' ? (0, permission_level_1.recortarNivel)(nivel, 'view') : nivel];
+        }));
         if (role === user_role_enum_1.UserRole.CLIENT && !overrideByModule.has('users'))
             permissions.users = 'none';
         const ahora = Date.now();

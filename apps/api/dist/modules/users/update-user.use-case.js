@@ -64,7 +64,7 @@ let UpdateUserUseCase = class UpdateUserUseCase {
         const user = await this.usersRepo.findOne({ where: { id: data.id, organizationId: data.organizationId } });
         if (!user)
             throw new common_1.NotFoundException('Usuario no encontrado');
-        if ([user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(data.actorRole)) {
+        if (data.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR) {
             const protectedRoles = [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR];
             if (protectedRoles.includes(user.role)) {
                 throw new common_1.ForbiddenException('No puedes administrar esta cuenta');
@@ -73,12 +73,15 @@ let UpdateUserUseCase = class UpdateUserUseCase {
                 throw new common_1.ForbiddenException('No puedes asignar este nivel de acceso');
             }
         }
+        if (data.role === user_role_enum_1.UserRole.ADMIN && user.role !== user_role_enum_1.UserRole.ADMIN) {
+            throw new common_1.BadRequestException('El cargo admin es legado y no puede volver a asignarse.');
+        }
         if (data.actorId === user.id && (data.isActive === false || (data.role && data.role !== user.role))) {
             throw new common_1.BadRequestException('No puedes desactivar ni cambiar el rol de tu propia cuenta');
         }
         if (data.role === user_role_enum_1.UserRole.DEV || user.role === user_role_enum_1.UserRole.DEV) {
-            if (![user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV].includes(data.actorRole))
-                throw new common_1.ForbiddenException('Solo administración o desarrollo puede asignar o gestionar el cargo de desarrollo');
+            if (![user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV].includes(data.actorRole))
+                throw new common_1.ForbiddenException('Solo Dirección Comercial o Desarrollo puede asignar o gestionar el cargo de desarrollo');
             if (data.role === user_role_enum_1.UserRole.DEV && user.role !== user_role_enum_1.UserRole.DEV) {
                 const existingDev = await this.usersRepo.findOne({ where: { organizationId: data.organizationId, role: user_role_enum_1.UserRole.DEV, isActive: true } });
                 if (existingDev)

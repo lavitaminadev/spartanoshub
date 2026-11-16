@@ -152,10 +152,10 @@ let ProductionController = class ProductionController {
         });
     }
     cancel(id, dto, req) {
-        return this.cancelPiece.execute(id, req.organizationId, dto.reason, dto.origin, req.user.id);
+        return this.cancelPiece.execute(id, req.organizationId, dto.reason, dto.origin, req.user);
     }
     deliver(id, req) {
-        return this.deliverPiece.execute(id, req.organizationId, req.user.id);
+        return this.deliverPiece.execute(id, req.organizationId, req.user);
     }
     async approve(id, req) {
         const piece = await this.pieceRepo.findOne({ where: { id, organizationId: req.organizationId } });

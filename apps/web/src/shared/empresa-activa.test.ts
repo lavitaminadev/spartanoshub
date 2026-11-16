@@ -36,3 +36,43 @@ describe('empresa vigente de una cuenta de portal', () => {
     expect(empresaVigente({ guardada: 'la-de-otro', suEmpresa: 'c-1', alcanzables: ['c-1'], listaLista: true })).toBe('c-1');
   });
 });
+
+/*
+ * La misma regla para el equipo interno, con una diferencia declarada.
+ *
+ * Para una cuenta de portal «ninguna empresa» es un estado a resolver: atiende varias y todavía no
+ * eligió, así que ninguna pantalla debe operar. Para el equipo interno es una vista de verdad —su
+ * cartera entera— y la de por omisión, porque comparar cuentas es parte de su trabajo. Sin esa
+ * diferencia, una community manager con tres cuentas quedaba encerrada en la primera o eligiendo
+ * empresa en cada pantalla por separado.
+ */
+describe('empresa vigente del equipo interno', () => {
+  it('sin nada elegido, todas las que alcanza', () => {
+    expect(empresaVigente({ guardada: '', suEmpresa: '', alcanzables: ['c-1', 'c-2', 'c-3'], listaLista: true, admiteTodas: true })).toBe('');
+  });
+
+  it('lo elegido se respeta igual que en el portal', () => {
+    expect(empresaVigente({ guardada: 'c-2', suEmpresa: '', alcanzables: ['c-1', 'c-2'], listaLista: true, admiteTodas: true })).toBe('c-2');
+  });
+
+  it('una empresa que ya no alcanza vuelve a todas, no a una cualquiera', () => {
+    // Le sacaron la cuenta del pod. Caer en otra de su cartera le mostraría cifras de un local
+    // que no pidió, bajo un selector que diría el nombre correcto.
+    expect(empresaVigente({ guardada: 'c-9', suEmpresa: '', alcanzables: ['c-1', 'c-2'], listaLista: true, admiteTodas: true })).toBe('');
+  });
+
+  /**
+   * El CRM guarda su opción «Espartanos» en la misma clave.
+   *
+   * Vale `espartanos`, que no es el id de ninguna empresa. En el CRM significa el embudo comercial
+   * de la agencia; acá cae en «todas», que es la lectura correcta de «ninguna empresa en concreto»
+   * y mantiene los dos selectores de acuerdo cuando sí se elige una.
+   */
+  it('la opción del CRM que no es una empresa cae en todas', () => {
+    expect(empresaVigente({ guardada: 'espartanos', suEmpresa: '', alcanzables: ['c-1', 'c-2'], listaLista: true, admiteTodas: true })).toBe('');
+  });
+
+  it('con una sola cuenta en la cartera, lo guardado sigue mandando', () => {
+    expect(empresaVigente({ guardada: 'c-1', suEmpresa: '', alcanzables: ['c-1'], listaLista: true, admiteTodas: true })).toBe('c-1');
+  });
+});

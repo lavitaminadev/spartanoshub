@@ -67,13 +67,16 @@ let CreateUserUseCase = class CreateUserUseCase {
         const normalizedEmail = data.email.trim().toLowerCase();
         const normalizedName = data.name.trim();
         const normalizedPhone = data.phone?.replace(/[^\d+]/g, '');
-        if ([user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(data.actorRole)
-            && [user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(normalizedRole)) {
-            throw new common_1.ForbiddenException('Este cargo no puede crear cuentas de administración, desarrollo o dirección');
+        if (normalizedRole === user_role_enum_1.UserRole.ADMIN) {
+            throw new common_1.BadRequestException('El cargo admin es legado y no admite cuentas nuevas. Usa el cargo real de la persona.');
+        }
+        if (data.actorRole === user_role_enum_1.UserRole.OPERATIONS_DIRECTOR
+            && [user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(normalizedRole)) {
+            throw new common_1.ForbiddenException('Dirección de Operaciones no puede crear cuentas de propiedad, desarrollo o dirección');
         }
         if (normalizedRole === user_role_enum_1.UserRole.DEV) {
-            if (data.actorRole !== user_role_enum_1.UserRole.ADMIN)
-                throw new common_1.ForbiddenException('Solo administración puede asignar el cargo de desarrollo');
+            if (![user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV].includes(data.actorRole))
+                throw new common_1.ForbiddenException('Solo Dirección Comercial o Desarrollo puede asignar el cargo de desarrollo');
             const existingDev = await this.repo.findOne({ where: { organizationId: data.organizationId, role: user_role_enum_1.UserRole.DEV, isActive: true } });
             if (existingDev)
                 throw new common_1.ConflictException('Ya existe una cuenta con el cargo de desarrollo');

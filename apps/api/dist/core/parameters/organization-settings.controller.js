@@ -73,8 +73,8 @@ let OrganizationSettingsController = class OrganizationSettingsController {
     async update(request, dto, clientId) {
         const valores = dto.values ?? {};
         const touchesModuleLifecycle = Object.keys(valores).some((key) => key.startsWith('modules.lifecycle.'));
-        if (touchesModuleLifecycle && request.user.role !== user_role_enum_1.UserRole.DEV) {
-            throw new common_1.ForbiddenException('Solo desarrollo puede cambiar el ciclo de vida de módulos.');
+        if (touchesModuleLifecycle && ![user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV].includes(request.user.role)) {
+            throw new common_1.ForbiddenException('Solo Dirección Comercial o Desarrollo puede cambiar el ciclo de vida de módulos.');
         }
         const sinSalida = organization_features_1.REQUIRED_LIFECYCLE_KEYS
             .filter((module) => {
@@ -226,6 +226,7 @@ let OrganizationSettingsController = class OrganizationSettingsController {
 exports.OrganizationSettingsController = OrganizationSettingsController;
 __decorate([
     (0, common_1.Get)(),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Obtener configuración efectiva, opcionalmente de una empresa' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('clientId')),
@@ -236,6 +237,7 @@ __decorate([
 ], OrganizationSettingsController.prototype, "list", null);
 __decorate([
     (0, common_1.Put)(),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV),
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar y auditar configuración de la organización' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),

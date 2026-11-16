@@ -73,7 +73,7 @@ let ResetUserPasswordUseCase = class ResetUserPasswordUseCase {
             throw new common_1.NotFoundException('Usuario no encontrado');
         if (!user.mustChangePassword)
             throw new common_1.BadRequestException('Esta persona ya eligió su propia contraseña: no hay acceso pendiente que reenviar.');
-        if (params.actorRole !== user_role_enum_1.UserRole.DEV && [user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN].includes(user.role)) {
+        if (![user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR].includes(params.actorRole) && [user_role_enum_1.UserRole.DEV, user_role_enum_1.UserRole.ADMIN].includes(user.role)) {
             throw new common_1.ForbiddenException('No puedes reenviar el acceso de esta cuenta');
         }
         const { emailSent } = await this.generarYEnviar(user, { ...params, sendEmail: true });

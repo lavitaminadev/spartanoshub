@@ -20,15 +20,22 @@ const piece_entity_1 = require("./piece.entity");
 const piece_status_enum_1 = require("./piece-status.enum");
 const design_budget_service_1 = require("../design-budget/design-budget.service");
 const cancel_origin_enum_1 = require("./cancel-origin.enum");
+const account_access_service_1 = require("../../core/client-scope/account-access.service");
 let CancelPieceUseCase = class CancelPieceUseCase {
-    constructor(pieces, designBudget) {
+    constructor(pieces, designBudget, accountAccess) {
         this.pieces = pieces;
         this.designBudget = designBudget;
+        this.accountAccess = accountAccess;
     }
-    async execute(pieceId, organizationId, reason, origin, actorId) {
+    async execute(pieceId, organizationId, reason, origin, actor) {
         const motivo = reason?.trim();
         if (!motivo)
             throw new common_1.BadRequestException('Indica por qué se cancela la pieza');
+        const actorId = actor?.id;
+        const dePieza = await this.pieces.findOne({ where: { id: pieceId, organizationId }, select: { id: true, clientId: true } });
+        if (!dePieza)
+            throw new common_1.NotFoundException('Pieza no encontrada');
+        await this.accountAccess.assertClient(organizationId, actor, dePieza.clientId);
         return this.pieces.manager.transaction(async (manager) => {
             const piece = await manager.findOne(piece_entity_1.Piece, {
                 where: { id: pieceId, organizationId },
@@ -53,5 +60,6 @@ exports.CancelPieceUseCase = CancelPieceUseCase = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(piece_entity_1.Piece)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        design_budget_service_1.DesignBudgetService])
+        design_budget_service_1.DesignBudgetService,
+        account_access_service_1.AccountAccessService])
 ], CancelPieceUseCase);

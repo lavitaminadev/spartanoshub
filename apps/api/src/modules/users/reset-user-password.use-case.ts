@@ -33,7 +33,7 @@ export class ResetUserPasswordUseCase {
     const user = await this.users.findOne({ where: { id: params.id, organizationId: params.organizationId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     if (!user.mustChangePassword) throw new BadRequestException('Esta persona ya eligió su propia contraseña: no hay acceso pendiente que reenviar.');
-    if (params.actorRole !== UserRole.DEV && [UserRole.DEV, UserRole.ADMIN].includes(user.role)) {
+    if (![UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR].includes(params.actorRole) && [UserRole.DEV, UserRole.ADMIN].includes(user.role)) {
       throw new ForbiddenException('No puedes reenviar el acceso de esta cuenta');
     }
     const { emailSent } = await this.generarYEnviar(user, { ...params, sendEmail: true });

@@ -75,7 +75,7 @@ describe('la pantalla de permisos gobierna', () => {
      * para saber qué permisos se tienen.
      */
     it('cualquiera con sesión puede leer los suyos, sea cual sea su cargo', async () => {
-      for (const quien of ['dev', 'admin', 'equipoUno', 'portalCrmUno', 'portalReservasUno'] as const) {
+      for (const quien of ['dev', 'admin', 'propietario', 'equipoUno', 'portalCrmUno', 'portalReservasUno'] as const) {
         const { status, body } = await banco.pedir('GET', '/me/permissions', banco.cuentas[quien].token);
         expect(status, `${quien}: ${JSON.stringify(body)}`).toBe(200);
         expect(body?.permissions, quien).toBeTruthy();
@@ -108,9 +108,14 @@ describe('la pantalla de permisos gobierna', () => {
       expect([401, 403, 404]).toContain(status);
     });
 
-    it('la configuración avanzada queda reservada para desarrollo', async () => {
+    it('el admin interno legado no abre la configuración general', async () => {
       const { status } = await banco.pedir('GET', '/settings', banco.cuentas.admin.token);
       expect(status).toBe(403);
+    });
+
+    it('Dirección Comercial, como propietaria, abre la configuración general', async () => {
+      const { status } = await banco.pedir('GET', '/settings', banco.cuentas.propietario.token);
+      expect(status).toBe(200);
     });
   });
 });

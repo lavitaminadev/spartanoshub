@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OrganizationsController } from '../../../src/modules/organizations/organizations.controller';
 import { ROLES_KEY } from '../../../src/core/authorization/roles.decorator';
+import { REQUIRES_RECENT_AUTH_KEY } from '../../../src/core/auth/requires-recent-auth.decorator';
 import { UserRole } from '../../../src/modules/organizations/user-role.enum';
 
 describe('OrganizationsController: módulos esenciales', () => {
@@ -23,8 +24,21 @@ describe('OrganizationsController: módulos esenciales', () => {
     );
   });
 
-  it('reserva el cambio de módulos al rol dev, no al admin', () => {
-    expect(Reflect.getMetadata(ROLES_KEY, controller.updateFeatures)).toEqual([UserRole.DEV]);
+  /**
+   * Desarrollo y la persona propietaria, y con la contraseña otra vez.
+   *
+   * Era sólo `dev`, con el argumento de que encender un módulo va después de comprobar que
+   * funciona en el servidor. Dirección Comercial es quien representa a la persona propietaria de
+   * la agencia; el antiguo cargo `admin` no debe conservar este poder global.
+   *
+   * La reautenticación reciente es lo que sostiene la apertura: encender un módulo abre pantallas
+   * para toda la organización, igual que cambiar la matriz de cargos, y con una sesión robada es
+   * lo que impide que el ataque llegue a la configuración. Si alguien suma un cargo acá sin ella,
+   * esta prueba falla y hay que venir a explicarlo.
+   */
+  it('deja el cambio de módulos a desarrollo y dirección comercial, pidiendo la contraseña', () => {
+    expect(Reflect.getMetadata(ROLES_KEY, controller.updateFeatures)).toEqual([UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR]);
+    expect(Reflect.getMetadata(REQUIRES_RECENT_AUTH_KEY, controller.updateFeatures)).toBeTruthy();
   });
 
   it('rechaza apagar dashboard: es la ruta de entrada de los cargos internos', async () => {

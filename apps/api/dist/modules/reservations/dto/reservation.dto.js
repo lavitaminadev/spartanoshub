@@ -1762,6 +1762,11 @@ class CanjeDeCuponDto {
 exports.CanjeDeCuponDto = CanjeDeCuponDto;
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CanjeDeCuponDto.prototype, "reservationId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(0),
     (0, class_validator_1.Max)(100_000_000),

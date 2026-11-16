@@ -51,6 +51,14 @@ __decorate([
     __metadata("design:type", Object)
 ], MonthlyReport.prototype, "metrics", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'metrics_previous', type: 'json', nullable: true }),
+    __metadata("design:type", Object)
+], MonthlyReport.prototype, "metricsPrevious", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'previous_period_start', type: 'date', nullable: true }),
+    __metadata("design:type", String)
+], MonthlyReport.prototype, "previousPeriodStart", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'json', nullable: true }),
     __metadata("design:type", Array)
 ], MonthlyReport.prototype, "insights", void 0);

@@ -7,6 +7,7 @@ import { ClientStatus } from '../clients/client-status.enum';
 import { Contract } from '../contracts/contract.entity';
 import { Lead } from '../crm/leads/lead.entity';
 import { LeadStatus } from '../crm/leads/lead-status.enum';
+import { LeadFitStatus } from '../crm/leads/lead-fit-status.enum';
 import { CreateQuoteDto, UpdateQuoteDto } from './dto/quote.dto';
 import { ListQuotesQueryDto } from './dto/list-quotes.dto';
 import { arbolDeVersiones, patronDeBusqueda, raizDeLaFamilia, resumenDeCotizaciones, type ResumenDeCotizacionesDelLead, type VersionDeCotizacion } from './cotizaciones-historial';
@@ -119,8 +120,36 @@ export class QuotesService {
       if (!client && quote.leadId) {
         const lead = await manager.findOne(Lead, { where: { id: quote.leadId, organizationId } });
         if (!lead) throw new NotFoundException('Lead no encontrado');
-        client = await manager.save(Client, manager.create(Client, { organizationId, leadId: lead.id, name: lead.name, status: ClientStatus.ONBOARDING, retainerAmount: quote.amount }));
-        lead.status = LeadStatus.WON; lead.convertedAt = new Date(); lead.convertedToClientId = client.id; await manager.save(Lead, lead);
+        /*
+         * Un prospecto ya convertido no se vuelve a convertir: se le pone el contrato encima.
+         *
+         * Hay dos caminos para que un prospecto se vuelva empresa —convertirlo desde el CRM, o
+         * aceptar su cotización— y sólo el del CRM comprobaba si ya estaba convertido. Convertir
+         * primero y aceptar después creaba una **segunda** empresa para el mismo restaurante, con
+         * el contrato y el presupuesto colgando de ella y la primera huérfana. No fallaba nada: la
+         * cartera se duplicaba en silencio.
+         *
+         * Así los dos caminos se componen. El del CRM deja la empresa sin contrato ni presupuesto
+         * de UD; aceptar la cotización después es justo lo que los completa.
+         */
+        if (lead.convertedToClientId) {
+          client = await manager.findOne(Client, { where: { id: lead.convertedToClientId, organizationId } });
+        }
+        if (!client) {
+          client = await manager.save(Client, manager.create(Client, { organizationId, leadId: lead.id, name: lead.name, status: ClientStatus.ONBOARDING, retainerAmount: quote.amount }));
+        }
+        lead.status = LeadStatus.WON;
+        /*
+         * Aceptar también califica, igual que convertir.
+         *
+         * El camino del CRM escribe `fitStatus` y éste no lo hacía, así que un prospecto cerrado
+         * aceptando su cotización —que es como cierra el equipo comercial— quedaba vendido y
+         * «pendiente de revisar» a la vez.
+         */
+        lead.fitStatus = LeadFitStatus.SOLD;
+        lead.convertedAt = lead.convertedAt ?? new Date();
+        lead.convertedToClientId = client.id;
+        await manager.save(Lead, lead);
         quote.clientId = client.id;
       }
       if (!client) throw new BadRequestException('La cotización debe estar asociada a un lead o cliente');

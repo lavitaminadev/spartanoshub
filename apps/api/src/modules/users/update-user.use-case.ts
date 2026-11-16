@@ -36,7 +36,7 @@ export class UpdateUserUseCase {
     const user = await this.usersRepo.findOne({ where: { id: data.id, organizationId: data.organizationId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
-    if ([UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR].includes(data.actorRole)) {
+    if (data.actorRole === UserRole.OPERATIONS_DIRECTOR) {
       const protectedRoles = [UserRole.ADMIN, UserRole.DEV, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR];
       if (protectedRoles.includes(user.role)) {
         throw new ForbiddenException('No puedes administrar esta cuenta');
@@ -45,11 +45,14 @@ export class UpdateUserUseCase {
         throw new ForbiddenException('No puedes asignar este nivel de acceso');
       }
     }
+    if (data.role === UserRole.ADMIN && user.role !== UserRole.ADMIN) {
+      throw new BadRequestException('El cargo admin es legado y no puede volver a asignarse.');
+    }
     if (data.actorId === user.id && (data.isActive === false || (data.role && data.role !== user.role))) {
       throw new BadRequestException('No puedes desactivar ni cambiar el rol de tu propia cuenta');
     }
     if (data.role === UserRole.DEV || user.role === UserRole.DEV) {
-      if (![UserRole.ADMIN, UserRole.DEV].includes(data.actorRole)) throw new ForbiddenException('Solo administración o desarrollo puede asignar o gestionar el cargo de desarrollo');
+      if (![UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV].includes(data.actorRole)) throw new ForbiddenException('Solo Dirección Comercial o Desarrollo puede asignar o gestionar el cargo de desarrollo');
       if (data.role === UserRole.DEV && user.role !== UserRole.DEV) {
         const existingDev = await this.usersRepo.findOne({ where: { organizationId: data.organizationId, role: UserRole.DEV, isActive: true } });
         if (existingDev) throw new ConflictException('Ya existe una cuenta con el cargo de desarrollo');

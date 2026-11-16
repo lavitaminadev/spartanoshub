@@ -510,3 +510,116 @@ select option[value="table"] { display:none; }
 .mood-art.art-1 { background:linear-gradient(135deg, var(--pink-bg), #fce4ec); }
 .mood-art.art-2 { background:linear-gradient(135deg, var(--cyan-bg), var(--cyan-soft)); }
 .mood-art > span { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+
+/*
+ * El explorador de períodos: una consulta, no un documento.
+ *
+ * Vive al lado del informe mensual y se distingue de él a propósito —sin tarjeta propia, con la
+ * tabla como centro— porque lo que entrega no se firma ni se publica: se pregunta.
+ */
+.explorador-periodo { display: grid; gap: 16px; }
+
+.explorador-periodo > header h2 { margin: 0; font-size: 18px; }
+.explorador-periodo > header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+
+.explorador-controles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.explorador-controles label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.explorador-rango {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--soft);
+  font-size: 13px;
+}
+
+.explorador-rango strong { color: var(--ink); }
+.explorador-rango span { color: var(--muted); }
+
+.explorador-destacados {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.explorador-destacados article {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.explorador-destacados span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.explorador-destacados strong { font-size: 22px; font-weight: 800; }
+.explorador-destacados small { color: var(--muted); font-size: 12px; }
+
+.explorador-tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+.explorador-tabla caption { text-align: left; }
+
+.explorador-tabla th,
+.explorador-tabla td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+
+.explorador-tabla thead th { color: var(--muted); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+.explorador-tabla tbody th { font-weight: 600; text-align: left; }
+
+/*
+ * Verde y rojo no son el único indicio.
+ *
+ * La columna dice el signo en el texto —«+12%», «-4%», «sin base previa»—, de modo que la
+ * variación se lee igual sin distinguir los colores.
+ */
+.explorador-tabla .sube,
+.monthly-report-kpis i.sube { color: var(--success, #1f7a4d); }
+
+.explorador-tabla .baja,
+.monthly-report-kpis i.baja { color: var(--terracotta); }
+
+.monthly-report-kpis i {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.monthly-report-kpis i.sin-base { color: var(--muted); font-weight: 600; }
+
+.report-comparacion { margin: -4px 0 0; color: var(--muted); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .explorador-tabla th,
+  .explorador-tabla td { padding: 8px 6px; font-size: 13px; }
+}
+
+/* Lo que las reservas dejaron ademas de la visita: cuantas personas aceptaron recibir correos. */
+.consentimientos-reservas { margin: 18px 0 24px; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--white); }
+.consentimientos-reservas > header p { margin: 6px 0 0; color: var(--muted); font-size: .85rem; }
+.consentimientos-reservas > header h2 { margin: 2px 0 0; font-size: 1.05rem; }
+.consentimientos-cifras { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-top: 16px; }
+.consentimientos-cifras article { padding: 12px 14px; border-radius: var(--radius-md); background: var(--soft); }
+.consentimientos-cifras strong { display: block; color: var(--text-dark); font-family: var(--font-display); font-size: 1.7rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.consentimientos-cifras span { display: block; margin-top: 2px; color: var(--text-dark); font-size: .85rem; }
+.consentimientos-cifras small { display: block; margin-top: 4px; color: var(--muted); font-size: .78rem; }
+
+/* El nombre de la empresa que el explorador esta midiendo: el selector vive en la cabecera y
+   queda fuera de la vista al desplazarse. */
+.explorador-midiendo { margin: 0 0 14px; color: var(--muted); font-size: .85rem; }
+.explorador-midiendo strong { color: var(--text-dark); }

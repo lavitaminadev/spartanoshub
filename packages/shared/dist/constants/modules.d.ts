@@ -64,7 +64,11 @@ export declare const ORGANIZATION_MODULE_CATALOG: readonly [{
 }, {
     readonly key: "commercialPipeline";
     readonly lifecycle: "active";
-    readonly defaultEnabled: true;
+    readonly defaultEnabled: false;
+}, {
+    readonly key: "automations";
+    readonly lifecycle: "active";
+    readonly defaultEnabled: false;
 }, {
     readonly key: "production";
     readonly lifecycle: "active";

@@ -23,6 +23,14 @@ export interface AccionEfectiva {
   /** Lo que daría su nivel sin ajuste. */
   porNivel: boolean;
   origen: 'nivel' | 'ajuste';
+  /**
+   * De qué empresa es el ajuste que manda, cuando hay uno.
+   *
+   * `null` con `origen: 'ajuste'` significa que ese ajuste vale en **todas** las empresas de esa
+   * persona. La pantalla lo necesita para poder decirlo y ofrecer acotarlo: un ajuste general que
+   * se ve bajo una empresa elegida se lee como suyo, y no lo es.
+   */
+  empresaDelAjuste?: string | null;
 }
 
 @Injectable()
@@ -42,16 +50,41 @@ export class AccionesService {
       this.permisos.permissionsFor(organizationId, userId, role, clientId),
       this.ajustes.find({ where: { organizationId, userId } }),
     ]);
-    // Un ajuste vencido ya no rige: la acción vuelve a seguir el nivel de su módulo.
-    const ahora = Date.now();
-    const porAccion = new Map(filas.filter((fila) => !fila.expiresAt || fila.expiresAt.getTime() > ahora).map((fila) => [fila.action, fila]));
+    const porAccion = this.ajustesVigentes(filas, clientId);
     return ACCIONES.map((accion) => {
       const porNivel = satisfies(niveles[accion.modulo] ?? 'none', accion.nivelPorDefecto);
       const ajuste = porAccion.get(accion.clave);
       // Un ajuste nunca abre una acción de un módulo al que la persona no entra.
       const permitida = ajuste ? ajuste.allowed && (niveles[accion.modulo] ?? 'none') !== 'none' : porNivel;
-      return { clave: accion.clave, modulo: accion.modulo, nombre: accion.nombre, ayuda: accion.ayuda, permitida, porNivel, origen: ajuste ? 'ajuste' : 'nivel' };
+      return { clave: accion.clave, modulo: accion.modulo, nombre: accion.nombre, ayuda: accion.ayuda, permitida, porNivel, origen: ajuste ? 'ajuste' : 'nivel', empresaDelAjuste: ajuste ? ajuste.clientId ?? null : undefined };
     });
+  }
+
+  /**
+   * El ajuste que manda en cada acción.
+   *
+   * Es la misma regla que ya aplica `permission-resolver` a las excepciones de módulo, y tiene
+   * que ser la misma: el de la empresa que se está mirando gana sobre el general —lo particular
+   * describe mejor el caso que la regla de siempre—, los de otras empresas no se miran, y uno
+   * vencido tampoco, porque dejarlo aplicando mientras se muestra como vencido es exactamente el
+   * fallo que el vencimiento existe para evitar.
+   *
+   * Sin esta resolución la columna `client_id` no serviría de nada al leer: un ajuste concedido
+   * en un local seguiría rigiendo en todos.
+   *
+   * @param clientId - Empresa sobre la que se pregunta, si hay una.
+   */
+  private ajustesVigentes(filas: UserActionOverride[], clientId?: string): Map<string, UserActionOverride> {
+    const ahora = Date.now();
+    const resultado = new Map<string, UserActionOverride>();
+    for (const fila of filas) {
+      if (fila.expiresAt && fila.expiresAt.getTime() <= ahora) continue;
+      if (fila.clientId && fila.clientId !== clientId) continue;
+      const anterior = resultado.get(fila.action);
+      if (anterior?.clientId && !fila.clientId) continue;
+      resultado.set(fila.action, fila);
+    }
+    return resultado;
   }
 
   async puede(organizationId: string, userId: string, role: UserRole, clave: string, clientId?: string): Promise<boolean> {

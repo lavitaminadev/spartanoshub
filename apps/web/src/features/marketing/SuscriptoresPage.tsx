@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { useAuth } from '../../core/auth';
 import { DataTable } from '../../shared/DataTable';
+import { Pagination } from '../../shared/Pagination';
 import { QueryErrorState } from '../../shared/QueryErrorState';
 import { triggerToast } from '../../shared/toast-events';
 import { ImportarSuscriptores } from './ImportarSuscriptores';
@@ -36,6 +37,9 @@ interface Suscriptor {
 interface Respuesta {
   data: Suscriptor[];
   total: number;
+  /** Qué página se está viendo y cuántas hay: sin esto las filas de más no se podían mirar. */
+  pagina?: number;
+  paginas?: number;
   resumen: Array<{ clientId: string | null; suscritos: number; bajas: number; pendientes: number }>;
   /** Las procedencias que existen; el selector no ofrece las que no hay. */
   origenes?: string[];
@@ -71,13 +75,29 @@ export function SuscriptoresPage() {
   const { user } = useAuth();
   const esEmpresa = user?.role === 'client';
   const empresaActiva = useEmpresaActiva();
-  const [empresaDelEquipo, setEmpresa] = useState('');
+  /*
+   * El equipo entra con la empresa que ya tenía elegida.
+   *
+   * Se mantiene un estado propio porque las tarjetas de esta pantalla ofrecen además la lista de
+   * la agencia —«agencia», que no es ninguna empresa—, y porque acá el filtro se alterna haciendo
+   * clic en una tarjeta. Lo que cambia es de dónde parte: antes siempre de «todas», aunque la
+   * persona llevara media jornada mirando un local.
+   */
+  const [empresaDelEquipo, setEmpresa] = useState(() => empresaActiva.clientId);
   // El portal trabaja siempre sobre la empresa elegida, nunca sobre la de su sesión por descarte.
   const empresa = esEmpresa ? empresaActiva.clientId : empresaDelEquipo;
   const [estado, setEstado] = useState('subscribed');
   const [origen, setOrigen] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [ficha, setFicha] = useState<Suscriptor | null>(null);
+  /*
+   * La página vuelve a la primera cuando cambia un filtro.
+   *
+   * Quedarse en la quinta al estrechar la búsqueda deja la tabla vacía con resultados detrás, y
+   * se lee como que no hay nadie.
+   */
+  const [pagina, setPagina] = useState(1);
+  useEffect(() => { setPagina(1); }, [empresaDelEquipo, estado, origen, busqueda]);
   const q = useDeferredValue(busqueda.trim());
 
   const { data: empresasResp } = useQuery<{ data: Array<{ id: string; name: string }> }>({
@@ -92,6 +112,7 @@ export function SuscriptoresPage() {
   }, [empresas]);
 
   const parametros = new URLSearchParams();
+  if (pagina > 1) parametros.set('pagina', String(pagina));
   if (empresa) parametros.set('empresa', empresa);
   if (estado) parametros.set('estado', estado);
   if (origen) parametros.set('origen', origen);
@@ -99,7 +120,7 @@ export function SuscriptoresPage() {
   const filtro = parametros.toString();
 
   const { data, isLoading, error, refetch } = useQuery<Respuesta>({
-    queryKey: ['suscriptores', empresa, estado, origen, q],
+    queryKey: ['suscriptores', empresa, estado, origen, q, pagina],
     queryFn: () => api.get(`/marketing/suscriptores${filtro ? `?${filtro}` : ''}`),
     placeholderData: (anterior) => anterior,
   });
@@ -259,6 +280,7 @@ export function SuscriptoresPage() {
       </div>
 
       {error ? <QueryErrorState message={(error as Error).message} error={error} onRetry={() => void refetch()} /> : (
+        <>
         <DataTable<Suscriptor>
           storageKey="suscriptores"
           keyExtractor={(fila) => fila.id}
@@ -291,6 +313,9 @@ export function SuscriptoresPage() {
             },
           ]}
         />
+        {/* Las filas de más allá del tope dejaron de ser invisibles. */}
+        <Pagination page={data?.pagina ?? pagina} pageSize={200} total={data?.total ?? 0} onPageChange={setPagina} />
+        </>
       )}
 
       {ficha && <FichaDelSuscriptor suscriptor={ficha} empresa={nombreDe(ficha.clientId)} onCerrar={() => setFicha(null)} />}

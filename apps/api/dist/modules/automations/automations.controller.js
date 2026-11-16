@@ -143,7 +143,7 @@ exports.AutomationsController = AutomationsController = __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Controller)('automations'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.DEV),
-    (0, module_scope_decorator_1.ModuleScope)('commercialPipeline'),
+    (0, module_scope_decorator_1.ModuleScope)('automations'),
     __metadata("design:paramtypes", [automations_service_1.AutomationsService,
         account_access_service_1.AccountAccessService])
 ], AutomationsController);

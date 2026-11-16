@@ -108,11 +108,17 @@ describe('CancelPieceUseCase', () => {
 
     const guardada = { id: 'piece-1', clientId: 'c1', organizationId: 'org-1', status: PieceStatus.ASSIGNED } as any;
     const manager = { findOne: async () => guardada, save: async (_e: unknown, row: any) => row };
-    const pieces = { manager: { transaction: (cb: any) => cb(manager) } } as any;
+    const pieces = { findOne: async () => guardada, manager: { transaction: (cb: any) => cb(manager) } } as any;
     const budget = { releaseForPiece: vi.fn(async () => null) } as any;
+    // El alcance de empresa se comprueba en el caso de uso; acá se concede para poder probar el
+    // resto. Que lo pida está cubierto en la prueba de abajo.
+    const acceso = { assertClient: vi.fn(async () => undefined) } as any;
 
-    const useCase = new CancelPieceUseCase(pieces, budget);
-    const resultado = await useCase.execute('piece-1', 'org-1', 'El cliente bajó la campaña', CancelOrigin.CLIENT, 'cm-1');
+    const useCase = new CancelPieceUseCase(pieces, budget, acceso);
+    const resultado = await useCase.execute('piece-1', 'org-1', 'El cliente bajó la campaña', CancelOrigin.CLIENT, { id: 'cm-1' } as any);
+
+    // Se comprueba contra la empresa de la pieza, no contra la que venga en la petición.
+    expect(acceso.assertClient).toHaveBeenCalledWith('org-1', { id: 'cm-1' }, 'c1');
 
     expect(resultado.status).toBe(PieceStatus.CANCELLED);
     expect(resultado.cancelOrigin).toBe(CancelOrigin.CLIENT);
@@ -127,7 +133,29 @@ describe('CancelPieceUseCase', () => {
   it('no cancela sin motivo', async () => {
     const { CancelPieceUseCase } = await import('../../../src/modules/production/cancel-piece.use-case');
     const { CancelOrigin } = await import('../../../src/modules/production/cancel-origin.enum');
-    const useCase = new CancelPieceUseCase({ manager: {} } as any, {} as any);
-    await expect(useCase.execute('p', 'org-1', '   ', CancelOrigin.CLIENT, 'u')).rejects.toBeInstanceOf(BadRequestException);
+    const useCase = new CancelPieceUseCase({ manager: {} } as any, {} as any, {} as any);
+    await expect(useCase.execute('p', 'org-1', '   ', CancelOrigin.CLIENT, { id: 'u' } as any)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  /**
+   * Una pieza de una empresa fuera de alcance no se cancela, y responde 404.
+   *
+   * Es el caso que el controlador no cubría: `approve` comprobaba la empresa y `cancel` no, de
+   * modo que con el id de una pieza ajena se movía el presupuesto de una cuenta que esa persona
+   * no atiende. Puesta la comprobación acá, la ruta ya no puede omitirla.
+   */
+  it('no cancela una pieza de una empresa que la persona no alcanza', async () => {
+    const { CancelPieceUseCase } = await import('../../../src/modules/production/cancel-piece.use-case');
+    const { CancelOrigin } = await import('../../../src/modules/production/cancel-origin.enum');
+    const { NotFoundException } = await import('@nestjs/common');
+
+    const pieces = { findOne: async () => ({ id: 'piece-1', clientId: 'ajena' }), manager: { transaction: () => { throw new Error('no debió abrirse la transacción'); } } } as any;
+    const budget = { releaseForPiece: vi.fn() } as any;
+    const acceso = { assertClient: async () => { throw new NotFoundException('Client not found'); } } as any;
+
+    const useCase = new CancelPieceUseCase(pieces, budget, acceso);
+    await expect(useCase.execute('piece-1', 'org-1', 'motivo suficiente', CancelOrigin.PRODUCTION, { id: 'cm-1' } as any))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect(budget.releaseForPiece).not.toHaveBeenCalled();
   });
 });

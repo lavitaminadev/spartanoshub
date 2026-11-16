@@ -38,6 +38,7 @@ const NOMBRE = {
     intake: 'intake',
     reports: 'informes',
     commercialPipeline: 'embudo comercial',
+    automations: 'automatizaciones',
 };
 let ClientCapabilityService = ClientCapabilityService_1 = class ClientCapabilityService {
     constructor(clients) {

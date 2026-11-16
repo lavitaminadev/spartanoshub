@@ -113,15 +113,7 @@ let ReservationsController = ReservationsController_1 = class ReservationsContro
             throw new common_1.BadRequestException('Elige la empresa de la que quieres ver los permisos');
         await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
         await this.capabilities.assert(req.organizationId, clientId, 'reservationConsentInsights');
-        const rows = await this.dataSource.query(`SELECT
-      SUM(status = 'subscribed') AS suscritos,
-      SUM(status = 'pending') AS pendientes,
-      SUM(status = 'unsubscribed') AS bajas,
-      SUM(status = 'subscribed' AND consent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS ultimos30,
-      MIN(consent_at) AS desde
-      FROM email_subscribers WHERE organization_id = ? AND client_id = ? AND source = 'reserva'`, [req.organizationId, clientId]);
-        const row = rows[0] ?? {};
-        return { suscritos: Number(row.suscritos ?? 0), pendientes: Number(row.pendientes ?? 0), bajas: Number(row.bajas ?? 0), ultimos30: Number(row.ultimos30 ?? 0), desde: row.desde ?? null };
+        return this.service.consentimientosDeReservas(req.organizationId, clientId);
     }
     async metaHealth(req, id) {
         const scope = await this.scope(req);
@@ -258,9 +250,9 @@ let ReservationsController = ReservationsController_1 = class ReservationsContro
         }
         return this.recortada(req, await this.service.updateReservation(req.organizationId, id, dto, req.user.id, req.user.role === user_role_enum_1.UserRole.CLIENT ? 'client' : 'team', scope.clientId, scope.clientIds));
     }
-    async allGroupRequests(req, formId, clientId) {
+    async allGroupRequests(req, formId, clientId, page, pageSize) {
         const scope = await this.requestedScope(req, clientId);
-        return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
+        return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId, Number(page) || 1, Number(pageSize) || 50);
     }
     async resumenDeGrupos(req, clientId) {
         const scope = await this.requestedScope(req, clientId);
@@ -725,8 +717,10 @@ __decorate([
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('formId')),
     __param(2, (0, common_1.Query)('clientId')),
+    __param(3, (0, common_1.Query)('page')),
+    __param(4, (0, common_1.Query)('pageSize')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "allGroupRequests", null);
 __decorate([
