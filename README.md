@@ -40,6 +40,7 @@ UPLOAD_DIR=/home/espartanoscl/espartanos_uploads
 ## Documentacion util
 
 - [Índice general de documentación](docs/README.md)
+- [Mapa maestro de todo el sistema](docs/sistema/README.md)
 - [Gobierno, módulos, legales y reservas](docs/forense/gobierno-modulos-legales.md)
 - [Despliegue iHosting](docs/deployment/ihosting.md)
 - [Primer despliegue](docs/deployment/PLAN-PRIMER-DESPLIEGUE.md)
