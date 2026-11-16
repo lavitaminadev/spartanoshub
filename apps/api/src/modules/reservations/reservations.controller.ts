@@ -1,6 +1,6 @@
 import { PermissionResolverService } from '../../core/authorization/permission-resolver.service';
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseArrayPipe, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { CompanyLegalDto, CompanyLegalScopeDto, empresaDeLosDatosLegales, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDeLosDatosLegales, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales, leerHistorialLegal } from '../clients/datos-legales-de-empresa';
 import { DataSource } from 'typeorm';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -111,8 +111,14 @@ export class ReservationsController {
     return leerDatosLegales(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
   }
 
+  @Get('company-legal/history')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
+  async companyLegalHistory(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto) {
+    return leerHistorialLegal(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
+  }
+
   @Put('company-legal')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
     const empresa = await this.empresaLegal(req, query.clientId);
     await asegurarQueAdministraLaEmpresa(this.permisos, req.organizationId, req.user, empresa);
@@ -120,7 +126,7 @@ export class ReservationsController {
     // portal puede marcarlo. Estaba escrito como «si la cuenta tiene empresa», que daba lo mismo
     // mientras la empresa de la sesión fuera la única posible, y ahora ya no lo es.
     const laAceptaLaEmpresa = req.user.role === UserRole.CLIENT;
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, { actorName: req.user.name, ipAddress: req.ip, userAgent: req.headers['user-agent'] });
   }
 
   /**
@@ -135,6 +141,28 @@ export class ReservationsController {
     const empresa = await empresaDeLosDatosLegales(this.accountAccess, req.organizationId, req.user, pedida);
     await this.capabilities.assert(req.organizationId, empresa, 'reservations');
     return empresa;
+  }
+
+  /** Resumen agregado; la lista de correos continúa exclusivamente en Marketing. */
+  @Get('consentimientos')
+  @RequiresPermission('reservations', 'view')
+  @RequiereArea('reservations.reservas', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async consentimientos(@Req() req: AuthenticatedRequest, @Query('clientId') pedida?: string) {
+    const scope = await this.scope(req);
+    const clientId = scope.clientId ?? await this.accountAccess.empresaElegida(req.organizationId, req.user, pedida);
+    if (!clientId) throw new BadRequestException('Elige la empresa de la que quieres ver los permisos');
+    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+    await this.capabilities.assert(req.organizationId, clientId, 'reservationConsentInsights');
+    const rows = await this.dataSource.query(`SELECT
+      SUM(status = 'subscribed') AS suscritos,
+      SUM(status = 'pending') AS pendientes,
+      SUM(status = 'unsubscribed') AS bajas,
+      SUM(status = 'subscribed' AND consent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS ultimos30,
+      MIN(consent_at) AS desde
+      FROM email_subscribers WHERE organization_id = ? AND client_id = ? AND source = 'reserva'`, [req.organizationId, clientId]) as Array<Record<string, number | string | Date | null>>;
+    const row = rows[0] ?? {};
+    return { suscritos: Number(row.suscritos ?? 0), pendientes: Number(row.pendientes ?? 0), bajas: Number(row.bajas ?? 0), ultimos30: Number(row.ultimos30 ?? 0), desde: row.desde ?? null };
   }
 
   /** Envíos a Meta de una sucursal en los últimos 30 días: enviados, pendientes, fallidos y último error. */
@@ -411,6 +439,14 @@ export class ReservationsController {
     // La empresa elegida en el filtro acota de verdad; antes se ignoraba y la lista no cambiaba.
     const scope = await this.requestedScope(req, clientId);
     return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
+  }
+
+  @Get('group-requests/resumen')
+  @RequiereArea('reservations.espera_y_grupos', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  async resumenDeGrupos(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
+    const scope = await this.requestedScope(req, clientId);
+    return this.service.resumenDeGrupos(req.organizationId, scope.clientId, scope.clientIds);
   }
 
   @Get('forms/:id/group-requests')

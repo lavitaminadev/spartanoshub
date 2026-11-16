@@ -31,7 +31,7 @@ describe('ClientService', () => {
       expect(mockRepo.create).toHaveBeenCalledWith({
         organizationId: 'org-1',
         name: 'Acme Corp',
-        capabilities: { reservations: true, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false, detalleDeContactoEnAvisos: false,
+        capabilities: { reservations: true, reservationEmails: true, reservationConsentInsights: false, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false, legalGovernance: false, detalleDeContactoEnAvisos: false,
           production: false, audiovisual: false, content: false, approvals: false, meetings: false, documents: false, briefs: false, billing: false, contracts: false, intake: false, reports: false, commercialPipeline: false },
       });
     });

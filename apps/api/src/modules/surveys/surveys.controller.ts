@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { exigirIdentidadLegalDeEncuesta } from './consentimiento-de-encuesta';
 import { AuditService } from '../../core/audit/audit.service';
-import { CompanyLegalDto, CompanyLegalScopeDto, empresaDeLosDatosLegales, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales } from '../clients/datos-legales-de-empresa';
+import { CompanyLegalDto, CompanyLegalScopeDto, empresaDeLosDatosLegales, asegurarQueAdministraLaEmpresa, guardarDatosLegales, leerDatosLegales, leerHistorialLegal } from '../clients/datos-legales-de-empresa';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
@@ -93,6 +93,8 @@ export class SurveysController {
       createdAt: survey.createdAt.toISOString(),
       createdBy: survey.createdBy,
       recipients: survey.recipients ?? undefined,
+      recipientSource: survey.recipientSource ?? undefined,
+      recipientBasis: survey.recipientBasis ?? undefined,
       distribution: survey.distribution ?? undefined,
       publicUrl: publicSurveyUrl(survey.id),
       ga4MeasurementId: survey.ga4MeasurementId ?? null,
@@ -220,11 +222,18 @@ export class SurveysController {
     return leerDatosLegales(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
   }
 
+  @Get('company-legal/history')
+  @RequiereArea('surveys.editar', 'ver')
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
+  async companyLegalHistory(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto) {
+    return leerHistorialLegal(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
+  }
+
   @Put('company-legal')
   @RequiereArea('surveys.editar', 'hacer')
   // Son los datos de la propia empresa: una empresa con sólo Encuestas (lectura) debe poder mantenerlos.
   @RequiresPermission('surveys', 'view')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL_DIRECTOR, UserRole.CLIENT)
   async saveCompanyLegal(@Req() req: AuthenticatedRequest, @Query() query: CompanyLegalScopeDto, @Body() dto: CompanyLegalDto) {
     const empresa = await this.empresaLegal(req, query.clientId);
     await asegurarQueAdministraLaEmpresa(this.permisos, req.organizationId, req.user, empresa);
@@ -232,7 +241,7 @@ export class SurveysController {
     // portal puede marcarlo. Estaba escrito como «si la cuenta tiene empresa», que daba lo mismo
     // mientras la empresa de la sesión fuera la única posible, y ahora ya no lo es.
     const laAceptaLaEmpresa = req.user.role === UserRole.CLIENT;
-    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+    return guardarDatosLegales(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, { actorName: req.user.name, ipAddress: req.ip, userAgent: req.headers['user-agent'] });
   }
 
   /**
@@ -278,6 +287,8 @@ export class SurveysController {
       // atribuir una encuesta a otra persona.
       createdBy: req.user.id,
       recipients: dto.recipients ?? null,
+      recipientSource: dto.recipientSource?.trim() || null,
+      recipientBasis: dto.recipientBasis?.trim() || null,
       distribution: dto.distribution ?? null,
       ga4MeasurementId: dto.ga4MeasurementId?.trim() || null,
       anonymous: dto.anonymous === true,
@@ -348,6 +359,8 @@ export class SurveysController {
     if (survey.type === 'internal' && survey.clientId) throw new BadRequestException('Las encuestas internas no se asignan a una empresa');
     if (dto.status !== undefined) survey.status = dto.status;
     if (dto.recipients !== undefined) survey.recipients = dto.recipients;
+    if (dto.recipientSource !== undefined) survey.recipientSource = dto.recipientSource.trim() || null;
+    if (dto.recipientBasis !== undefined) survey.recipientBasis = dto.recipientBasis.trim() || null;
     if (dto.distribution !== undefined) survey.distribution = dto.distribution;
     if (dto.ga4MeasurementId !== undefined) survey.ga4MeasurementId = dto.ga4MeasurementId?.trim() || null;
     if (dto.anonymous !== undefined) survey.anonymous = dto.anonymous;
@@ -692,6 +705,7 @@ export class SurveysController {
     await exigirEncuestasHabilitadas(this.dataSource, survey.clientId);
     if (survey.status !== 'active') throw new BadRequestException('Activa la encuesta antes de enviarla');
     if (!(survey.distribution ?? []).includes('email')) throw new BadRequestException('Esta encuesta no tiene el correo habilitado como canal');
+    if (!survey.recipientSource?.trim() || !survey.recipientBasis?.trim()) throw new BadRequestException('Antes de enviar, indica de dónde provienen los correos y por qué corresponde escribirles');
 
     const base = publicSurveyUrl(survey.id);
     if (!base) throw new BadRequestException('Falta configurar la dirección pública de la aplicación');

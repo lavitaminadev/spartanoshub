@@ -64,6 +64,84 @@ interface CuponesDeReservasProps {
   onCodigoVisto?: () => void;
 }
 
+/** Días que quedan para que un cupón deje de servir, o `null` si no caduca. */
+function diasParaVencer(cupon: Cupon): number | null {
+  if (!cupon.validUntil) return null;
+  const vence = new Date(cupon.validUntil);
+  if (Number.isNaN(vence.getTime())) return null;
+  return Math.ceil((vence.getTime() - Date.now()) / 86400000);
+}
+
+/** Un cupón encendido que ya gastó todos sus usos: figura disponible y no lo está. */
+function estaAgotado(cupon: Cupon): boolean {
+  return cupon.active && cupon.maxUses > 0 && cupon.usageCount >= cupon.maxUses;
+}
+
+/**
+ * Qué está pasando con los cupones, con las dos cifras que deciden arriba.
+ *
+ * Antes eran cinco recuadros del mismo tamaño en una rejilla `auto-fill`, así que «3 cupones
+ * creados» pesaba lo mismo que «53 usos». La información estaba, pero plana: nada decía qué
+ * mirar primero ni qué hacer hoy.
+ *
+ * Arriba va lo que mide el resultado —cuánto se usaron y cuánto de eso vino del correo—. Debajo,
+ * lo que pide una acción: lo que se agotó sin avisar, lo que caduca esta semana y lo que nadie
+ * estrenó. El recuento de cuántos hay queda al final, porque no se decide nada con él.
+ */
+function ResumenDeCupones({ cupones }: { cupones: Cupon[] }) {
+  const activos = cupones.filter((cupon) => cupon.active);
+  const usos = cupones.reduce((suma, cupon) => suma + cupon.usageCount, 0);
+  const enviados = cupones.reduce((suma, cupon) => suma + (cupon.uso?.enviados ?? 0), 0);
+  const usadosDeLosEnviados = cupones.reduce((suma, cupon) => suma + (cupon.uso?.usados ?? 0), 0);
+  const volvieron = cupones.reduce((suma, cupon) => suma + (cupon.uso?.volvieronDelCorreo ?? 0), 0);
+  const agotados = activos.filter(estaAgotado);
+  const porVencer = activos.filter((cupon) => { const dias = diasParaVencer(cupon); return dias !== null && dias >= 0 && dias <= 7; });
+  const sinEstrenar = activos.filter((cupon) => cupon.usageCount === 0 && !estaAgotado(cupon));
+  const masUsado = usos > 0 ? cupones.reduce((mejor, cupon) => (cupon.usageCount > mejor.usageCount ? cupon : mejor)) : null;
+
+  return <div className="coupon-stats">
+    <div className="cupon-resumen-destacado">
+      <article>
+        <span>Veces que se usaron</span>
+        <strong>{usos}</strong>
+        <small>{masUsado && masUsado.usageCount > 0 ? `El que más: ${masUsado.code}, ${masUsado.usageCount} ${masUsado.usageCount === 1 ? 'vez' : 'veces'}` : 'Todavía no se ha canjeado ninguno'}</small>
+      </article>
+      <article>
+        <span>Volvieron del correo</span>
+        {/*
+          * De lo enviado, cuánto se usó y cuánto se le puede atribuir al correo.
+          *
+          * Son dos cifras distintas y las dos hacen falta: `usados` cuenta las reservas con ese
+          * cupón, y `volvieron` sólo las que llegaron después de recibirlo, cruzadas por correo.
+          * La diferencia es el cupón que corrió de boca en boca, y hasta ahora no se veía.
+          */}
+        <strong>{enviados === 0 ? '—' : `${volvieron} de ${enviados}`}</strong>
+        <small>{enviados === 0
+          ? 'Todavía no se ha enviado ningún cupón por correo'
+          : `${Math.round((volvieron / enviados) * 100)}% volvió${usadosDeLosEnviados > volvieron ? ` · ${usadosDeLosEnviados - volvieron} se usaron sin venir del correo` : ''}`}</small>
+      </article>
+    </div>
+    <div className="cupon-resumen-atencion">
+      <article className={agotados.length ? 'pide-atencion' : ''}>
+        <span>Agotados</span><strong>{agotados.length}</strong>
+        <small>{agotados.length ? `Figuran activos y ya no se pueden canjear: ${agotados.map((cupon) => cupon.code).slice(0, 3).join(', ')}` : 'Ninguno llegó a su tope'}</small>
+      </article>
+      <article className={porVencer.length ? 'pide-atencion' : ''}>
+        <span>Caducan esta semana</span><strong>{porVencer.length}</strong>
+        <small>{porVencer.length ? porVencer.map((cupon) => cupon.code).slice(0, 3).join(', ') : 'Ninguno vence en los próximos siete días'}</small>
+      </article>
+      <article>
+        <span>Sin estrenar</span><strong>{sinEstrenar.length}</strong>
+        <small>{sinEstrenar.length ? 'Activos que nadie ha usado todavía' : 'Todos los activos se han usado al menos una vez'}</small>
+      </article>
+      <article>
+        <span>Activos</span><strong>{activos.length} de {cupones.length}</strong>
+        <small>{cupones.length - activos.length === 0 ? 'Ninguno apagado' : `${cupones.length - activos.length} apagado${cupones.length - activos.length === 1 ? '' : 's'}`}</small>
+      </article>
+    </div>
+  </div>;
+}
+
 export function CuponesDeReservas({
   clientFilter, empresaEnUso, clients, ofreceEncuestas, puedeCrearCupones, esCuentaDeEmpresa,
   formIdFiltro, formularios, codigoPorVer, onCodigoVisto,
@@ -212,7 +290,7 @@ export function CuponesDeReservas({
           <button type="button" className="btn btn-link" onClick={() => setCouponPeriodo({ desde: '', hasta: '' })}>Quitar fechas</button>
         ) : null}
       </div>
-      {filteredCoupons.length === 0 ? <div className="reservation-empty"><strong>Sin cupones todavía</strong><p>Crea tu primer cupón promocional.</p></div> : <Fragment><div className="coupon-stats"><div className="reservation-metric-grid reservation-metric-grid-four"><div><span>Total cupones</span><strong>{coupons.length}</strong></div><div><span>Activos</span><strong>{coupons.filter((c) => c.active).length}</strong></div><div><span>Usos totales</span><strong>{coupons.reduce((sum, c) => sum + c.usageCount, 0)}</strong></div><div><span>Volvieron del correo</span><strong>{(() => { const env = coupons.reduce((s2, c) => s2 + (c.uso?.enviados ?? 0), 0); const vol = coupons.reduce((s2, c) => s2 + (c.uso?.volvieronDelCorreo ?? 0), 0); return env === 0 ? 'Ninguno enviado' : `${vol} de ${env}`; })()}</strong></div><div><span>Tasa de uso</span><strong>{(() => { const activeCoupons = coupons.filter((c) => c.active).length; if (activeCoupons === 0) return 'Sin cupones activos'; const usedActiveCoupons = coupons.filter((c) => c.active && c.usageCount > 0).length; return `${Math.round((usedActiveCoupons / activeCoupons) * 100)}% activos usados`; })()}</strong></div></div></div><div className="crm-table-container"><table className="data-table"><thead><tr><th>Código</th><th>Descuento</th><th>Usos</th><th>Por correo</th><th>Vigencia</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{filteredCoupons.map((coupon) => <tr key={coupon.id}><td data-label="Código"><strong>{coupon.code}</strong><small>Creado {new Date(coupon.createdAt).toLocaleDateString('es-CL')}</small></td><td data-label="Descuento">{coupon.discountType === 'percentage' ? `${coupon.value}%` : `$${coupon.value.toLocaleString('es-CL')}`}</td><td data-label="Usos">{coupon.usageCount}/{coupon.maxUses || '∞'}</td><td data-label="Por correo">{coupon.uso?.enviados ? <span className="cupon-correo"><strong>{coupon.uso.volvieronDelCorreo}</strong> de {coupon.uso.enviados}<small>{coupon.uso.enviados > 0 ? `${Math.round((coupon.uso.volvieronDelCorreo / coupon.uso.enviados) * 100)}% volvió` : ''}</small></span> : <small className="tabla-nota">No se ha enviado</small>}</td><td data-label="Vigencia">{coupon.validFrom ? `${new Date(coupon.validFrom).toLocaleDateString('es-CL')} - ${coupon.validUntil ? new Date(coupon.validUntil).toLocaleDateString('es-CL') : '∞'}` : 'Sin fecha'}</td><td data-label="Estado"><span className={`crm-stage is-${coupon.active ? 'attended' : 'cancelled_business'}`}>{coupon.active ? 'Activo' : 'Inactivo'}</span></td><td data-label="Acciones"><div className="actions-cell"><button className="btn btn-outline btn-sm" onClick={() => coupon.active ? setConfirmCoupon({ id: coupon.id, active: false }) : couponToggle.mutate({ id: coupon.id, active: true })} disabled={couponToggle.isPending}>{coupon.active ? 'Desactivar' : 'Activar'}</button><button className="btn btn-outline btn-sm" onClick={() => setCuponMirado({ id: coupon.id, code: coupon.code })}>Ver usos</button></div></td></tr>)}</tbody></table></div></Fragment>}
+      {filteredCoupons.length === 0 ? <div className="reservation-empty"><strong>Sin cupones todavía</strong><p>Crea tu primer cupón promocional.</p></div> : <Fragment><ResumenDeCupones cupones={coupons} /><div className="crm-table-container"><table className="data-table"><thead><tr><th>Código</th><th>Descuento</th><th>Usos</th><th>Por correo</th><th>Vigencia</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{filteredCoupons.map((coupon) => <tr key={coupon.id}><td data-label="Código"><strong>{coupon.code}</strong><small>Creado {new Date(coupon.createdAt).toLocaleDateString('es-CL')}</small></td><td data-label="Descuento">{coupon.discountType === 'percentage' ? `${coupon.value}%` : `$${coupon.value.toLocaleString('es-CL')}`}</td><td data-label="Usos">{coupon.usageCount}/{coupon.maxUses || '∞'}</td><td data-label="Por correo">{coupon.uso?.enviados ? <span className="cupon-correo"><strong>{coupon.uso.volvieronDelCorreo}</strong> de {coupon.uso.enviados}<small>{coupon.uso.enviados > 0 ? `${Math.round((coupon.uso.volvieronDelCorreo / coupon.uso.enviados) * 100)}% volvió` : ''}</small></span> : <small className="tabla-nota">No se ha enviado</small>}</td><td data-label="Vigencia">{coupon.validFrom ? `${new Date(coupon.validFrom).toLocaleDateString('es-CL')} - ${coupon.validUntil ? new Date(coupon.validUntil).toLocaleDateString('es-CL') : '∞'}` : 'Sin fecha'}</td><td data-label="Estado"><span className={`crm-stage is-${coupon.active ? 'attended' : 'cancelled_business'}`}>{coupon.active ? 'Activo' : 'Inactivo'}</span></td><td data-label="Acciones"><div className="actions-cell"><button className="btn btn-outline btn-sm" onClick={() => coupon.active ? setConfirmCoupon({ id: coupon.id, active: false }) : couponToggle.mutate({ id: coupon.id, active: true })} disabled={couponToggle.isPending}>{coupon.active ? 'Desactivar' : 'Activar'}</button><button className="btn btn-outline btn-sm" onClick={() => setCuponMirado({ id: coupon.id, code: coupon.code })}>Ver usos</button></div></td></tr>)}</tbody></table></div></Fragment>}
       {cuponMirado && <MetricasDelCupon couponId={cuponMirado.id} codigo={cuponMirado.code} alCerrar={() => setCuponMirado(null)} />}
     </section>
 

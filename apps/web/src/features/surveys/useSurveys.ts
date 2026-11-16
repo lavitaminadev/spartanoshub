@@ -137,6 +137,8 @@ export interface CreateSurveyInput {
   createdBy?: string;
   questions: SurveyQuestion[];
   recipients?: string[];
+  recipientSource?: string;
+  recipientBasis?: string;
   distribution?: Survey['distribution'];
   ga4MeasurementId?: string | null;
   designConfig?: Survey['designConfig'];
@@ -153,6 +155,8 @@ function buildLocalSurvey(input: CreateSurveyInput): Survey {
     createdAt: new Date().toISOString(),
     createdBy: input.createdBy ?? 'Usuario local',
     recipients: input.recipients,
+    recipientSource: input.recipientSource,
+    recipientBasis: input.recipientBasis,
     distribution: input.distribution,
     ga4MeasurementId: input.ga4MeasurementId,
     responses: 0,

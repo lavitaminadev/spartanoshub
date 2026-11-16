@@ -57,3 +57,35 @@
   .access-denied-detail { grid-template-columns: 1fr; gap: 2px; }
   .access-denied-detail dt { margin-top: 10px; }
 }
+
+/*
+ * El aviso de mantenimiento: encabeza la pantalla sin taparla.
+ *
+ * El módulo sigue en pie y en lectura, así que el aviso explica por qué no se puede escribir en
+ * vez de dejar que los botones fallen sin motivo visible.
+ */
+.aviso-de-mantenimiento {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--terracotta);
+  border-radius: var(--radius-md);
+  background: var(--soft);
+}
+
+.aviso-de-mantenimiento strong {
+  color: var(--terracotta);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.aviso-de-mantenimiento span {
+  color: var(--muted);
+  font-size: 13px;
+}

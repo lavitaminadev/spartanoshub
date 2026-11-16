@@ -18,6 +18,13 @@ export const BRAND = {
   product: 'Espartanos',
   /** Título de la pestaña del navegador. */
   documentTitle: 'Espartanos',
-  mark: '/brand/espartanos-helmet.png',
-  lockup: '/brand/espartanos-helmet.png',
+  /*
+   * Las imágenes cuelgan de la base con la que se sirve la aplicación, no de la raíz del dominio.
+   *
+   * En el servidor propio `BASE_URL` es `/` y el resultado es el mismo de siempre. En la maqueta
+   * compilada, que se publica dentro de una ruta ajena, una dirección que empiece por barra apunta
+   * a la raíz de ese dominio y el logo no existe ahí: se pide, da 404 y la marca sale en blanco.
+   */
+  mark: `${import.meta.env.BASE_URL}brand/espartanos-helmet.png`,
+  lockup: `${import.meta.env.BASE_URL}brand/espartanos-helmet.png`,
 } as const;

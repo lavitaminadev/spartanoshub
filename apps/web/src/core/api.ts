@@ -83,6 +83,15 @@ const apiClient = axios.create({
   timeout: DEFAULT_TIMEOUT_MS,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
+  /*
+   * El adaptador se resuelve en cada petición, no al crear la instancia.
+   *
+   * `axios.create` congela el adaptador vigente al construir la instancia, y quien sustituya
+   * `axios.defaults.adapter` más tarde ya no la alcanza. Resolverlo al llamar garantiza que
+   * atienda el adaptador por defecto que esté puesto en ese momento, sin depender del orden en
+   * que el empaquetador inicialice los módulos.
+   */
+  adapter: (config) => axios.getAdapter(axios.defaults.adapter)(config),
 });
 
 /** Access token en memoria; la persistencia queda delegada a la cookie HttpOnly. */

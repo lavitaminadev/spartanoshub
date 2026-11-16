@@ -45,6 +45,8 @@ export class Survey {
 
   /** Destinatarios explícitos; nulo cuando se distribuye por enlace o QR abierto. */
   @Column({ type: 'json', nullable: true }) recipients?: string[] | null;
+  @Column({ name: 'recipient_source', type: 'varchar', length: 255, nullable: true }) recipientSource?: string | null;
+  @Column({ name: 'recipient_basis', type: 'varchar', length: 500, nullable: true }) recipientBasis?: string | null;
 
   @Column({ type: 'json', nullable: true }) distribution?: SurveyDistributionChannel[] | null;
 
