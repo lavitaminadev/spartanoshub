@@ -2637,22 +2637,6 @@ export class ReservationsService {
     };
   }
 
-  /** Totales completos para el panel de motivos, independientes del límite de la lista. */
-  async resumenDeGrupos(organizationId: string, clientId?: string, clientIds?: string[]) {
-    const where = this.scope(organizationId, clientId, clientIds);
-    const [convertidas, cerradas] = await Promise.all([
-      this.groupRequests.count({ where: { ...where, status: 'converted' } }),
-      this.groupRequests.find({ where: { ...where, status: 'closed' }, select: { id: true, closeReason: true } }),
-    ]);
-    const porMotivo = new Map<string, number>();
-    for (const solicitud of cerradas) if (solicitud.closeReason) porMotivo.set(solicitud.closeReason, (porMotivo.get(solicitud.closeReason) ?? 0) + 1);
-    return {
-      convertidas, cerradas: cerradas.length,
-      conMotivo: [...porMotivo.values()].reduce((suma, cantidad) => suma + cantidad, 0),
-      porMotivo: [...porMotivo.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })),
-    };
-  }
-
   async listGroupRequests(organizationId: string, formId: string, clientId?: string, clientIds?: string[]) {
     await this.getForm(organizationId, formId, clientId, clientIds);
     return this.groupRequests.find({ where: { organizationId, formId }, order: { createdAt: 'DESC' }, take: 50 });

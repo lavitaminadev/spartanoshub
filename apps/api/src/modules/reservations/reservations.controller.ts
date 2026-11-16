@@ -154,15 +154,7 @@ export class ReservationsController {
     if (!clientId) throw new BadRequestException('Elige la empresa de la que quieres ver los permisos');
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     await this.capabilities.assert(req.organizationId, clientId, 'reservationConsentInsights');
-    const rows = await this.dataSource.query(`SELECT
-      SUM(status = 'subscribed') AS suscritos,
-      SUM(status = 'pending') AS pendientes,
-      SUM(status = 'unsubscribed') AS bajas,
-      SUM(status = 'subscribed' AND consent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS ultimos30,
-      MIN(consent_at) AS desde
-      FROM email_subscribers WHERE organization_id = ? AND client_id = ? AND source = 'reserva'`, [req.organizationId, clientId]) as Array<Record<string, number | string | Date | null>>;
-    const row = rows[0] ?? {};
-    return { suscritos: Number(row.suscritos ?? 0), pendientes: Number(row.pendientes ?? 0), bajas: Number(row.bajas ?? 0), ultimos30: Number(row.ultimos30 ?? 0), desde: row.desde ?? null };
+    return this.service.consentimientosDeReservas(req.organizationId, clientId);
   }
 
   /** Envíos a Meta de una sucursal en los últimos 30 días: enviados, pendientes, fallidos y último error. */
@@ -460,14 +452,6 @@ export class ReservationsController {
     return this.service.resumenDeGrupos(req.organizationId, scope.clientId, scope.clientIds);
   }
 
-  @Get('group-requests/resumen')
-  @RequiereArea('reservations.espera_y_grupos', 'ver')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async resumenDeGrupos(@Req() req: AuthenticatedRequest, @Query('clientId') clientId?: string) {
-    const scope = await this.requestedScope(req, clientId);
-    return this.service.resumenDeGrupos(req.organizationId, scope.clientId, scope.clientIds);
-  }
-
   @Get('forms/:id/group-requests')
   @RequiereArea('reservations.espera_y_grupos', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
@@ -683,37 +667,6 @@ export class ReservationsController {
     if (!codigo?.trim()) throw new BadRequestException('Escribe el código del cupón');
     const scope = await this.scope(req);
     return this.service.buscarCuponPorCodigo(req.organizationId, codigo, scope.clientIds);
-  }
-
-  /**
-   * Cuántas personas captadas por sus reservas puede recibir correos de esta empresa.
-   *
-   * Pide `reservations` y **no** `marketing`, que es el punto. Cada reserva cuyo formulario pide
-   * el consentimiento deja un suscriptor a nombre de la empresa, y eso ocurre sin comprobar si
-   * tiene Marketing contratado —el consentimiento lo dio la persona y no se descarta por falta de
-   * contrato—. Pero entonces la empresa captaba una lista que no podía ni mirar.
-   *
-   * Lo que se entrega es el conteo y desde cuándo. Los correos uno por uno, los segmentos, las
-   * campañas y las plantillas siguen siendo Marketing.
-   */
-  @Get('consentimientos')
-  @RequiresPermission('reservations', 'view')
-  @RequiereArea('reservations.reservas', 'ver')
-  @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async consentimientos(@Req() req: AuthenticatedRequest, @Query('clientId') pedida?: string) {
-    const scope = await this.scope(req);
-    /*
-     * Hace falta una empresa concreta, y tiene que estar dentro del alcance.
-     *
-     * Sumar las listas de varias empresas no significa nada: cada consentimiento se dio a un
-     * negocio. `empresaElegida` responde 404 por una que no se alcanza y 400 cuando la cuenta
-     * alcanza varias y no dijo cuál.
-     */
-    const clientId = scope.clientId ?? await this.accountAccess.empresaElegida(req.organizationId, req.user, pedida);
-    if (!clientId) throw new BadRequestException('Elige la empresa de la que quieres ver los consentimientos');
-    await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
-    await this.capabilities.assert(req.organizationId, clientId, 'reservations');
-    return this.service.consentimientosDeReservas(req.organizationId, clientId);
   }
 
   /** Qué pasó con un cupón: cuándo se usó, por qué camino y cuánto costó. */
