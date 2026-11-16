@@ -76,7 +76,7 @@ export class OrganizationsController {
   @Get('features')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @Roles(UserRole.DEV)
+  @Roles(UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR)
   @ApiOperation({ summary: 'Módulos habilitados de la organización' })
   async features(@Req() req: AuthenticatedRequest) {
     const organizationId = req.organizationId || req.user.organizationId;
@@ -103,7 +103,7 @@ export class OrganizationsController {
    * módulo abre pantallas para toda la organización, y con una sesión robada eso es lo que
    * impide que el ataque llegue a la configuración.
    */
-  @Roles(UserRole.DEV, UserRole.ADMIN)
+  @Roles(UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR)
   @RequiresRecentAuth('encender o apagar un módulo de la organización')
   @ApiOperation({ summary: 'Habilitar o deshabilitar módulos de la organización' })
   async updateFeatures(@Req() req: AuthenticatedRequest, @Body() dto: UpdateOrganizationFeaturesDto) {

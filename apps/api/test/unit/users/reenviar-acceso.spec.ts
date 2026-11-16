@@ -36,9 +36,9 @@ describe('reenviar acceso', () => {
     expect(users.save).not.toHaveBeenCalled();
   });
 
-  it('dirección comercial no reenvía el acceso de un dev o de administración', async () => {
+  it('dirección de operaciones no reenvía el acceso de un dev o de administración', async () => {
     const { uso, users } = caso({ role: UserRole.ADMIN, mustChangePassword: true });
-    await expect(uso.reenviarAcceso({ id: 'u-1', organizationId: 'org', actorRole: UserRole.COMMERCIAL_DIRECTOR })).rejects.toThrow(ForbiddenException);
+    await expect(uso.reenviarAcceso({ id: 'u-1', organizationId: 'org', actorRole: UserRole.OPERATIONS_DIRECTOR })).rejects.toThrow(ForbiddenException);
     expect(users.save).not.toHaveBeenCalled();
   });
 

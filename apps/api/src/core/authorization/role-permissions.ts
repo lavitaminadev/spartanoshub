@@ -78,7 +78,9 @@ const REPARTO_NO_APLICADO: Record<UserRole, RoleModuleMap> = {
     contracts: 'manage',
     billing: 'manage',
     direction: 'manage',
-    settings: 'edit',
+    // Dirección Comercial representa al propietario de la agencia y decide la configuración
+    // global. Desarrollo conserva la autoridad técnica, pero no es el dueño del negocio.
+    settings: 'manage',
     reports: 'view',
     surveys: 'manage',
     operations: 'view',

@@ -198,6 +198,7 @@ ${salida}`);
 
   await crearCuenta('dev', 'dev');
   await crearCuenta('admin', 'admin');
+  await crearCuenta('propietario', 'commercial_director');
   // Dos personas del equipo: cada una verá las cuentas que se le asignen, y solo esas.
   await crearCuenta('equipoUno', 'community_manager');
   await crearCuenta('equipoDos', 'community_manager');

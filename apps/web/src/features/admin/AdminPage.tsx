@@ -120,6 +120,7 @@ export function AdminPage() {
    * nadie. Estaba fijada a `dev`, así que la pestaña existía y no se dibujaba nunca para él.
    */
   const esDesarrollo = user?.role === 'dev';
+  const esPropietario = user?.role === 'commercial_director';
   /*
    * Los accesos rápidos no ofrecen pantallas que el cargo no alcanza.
    *
@@ -128,7 +129,7 @@ export function AdminPage() {
    * que dejó «Seguridad» ofrecida a administración, que al entrar recibe un «sin acceso».
    */
   const puedeEntrarA = (ruta: string) => isRoleAllowedForPath(getAllowedRolesForPath(ruta), user?.role);
-  const canManagePermissions = esDesarrollo || user?.role === 'admin';
+  const canManagePermissions = esDesarrollo || esPropietario;
   /*
    * Mirar la matriz y cambiarla son dos permisos, no uno.
    *
@@ -137,7 +138,7 @@ export function AdminPage() {
    * pedírselo a desarrollo. Verla no concede nada: `PUT roles/permissions` acepta sólo `DEV` y
    * `ADMIN`, de modo que los controles van inertes y el servidor sigue siendo la reja.
    */
-  const puedeVerLaMatriz = canManagePermissions || user?.role === 'commercial_director';
+  const puedeVerLaMatriz = canManagePermissions;
 
   /**
    * Encender y apagar módulos: solo desarrollo.
@@ -147,9 +148,8 @@ export function AdminPage() {
    * una dice qué existe y la otra quién lo ve, y tenerlas bajo la misma condición obligaba a
    * elegir entre ocultarle a administración lo suyo o darle lo que no le toca.
    */
-  // Administración también: encender un módulo abre pantallas para toda la organización, y el
-  // servidor le pide la contraseña otra vez antes de aceptarlo.
-  const canManageModules = esDesarrollo || user?.role === 'admin';
+  // La propiedad y Desarrollo pueden encender módulos; el servidor vuelve a pedir la contraseña.
+  const canManageModules = esDesarrollo || esPropietario;
   const [tab, setTab] = useState<'permisos' | 'modulos' | 'excepciones' | 'consentimiento'>('excepciones');
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [dirty, setDirty] = useState(false);
@@ -224,9 +224,9 @@ export function AdminPage() {
 
   // Las personas con cargo de desarrollo solo se listan para desarrollo: conceder excepciones
   // sobre ese cargo es lo mismo que ampliarse el acceso a uno mismo por la puerta de al lado.
-  const exceptionUsers = users.filter((u) => u.id && u.name && (esDesarrollo || u.role !== 'dev'));
+  const exceptionUsers = users.filter((u) => u.id && u.name && (esDesarrollo || esPropietario || u.role !== 'dev'));
   const visibleExceptions = exceptions.filter((e) =>
-    (esDesarrollo || e.userRole !== 'dev') &&
+    (esDesarrollo || esPropietario || e.userRole !== 'dev') &&
     matchesSearch(exceptionSearch, [e.userName, e.module, e.level, e.reason]) &&
     (!exceptionClient || e.userId === exceptionClient)
   );
@@ -455,8 +455,8 @@ export function AdminPage() {
         <Link to="/users" className="admin-quick-card"><strong>Usuarios</strong><small>Gestionar personas y cargos</small></Link>
         {puedeEntrarA('/security') && <Link to="/security" className="admin-quick-card"><strong>Seguridad</strong><small>Salud y auditoría</small></Link>}
         <Link to="/integrations" className="admin-quick-card"><strong>Integraciones</strong><small>Meta, Cloudinary, GA4</small></Link>
-        {esDesarrollo && <Link to="/governance" className="admin-quick-card"><strong>Gobierno del producto</strong><small>Flujos, pods y módulos</small></Link>}
-        {esDesarrollo && <Link to="/settings" className="admin-quick-card"><strong>Configuración técnica</strong><small>Parámetros del producto</small></Link>}
+        {(esDesarrollo || esPropietario) && <Link to="/governance" className="admin-quick-card"><strong>Gobierno del producto</strong><small>Flujos, pods y módulos</small></Link>}
+        {(esDesarrollo || esPropietario) && <Link to="/settings" className="admin-quick-card"><strong>Configuración general</strong><small>Parámetros de la organización</small></Link>}
         {esDesarrollo && <Link to="/operations" className="admin-quick-card"><strong>Estado del sistema</strong><small>Diagnóstico y capacidad</small></Link>}
       </div>
     </div>

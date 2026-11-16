@@ -49,12 +49,15 @@ export class CreateUserUseCase {
     const normalizedEmail = data.email.trim().toLowerCase();
     const normalizedName = data.name.trim();
     const normalizedPhone = data.phone?.replace(/[^\d+]/g, '');
-    if ([UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR].includes(data.actorRole)
-      && [UserRole.ADMIN, UserRole.DEV, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR].includes(normalizedRole)) {
-      throw new ForbiddenException('Este cargo no puede crear cuentas de administración, desarrollo o dirección');
+    if (normalizedRole === UserRole.ADMIN) {
+      throw new BadRequestException('El cargo admin es legado y no admite cuentas nuevas. Usa el cargo real de la persona.');
+    }
+    if (data.actorRole === UserRole.OPERATIONS_DIRECTOR
+      && [UserRole.DEV, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR].includes(normalizedRole)) {
+      throw new ForbiddenException('Dirección de Operaciones no puede crear cuentas de propiedad, desarrollo o dirección');
     }
     if (normalizedRole === UserRole.DEV) {
-      if (data.actorRole !== UserRole.ADMIN) throw new ForbiddenException('Solo administración puede asignar el cargo de desarrollo');
+      if (![UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV].includes(data.actorRole)) throw new ForbiddenException('Solo Dirección Comercial o Desarrollo puede asignar el cargo de desarrollo');
       const existingDev = await this.repo.findOne({ where: { organizationId: data.organizationId, role: UserRole.DEV, isActive: true } });
       if (existingDev) throw new ConflictException('Ya existe una cuenta con el cargo de desarrollo');
     }
