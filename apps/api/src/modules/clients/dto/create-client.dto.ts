@@ -13,12 +13,15 @@ import { CLIENT_INDUSTRY_VALUES } from '@espartanos/shared';
  */
 export class ClientCapabilitiesDto {
   @IsOptional() @IsBoolean() reservations?: boolean;
+  @IsOptional() @IsBoolean() reservationEmails?: boolean;
+  @IsOptional() @IsBoolean() reservationConsentInsights?: boolean;
   @IsOptional() @IsBoolean() crm?: boolean;
   @IsOptional() @IsBoolean() surveys?: boolean;
   @IsOptional() @IsBoolean() marketing?: boolean;
   @IsOptional() @IsBoolean() metaConversions?: boolean;
   @IsOptional() @IsBoolean() googleConversions?: boolean;
   @IsOptional() @IsBoolean() budgetVisibility?: boolean;
+  @IsOptional() @IsBoolean() legalGovernance?: boolean;
   @IsOptional() @IsBoolean() detalleDeContactoEnAvisos?: boolean;
   @IsOptional() @IsBoolean() production?: boolean;
   @IsOptional() @IsBoolean() audiovisual?: boolean;

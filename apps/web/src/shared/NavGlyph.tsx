@@ -75,7 +75,8 @@ const GLYPHS: Record<string, string> = {
   'Campañas': 'CP',
   'Operación y cuentas': 'OC',
   'Gobierno del producto': 'GP',
-  'Configuración técnica': 'TC',
+  // La pantalla dejó de ser sólo de Desarrollo y se llama por lo que es.
+  'Configuración': 'CF',
   'Mi configuración': 'MC',
   'Estado del sistema': 'ES',
   'Base de conocimiento': 'BC',

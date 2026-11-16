@@ -45,7 +45,17 @@ describe('portal del cliente en la operación inicial', () => {
     expect(activePortalCards(user)).toEqual([]);
   });
 
-  it('no consulta Pulso mientras Reportes esté fuera del portal inicial', () => {
+  /*
+   * El informe entero sí; el Pulso no.
+   *
+   * Decidido el 2026-11-06. Antes esto lo cerraba la lista fija de módulos, y la prueba lo decía
+   * en su título: «mientras Reportes esté fuera». Reportes ya entró, así que lo que cierra el
+   * Pulso ahora es la decisión, y es esta prueba la que la sostiene: el Pulso mide el cumplimiento
+   * interno de la agencia sobre la cuenta —grilla, producción, informe del mes, reuniones
+   * pendientes— y eso no se le entrega al cliente junto con sus resultados. Queda anotado como C7
+   * en `auditoria-main/14-DECISIONES-DEL-DUENO.md`.
+   */
+  it('no le muestra el Pulso al cliente, aunque ya tenga sus informes', () => {
     const user = client({ features: { crm: true, reservations: true, reports: true }, permissions: { crm: 'view', reservations: 'edit', reports: 'view' } });
     expect(isPortalPulseVisible(user)).toBe(false);
   });

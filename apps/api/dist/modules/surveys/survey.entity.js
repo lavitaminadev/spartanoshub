@@ -55,6 +55,14 @@ __decorate([
     __metadata("design:type", Object)
 ], Survey.prototype, "recipients", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'recipient_source', type: 'varchar', length: 255, nullable: true }),
+    __metadata("design:type", Object)
+], Survey.prototype, "recipientSource", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'recipient_basis', type: 'varchar', length: 500, nullable: true }),
+    __metadata("design:type", Object)
+], Survey.prototype, "recipientBasis", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'json', nullable: true }),
     __metadata("design:type", Object)
 ], Survey.prototype, "distribution", void 0);

@@ -78,6 +78,34 @@ let PaquetesDeCorreo = class PaquetesDeCorreo {
             return [];
         }
     }
+    async apagarPara(clientId, servicios) {
+        return this.fijarPara(clientId, servicios, false);
+    }
+    async activarPara(clientId, servicios) {
+        return this.fijarPara(clientId, servicios, true);
+    }
+    async fijarPara(clientId, servicios, enabled) {
+        const claves = servicios.flatMap((servicio) => exports.PAQUETES_DE_CORREO[servicio] ?? []);
+        if (claves.length === 0)
+            return [];
+        const definiciones = await this.definiciones.find({ where: { key: (0, typeorm_2.In)(claves) } });
+        if (definiciones.length === 0)
+            return [];
+        const ahora = new Date();
+        return this.valores.manager.transaction(async (manager) => {
+            const repo = manager.getRepository(parameter_value_entity_1.ParameterValue);
+            const activas = await repo.find({ where: { definitionId: (0, typeorm_2.In)(definiciones.map((item) => item.id)), scopeType: 'client', scopeId: clientId, validTo: (0, typeorm_2.IsNull)() } });
+            for (const activa of activas)
+                activa.validTo = ahora;
+            if (activas.length)
+                await repo.save(activas);
+            await repo.save(definiciones.map((definicion) => {
+                const anterior = activas.find((item) => item.definitionId === definicion.id);
+                return repo.create({ definitionId: definicion.id, scopeType: 'client', scopeId: clientId, valueJson: { value: enabled }, version: (anterior?.version ?? 0) + 1, validFrom: ahora });
+            }));
+            return definiciones.map((item) => item.key);
+        });
+    }
 };
 exports.PaquetesDeCorreo = PaquetesDeCorreo;
 exports.PaquetesDeCorreo = PaquetesDeCorreo = __decorate([

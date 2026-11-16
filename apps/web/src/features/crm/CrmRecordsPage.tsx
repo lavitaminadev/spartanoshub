@@ -339,6 +339,15 @@ export function OpportunitiesPage() {
     moveStage.mutate({ id, stage });
   };
   const allOpportunities = opportunitiesQuery.data?.data ?? [];
+  /*
+   * La consulta trae cien oportunidades y el servidor dice cuántas hay.
+   *
+   * Las cifras de arriba —pipeline abierto y cierre esperado— se suman sobre lo que llegó. Con
+   * más de cien, el dinero que se muestra es menos del que hay, y no se nota: por eso se dice
+   * sobre cuántas está hecha la suma en vez de dejarla pasar por completa.
+   */
+  const totalOportunidades = opportunitiesQuery.data?.total ?? allOpportunities.length;
+  const oportunidadesRecortadas = totalOportunidades > allOpportunities.length;
   const opportunities = allOpportunities.filter((item) => (!stageFilter || item.stage === stageFilter) && matchesSearch(search, [item.name, oppLeads.find((lead) => lead.id === item.leadId)?.name, oppClients.find((client) => client.id === item.clientId)?.name]));
   const total = allOpportunities.filter((item) => !['won', 'lost'].includes(item.stage)).reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   const weighted = allOpportunities.filter((item) => !['won', 'lost'].includes(item.stage)).reduce((sum, item) => sum + Number(item.amount ?? 0) * item.probability / 100, 0);
@@ -356,7 +365,7 @@ export function OpportunitiesPage() {
   if (opportunitiesQuery.isLoading) return <LoadingSpinner text="Cargando oportunidades..." />;
 
   return <div className="page"><WorkspaceHeader eyebrow="PIPELINE DE OPORTUNIDADES" title="Oportunidades y proyección" description="El embudo propio de la agencia: cada oportunidad avanza por etapas hasta ganarse o perderse. No confundir con los contactos de campañas de los clientes." action={() => openEdit()} />
-  <div className="crm-summary-grid crm-summary-grid-four"><article><span>Pipeline abierto</span><strong>CLP {Math.round(total).toLocaleString('es-CL')}</strong></article><article><span>Forecast ponderado</span><strong>CLP {Math.round(weighted).toLocaleString('es-CL')}</strong></article><article className={overdue.length ? 'is-warning' : ''}><span>Seguimientos vencidos</span><strong>{overdue.length}</strong></article><article><span>Oportunidades</span><strong>{allOpportunities.length}</strong></article></div>
+  <div className="crm-summary-grid crm-summary-grid-four"><article><span>Pipeline abierto</span><strong>CLP {Math.round(total).toLocaleString('es-CL')}</strong>{oportunidadesRecortadas && <small>sobre {allOpportunities.length} de {totalOportunidades} oportunidades</small>}</article><article><span>Forecast ponderado</span><strong>CLP {Math.round(weighted).toLocaleString('es-CL')}</strong></article><article className={overdue.length ? 'is-warning' : ''}><span>Seguimientos vencidos</span><strong>{overdue.length}</strong></article><article><span>Oportunidades</span><strong>{allOpportunities.length}</strong></article></div>
   {forecast.length > 0 && <section className="commercial-forecast"><header><div><span className="page-eyebrow">FORECAST MENSUAL</span><h3>Cierre esperado ponderado</h3></div><small>Valor x probabilidad</small></header><div>{forecast.map((month) => <article key={month.key}><span>{month.label}</span><strong>CLP {Math.round(month.weighted).toLocaleString('es-CL')}</strong><small>{month.count} negocio(s) · bruto CLP {Math.round(month.amount).toLocaleString('es-CL')}</small><i style={{ width: `${month.amount ? Math.max(4, month.weighted / month.amount * 100) : 0}%` }} /></article>)}</div></section>}
   {feedback && <div className="alert alert-success">{feedback}</div>}{opportunitiesQuery.error && <div className="alert alert-error">{opportunitiesQuery.error.message}</div>}
   <div className="filters opportunity-filters"><input className="input" type="search" placeholder="Buscar oportunidad, lead o cliente" value={search} onChange={(event) => setSearch(event.target.value)} /><select className="input" value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}><option value="">Todas las etapas</option>{stages.map((stage) => <option key={stage.key} value={stage.key}>{stage.label}</option>)}</select><div className="view-toggle" aria-label="Vista de oportunidades"><button className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}>Tablero</button><button className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>Lista</button></div><span className="filter-result-count">{opportunities.length} resultados</span></div>

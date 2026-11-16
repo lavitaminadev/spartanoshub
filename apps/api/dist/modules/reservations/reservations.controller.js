@@ -92,16 +92,36 @@ let ReservationsController = ReservationsController_1 = class ReservationsContro
     async companyLegal(req, query) {
         return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
     }
+    async companyLegalHistory(req, query) {
+        return (0, datos_legales_de_empresa_1.leerHistorialLegal)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
+    }
     async saveCompanyLegal(req, query, dto) {
         const empresa = await this.empresaLegal(req, query.clientId);
         await (0, datos_legales_de_empresa_1.asegurarQueAdministraLaEmpresa)(this.permisos, req.organizationId, req.user, empresa);
         const laAceptaLaEmpresa = req.user.role === user_role_enum_1.UserRole.CLIENT;
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, { actorName: req.user.name, ipAddress: req.ip, userAgent: req.headers['user-agent'] });
     }
     async empresaLegal(req, pedida) {
         const empresa = await (0, datos_legales_de_empresa_1.empresaDeLosDatosLegales)(this.accountAccess, req.organizationId, req.user, pedida);
         await this.capabilities.assert(req.organizationId, empresa, 'reservations');
         return empresa;
+    }
+    async consentimientos(req, pedida) {
+        const scope = await this.scope(req);
+        const clientId = scope.clientId ?? await this.accountAccess.empresaElegida(req.organizationId, req.user, pedida);
+        if (!clientId)
+            throw new common_1.BadRequestException('Elige la empresa de la que quieres ver los permisos');
+        await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
+        await this.capabilities.assert(req.organizationId, clientId, 'reservationConsentInsights');
+        const rows = await this.dataSource.query(`SELECT
+      SUM(status = 'subscribed') AS suscritos,
+      SUM(status = 'pending') AS pendientes,
+      SUM(status = 'unsubscribed') AS bajas,
+      SUM(status = 'subscribed' AND consent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS ultimos30,
+      MIN(consent_at) AS desde
+      FROM email_subscribers WHERE organization_id = ? AND client_id = ? AND source = 'reserva'`, [req.organizationId, clientId]);
+        const row = rows[0] ?? {};
+        return { suscritos: Number(row.suscritos ?? 0), pendientes: Number(row.pendientes ?? 0), bajas: Number(row.bajas ?? 0), ultimos30: Number(row.ultimos30 ?? 0), desde: row.desde ?? null };
     }
     async metaHealth(req, id) {
         const scope = await this.scope(req);
@@ -241,6 +261,10 @@ let ReservationsController = ReservationsController_1 = class ReservationsContro
     async allGroupRequests(req, formId, clientId) {
         const scope = await this.requestedScope(req, clientId);
         return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
+    }
+    async resumenDeGrupos(req, clientId) {
+        const scope = await this.requestedScope(req, clientId);
+        return this.service.resumenDeGrupos(req.organizationId, scope.clientId, scope.clientIds);
     }
     async groupRequests(req, id) {
         const scope = await this.scope(req);
@@ -467,8 +491,17 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "companyLegal", null);
 __decorate([
+    (0, common_1.Get)('company-legal/history'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, datos_legales_de_empresa_1.CompanyLegalScopeDto]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "companyLegalHistory", null);
+__decorate([
     (0, common_1.Put)('company-legal'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
     __param(2, (0, common_1.Body)()),
@@ -476,6 +509,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, datos_legales_de_empresa_1.CompanyLegalScopeDto, datos_legales_de_empresa_1.CompanyLegalDto]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "saveCompanyLegal", null);
+__decorate([
+    (0, common_1.Get)('consentimientos'),
+    (0, requires_permission_decorator_1.RequiresPermission)('reservations', 'view'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.reservas', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "consentimientos", null);
 __decorate([
     (0, common_1.Get)('forms/:id/meta-health'),
     (0, requiere_area_decorator_1.RequiereArea)('reservations.medicion', 'ver'),
@@ -685,6 +729,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], ReservationsController.prototype, "allGroupRequests", null);
+__decorate([
+    (0, common_1.Get)('group-requests/resumen'),
+    (0, requiere_area_decorator_1.RequiereArea)('reservations.espera_y_grupos', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('clientId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ReservationsController.prototype, "resumenDeGrupos", null);
 __decorate([
     (0, common_1.Get)('forms/:id/group-requests'),
     (0, requiere_area_decorator_1.RequiereArea)('reservations.espera_y_grupos', 'ver'),

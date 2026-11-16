@@ -11,11 +11,13 @@ import { api } from '../../core/api';
 import { Modal } from '../../shared/Modal';
 import { ClientLegalData, datosLegalesCompletos, rutaDatosLegales } from '../client-portal/ClientLegalData';
 
-export function DatosLegalesDeCliente({ clientId, capacidades }: { clientId: string; capacidades?: { reservations?: boolean; surveys?: boolean } }): JSX.Element {
+export function DatosLegalesDeCliente({ clientId, capacidades }: { clientId: string; capacidades?: { reservations?: boolean; surveys?: boolean; legalGovernance?: boolean } }): JSX.Element {
   const [abierto, setAbierto] = useState(false);
+  const habilitado = capacidades?.legalGovernance === true;
   const { data, isLoading, error } = useQuery({
     queryKey: ['company-legal', clientId],
     queryFn: () => api.get<Parameters<typeof datosLegalesCompletos>[0]>(rutaDatosLegales(capacidades ?? { reservations: true }, clientId)),
+    enabled: habilitado,
   });
   const { faltan } = datosLegalesCompletos(data ?? undefined);
   const listo = faltan.length === 0;
@@ -24,13 +26,13 @@ export function DatosLegalesDeCliente({ clientId, capacidades }: { clientId: str
     <div className="datos-legales-cliente">
       <div>
         <strong>Datos legales</strong>
-        {isLoading ? <small>Revisando…</small> : error ? <small>No se pudieron leer.</small> : (
+        {!habilitado ? <small>Inactivo. Dirección Comercial debe habilitar Gobierno legal para editar y versionar.</small> : isLoading ? <small>Revisando…</small> : error ? <small>No se pudieron leer.</small> : (
           <small className={listo ? 'is-completo' : 'is-incompleto'}>
             {listo ? 'Completos: la empresa los mantiene desde su portal.' : `Falta ${faltan.join(', ')}. Sin esto no se pueden publicar reservas ni encuestas con datos personales.`}
           </small>
         )}
       </div>
-      <button type="button" className="btn btn-outline btn-sm" onClick={() => setAbierto(true)}>{listo ? 'Ver' : 'Completar por la empresa'}</button>
+      <button type="button" className="btn btn-outline btn-sm" disabled={!habilitado} onClick={() => setAbierto(true)}>{listo ? 'Ver' : 'Completar por la empresa'}</button>
       <Modal open={abierto} onClose={() => setAbierto(false)} title="Datos legales de la empresa">
         {abierto && <ClientLegalData clientId={clientId} capacidades={capacidades ?? { reservations: true }} embebido />}
       </Modal>

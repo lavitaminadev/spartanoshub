@@ -23,14 +23,15 @@ let AuditService = class AuditService {
     constructor(repo) {
         this.repo = repo;
     }
-    async log(params) {
-        const entry = this.repo.create({
+    async log(params, manager) {
+        const repo = manager ? manager.getRepository(audit_entity_1.AuditLog) : this.repo;
+        const entry = repo.create({
             ...params,
             before: (0, sanear_bitacora_1.sanearParaBitacora)(params.before),
             after: (0, sanear_bitacora_1.sanearParaBitacora)(params.after),
             reason: params.reason === undefined ? undefined : (0, sanear_bitacora_1.sanearTexto)(params.reason),
         });
-        return this.repo.save(entry);
+        return repo.save(entry);
     }
     async findByEntity(entityType, entityId) {
         return this.repo.find({

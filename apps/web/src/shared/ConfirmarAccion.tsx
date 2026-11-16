@@ -34,6 +34,8 @@ export interface ConfirmarAccionProps {
   empresa?: string;
   /** Texto del botón que confirma. Nombra la acción: «Quitar la campaña», no «Aceptar». */
   confirmar: string;
+  /** Texto del botón que cierra sin hacer nada. Por defecto «Cancelar»; se cambia cuando la acción también se llama «cancelar» y los dos botones se confundirían. */
+  volver?: string;
   /** Se marca cuando la acción no se puede deshacer, para pintarla como corresponde. */
   irreversible?: boolean;
   enCurso?: boolean;
@@ -46,6 +48,7 @@ export function ConfirmarAccion({
   consecuencia,
   empresa,
   confirmar,
+  volver = 'Cancelar',
   irreversible = true,
   enCurso = false,
   onConfirmar,
@@ -63,7 +66,7 @@ export function ConfirmarAccion({
             salida en el sitio donde el ojo la busca, no al lado del botón que rompe algo.
           */}
           <button type="button" className="btn btn-outline" onClick={onCancelar} disabled={enCurso}>
-            Cancelar
+            {volver}
           </button>
           <button
             type="button"

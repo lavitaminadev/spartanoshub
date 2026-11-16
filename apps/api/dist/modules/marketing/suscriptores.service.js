@@ -250,10 +250,13 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
         const condiciones = texto
             ? [{ ...where, email: (0, typeorm_2.Like)(`%${texto.toLowerCase()}%`) }, { ...where, name: (0, typeorm_2.Like)(`%${texto}%`) }]
             : where;
+        const take = Math.min(Math.max(filtros.limite ?? 200, 1), 1000);
+        const pagina = Math.max(Math.trunc(filtros.pagina ?? 1) || 1, 1);
         const [data, total] = await this.repo.findAndCount({
             where: condiciones,
             order: { createdAt: 'DESC' },
-            take: Math.min(Math.max(filtros.limite ?? 200, 1), 1000),
+            take,
+            skip: (pagina - 1) * take,
         });
         const consulta = this.repo
             .createQueryBuilder('s')
@@ -297,7 +300,7 @@ let SuscriptoresService = SuscriptoresService_1 = class SuscriptoresService {
                 actual.pendientes += cuantos;
             resumen.set(clave, actual);
         }
-        return { data, total, resumen: [...resumen.values()], origenes };
+        return { data, total, pagina, paginas: Math.max(Math.ceil(total / take), 1), resumen: [...resumen.values()], origenes };
     }
     async buscarParaRevelar(organizationId, id, encerradoEn) {
         const suscriptor = await this.repo.findOne({ where: { id, organizationId } });

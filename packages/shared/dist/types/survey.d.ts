@@ -98,6 +98,9 @@ export interface Survey {
      * lista previa de a quién le llegó.
      */
     recipients?: string[];
+    /** Procedencia y fundamento declarados para una lista enviada manualmente. */
+    recipientSource?: string;
+    recipientBasis?: string;
     /** Canales de distribución habilitados. Vacío o ausente mientras la encuesta es `draft`. */
     distribution?: SurveyDistributionChannel[];
     publicUrl?: string;

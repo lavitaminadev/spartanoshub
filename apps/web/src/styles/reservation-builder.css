@@ -625,14 +625,14 @@
 /*
  * Lista de reservas en teléfono.
  *
- * - «Anotar reserva» aparecía dos veces, en el menú y en el encabezado, y el del menú dejaba 216 px
- *   para ocho secciones: «Grupos» se cortaba a media palabra. Queda sólo el del menú, compacto.
+ * - «Anotar reserva» del menú va compacto: a tamaño normal deja 216 px para ocho secciones y
+ *   «Grupos» se corta a media palabra. El equipo anota sólo desde el menú; el botón del
+ *   encabezado se dibuja sólo en el portal (`ReservationsPage.tsx`).
  * - El menú desplaza de lado sin decirlo: un degradado en el borde avisa que hay más.
  */
 .filtros-movil { display: none; }
 @media (max-width: 700px) {
   .reservation-section-head .reservation-actions { align-items: stretch; }
-  .duplica-menu { display: none !important; }
   .filtros-movil { display: inline-flex; margin-bottom: 8px; }
   .reservation-module .reservation-filters:not(.is-open), .reservation-filters:not(.is-open) { display: none; }
   .section-nav-cta { padding-inline: 10px; font-size: 12px; white-space: nowrap; }

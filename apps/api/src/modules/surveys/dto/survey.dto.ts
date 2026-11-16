@@ -98,6 +98,8 @@ export class CreateSurveyDto {
 
   @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(2000)
   recipients?: string[];
+  @IsOptional() @IsString() @MaxLength(255) recipientSource?: string;
+  @IsOptional() @IsString() @MaxLength(500) recipientBasis?: string;
 
   @IsOptional() @IsArray() @IsIn(CHANNELS, { each: true })
   distribution?: SurveyDistributionChannel[];
@@ -149,6 +151,8 @@ export class UpdateSurveyDto {
 
   @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(2000)
   recipients?: string[];
+  @IsOptional() @IsString() @MaxLength(255) recipientSource?: string;
+  @IsOptional() @IsString() @MaxLength(500) recipientBasis?: string;
 
   @IsOptional() @IsArray() @IsIn(CHANNELS, { each: true })
   distribution?: SurveyDistributionChannel[];

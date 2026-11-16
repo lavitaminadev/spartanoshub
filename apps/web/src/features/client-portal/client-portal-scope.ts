@@ -109,7 +109,22 @@ export function activePortalCards(user: User | null) {
 }
 
 /** El pulso pertenece a Reportes; no se consulta ni se anuncia mientras ese módulo no exista para el portal. */
+/**
+ * El Pulso **no** se le muestra a la empresa atendida, aunque tenga Informes.
+ *
+ * Decidido el 2026-11-06: el informe mensual entero sí, el Pulso todavía no. No es lo mismo. El
+ * Pulso está acotado a la empresa —`client_id = ?` en los siete agregados— así que no muestra
+ * datos de otra, pero lo que mide no son sus resultados: es el cumplimiento interno de la agencia
+ * sobre esa cuenta, leído de `account_cycles` —si se cerró la grilla, si se cerró la producción,
+ * si el informe del mes está publicado, cuántas reuniones semanales quedan pendientes— y además
+ * entrega acciones con `owner: 'team'`.
+ *
+ * Un cliente que ve ese tablero en rojo antes de que se le explique empieza la reunión
+ * preguntando por el atraso y no por sus resultados. Está anotado como C7 en
+ * `auditoria-main/14-DECISIONES-DEL-DUENO.md`, con las dos salidas posibles.
+ */
 export function isPortalPulseVisible(user: User | null): boolean {
+  if (user?.role === 'client') return false;
   return isModuleInPhaseScope('reports', user?.moduleLifecycle, user?.role)
     && user?.features?.reports === true
     && (user?.permissions?.reports ?? 'none') !== 'none';

@@ -22,6 +22,17 @@ interface DatosLegales {
   encargo?: { version: string | null; aceptadoEn: string | null; aceptadoPor: string | null; vigente: boolean; versionVigente: string };
 }
 
+interface HistorialLegal {
+  versions: Array<{ id: string; documentType: string; versionNumber: number; status: string; content: Record<string, unknown> | string; changeSummary?: string | null; createdAt: string; effectiveFrom: string }>;
+  acceptances: Array<{ id: string; documentType: string; documentVersion: string; actorName?: string | null; acceptedAt: string }>;
+  activations: Array<{ id: string; action: string; reason?: string | null; createdAt: string }>;
+}
+
+function rutaHistorialLegal(ruta: string): string {
+  const [path, query] = ruta.split('?');
+  return `${path}/history${query ? `?${query}` : ''}`;
+}
+
 const vacio = { legalName: '', taxId: '', privacyEmail: '', privacyUrl: '', termsUrl: '', legalMode: 'enlace' as 'enlace' | 'texto', privacyText: '', termsText: '' };
 
 /**
@@ -42,14 +53,18 @@ export function datosLegalesCompletos(datos: DatosLegales | undefined): { comple
  * portal (la empresa edita los suyos); con `clientId` es el mismo formulario abierto por el equipo
  * para completarlos a pedido de la empresa.
  */
-export function ClientLegalData({ clientId, embebido = false, onGuardado, capacidades }: { clientId?: string; embebido?: boolean; onGuardado?: () => void; capacidades?: { reservations?: boolean; surveys?: boolean } } = {}) {
+export function ClientLegalData({ clientId, embebido = false, onGuardado, capacidades }: { clientId?: string; embebido?: boolean; onGuardado?: () => void; capacidades?: { reservations?: boolean; surveys?: boolean; legalGovernance?: boolean } } = {}) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const ruta = rutaDatosLegales(capacidades ?? user?.capabilities, clientId);
   const { data, isLoading, error } = useQuery({ queryKey: ['company-legal', clientId ?? 'propia'], queryFn: () => api.get<DatosLegales>(ruta) });
+  const { data: historial } = useQuery({ queryKey: ['company-legal-history', clientId ?? 'propia'], queryFn: () => api.get<HistorialLegal>(rutaHistorialLegal(ruta)) });
   const [form, setForm] = useState(vacio);
   const [guardado, setGuardado] = useState(false);
   const [aceptaEncargo, setAceptaEncargo] = useState(false);
+  const [changeSummary, setChangeSummary] = useState('');
+  const [ultimoGuardado, setUltimoGuardado] = useState<'draft' | 'published' | null>(null);
+  const [comparando, setComparando] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data) return;
@@ -57,10 +72,21 @@ export function ClientLegalData({ clientId, embebido = false, onGuardado, capaci
   }, [data]);
 
   const guardar = useMutation({
-    mutationFn: () => api.put(ruta, { ...form, ...(aceptaEncargo ? { aceptaEncargo: true } : {}) }),
-    onSuccess: () => { setGuardado(true); queryClient.invalidateQueries({ queryKey: ['company-legal'] }); onGuardado?.(); },
+    mutationFn: (publish: boolean) => api.put(ruta, { ...form, publish, changeSummary: changeSummary.trim() || undefined, ...(aceptaEncargo && publish ? { aceptaEncargo: true } : {}) }),
+    onSuccess: (_, publish) => { setGuardado(true); setUltimoGuardado(publish ? 'published' : 'draft'); setChangeSummary(''); if (publish) setAceptaEncargo(false); queryClient.invalidateQueries({ queryKey: ['company-legal'] }); queryClient.invalidateQueries({ queryKey: ['company-legal-history'] }); onGuardado?.(); },
   });
   const cambiar = (campo: keyof typeof vacio, valor: string) => { setGuardado(false); setForm({ ...form, [campo]: valor }); };
+  const contenidoDe = (item: HistorialLegal['versions'][number]) => typeof item.content === 'string' ? JSON.parse(item.content) as Record<string, unknown> : item.content;
+  const continuarBorrador = (item: HistorialLegal['versions'][number]) => {
+    const contenido = contenidoDe(item);
+    setForm((actual) => item.documentType === 'identity'
+      ? { ...actual, legalName: String(contenido.legalName ?? ''), taxId: String(contenido.taxId ?? ''), privacyEmail: String(contenido.privacyEmail ?? '') }
+      : item.documentType === 'privacy'
+        ? { ...actual, legalMode: contenido.mode === 'texto' ? 'texto' : 'enlace', privacyUrl: String(contenido.url ?? ''), privacyText: String(contenido.text ?? '') }
+        : { ...actual, legalMode: contenido.mode === 'texto' ? 'texto' : 'enlace', termsUrl: String(contenido.url ?? ''), termsText: String(contenido.text ?? '') });
+    setChangeSummary(item.changeSummary ?? 'Continuación de borrador');
+    setGuardado(false);
+  };
   const faltan = faltantesDeIdentidadLegal({ razonSocial: form.legalName, rut: form.taxId, correo: form.privacyEmail });
   const encargo = data?.encargo;
 
@@ -68,7 +94,7 @@ export function ClientLegalData({ clientId, embebido = false, onGuardado, capaci
   if (error) return <div className="alert alert-error" role="alert">{(error as Error).message}</div>;
 
   const formulario = (
-    <form className={`card datos-legales-form${embebido ? ' is-embebido' : ''}`} onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); guardar.mutate(); }}>
+    <form className={`card datos-legales-form${embebido ? ' is-embebido' : ''}`} onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); guardar.mutate(true); }}>
       {embebido && <p className="datos-legales-nota">Estás completando los datos a pedido de la empresa. Queda registrado quién hizo el cambio.</p>}
       <div className="datos-legales-fila">
         <label>Razón social<input className="input" value={form.legalName} onChange={(e) => cambiar('legalName', e.target.value)} placeholder="Empresa SpA" /></label>
@@ -107,11 +133,22 @@ export function ClientLegalData({ clientId, embebido = false, onGuardado, capaci
             : <label><input type="checkbox" checked={aceptaEncargo} onChange={(e) => { setGuardado(false); setAceptaEncargo(e.target.checked); }} /> <span>{encargo?.version ? 'Hay una versión nueva del contrato. ' : ''}Acepto el <a href={rutaDocumentoLegal('encargo')} target="_blank" rel="noopener">contrato de encargo de tratamiento de datos</a> en nombre de la empresa. Queda registrado quién lo acepta y cuándo.</span></label>}
       </fieldset>
 
+      <label>Resumen del cambio <small>(queda en el historial)</small><input className="input" maxLength={500} value={changeSummary} onChange={(e) => { setGuardado(false); setChangeSummary(e.target.value); }} placeholder="Ej. Actualización del correo para ejercer derechos" /></label>
+
       <div className="datos-legales-acciones">
         {guardar.isError && <span className="text-danger">No se pudo guardar. Revisa que los enlaces empiecen con https:// y el correo sea válido.</span>}
-        {guardado && <span className="text-success">Guardado. Se usa desde la próxima reserva o respuesta.</span>}
-        <button type="submit" className="btn btn-primary" disabled={guardar.isPending}>{guardar.isPending ? 'Guardando...' : 'Guardar'}</button>
+        {guardado && <span className="text-success">{ultimoGuardado === 'draft' ? 'Borrador versionado. Lo publicado no cambió.' : 'Nueva versión publicada. Se usa desde la próxima reserva o respuesta.'}</span>}
+        <button type="button" className="btn btn-outline" disabled={guardar.isPending} onClick={() => guardar.mutate(false)}>Guardar borrador</button>
+        <button type="submit" className="btn btn-primary" disabled={guardar.isPending || faltan.length > 0}>{guardar.isPending ? 'Guardando...' : 'Publicar versión'}</button>
       </div>
+      {(historial?.versions.length || historial?.acceptances.length || historial?.activations.length) ? <details className="datos-legales-historial">
+        <summary>Ver historial legal ({historial.versions.length + historial.acceptances.length + historial.activations.length})</summary>
+        <div className="datos-legales-historial-lista">
+          {historial.versions.map((item) => { const anterior = historial.versions.find((otra) => otra.documentType === item.documentType && Number(otra.versionNumber) < Number(item.versionNumber)); return <details key={item.id}><summary><strong>{item.documentType === 'identity' ? 'Identidad' : item.documentType === 'privacy' ? 'Privacidad' : 'Condiciones'} v{item.versionNumber}</strong> · {item.status === 'draft' ? 'Borrador' : item.status === 'published' ? 'Vigente' : 'Reemplazada'} · {new Date(item.createdAt).toLocaleString('es-CL')}{item.changeSummary ? ` · ${item.changeSummary}` : ''}</summary>{comparando === item.id && anterior ? <div className="datos-legales-fila"><div><strong>Versión {anterior.versionNumber}</strong><pre>{JSON.stringify(contenidoDe(anterior), null, 2)}</pre></div><div><strong>Versión {item.versionNumber}</strong><pre>{JSON.stringify(contenidoDe(item), null, 2)}</pre></div></div> : <pre>{JSON.stringify(contenidoDe(item), null, 2)}</pre>}<div className="datos-legales-acciones">{anterior && <button type="button" className="btn btn-outline btn-sm" onClick={() => setComparando(comparando === item.id ? null : item.id)}>{comparando === item.id ? 'Cerrar comparación' : `Comparar con v${anterior.versionNumber}`}</button>}{item.status === 'draft' && <button type="button" className="btn btn-outline btn-sm" onClick={() => continuarBorrador(item)}>Continuar este borrador</button>}</div></details>; })}
+          {historial.acceptances.map((item) => <p key={item.id}><strong>Encargo {item.documentVersion} aceptado</strong>{item.actorName ? ` por ${item.actorName}` : ''} · {new Date(item.acceptedAt).toLocaleString('es-CL')}</p>)}
+          {historial.activations.map((item) => <p key={item.id}><strong>Gobierno legal {item.action === 'activated' ? 'activado' : 'desactivado'}</strong> · {new Date(item.createdAt).toLocaleString('es-CL')}{item.reason ? ` · ${item.reason}` : ''}</p>)}
+        </div>
+      </details> : null}
     </form>
   );
 

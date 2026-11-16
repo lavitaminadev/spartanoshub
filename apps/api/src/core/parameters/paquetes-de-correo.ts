@@ -97,4 +97,37 @@ export class PaquetesDeCorreo {
       return [];
     }
   }
+
+  /**
+   * Apaga explícitamente el paquete y conserva cada valor anterior como una versión cerrada.
+   * Se usa al retirar la capacidad de correo, no al apagar Reservas: ambos interruptores son
+   * deliberadamente independientes.
+   */
+  async apagarPara(clientId: string, servicios: Array<'reservations' | 'crm' | 'surveys'>): Promise<string[]> {
+    return this.fijarPara(clientId, servicios, false);
+  }
+
+  /** Reactivar desde la capacidad sí reemplaza la decisión anterior de paquete apagado. */
+  async activarPara(clientId: string, servicios: Array<'reservations' | 'crm' | 'surveys'>): Promise<string[]> {
+    return this.fijarPara(clientId, servicios, true);
+  }
+
+  private async fijarPara(clientId: string, servicios: Array<'reservations' | 'crm' | 'surveys'>, enabled: boolean): Promise<string[]> {
+    const claves = servicios.flatMap((servicio) => PAQUETES_DE_CORREO[servicio] ?? []);
+    if (claves.length === 0) return [];
+    const definiciones = await this.definiciones.find({ where: { key: In(claves) } });
+    if (definiciones.length === 0) return [];
+    const ahora = new Date();
+    return this.valores.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(ParameterValue);
+      const activas = await repo.find({ where: { definitionId: In(definiciones.map((item) => item.id)), scopeType: 'client', scopeId: clientId, validTo: IsNull() } });
+      for (const activa of activas) activa.validTo = ahora;
+      if (activas.length) await repo.save(activas);
+      await repo.save(definiciones.map((definicion) => {
+        const anterior = activas.find((item) => item.definitionId === definicion.id);
+        return repo.create({ definitionId: definicion.id, scopeType: 'client', scopeId: clientId, valueJson: { value: enabled }, version: (anterior?.version ?? 0) + 1, validFrom: ahora });
+      }));
+      return definiciones.map((item) => item.key);
+    });
+  }
 }

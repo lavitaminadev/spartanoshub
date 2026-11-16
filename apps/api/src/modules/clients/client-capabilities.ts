@@ -26,12 +26,15 @@ export const CAPACIDADES_DE_MODULO = [
 
 export const CLIENT_CAPABILITY_KEYS = [
   'reservations',
+  'reservationEmails',
+  'reservationConsentInsights',
   'crm',
   'surveys',
   'marketing',
   'metaConversions',
   'googleConversions',
   'budgetVisibility',
+  'legalGovernance',
   'detalleDeContactoEnAvisos',
   ...CAPACIDADES_DE_MODULO,
 ] as const;
@@ -41,6 +44,12 @@ export type ClientCapabilities = Record<ClientCapabilityKey, boolean>;
 
 export const DEFAULT_CLIENT_CAPABILITIES: ClientCapabilities = {
   reservations: true,
+  /** Correos transaccionales de Reservas; se contratan y activan sin encender otras comunicaciones. */
+  // Ausente en cuentas históricas significa encendido para conservar sus confirmaciones actuales.
+  // Las cuentas nuevas lo escriben explícitamente en falso desde el alta.
+  reservationEmails: true,
+  /** Resumen agregado de permisos originados en Reservas; nunca expone direcciones. */
+  reservationConsentInsights: false,
   crm: true,
   /**
    * Encuestas de clientes de esta empresa. Encendida como CRM y Reservas: las empresas que ya
@@ -72,6 +81,8 @@ export const DEFAULT_CLIENT_CAPABILITIES: ClientCapabilities = {
    * ser un acto explícito sobre una cuenta concreta y no un efecto secundario de crearla.
    */
   budgetVisibility: false,
+  /** Gobierno y edición versionada de documentos legales. Se habilita empresa por empresa. */
+  legalGovernance: false,
   /**
    * Si el aviso de solicitud de grupo de esta empresa lleva el teléfono y el correo de quien
    * pidió el evento, para los destinatarios que son cuentas con nivel `directo`.

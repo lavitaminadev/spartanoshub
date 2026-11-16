@@ -36,8 +36,10 @@ const pagination_dto_1 = require("../../shared/dto/pagination.dto");
 const module_scope_decorator_1 = require("../../core/authorization/module-scope.decorator");
 const detalle_de_contacto_en_avisos_1 = require("./detalle-de-contacto-en-avisos");
 const requires_recent_auth_decorator_1 = require("../../core/auth/requires-recent-auth.decorator");
+const audit_service_1 = require("../../core/audit/audit.service");
+const node_crypto_1 = require("node:crypto");
 let ClientsController = class ClientsController {
-    constructor(repo, users, accountAccess, overviewService, createClient, listClients, getClient, paquetes, perfiles, detalleDeContacto) {
+    constructor(repo, users, accountAccess, overviewService, createClient, listClients, getClient, paquetes, perfiles, detalleDeContacto, audit) {
         this.repo = repo;
         this.users = users;
         this.accountAccess = accountAccess;
@@ -48,9 +50,10 @@ let ClientsController = class ClientsController {
         this.paquetes = paquetes;
         this.perfiles = perfiles;
         this.detalleDeContacto = detalleDeContacto;
+        this.audit = audit;
     }
     async create(dto, req) {
-        const capabilities = { ...(dto.capabilities ?? {}), detalleDeContactoEnAvisos: false };
+        const capabilities = { ...(dto.capabilities ?? {}), reservationEmails: false, reservationConsentInsights: false, legalGovernance: false, detalleDeContactoEnAvisos: false };
         const creada = await this.createClient.execute({ ...dto, capabilities, organizationId: req.organizationId });
         await this.perfiles.sembrarSugeridos(req.organizationId, creada.id);
         return creada;
@@ -97,6 +100,10 @@ let ClientsController = class ClientsController {
         const antes = (0, client_capabilities_1.normalizeClientCapabilities)(client.capabilities);
         const { aceptacionDetalleDeContacto, ...cambios } = dto;
         if (cambios.capabilities) {
+            const gobiernoLegalPedido = cambios.capabilities.legalGovernance ?? antes.legalGovernance;
+            if (gobiernoLegalPedido !== antes.legalGovernance && ![user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN].includes(req.user.role)) {
+                throw new common_1.BadRequestException('Sólo dirección comercial o administración pueden activar o desactivar el gobierno legal');
+            }
             const pedida = cambios.capabilities.detalleDeContactoEnAvisos ?? antes.detalleDeContactoEnAvisos;
             cambios.capabilities = { ...cambios.capabilities, detalleDeContactoEnAvisos: pedida };
             if (pedida !== antes.detalleDeContactoEnAvisos) {
@@ -110,11 +117,25 @@ let ClientsController = class ClientsController {
             startedAt: dto.startedAt ? new Date(dto.startedAt) : client.startedAt,
             renewalAt: dto.renewalAt ? new Date(dto.renewalAt) : client.renewalAt,
         });
-        const guardado = await this.repo.save(client);
+        const proyectado = (0, client_capabilities_1.normalizeClientCapabilities)(client.capabilities);
+        const cambiaGobiernoLegal = proyectado.legalGovernance !== antes.legalGovernance;
+        const guardado = cambiaGobiernoLegal
+            ? await this.repo.manager.transaction(async (manager) => {
+                const dentro = await manager.getRepository(client_entity_1.Client).save(client);
+                const accion = proyectado.legalGovernance ? 'activated' : 'disabled';
+                await manager.query('INSERT INTO legal_activation_events (id, organization_id, client_id, action, actor_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [(0, node_crypto_1.randomUUID)(), req.organizationId, client.id, accion, req.user.id, 'Cambio desde la configuración de la empresa', new Date()]);
+                await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'CompanyLegalGovernance', entityId: client.id, action: accion, before: { enabled: antes.legalGovernance }, after: { enabled: proyectado.legalGovernance }, ipAddress: req.ip }, manager);
+                return dentro;
+            })
+            : await this.repo.save(client);
         const despues = (0, client_capabilities_1.normalizeClientCapabilities)(guardado.capabilities);
-        const reciencontratados = ['reservations', 'crm', 'surveys'].filter((servicio) => despues[servicio] && !antes[servicio]);
+        const reciencontratados = ['crm', 'surveys'].filter((servicio) => despues[servicio] && !antes[servicio]);
         if (reciencontratados.length)
             await this.paquetes.encenderPara(guardado.id, [...reciencontratados]);
+        if (despues.reservationEmails && !antes.reservationEmails)
+            await this.paquetes.activarPara(guardado.id, ['reservations']);
+        if (!despues.reservationEmails && antes.reservationEmails)
+            await this.paquetes.apagarPara(guardado.id, ['reservations']);
         const encendidos = ['reservations', 'crm', 'surveys', 'marketing'].filter((modulo) => despues[modulo] && !antes[modulo]);
         if (encendidos.length)
             await this.perfiles.sembrarSugeridos(req.organizationId, guardado.id, [...encendidos]);
@@ -229,5 +250,6 @@ exports.ClientsController = ClientsController = __decorate([
         get_client_use_case_1.GetClientUseCase,
         paquetes_de_correo_1.PaquetesDeCorreo,
         perfiles_service_1.PerfilesService,
-        detalle_de_contacto_en_avisos_1.DetalleDeContactoEnAvisosService])
+        detalle_de_contacto_en_avisos_1.DetalleDeContactoEnAvisosService,
+        audit_service_1.AuditService])
 ], ClientsController);

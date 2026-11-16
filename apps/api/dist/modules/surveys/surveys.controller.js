@@ -80,6 +80,8 @@ let SurveysController = class SurveysController {
             createdAt: survey.createdAt.toISOString(),
             createdBy: survey.createdBy,
             recipients: survey.recipients ?? undefined,
+            recipientSource: survey.recipientSource ?? undefined,
+            recipientBasis: survey.recipientBasis ?? undefined,
             distribution: survey.distribution ?? undefined,
             publicUrl: publicSurveyUrl(survey.id),
             ga4MeasurementId: survey.ga4MeasurementId ?? null,
@@ -163,11 +165,14 @@ let SurveysController = class SurveysController {
     async companyLegal(req, query) {
         return (0, datos_legales_de_empresa_1.leerDatosLegales)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
     }
+    async companyLegalHistory(req, query) {
+        return (0, datos_legales_de_empresa_1.leerHistorialLegal)(this.dataSource, req.organizationId, await this.empresaLegal(req, query.clientId));
+    }
     async saveCompanyLegal(req, query, dto) {
         const empresa = await this.empresaLegal(req, query.clientId);
         await (0, datos_legales_de_empresa_1.asegurarQueAdministraLaEmpresa)(this.permisos, req.organizationId, req.user, empresa);
         const laAceptaLaEmpresa = req.user.role === user_role_enum_1.UserRole.CLIENT;
-        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, req.user.name);
+        return (0, datos_legales_de_empresa_1.guardarDatosLegales)(this.dataSource, this.audit, req.organizationId, empresa, { ...dto, aceptaEncargo: laAceptaLaEmpresa ? dto.aceptaEncargo : undefined }, req.user.id, { actorName: req.user.name, ipAddress: req.ip, userAgent: req.headers['user-agent'] });
     }
     async empresaLegal(req, pedida) {
         const empresa = await (0, datos_legales_de_empresa_1.empresaDeLosDatosLegales)(this.accountAccess, req.organizationId, req.user, pedida);
@@ -194,6 +199,8 @@ let SurveysController = class SurveysController {
             status: 'draft',
             createdBy: req.user.id,
             recipients: dto.recipients ?? null,
+            recipientSource: dto.recipientSource?.trim() || null,
+            recipientBasis: dto.recipientBasis?.trim() || null,
             distribution: dto.distribution ?? null,
             ga4MeasurementId: dto.ga4MeasurementId?.trim() || null,
             anonymous: dto.anonymous === true,
@@ -264,6 +271,10 @@ let SurveysController = class SurveysController {
             survey.status = dto.status;
         if (dto.recipients !== undefined)
             survey.recipients = dto.recipients;
+        if (dto.recipientSource !== undefined)
+            survey.recipientSource = dto.recipientSource.trim() || null;
+        if (dto.recipientBasis !== undefined)
+            survey.recipientBasis = dto.recipientBasis.trim() || null;
         if (dto.distribution !== undefined)
             survey.distribution = dto.distribution;
         if (dto.ga4MeasurementId !== undefined)
@@ -447,6 +458,8 @@ let SurveysController = class SurveysController {
             throw new common_1.BadRequestException('Activa la encuesta antes de enviarla');
         if (!(survey.distribution ?? []).includes('email'))
             throw new common_1.BadRequestException('Esta encuesta no tiene el correo habilitado como canal');
+        if (!survey.recipientSource?.trim() || !survey.recipientBasis?.trim())
+            throw new common_1.BadRequestException('Antes de enviar, indica de dónde provienen los correos y por qué corresponde escribirles');
         const base = publicSurveyUrl(survey.id);
         if (!base)
             throw new common_1.BadRequestException('Falta configurar la dirección pública de la aplicación');
@@ -509,10 +522,20 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], SurveysController.prototype, "companyLegal", null);
 __decorate([
+    (0, common_1.Get)('company-legal/history'),
+    (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'ver'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, datos_legales_de_empresa_1.CompanyLegalScopeDto]),
+    __metadata("design:returntype", Promise)
+], SurveysController.prototype, "companyLegalHistory", null);
+__decorate([
     (0, common_1.Put)('company-legal'),
     (0, requiere_area_decorator_1.RequiereArea)('surveys.editar', 'hacer'),
     (0, requires_permission_decorator_1.RequiresPermission)('surveys', 'view'),
-    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.OPERATIONS_DIRECTOR, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.COMMUNITY_MANAGER, user_role_enum_1.UserRole.CLIENT),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.CLIENT),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)()),
     __param(2, (0, common_1.Body)()),

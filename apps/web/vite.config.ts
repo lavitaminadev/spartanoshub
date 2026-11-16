@@ -26,6 +26,15 @@ export default defineConfig(({ command, mode }) => {
    */
   const esModoVisual = mode === 'visual' || process.env.VITE_VISUAL === '1'
 
+  /*
+   * La maqueta compartible: el modo visual compilado para abrirse desde cualquier sitio.
+   *
+   * Se sirve bajo una ruta que no es la raíz, así que los activos van en rutas relativas, y no
+   * lleva service worker: una maqueta que se instala como aplicación y cachea su propia versión
+   * deja a quien revisa mirando una copia vieja sin saberlo.
+   */
+  const esMaquetaCompartible = esModoVisual && isBuild
+
   if (isBuild) {
     process.env.NODE_ENV = 'production'
     process.env.VITE_API_URL = process.env.VITE_API_URL || PRODUCTION_API_URL
@@ -33,6 +42,7 @@ export default defineConfig(({ command, mode }) => {
   }
 
   return {
+    base: esMaquetaCompartible ? './' : '/',
     envDir: '../../',
     // `@espartanos/shared` se emite en CommonJS para que la API lo consuma. El pre-bundling es
     // necesario para que Vite resuelva sus exportaciones nombradas en tiempo de ejecucion.
@@ -51,6 +61,8 @@ export default defineConfig(({ command, mode }) => {
       }],
     },
     plugins: [react(), VitePWA({
+      /* La maqueta no instala service worker; el modulo virtual sigue resolviendo. */
+      disable: esMaquetaCompartible,
       registerType: 'autoUpdate',
       workbox: {
         /*

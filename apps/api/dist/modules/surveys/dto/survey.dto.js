@@ -185,6 +185,18 @@ __decorate([
 ], CreateSurveyDto.prototype, "recipients", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], CreateSurveyDto.prototype, "recipientSource", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], CreateSurveyDto.prototype, "recipientBasis", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.IsIn)(CHANNELS, { each: true }),
     __metadata("design:type", Array)
@@ -256,6 +268,18 @@ __decorate([
     (0, class_validator_1.ArrayMaxSize)(2000),
     __metadata("design:type", Array)
 ], UpdateSurveyDto.prototype, "recipients", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], UpdateSurveyDto.prototype, "recipientSource", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], UpdateSurveyDto.prototype, "recipientBasis", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
