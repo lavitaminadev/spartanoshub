@@ -12,10 +12,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
 import { EmptyState } from '../../shared/EmptyState';
 import { triggerToast } from '../../shared/toast-events';
-import { EditorDeRegla, comoSeLee, CONDICION_NUEVA } from './EditorDeRegla';
+import { EditorDeRegla } from './EditorDeRegla';
 import { useEtapasOcultas, useStageLabels } from './use-stage-labels';
 import { STAGES, STAGE_LABEL } from './stage-labels';
-import type { Acciones, Condicion, Pregunta } from './EditorDeRegla';
+import { comoSeLee, CONDICION_NUEVA, type Acciones, type Condicion, type Pregunta } from './editor-de-regla.model';
 import './reglas-de-calificacion.css';
 
 interface Regla {

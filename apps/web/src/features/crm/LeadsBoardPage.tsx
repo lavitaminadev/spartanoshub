@@ -26,7 +26,7 @@ import { api } from '../../core/api';
 import { triggerToast } from '../../shared/toast-events';
 import { KanbanBoard, type KanbanColumn } from '../../shared/KanbanBoard';
 import { FilterBar } from '../../shared/FilterBar';
-import { useDefinicionesDeCampos } from './CamposPropiosEnFicha';
+import { useDefinicionesDeCampos } from './campos-propios';
 import { useUrlFilters } from '../../shared/use-url-filters';
 import { VistasGuardadas } from '../../shared/VistasGuardadas';
 import { LoadingSpinner } from '../../shared/LoadingSpinner';

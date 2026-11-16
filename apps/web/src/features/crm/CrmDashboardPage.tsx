@@ -73,6 +73,8 @@ interface Panel {
   };
 }
 
+const CONTEOS_VACIOS: Conteo[] = [];
+
 const VENTANAS = [
   { value: '7', label: 'Últimos 7 días' },
   { value: '30', label: 'Últimos 30 días' },
@@ -202,8 +204,8 @@ export function CrmDashboardPage(): JSX.Element {
     leads: 0, calificados: 0, conVisita: 0, ventas: 0,
     montoVendido: 0, pipelineAbierto: 0, ticketPromedio: 0, estancados: 0, cerradosSinSaber: 0,
   };
-  const porDia = data?.porDia ?? [];
-  const porEtapa = data?.porEtapa ?? [];
+  const porDia = data?.porDia ?? CONTEOS_VACIOS;
+  const porEtapa = data?.porEtapa ?? CONTEOS_VACIOS;
   const porFuente = data?.porFuente ?? [];
   const motivos = data?.motivosDeCierre ?? [];
   const ventana = data?.days ?? Number(dias);

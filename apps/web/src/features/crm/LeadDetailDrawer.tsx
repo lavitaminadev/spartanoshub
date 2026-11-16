@@ -15,7 +15,8 @@
 
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { ContactoDelLead } from './ContactoDelLead';
-import { CamposPropiosEnFicha, hayValoresInvalidos, useDefinicionesDeCampos, type ValoresEnEdicion } from './CamposPropiosEnFicha';
+import { CamposPropiosEnFicha } from './CamposPropiosEnFicha';
+import { hayValoresInvalidos, useDefinicionesDeCampos, type ValoresEnEdicion } from './campos-propios';
 import { CotizacionesDelLead } from './CotizacionesDelLead';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LEAD_DISCARD_REASONS, LEAD_SOURCES, etiquetaDeFuente } from '@espartanos/shared';

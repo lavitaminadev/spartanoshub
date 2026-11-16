@@ -101,8 +101,8 @@ let ClientsController = class ClientsController {
         const { aceptacionDetalleDeContacto, ...cambios } = dto;
         if (cambios.capabilities) {
             const gobiernoLegalPedido = cambios.capabilities.legalGovernance ?? antes.legalGovernance;
-            if (gobiernoLegalPedido !== antes.legalGovernance && ![user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.ADMIN].includes(req.user.role)) {
-                throw new common_1.BadRequestException('Sólo dirección comercial o administración pueden activar o desactivar el gobierno legal');
+            if (gobiernoLegalPedido !== antes.legalGovernance && ![user_role_enum_1.UserRole.COMMERCIAL_DIRECTOR, user_role_enum_1.UserRole.DEV].includes(req.user.role)) {
+                throw new common_1.BadRequestException('Sólo Dirección Comercial o Desarrollo pueden activar o desactivar el gobierno legal');
             }
             const pedida = cambios.capabilities.detalleDeContactoEnAvisos ?? antes.detalleDeContactoEnAvisos;
             cambios.capabilities = { ...cambios.capabilities, detalleDeContactoEnAvisos: pedida };

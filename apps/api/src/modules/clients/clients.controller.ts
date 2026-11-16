@@ -136,8 +136,8 @@ export class ClientsController {
     const { aceptacionDetalleDeContacto, ...cambios } = dto;
     if (cambios.capabilities) {
       const gobiernoLegalPedido = cambios.capabilities.legalGovernance ?? antes.legalGovernance;
-      if (gobiernoLegalPedido !== antes.legalGovernance && ![UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN].includes(req.user.role as UserRole)) {
-        throw new BadRequestException('Sólo dirección comercial o administración pueden activar o desactivar el gobierno legal');
+      if (gobiernoLegalPedido !== antes.legalGovernance && ![UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV].includes(req.user.role as UserRole)) {
+        throw new BadRequestException('Sólo Dirección Comercial o Desarrollo pueden activar o desactivar el gobierno legal');
       }
       /*
        * Un formulario que no menciona esta capacidad no la apaga: omitirla significa «no la toco».

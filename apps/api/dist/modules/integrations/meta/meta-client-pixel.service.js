@@ -260,7 +260,6 @@ let MetaClientPixelService = class MetaClientPixelService {
         if (assignedInLegacyMap || assignedInTable) {
             throw new common_1.BadRequestException('Este Pixel ya está asignado a otra empresa de Reservas. Cada empresa debe usar su propio Pixel.');
         }
-        const existing = this.records(integration)[clientId];
         const token = accessToken?.trim() || this.tokenDePixel(integration, pixelId);
         if (!token)
             throw new common_1.BadRequestException('Se requiere un token CAPI para este cliente');

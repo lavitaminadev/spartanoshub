@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api';
-import { CamposPropiosEnFicha, hayValoresInvalidos, useDefinicionesDeCampos, type ValoresEnEdicion } from './CamposPropiosEnFicha';
+import { CamposPropiosEnFicha } from './CamposPropiosEnFicha';
+import { hayValoresInvalidos, useDefinicionesDeCampos, type ValoresEnEdicion } from './campos-propios';
 
 /**
  * @fileoverview El contacto del lead: la misma persona, vista desde la empresa.

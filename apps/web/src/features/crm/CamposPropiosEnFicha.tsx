@@ -10,26 +10,9 @@
  */
 
 import { type JSX } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { normalizarValor, type CustomFieldDefinition, type CustomFieldEntity, type CustomFieldValue } from '@espartanos/shared';
-import { api } from '../../core/api';
+import { useDefinicionesDeCampos, type ValoresEnEdicion } from './campos-propios';
 import './campos-propios-ficha.css';
-
-export type ValoresEnEdicion = Record<string, unknown>;
-
-/**
- * Las definiciones de un tipo de registro, archivadas incluidas para mostrar lo guardado.
- *
- * @param clientId - Empresa del registro que se está mirando. Trae los campos de todas las
- *   empresas más los suyos: los de otra empresa llenarían la ficha de datos que ahí no dicen nada.
- */
-export function useDefinicionesDeCampos(entidad: CustomFieldEntity, clientId?: string) {
-  return useQuery<CustomFieldDefinition[]>({
-    queryKey: ['crm-fields', entidad, true, clientId ?? null],
-    queryFn: () => api.get(`/crm/fields?entity=${entidad}&archivados=true${clientId ? `&clientId=${encodeURIComponent(clientId)}` : ''}`),
-    staleTime: 60_000,
-  });
-}
 
 function textoDe(valor: unknown): string {
   if (Array.isArray(valor)) return valor.join(', ');
@@ -133,14 +116,4 @@ export function CamposPropiosEnFicha({ entidad, valores, onCambiar, deshabilitad
       ) : null}
     </fieldset>
   );
-}
-
-/** Si algún campo activo tiene un valor inválido. Los obligatorios vacíos los exige el servidor. */
-export function hayValoresInvalidos(definiciones: CustomFieldDefinition[], valores: ValoresEnEdicion): boolean {
-  return definiciones.some((def) => {
-    if (def.archivedAt) return false;
-    const valor = valores[def.key];
-    if (valor === undefined || valor === null || valor === '' || (Array.isArray(valor) && valor.length === 0)) return false;
-    return !normalizarValor(def, valor).ok;
-  });
 }
