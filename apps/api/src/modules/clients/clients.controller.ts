@@ -22,6 +22,8 @@ import { PaginationDto } from '../../shared/dto/pagination.dto';
 import { ModuleScope } from '../../core/authorization/module-scope.decorator';
 import { DetalleDeContactoEnAvisosService } from './detalle-de-contacto-en-avisos';
 import { RequiresRecentAuth } from '../../core/auth/requires-recent-auth.decorator';
+import { AuditService } from '../../core/audit/audit.service';
+import { randomUUID } from 'node:crypto';
 
 @ApiTags('Clientes')
 @Controller('clients')
@@ -41,6 +43,7 @@ export class ClientsController {
     private readonly paquetes: PaquetesDeCorreo,
     private readonly perfiles: PerfilesService,
     private readonly detalleDeContacto: DetalleDeContactoEnAvisosService,
+    private readonly audit: AuditService,
   ) {}
 
   @Post()
@@ -48,7 +51,7 @@ export class ClientsController {
   @ApiOperation({ summary: 'Crear un nuevo cliente' })
   async create(@Body() dto: CreateClientDto, @Req() req: AuthenticatedRequest) {
     // Nace apagada siempre: encenderla exige aceptar un texto, y eso se hace sobre una cuenta que ya existe.
-    const capabilities = { ...(dto.capabilities ?? {}), detalleDeContactoEnAvisos: false };
+    const capabilities = { ...(dto.capabilities ?? {}), reservationEmails: false, reservationConsentInsights: false, legalGovernance: false, detalleDeContactoEnAvisos: false };
     const creada = await this.createClient.execute({ ...dto, capabilities, organizationId: req.organizationId });
     // Los módulos con los que nace la empresa también traen sus perfiles sugeridos.
     await this.perfiles.sembrarSugeridos(req.organizationId, creada.id);
@@ -132,6 +135,10 @@ export class ClientsController {
     const antes = normalizeClientCapabilities(client.capabilities);
     const { aceptacionDetalleDeContacto, ...cambios } = dto;
     if (cambios.capabilities) {
+      const gobiernoLegalPedido = cambios.capabilities.legalGovernance ?? antes.legalGovernance;
+      if (gobiernoLegalPedido !== antes.legalGovernance && ![UserRole.COMMERCIAL_DIRECTOR, UserRole.ADMIN].includes(req.user.role as UserRole)) {
+        throw new BadRequestException('Sólo dirección comercial o administración pueden activar o desactivar el gobierno legal');
+      }
       /*
        * Un formulario que no menciona esta capacidad no la apaga: omitirla significa «no la toco».
        * Sólo cambia cuando viene escrita, y entonces pasa por la comprobación de cargo y aceptación.
@@ -149,11 +156,27 @@ export class ClientsController {
       startedAt: dto.startedAt ? new Date(dto.startedAt) : client.startedAt,
       renewalAt: dto.renewalAt ? new Date(dto.renewalAt) : client.renewalAt,
     });
-    const guardado = await this.repo.save(client);
+    const proyectado = normalizeClientCapabilities(client.capabilities);
+    const cambiaGobiernoLegal = proyectado.legalGovernance !== antes.legalGovernance;
+    const guardado = cambiaGobiernoLegal
+      ? await this.repo.manager.transaction(async (manager) => {
+        const dentro = await manager.getRepository(Client).save(client);
+        const accion = proyectado.legalGovernance ? 'activated' : 'disabled';
+        await manager.query(
+          'INSERT INTO legal_activation_events (id, organization_id, client_id, action, actor_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [randomUUID(), req.organizationId, client.id, accion, req.user.id, 'Cambio desde la configuración de la empresa', new Date()],
+        );
+        await this.audit.log({ organizationId: req.organizationId, actorId: req.user.id, entityType: 'CompanyLegalGovernance', entityId: client.id, action: accion, before: { enabled: antes.legalGovernance }, after: { enabled: proyectado.legalGovernance }, ipAddress: req.ip }, manager);
+        return dentro;
+      })
+      : await this.repo.save(client);
 
     const despues = normalizeClientCapabilities(guardado.capabilities);
-    const reciencontratados = (['reservations', 'crm', 'surveys'] as const).filter((servicio) => despues[servicio] && !antes[servicio]);
+    // Reservas y sus correos son decisiones independientes: contratar agenda no envía nada por sí solo.
+    const reciencontratados = (['crm', 'surveys'] as const).filter((servicio) => despues[servicio] && !antes[servicio]);
     if (reciencontratados.length) await this.paquetes.encenderPara(guardado.id, [...reciencontratados]);
+    if (despues.reservationEmails && !antes.reservationEmails) await this.paquetes.activarPara(guardado.id, ['reservations']);
+    if (!despues.reservationEmails && antes.reservationEmails) await this.paquetes.apagarPara(guardado.id, ['reservations']);
     // Encender un módulo copia sus perfiles sugeridos; desde ahí son de la empresa y no se vuelven a tocar.
     const encendidos = (['reservations', 'crm', 'surveys', 'marketing'] as const).filter((modulo) => despues[modulo] && !antes[modulo]);
     if (encendidos.length) await this.perfiles.sembrarSugeridos(req.organizationId, guardado.id, [...encendidos]);

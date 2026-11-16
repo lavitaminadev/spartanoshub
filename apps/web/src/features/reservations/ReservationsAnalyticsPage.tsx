@@ -3,6 +3,7 @@ import { ReservationResults } from '../dashboard/ReservationResults';
 import { MotivosDePerdida } from './MotivosDePerdida';
 import { NoShowPorDia } from './NoShowPorDia';
 import { useEmpresaActiva } from '../../shared/empresa-activa';
+import { ConsentimientosDeReservas } from './ConsentimientosDeReservas';
 
 /**
  * Resultados de reservas, la pantalla del menú.
@@ -40,5 +41,6 @@ export function ReservationsAnalyticsPage({ clientId }: { clientId?: string } = 
     <ReservationResults clientId={elegida || undefined} headingLevel={1} detalle />
     <MotivosDePerdida clientId={elegida || undefined} />
     <NoShowPorDia clientId={elegida || undefined} />
+    <ConsentimientosDeReservas clientId={elegida || undefined} />
   </>;
 }

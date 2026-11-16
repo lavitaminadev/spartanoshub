@@ -72,6 +72,8 @@ interface WizardState {
   nuevasVersiones: string[];
   distribution: SurveyDistributionChannel[];
   recipients: string;
+  recipientSource: string;
+  recipientBasis: string;
   primaryColor: string;
   accentColor: string;
   backgroundColor: string;
@@ -105,6 +107,8 @@ function blankState(): WizardState {
     nuevasVersiones: [],
     distribution: [],
     recipients: '',
+    recipientSource: '',
+    recipientBasis: '',
     primaryColor: '#0fb9b1',
     accentColor: '#ec0b61',
     backgroundColor: '#f6f4f5',
@@ -139,6 +143,8 @@ function stateFromSurvey(survey: Survey): WizardState {
     questions: survey.questions.length ? survey.questions : [blankQuestion()],
     distribution: survey.distribution ?? [],
     recipients: (survey.recipients ?? []).join(', '),
+    recipientSource: survey.recipientSource ?? '',
+    recipientBasis: survey.recipientBasis ?? '',
     primaryColor: design.primaryColor ?? base.primaryColor,
     accentColor: design.accentColor ?? base.accentColor,
     backgroundColor: design.backgroundColor ?? base.backgroundColor,
@@ -588,9 +594,10 @@ function PasoDiseno({ state, setState }: { state: WizardState; setState: SetStat
 }
 
 /** Paso 4: canal de distribución y, si aplica, destinatarios explícitos. */
-function DistributionSelector({ selected, recipients, onToggleChannel, onRecipientsChange, ga4, onGa4Change }: {
+function DistributionSelector({ selected, recipients, recipientSource, recipientBasis, onToggleChannel, onRecipientsChange, onEvidenceChange, ga4, onGa4Change }: {
   selected: SurveyDistributionChannel[]; recipients: string;
   onToggleChannel: (channel: SurveyDistributionChannel) => void; onRecipientsChange: (value: string) => void;
+  recipientSource: string; recipientBasis: string; onEvidenceChange: (values: { recipientSource?: string; recipientBasis?: string }) => void;
   ga4: string; onGa4Change: (value: string) => void;
 }) {
   const ga4Valido = !ga4 || /^G-[A-Z0-9]{4,20}$/i.test(ga4);
@@ -606,9 +613,9 @@ function DistributionSelector({ selected, recipients, onToggleChannel, onRecipie
         ))}
       </div>
       {selected.includes('email') && (
-        <label>Destinatarios (correos separados por coma)
+        <><label>Destinatarios (correos separados por coma)
           <textarea className="input" rows={3} value={recipients} onChange={(event) => onRecipientsChange(event.target.value)} placeholder="ana@cliente.cl, juan@cliente.cl" />
-        </label>
+        </label><label>Procedencia de la lista<input className="input" maxLength={255} required value={recipientSource} onChange={(event) => onEvidenceChange({ recipientSource: event.target.value })} placeholder="Ej. Reservas asistidas de octubre" /></label><label>Por qué corresponde enviarles esta encuesta<textarea className="input" rows={2} maxLength={500} required value={recipientBasis} onChange={(event) => onEvidenceChange({ recipientBasis: event.target.value })} placeholder="Ej. Seguimiento solicitado después de la visita; sin contenido promocional" /></label></>
       )}
       <section className="survey-medicion">
         <header><strong>Medición</strong><small>Cada canal comparte su propio enlace con origen (WhatsApp, Instagram, QR…). Los resultados cuentan de dónde llegó cada respuesta, con o sin Google Analytics.</small></header>
@@ -713,7 +720,8 @@ export function CreateSurveyWizard(): JSX.Element {
       && state.questions.every((question) => question.question.trim() && (question.type !== 'multiple-choice' || (question.options ?? []).filter((option) => option.trim()).length >= 2))
       && !reglasIncompletas,
     true,
-    !state.ga4MeasurementId || /^G-[A-Z0-9]{4,20}$/i.test(state.ga4MeasurementId),
+    (!state.ga4MeasurementId || /^G-[A-Z0-9]{4,20}$/i.test(state.ga4MeasurementId))
+      && (!state.distribution.includes('email') || (Boolean(state.recipients.trim()) && Boolean(state.recipientSource.trim()) && Boolean(state.recipientBasis.trim()))),
     !edicionPrevista?.error,
   ];
 
@@ -729,6 +737,7 @@ export function CreateSurveyWizard(): JSX.Element {
     const comun = {
       title: state.title.trim(), type: state.type, clientId: state.type === 'customer' ? state.clientId : undefined,
       distribution: state.distribution, recipients: recipients.length ? recipients : undefined,
+      recipientSource: state.recipientSource.trim() || undefined, recipientBasis: state.recipientBasis.trim() || undefined,
       ga4MeasurementId: state.ga4MeasurementId.trim() || null, anonymous: state.anonymous, designConfig: designFromState(state), googleReview,
     };
 
@@ -782,11 +791,14 @@ export function CreateSurveyWizard(): JSX.Element {
             <DistributionSelector
               selected={state.distribution}
               recipients={state.recipients}
+              recipientSource={state.recipientSource}
+              recipientBasis={state.recipientBasis}
               onToggleChannel={(channel) => setState((current) => ({
                 ...current,
                 distribution: current.distribution.includes(channel) ? current.distribution.filter((value) => value !== channel) : [...current.distribution, channel],
               }))}
               onRecipientsChange={(recipients) => setState((current) => ({ ...current, recipients }))}
+              onEvidenceChange={(values) => setState((current) => ({ ...current, ...values }))}
               ga4={state.ga4MeasurementId}
               onGa4Change={(ga4MeasurementId) => setState((current) => ({ ...current, ga4MeasurementId }))}
             />

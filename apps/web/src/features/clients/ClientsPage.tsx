@@ -48,12 +48,15 @@ interface ClientRecord {
  */
 interface ClientCapabilities {
   reservations: boolean;
+  reservationEmails: boolean;
+  reservationConsentInsights: boolean;
   crm: boolean;
   surveys: boolean;
   marketing: boolean;
   metaConversions: boolean;
   googleConversions: boolean;
   budgetVisibility: boolean;
+  legalGovernance: boolean;
   detalleDeContactoEnAvisos: boolean;
   production: boolean;
   audiovisual: boolean;
@@ -124,7 +127,7 @@ const EMPTY_FORM: ClientFormState = {
   logoPublicId: '',
   // `marketing` nace apagada, igual que en el servidor: entregar una lista de direcciones con el
   // respaldo de cada permiso se decide cuenta por cuenta, no al crearla.
-  capabilities: { reservations: true, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false, detalleDeContactoEnAvisos: false,
+  capabilities: { reservations: true, reservationEmails: false, reservationConsentInsights: false, crm: true, surveys: true, marketing: false, metaConversions: false, googleConversions: false, budgetVisibility: false, legalGovernance: false, detalleDeContactoEnAvisos: false,
     // Los módulos por empresa nacen apagados, igual que en el servidor.
     production: false, audiovisual: false, content: false, approvals: false, meetings: false, documents: false, briefs: false, billing: false, contracts: false, intake: false, reports: false, commercialPipeline: false },
   pixelMode: 'none',
@@ -136,12 +139,15 @@ const EMPTY_FORM: ClientFormState = {
 
 const CAPABILITY_OPTIONS: Array<{ key: keyof ClientCapabilities; label: string; description: string }> = [
   { key: 'reservations', label: 'Reservas', description: 'Agenda pública, disponibilidad, bloqueos y asistencia.' },
+  { key: 'reservationEmails', label: 'Correos de Reservas', description: 'Confirmaciones, cambios, cancelaciones, recordatorios y recuperación. No activa marketing.' },
+  { key: 'reservationConsentInsights', label: 'Permisos desde Reservas', description: 'Muestra sólo cantidades de permisos, pendientes y bajas; nunca revela correos fuera de Marketing.' },
   { key: 'crm', label: 'CRM', description: 'Contactos, leads, tablero, seguimiento e importación de esta empresa.' },
   { key: 'surveys', label: 'Encuestas', description: 'Encuestas a sus clientes: enlace, QR, correo y la encuesta después de la visita.' },
   { key: 'marketing', label: 'Suscriptores', description: 'Ve quién aceptó recibir su correo y descarga esa lista. Enviar campañas sigue siendo de la agencia.' },
   { key: 'metaConversions', label: 'Meta Pixel + CAPI', description: 'Envía Schedule y Reserva_Asistida al Pixel de esta empresa.' },
   { key: 'googleConversions', label: 'Google Ads (conversiones)', description: 'Sube la reserva y la asistencia como conversiones offline a Google Ads.' },
   { key: 'budgetVisibility', label: 'Saldo de presupuesto', description: 'Esta empresa ve en su portal cuántas UD lleva consumidas y cuántas le quedan.' },
+  { key: 'legalGovernance', label: 'Gobierno legal', description: 'Edición versionada, publicación e historial legal de la empresa. Es independiente de Reservas y Encuestas.' },
   { key: 'detalleDeContactoEnAvisos', label: 'Teléfono y correo en el aviso de grupo', description: 'El aviso por correo de una solicitud de grupo incluye teléfono y correo, sólo para cuentas con acceso directo. Lo habilita la agencia; las alergias y respuestas del formulario nunca salen por correo.' },
   { key: 'production', label: 'Producción', description: 'Piezas, tablero y asignaciones de producción de esta empresa.' },
   { key: 'audiovisual', label: 'Audiovisual', description: 'Producción audiovisual de esta empresa: guiones, grabaciones y entregas.' },
@@ -171,6 +177,7 @@ export function ClientsPage() {
   const [detalleActivoAntes, setDetalleActivoAntes] = useState(false);
   const [aceptaDetalle, setAceptaDetalle] = useState(false);
   const puedeEncenderDetalle = hasRoleAccess(user?.role, ['admin', 'commercial_director', 'dev']);
+  const puedeGobernarLegal = hasRoleAccess(user?.role, ['admin', 'commercial_director']);
   const encendiendoDetalle = Boolean(editingId) && form.capabilities.detalleDeContactoEnAvisos && !detalleActivoAntes;
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
@@ -373,12 +380,15 @@ export function ClientsPage() {
       logoPublicId: client.logoPublicId || '',
       capabilities: {
         reservations: client.capabilities?.reservations ?? true,
+        reservationEmails: client.capabilities?.reservationEmails ?? true,
+        reservationConsentInsights: client.capabilities?.reservationConsentInsights ?? false,
         crm: client.capabilities?.crm ?? true,
         surveys: client.capabilities?.surveys ?? true,
         marketing: client.capabilities?.marketing ?? false,
         metaConversions: client.capabilities?.metaConversions ?? Boolean(binding?.pixelId),
         googleConversions: client.capabilities?.googleConversions ?? false,
         budgetVisibility: client.capabilities?.budgetVisibility ?? false,
+        legalGovernance: client.capabilities?.legalGovernance ?? false,
         detalleDeContactoEnAvisos: client.capabilities?.detalleDeContactoEnAvisos ?? false,
         production: client.capabilities?.production ?? false,
         audiovisual: client.capabilities?.audiovisual ?? false,
@@ -547,12 +557,13 @@ export function ClientsPage() {
               {CAPABILITY_OPTIONS.map((option) => {
                 const enabled = form.capabilities[option.key];
                 // Encender el detalle de contacto es de la agencia comercial; apagarlo, de quien edite la cuenta.
-                const bloqueada = option.key === 'detalleDeContactoEnAvisos' && !enabled && (!editingId || !puedeEncenderDetalle);
+                const bloqueada = (option.key === 'detalleDeContactoEnAvisos' && !enabled && (!editingId || !puedeEncenderDetalle))
+                  || (option.key === 'legalGovernance' && (!editingId || !puedeGobernarLegal));
                 return <button
                   key={option.key}
                   type="button"
                   disabled={bloqueada}
-                  title={bloqueada ? 'Sólo dirección comercial, administración o desarrollo lo encienden, sobre una cuenta ya creada.' : undefined}
+                  title={bloqueada ? (option.key === 'legalGovernance' ? 'Sólo dirección comercial o administración lo cambian sobre una empresa ya creada.' : 'Sólo dirección comercial, administración o desarrollo lo encienden, sobre una cuenta ya creada.') : undefined}
                   className={`client-capability-toggle ${enabled ? 'active' : ''}`}
                   aria-pressed={enabled}
                   onClick={() => setForm((current) => ({
