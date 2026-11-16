@@ -240,7 +240,9 @@ export function AgendaPage() {
         {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
       </select>}
       <select className="input" aria-label="Página de reserva" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
-        {forms.length === 0
+        {!clientId
+          ? <option value="">Primero elige una empresa</option>
+          : forms.length === 0
           ? <option value="">Sin páginas de reserva configuradas</option>
           : <>{!activeForm && <option value="">Elige una página de reserva</option>}{forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}</>}
       </select>
