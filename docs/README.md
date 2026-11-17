@@ -2,7 +2,15 @@
 
 Este es el índice general. Empieza por la sección que corresponda a tu necesidad.
 
-## Entender el sistema
+## Mapa completo del sistema
+
+- [Mapa maestro](sistema/README.md): entrada global para todo el repositorio.
+- [Todos los módulos funcionales](sistema/mapa-funcional.md)
+- [Arquitectura técnica](sistema/arquitectura-tecnica.md)
+- [Datos, integraciones y automatización](sistema/datos-integraciones-automatizacion.md)
+- [Calidad, seguridad, operación y despliegue](sistema/calidad-seguridad-operacion.md)
+
+## Gobierno y decisiones transversales
 
 - [Gobierno, módulos y legales](forense/gobierno-modulos-legales.md): explicación general para negocio y producto.
 - [Arquitectura y accesos](forense/arquitectura-y-accesos.md): detalle técnico de permisos y aislamiento.
