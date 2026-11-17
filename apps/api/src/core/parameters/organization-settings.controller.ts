@@ -110,6 +110,7 @@ export class OrganizationSettingsController {
    * qué empresa se está editando la plantilla, no quién la edita.
    */
   @Get()
+  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Obtener configuración efectiva, opcionalmente de una empresa' })
   async list(
     @Req() request: AuthenticatedRequest,
@@ -128,6 +129,7 @@ export class OrganizationSettingsController {
   }
 
   @Put()
+  @Roles(UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV)
   @ApiOperation({ summary: 'Actualizar y auditar configuración de la organización' })
   async update(
     @Req() request: AuthenticatedRequest,
@@ -136,8 +138,8 @@ export class OrganizationSettingsController {
   ) {
     const valores = dto.values ?? {};
     const touchesModuleLifecycle = Object.keys(valores).some((key) => key.startsWith('modules.lifecycle.'));
-    if (touchesModuleLifecycle && request.user.role !== UserRole.DEV) {
-      throw new ForbiddenException('Solo desarrollo puede cambiar el ciclo de vida de módulos.');
+    if (touchesModuleLifecycle && ![UserRole.COMMERCIAL_DIRECTOR, UserRole.DEV].includes(request.user.role as UserRole)) {
+      throw new ForbiddenException('Solo Dirección Comercial o Desarrollo puede cambiar el ciclo de vida de módulos.');
     }
 
     /*

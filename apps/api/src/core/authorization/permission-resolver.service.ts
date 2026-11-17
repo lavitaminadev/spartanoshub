@@ -17,7 +17,7 @@ import {
 import { UserRole } from '../../modules/organizations/user-role.enum';
 import { UserPermissionOverride } from './user-permission-override.entity';
 import { RolePermissionOverride } from './role-permission-override.entity';
-import { PermissionLevel, satisfies } from './permission-level';
+import { PermissionLevel, recortarNivel, satisfies } from './permission-level';
 import { roleLevel } from './role-permissions';
 import { ParameterResolver } from '../parameters/parameter-resolver.service';
 
@@ -110,13 +110,23 @@ export class PermissionResolverService {
     ]);
     const overrideByModule = this.activeOverrides(overrides, clientId);
 
+    /*
+     * Un módulo en mantenimiento se mira, no se toca.
+     *
+     * Es el estado entre encendido y apagado, y hasta ahora no significaba nada: `maintenance`
+     * estaba en la lista de fases visibles y se comportaba igual que `active`. Apagar un módulo
+     * para corregirlo lo hace desaparecer del menú y corta a quien estuviera a media faena;
+     * recortar a lectura deja la pantalla en pie, con sus datos a la vista, y quita la escritura
+     * que es lo que hay que detener mientras se arregla.
+     *
+     * Se recorta el nivel ya resuelto, no se fija: quien no tenía acceso sigue sin tenerlo.
+     */
     const permissions = Object.fromEntries(
-      ORGANIZATION_FEATURE_KEYS.map((module) => [
-        module,
-        this.alcanzaElModulo(role, module, lifecycleMap[module], features[module])
-          ? overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? roleLevel(role, module)
-          : 'none',
-      ]),
+      ORGANIZATION_FEATURE_KEYS.map((module) => {
+        if (!this.alcanzaElModulo(role, module, lifecycleMap[module], features[module])) return [module, 'none'];
+        const nivel = overrideByModule.get(module)?.level ?? roleLevels.get(cellKey(role, module)) ?? roleLevel(role, module);
+        return [module, lifecycleMap[module] === 'maintenance' ? recortarNivel(nivel, 'view') : nivel];
+      }),
     ) as PermissionMap;
 
     /*

@@ -7,6 +7,7 @@ import { Modal } from '../../shared/Modal';
 import { triggerToast } from '../../shared/toast-events';
 import { estaProtegido } from '@espartanos/shared';
 import { TEXTO_PROTEGIDO } from '../../shared/datos-protegidos';
+import { useEmpresaActiva } from '../../shared/empresa-activa';
 
 interface Campana {
   id: string;
@@ -64,7 +65,14 @@ export function CampanasPage() {
    * él. Buscar un cupón exigía abrirlas una por una.
    */
   const RECORTE_VACIO = { estado: '', cupon: '', conCupon: '', clientId: '', asunto: '', destino: '', desde: '', hasta: '' };
-  const [recorte, setRecorte] = useState(RECORTE_VACIO);
+  /*
+   * La empresa del recorte nace de la elegida en el marco.
+   *
+   * Quien venía mirando un local en el inicio o en reservas abre las campañas y las ve ya
+   * acotadas a ese local, en vez de tener que volver a decir cuál era.
+   */
+  const empresaActiva = useEmpresaActiva();
+  const [recorte, setRecorte] = useState({ ...RECORTE_VACIO, clientId: empresaActiva.clientId });
   const [pagina, setPagina] = useState(1);
   const cuponBuscado = useDeferredValue(recorte.cupon.trim());
   const asuntoBuscado = useDeferredValue(recorte.asunto.trim());
@@ -128,7 +136,15 @@ export function CampanasPage() {
 
       <div className="reservation-filters">
         <input className="input" type="search" aria-label="Buscar por asunto" placeholder="Buscar por asunto" value={recorte.asunto} onChange={(evento) => recortar({ asunto: evento.target.value })} />
-        <select className="input" aria-label="Filtrar campañas por empresa" value={recorte.clientId} onChange={(evento) => recortar({ clientId: evento.target.value })}>
+        {/*
+          La empresa del recorte es la del marco, elegida una vez para todas las pantallas.
+
+          Se deja el desplegable porque acá además existe «Espartanos (agencia)» —las campañas sin
+          empresa, que son de la propia agencia—, y eso no es una empresa de la cartera. Cambiarlo
+          mueve la elección compartida, así que al pasar a reservas o al inicio se sigue mirando el
+          mismo local.
+        */}
+        <select className="input" aria-label="Filtrar campañas por empresa" value={recorte.clientId} onChange={(evento) => { recortar({ clientId: evento.target.value }); empresaActiva.elegir(evento.target.value); }}>
           <option value="">Todas las empresas</option>
           {(empresasResp?.data ?? []).map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.name}</option>)}
         </select>

@@ -78,7 +78,9 @@ export function AgendaPage() {
     sesión, elegir un local en el CRM dejaba esta pantalla mostrando el otro.
   */
   const empresaActiva = useEmpresaActiva();
-  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId : searchParams.get('clientId') ?? '');
+  // La dirección manda —`?clientId=` es un enlace directo desde la ficha de una cuenta— y sin
+  // ella se parte de la empresa que el marco tiene elegida, no de «todas».
+  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId : searchParams.get('clientId') ?? empresaActiva.clientId);
   useEffect(() => {
     if (clientMode && empresaActiva.clientId && empresaActiva.clientId !== clientId) setClientId(empresaActiva.clientId);
   }, [clientMode, empresaActiva.clientId, clientId]);
@@ -133,6 +135,24 @@ export function AgendaPage() {
   const { data: noShowPage } = useQuery<ReservationPage>({
     queryKey: ['agenda-no-shows', clientId, effectiveFormId, dateFilter],
     queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, ...dayRange, status: 'no_show', pageSize: '1' })}`),
+    enabled: Boolean(clientId && effectiveFormId && activeForm),
+  });
+  /*
+   * Las canceladas se cuentan aparte, con el mismo truco que los no-shows: una página de tamaño
+   * uno de la que sólo se lee `total`.
+   *
+   * La ocupación se calculaba restando sobre las cien filas que trae la página, así que un día de
+   * ciento veinte daba un porcentaje menor del real justo cuando el local está más lleno, que es
+   * cuando se mira.
+   */
+  const { data: canceladasCliente } = useQuery<ReservationPage>({
+    queryKey: ['agenda-canceladas-cliente', clientId, effectiveFormId, dateFilter],
+    queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, ...dayRange, status: 'cancelled_client', pageSize: '1' })}`),
+    enabled: Boolean(clientId && effectiveFormId && activeForm),
+  });
+  const { data: canceladasLocal } = useQuery<ReservationPage>({
+    queryKey: ['agenda-canceladas-local', clientId, effectiveFormId, dateFilter],
+    queryFn: () => api.get(`/reservations?${new URLSearchParams({ clientId, formId: effectiveFormId, ...dayRange, status: 'cancelled_business', pageSize: '1' })}`),
     enabled: Boolean(clientId && effectiveFormId && activeForm),
   });
   const { data: groupRequests = [], refetch: refetchGroupRequests } = useQuery<GroupRequest[]>({
@@ -210,11 +230,12 @@ export function AgendaPage() {
   const summary = useMemo(() => {
     const total = totalDelDia;
     const noShows = noShowPage?.total ?? reservations.filter((reservation) => NO_SHOW_STATUSES.has(reservation.status)).length;
-    const occupied = reservations.filter((reservation) => !['cancelled_client', 'cancelled_business'].includes(reservation.status)).length;
+    const canceladas = (canceladasCliente?.total ?? 0) + (canceladasLocal?.total ?? 0);
+    const occupied = Math.max(total - canceladas, 0);
     const capacity = activeForm?.dailyCapacity || 0;
     const occupancyPct = capacity > 0 ? Math.round((occupied / capacity) * 100) : null;
     return { total, noShows, occupancyPct };
-  }, [reservations, activeForm, totalDelDia, noShowPage]);
+  }, [reservations, activeForm, totalDelDia, noShowPage, canceladasCliente, canceladasLocal]);
 
   const isLoading = (!clientMode && loadingClients) || (Boolean(clientId) && loadingForms);
   if (isLoading) return <LoadingSpinner text="Preparando la agenda del servicio..." />;

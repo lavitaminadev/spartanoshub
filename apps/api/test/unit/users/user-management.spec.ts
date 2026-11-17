@@ -36,28 +36,21 @@ describe('User management security', () => {
     })).rejects.toThrow(BadRequestException);
   });
 
-  it('prevents operations directors from escalating privileges', async () => {
+  it('prevents creation of the legacy admin role', async () => {
     const useCase = new CreateUserUseCase(usersRepo as never, clientsRepo as never);
 
     await expect(useCase.execute({
       organizationId: 'org-1', actorRole: UserRole.OPERATIONS_DIRECTOR, role: UserRole.ADMIN,
       name: 'Admin Nuevo', email: 'admin@empresa.cl', password: 'secure123',
-    })).rejects.toThrow(ForbiddenException);
+    })).rejects.toThrow(BadRequestException);
   });
 
-  it('prevents commercial directors from creating or modifying privileged accounts', async () => {
+  it('prevents the owner from recreating the legacy admin role', async () => {
     const createUseCase = new CreateUserUseCase(usersRepo as never, clientsRepo as never);
     await expect(createUseCase.execute({
       organizationId: 'org-1', actorRole: UserRole.COMMERCIAL_DIRECTOR, role: UserRole.ADMIN,
       name: 'Admin Nuevo', email: 'admin2@empresa.cl', password: 'secure123',
-    })).rejects.toThrow(ForbiddenException);
-
-    const updateUseCase = new UpdateUserUseCase(usersRepo as never, clientsRepo as never, { revokeAll: vi.fn(async () => 0) } as never);
-    usersRepo.findOne.mockResolvedValue({ id: 'director-1', organizationId: 'org-1', role: UserRole.COMMERCIAL_DIRECTOR, isActive: true });
-    await expect(updateUseCase.execute({
-      id: 'director-1', organizationId: 'org-1', actorId: 'commercial-1',
-      actorRole: UserRole.COMMERCIAL_DIRECTOR, isActive: false,
-    })).rejects.toThrow(ForbiddenException);
+    })).rejects.toThrow(BadRequestException);
   });
 
   it('prevents administrators from disabling their own account', async () => {

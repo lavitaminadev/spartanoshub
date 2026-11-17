@@ -37,7 +37,7 @@ export function SettingsPage() {
   const [cloudinaryOpen, setCloudinaryOpen] = useState(false);
   const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
 
-  const canManageAgencyIdentity = user?.role === 'admin' || user?.role === 'dev';
+  const canManageAgencyIdentity = user?.role === 'commercial_director' || user?.role === 'dev';
 
   const organizationsQuery = useQuery<OrganizationSummary[]>({
     queryKey: ['organizations'],
@@ -181,7 +181,7 @@ export function SettingsPage() {
           <Link to="/admin" className="settings-access-card"><span>02</span><div><strong>Accesos y seguridad</strong><p>Usuarios, permisos puntuales, bloqueos y auditoría básica.</p></div><b>Administrar →</b></Link>
           <Link to="/governance" className="settings-access-card"><span>03</span><div><strong>Operación y cuentas</strong><p>Pods, flujos, estructura de cuentas y control operativo.</p></div><b>Revisar →</b></Link>
           <Link to="/integrations" className="settings-access-card"><span>04</span><div><strong>Integraciones</strong><p>Meta Pixel, CAPI y conexiones externas permitidas.</p></div><b>Ver →</b></Link>
-          {user?.role === 'dev' && <Link to="/admin" className="settings-access-card"><span>05</span><div><strong>Panel dev</strong><p>Matriz de permisos, módulos, ciclo de vida y flags técnicos.</p></div><b>Abrir →</b></Link>}
+          {['commercial_director', 'dev'].includes(user?.role ?? '') && <Link to="/admin" className="settings-access-card"><span>05</span><div><strong>Gobierno y permisos</strong><p>Matriz de permisos, módulos y ciclo de vida.</p></div><b>Abrir →</b></Link>}
           <button type="button" className="settings-access-card" onClick={() => setCloudinaryOpen(true)}><span>06</span><div><strong>Cloudinary global</strong><p>Logos e imágenes de formularios.</p></div><b>Configurar →</b></button>
           <button type="button" className="settings-access-card" onClick={() => setMediaLibraryOpen(true)}><span>07</span><div><strong>Biblioteca de imágenes</strong><p>Explora y administra imágenes.</p></div><b>Abrir →</b></button>
           <section className="settings-session-card"><span>SESIÓN ACTUAL</span><strong>{user?.email}</strong><p>Revoca el acceso del navegador.</p><button className="btn btn-outline" type="button" onClick={logout}>Cerrar sesión de forma segura</button></section>

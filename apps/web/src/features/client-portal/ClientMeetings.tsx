@@ -5,6 +5,8 @@ import { LoadingSpinner } from '../../shared/LoadingSpinner';
 import { EmptyState } from '../../shared/EmptyState';
 import { statusLabel } from '../../shared/status-labels';
 import { safeUrl } from '../../core/safe-url';
+import { useEmpresaDeDatos } from './empresa-de-datos';
+import { SoloEmpresaPropia } from './SoloEmpresaPropia';
 
 interface ActionItem {
   id: string;
@@ -25,14 +27,26 @@ interface ClientMeetingItem {
 
 export function ClientMeetings() {
   const queryClient = useQueryClient();
+  const empresa = useEmpresaDeDatos();
+  /*
+   * La empresa entra en la clave y en la petición.
+   *
+   * Quien atiende dos locales tiene una agenda por local. Con la clave sin empresa, lo traído
+   * para el primero se reutilizaba bajo el nombre del segundo, y la reunión que se abría no era
+   * la que decía la pantalla.
+   */
+  const claveDeLista = ['client-meetings', empresa.userId, empresa.clientId];
   const { data, isLoading, error, refetch, isFetching } = useQuery<ClientMeetingItem[]>({
-    queryKey: ['client-meetings'],
-    queryFn: () => api.get('/meetings'),
+    queryKey: claveDeLista,
+    enabled: empresa.disponible,
+    queryFn: () => api.get(`/meetings?clientId=${encodeURIComponent(empresa.clientId)}`),
   });
   const updateAction = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.put(`/meetings/action-items/${id}`, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['client-meetings'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: claveDeLista }),
   });
+
+  if (!empresa.disponible) return <SoloEmpresaPropia nombre={empresa.nombre} seccion="Las reuniones" />;
 
   if (isLoading) return <LoadingSpinner text="Cargando reuniones..." />;
   if (error) return <QueryErrorState title="No pudimos cargar las reuniones" message={error.message} error={error} onRetry={() => void refetch()} retrying={isFetching} />;

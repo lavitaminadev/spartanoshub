@@ -154,15 +154,7 @@ export class ReservationsController {
     if (!clientId) throw new BadRequestException('Elige la empresa de la que quieres ver los permisos');
     await this.accountAccess.assertClient(req.organizationId, req.user, clientId);
     await this.capabilities.assert(req.organizationId, clientId, 'reservationConsentInsights');
-    const rows = await this.dataSource.query(`SELECT
-      SUM(status = 'subscribed') AS suscritos,
-      SUM(status = 'pending') AS pendientes,
-      SUM(status = 'unsubscribed') AS bajas,
-      SUM(status = 'subscribed' AND consent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS ultimos30,
-      MIN(consent_at) AS desde
-      FROM email_subscribers WHERE organization_id = ? AND client_id = ? AND source = 'reserva'`, [req.organizationId, clientId]) as Array<Record<string, number | string | Date | null>>;
-    const row = rows[0] ?? {};
-    return { suscritos: Number(row.suscritos ?? 0), pendientes: Number(row.pendientes ?? 0), bajas: Number(row.bajas ?? 0), ultimos30: Number(row.ultimos30 ?? 0), desde: row.desde ?? null };
+    return this.service.consentimientosDeReservas(req.organizationId, clientId);
   }
 
   /** Envíos a Meta de una sucursal en los últimos 30 días: enviados, pendientes, fallidos y último error. */
@@ -435,12 +427,23 @@ export class ReservationsController {
   @Get('group-requests')
   @RequiereArea('reservations.espera_y_grupos', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)
-  async allGroupRequests(@Req() req: AuthenticatedRequest, @Query('formId') formId?: string, @Query('clientId') clientId?: string) {
+  async allGroupRequests(
+    @Req() req: AuthenticatedRequest,
+    @Query('formId') formId?: string,
+    @Query('clientId') clientId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
     // La empresa elegida en el filtro acota de verdad; antes se ignoraba y la lista no cambiaba.
     const scope = await this.requestedScope(req, clientId);
-    return this.service.listAllGroupRequests(req.organizationId, scope.clientId, scope.clientIds, formId);
+    return this.service.listAllGroupRequests(
+      req.organizationId, scope.clientId, scope.clientIds, formId, Number(page) || 1, Number(pageSize) || 50,
+    );
   }
 
+  /**
+   * El resumen se pide aparte porque se cuenta sobre todas las solicitudes, no sobre una página.
+   */
   @Get('group-requests/resumen')
   @RequiereArea('reservations.espera_y_grupos', 'ver')
   @Roles(UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR, UserRole.COMMERCIAL_DIRECTOR, UserRole.COMMUNITY_MANAGER, UserRole.CLIENT)

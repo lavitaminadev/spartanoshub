@@ -56,6 +56,19 @@ describe('configuración recuperable de módulos', () => {
    * declarar por qué: cerrarlo desde el código vuelve a exigir un despliegue para reabrirlo,
    * que es justo lo que se quitó.
    */
+  /**
+   * Automatizaciones: clave propia, ofrecida y apagada.
+   *
+   * Colgaba de `commercialPipeline` y no tenía módulo. Esa clave compartida era lo que impedía
+   * liberar el embudo comercial, porque abrir uno abría el otro. Lo que la mantiene cerrada es el
+   * interruptor —no el código—, así que encenderla no pide un despliegue.
+   */
+  it('Automatizaciones tiene módulo propio, activo y apagado de fábrica', () => {
+    const modulo = ORGANIZATION_MODULE_CATALOG.find((item) => item.key === 'automations');
+    expect(modulo?.lifecycle).toBe('active');
+    expect(modulo?.defaultEnabled).toBe(false);
+  });
+
   it('ningún módulo queda cerrado desde el código', () => {
     const cerrados = ORGANIZATION_MODULE_CATALOG.filter((module) => module.lifecycle !== 'active');
     expect(cerrados.map((module) => module.key)).toEqual([]);

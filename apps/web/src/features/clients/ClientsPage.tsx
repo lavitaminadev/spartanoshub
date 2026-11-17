@@ -177,7 +177,7 @@ export function ClientsPage() {
   const [detalleActivoAntes, setDetalleActivoAntes] = useState(false);
   const [aceptaDetalle, setAceptaDetalle] = useState(false);
   const puedeEncenderDetalle = hasRoleAccess(user?.role, ['admin', 'commercial_director', 'dev']);
-  const puedeGobernarLegal = hasRoleAccess(user?.role, ['admin', 'commercial_director']);
+  const puedeGobernarLegal = hasRoleAccess(user?.role, ['dev', 'commercial_director']);
   const encendiendoDetalle = Boolean(editingId) && form.capabilities.detalleDeContactoEnAvisos && !detalleActivoAntes;
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
@@ -563,7 +563,7 @@ export function ClientsPage() {
                   key={option.key}
                   type="button"
                   disabled={bloqueada}
-                  title={bloqueada ? (option.key === 'legalGovernance' ? 'Sólo dirección comercial o administración lo cambian sobre una empresa ya creada.' : 'Sólo dirección comercial, administración o desarrollo lo encienden, sobre una cuenta ya creada.') : undefined}
+                  title={bloqueada ? (option.key === 'legalGovernance' ? 'Sólo Dirección Comercial o Desarrollo lo cambian sobre una empresa ya creada.' : 'Sólo dirección comercial, administración o desarrollo lo encienden, sobre una cuenta ya creada.') : undefined}
                   className={`client-capability-toggle ${enabled ? 'active' : ''}`}
                   aria-pressed={enabled}
                   onClick={() => setForm((current) => ({

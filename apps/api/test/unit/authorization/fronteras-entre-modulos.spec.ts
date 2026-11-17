@@ -41,7 +41,11 @@ const DEPENDENCIAS_DE_HOY: Record<string, string[]> = {
   briefs: ['production'],
   catalog: ['contracts', 'crm'],
   'client-portal': ['crm', 'design-budget', 'reservations'],
-  clients: ['crm'],
+  // design-budget: sólo `efectoEnElDisponible`, una función pura que dice si un tipo de
+  // movimiento suma o descuenta. La ficha de la empresa muestra el libro de UD del mes, y con una
+  // copia de ese signo el panel y el motor acabarían discrepando sobre el mismo movimiento. Es la
+  // misma razón por la que `client-portal` la alcanza.
+  clients: ['crm', 'design-budget'],
   // ciclo con approvals y con integrations
   crm: ['approvals', 'integrations', 'process-templates', 'reservations'],
   'design-budget': ['production'],

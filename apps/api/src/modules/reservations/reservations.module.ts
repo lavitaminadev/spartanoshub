@@ -17,6 +17,7 @@ import { ReservationCouponRedemption } from './domain/reservation-coupon-redempt
 import { SurveyContactRequest } from './domain/survey-contact-request.entity';
 import { ReservationManagementToken } from './domain/reservation-management-token.entity';
 import { ReservationHold } from './domain/reservation-hold.entity';
+import { Suscriptor } from '../marketing/suscriptor.entity';
 import { ReservationGroupRequest } from './domain/reservation-group-request.entity';
 import { GoogleModule } from '../integrations/google/google.module';
 import { MetaModule } from '../integrations/meta/meta.module';
@@ -25,5 +26,5 @@ import { AuditModule } from '../../core/audit/audit.module';
 import { ParametersModule } from '../../core/parameters/parameters.module';
 import { MarketingModule } from '../marketing/marketing.module';
 
-@Module({ imports: [NivelDeDatosModule, TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, ReservationCouponRedemption, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule, AuthorizationModule, UsersModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
+@Module({ imports: [NivelDeDatosModule, TypeOrmModule.forFeature([ReservationForm, Reservation, AvailabilityBlock, ReservationEvent, ReservationFormEvent, ReservationCoupon, ReservationCouponRedemption, SurveyContactRequest, ReservationManagementToken, ReservationHold, ReservationGroupRequest, Suscriptor]), GoogleModule, MetaModule, NotificationsModule, AuditModule, ParametersModule, MarketingModule, AuthorizationModule, UsersModule], providers: [ReservationsService, ReservationsBulkImportService], controllers: [ReservationsController, PublicReservationsController], exports: [ReservationsService] })
 export class ReservationsModule {}

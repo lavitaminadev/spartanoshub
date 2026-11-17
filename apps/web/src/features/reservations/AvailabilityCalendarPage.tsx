@@ -69,7 +69,9 @@ export function AvailabilityCalendarPage() {
     sesión, elegir un local en el CRM dejaba esta pantalla mostrando el otro.
   */
   const empresaActiva = useEmpresaActiva();
-  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId || user?.clientId || '' : searchParams.get('clientId') ?? '');
+  // La dirección manda —`?clientId=` es un enlace directo desde la ficha de una cuenta— y sin
+  // ella se parte de la empresa que el marco tiene elegida, no de «todas».
+  const [clientId, setClientId] = useState(() => clientMode ? empresaActiva.clientId || user?.clientId || '' : searchParams.get('clientId') ?? empresaActiva.clientId);
   useEffect(() => {
     if (clientMode && empresaActiva.clientId && empresaActiva.clientId !== clientId) setClientId(empresaActiva.clientId);
   }, [clientMode, empresaActiva.clientId, clientId]);

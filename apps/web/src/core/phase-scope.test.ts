@@ -5,6 +5,7 @@ import {
   PHASE_SCOPE_ENABLED,
   isModuleInPhaseScope,
 } from './phase-scope';
+import { ORGANIZATION_MODULE_CATALOG } from '@espartanos/shared';
 import { getFeatureForPath, isPathEnabled, isRoleAllowedForPath } from './navigation.registry';
 
 describe('alcance de fase', () => {
@@ -62,17 +63,21 @@ describe('alcance de fase', () => {
   });
 
   /*
-   * El embudo comercial se queda detrás de la puerta, y la razón es `/automations`.
+   * El embudo comercial ya pasa la puerta, y lo que lo retenía era `/automations`.
    *
-   * Es uno de los doce módulos de empresa y aun así no se liberó: `/automations` cuelga de su
-   * misma clave —no tiene módulo propio en el catálogo—, así que abrirlo abriría también
-   * Automatizaciones, que no está terminada. Esta prueba es la que lo encontró al cambiar la
-   * lista. Para liberarlo hay que darle antes a `/automations` su propia clave.
+   * Se quedó fuera mientras `/automations` colgó de su misma clave: abrirlo habría abierto también
+   * Automatizaciones, que no está terminada. Esta prueba fue la que lo encontró. Ahora
+   * `automations` es un módulo del catálogo con clave propia, así que liberar el embudo abre el
+   * embudo: las oportunidades y su tablero, que además son capacidad contratada por empresa y
+   * nacen apagados.
    */
-  it('reserva el pipeline comercial para desarrollo, porque Automatizaciones comparte su clave', () => {
-    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'commercial_director')).toBe(false);
-    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'admin')).toBe(false);
-    expect(isModuleInPhaseScope('commercialPipeline', undefined, 'dev')).toBe(true);
+  it('libera el pipeline comercial, ahora que Automatizaciones no comparte su clave', () => {
+    for (const cargo of ['commercial_director', 'admin', 'dev']) {
+      expect(isModuleInPhaseScope('commercialPipeline', undefined, cargo), cargo).toBe(true);
+    }
+    // Y la prueba de que lo son dos cosas distintas: cada ruta pregunta por su propia clave.
+    expect(getFeatureForPath('/crm/opportunities')).toBe('commercialPipeline');
+    expect(getFeatureForPath('/automations')).toBe('automations');
   });
 
   it('no clasifica un módulo en las dos listas a la vez', () => {
@@ -118,8 +123,54 @@ describe('navegación bajo el alcance de fase', () => {
    * aquí como «fuera de alcance» habría sido fijar una puerta que ya no está ahí.
    */
   it('las rutas sin terminar quedan fuera de alcance para administración', () => {
-    for (const path of ['/catalog', '/gamification', '/knowledge', '/onboarding', '/direction', '/operations']) {
+    for (const path of ['/gamification', '/knowledge', '/direction', '/operations']) {
       expect(visible(path), path).toBe(false);
+    }
+  });
+
+  /**
+   * Catálogo pasa la puerta, y es lo que completa el alta de un cliente.
+   *
+   * Se quedó fuera mientras se pensaba que era una pantalla a medias. No lo es: tiene servicios y
+   * packs, cotizaciones con versiones, y un cierre que crea la empresa, su contrato con el precio
+   * del mes y su presupuesto de UD en una sola transacción. El otro camino —convertir el prospecto
+   * desde el CRM— deja la empresa sin contrato y sin presupuesto, y alguien los pone a mano.
+   *
+   * Su interruptor de organización nace **encendido**, a diferencia de los doce módulos de
+   * empresa: el catálogo de servicios es de la agencia, no de un local atendido.
+   */
+  it('libera Catálogo, que es lo que cierra la venta', () => {
+    expect(visible('/catalog')).toBe(true);
+    const modulo = ORGANIZATION_MODULE_CATALOG.find((item) => item.key === 'catalog');
+    expect(modulo?.defaultEnabled).toBe(true);
+  });
+
+  /*
+   * Ajustes y Puesta en marcha ya pasan.
+   *
+   * Están terminados y con datos, y cerrarlos sólo lograba que a los cargos que los usan
+   * —administración, quien recibe a un cliente nuevo— les respondiera «no tienes acceso» en
+   * pantallas que son suyas. Debajo siguen las tres rejas: el permiso del cargo, el interruptor
+   * de la organización y el alcance por cuenta.
+   */
+  /*
+   * Informes también pasa, y con él dos claves sin pantalla.
+   *
+   * La matriz reparte `reports` entre ocho cargos y el interruptor de la organización lo trae
+   * encendido, así que lo único que lo cerraba era la lista fija. `clientMetricsPanel` y
+   * `multiClientOnboarding` no tienen ruta: la lista anulaba un permiso concedido sin que nada
+   * lo dijera, y abrirlas no agrega ninguna vista.
+   */
+  it('informes pasa la puerta, y las claves sin pantalla dejan de anularse', () => {
+    expect(visible('/reports')).toBe(true);
+    for (const module of ['reports', 'clientMetricsPanel', 'multiClientOnboarding']) {
+      expect(isModuleInPhaseScope(module, undefined, 'admin'), module).toBe(true);
+    }
+  });
+
+  it('ajustes y puesta en marcha ya pasan la puerta', () => {
+    for (const path of ['/settings', '/onboarding', '/registro-de-correos']) {
+      expect(visible(path), path).toBe(true);
     }
   });
 
@@ -147,16 +198,29 @@ describe('navegación bajo el alcance de fase', () => {
     )).toBe(true);
   });
 
+  /**
+   * Automatizaciones no se hereda de ningún otro permiso: tiene clave propia.
+   *
+   * Colgaba de `commercialPipeline`, de modo que quien tenía el embudo tenía el editor de flujos
+   * sin que nadie lo hubiera decidido. Lo que la mantiene cerrada ahora es el interruptor de la
+   * organización —nace apagado—, y `visible()` no lo consulta a propósito: responde qué ofrece el
+   * producto, no qué ve una persona.
+   */
   it('no hereda Automatizaciones desde el permiso CRM', () => {
-    expect(getFeatureForPath('/automations')).toBe('commercialPipeline');
-    expect(visible('/automations', 'commercial_director')).toBe(false);
-    expect(visible('/automations', 'admin')).toBe(false);
-    expect(visible('/automations', 'dev')).toBe(true);
+    expect(getFeatureForPath('/automations')).toBe('automations');
+    expect(getFeatureForPath('/automations')).not.toBe(getFeatureForPath('/crm/contacts'));
+    // Y no se abre con el permiso del CRM, que es lo que pasaba al compartir clave.
+    expect(isPathEnabled('/automations', undefined, { crm: 'manage' }, undefined, 'admin')).toBe(false);
   });
 
-  it('reserva oportunidades y mantiene la actividad dentro del CRM operativo', () => {
-    expect(visible('/crm/opportunities')).toBe(false);
+  it('mantiene oportunidades y actividad en claves distintas dentro del CRM', () => {
+    // Las dos las ofrece el producto, y cada una pregunta por su propia clave. Oportunidades no
+    // se cierra apagando sólo `commercialPipeline`: la ruta acepta también el CRM operativo, y
+    // eso es deliberado —ver el registro de navegación—, así que lo que se fija acá es la clave,
+    // no un apagado que esa ruta no tiene.
+    expect(visible('/crm/opportunities')).toBe(true);
     expect(visible('/crm/interactions')).toBe(true);
+    expect(getFeatureForPath('/crm/opportunities')).toBe('commercialPipeline');
   });
 
   /**

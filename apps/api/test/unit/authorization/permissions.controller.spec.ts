@@ -4,7 +4,7 @@ import { PermissionsController } from '../../../src/core/authorization/permissio
 import { ROLES_KEY } from '../../../src/core/authorization/roles.decorator';
 import { UserRole } from '../../../src/modules/organizations/user-role.enum';
 
-describe('PermissionsController: separación admin/dev', () => {
+describe('PermissionsController: gobierno de la persona propietaria', () => {
   const permissions = {
     roleMatrix: vi.fn(),
     codeLevel: vi.fn(),
@@ -36,22 +36,21 @@ describe('PermissionsController: separación admin/dev', () => {
   });
 
   /**
-   * La matriz de permisos la manejan desarrollo y administración.
+   * La matriz de permisos la manejan desarrollo y Dirección Comercial.
    *
    * Ajustar quién ve qué es lo que el dueño de la organización resuelve desde configuración sin
-   * depender de desarrollo. Lo que **no** pasa a administración es encender y apagar módulos:
-   * eso va después de actualizar el servidor y comprobar que funcionan, y lo cubre la prueba de
-   * `organizations.controller`.
+   * depender de desarrollo. Dirección Comercial representa a la persona propietaria de la agencia;
+   * el antiguo cargo `admin` queda fuera del gobierno global.
    */
-  it('deja la matriz de permisos a desarrollo y administración', () => {
+  it('deja la matriz de permisos a desarrollo y dirección comercial', () => {
     for (const handler of [
       PermissionsController.prototype.roleMatrix,
       PermissionsController.prototype.updateRoleMatrix,
     ]) {
-      expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([UserRole.DEV, UserRole.ADMIN]);
+      expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR]);
     }
     // Leer lo que da un cargo también lo necesita Dirección de operaciones para ajustar a su equipo.
-    expect(Reflect.getMetadata(ROLES_KEY, PermissionsController.prototype.ofRole)).toEqual([UserRole.DEV, UserRole.ADMIN, UserRole.OPERATIONS_DIRECTOR]);
+    expect(Reflect.getMetadata(ROLES_KEY, PermissionsController.prototype.ofRole)).toEqual([UserRole.DEV, UserRole.COMMERCIAL_DIRECTOR, UserRole.OPERATIONS_DIRECTOR]);
   });
 
   it('impide que admin administre excepciones de una cuenta dev', async () => {

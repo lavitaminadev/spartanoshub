@@ -127,7 +127,28 @@ export function EquipoYAccesos() {
   const deferredSearch = useDeferredValue(search.trim());
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [clientFilter, setClientFilter] = useState('');
+  /*
+   * El filtro por empresa nace de la elegida en el marco.
+   *
+   * Quien venía administrando un local y entra acá lo ve ya acotado a ese local. Sigue siendo un
+   * filtro propio —acá se limpia junto a los demás, y el vacío lista a todo el equipo— pero deja
+   * de arrancar en blanco cada vez.
+   */
+  /*
+    La empresa sobre la que se administra viaja en cada petición.
+
+    Sin ella, el servidor usaba la de la sesión: cambiar de local en el menú dejaba esta
+    pantalla con el equipo del anterior, y se creaban cuentas en la empresa equivocada.
+  */
+  const empresaActiva = useEmpresaActiva();
+  /*
+   * El filtro por empresa nace de la elegida en el marco.
+   *
+   * Quien venía administrando un local y entra acá lo ve ya acotado a ese local. Sigue siendo un
+   * filtro propio —se limpia junto a los demás, y el vacío lista a todo el equipo— pero deja de
+   * arrancar en blanco cada vez.
+   */
+  const [clientFilter, setClientFilter] = useState(() => empresaActiva.clientId);
   const [form, setForm] = useState<UserFormState>(EMPTY_FORM);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
@@ -137,13 +158,6 @@ export function EquipoYAccesos() {
   const [creatingClient, setCreatingClient] = useState(false);
   // Las acciones masivas confirman antes de ejecutarse; ConfirmDialog es dueño del paso "estás seguro" en vez de window.confirm().
   const [pendingBulkAccess, setPendingBulkAccess] = useState<{ rows: UserRow[]; isActive: boolean } | null>(null);
-  /*
-    La empresa sobre la que se administra viaja en cada petición.
-
-    Sin ella, el servidor usaba la de la sesión: cambiar de local en el menú dejaba esta
-    pantalla con el equipo del anterior, y se creaban cuentas en la empresa equivocada.
-  */
-  const empresaActiva = useEmpresaActiva();
   // Los servicios de la empresa que se está mirando, no los de la empresa de la cuenta: con los
   // de la cuenta, en el segundo local se repartían servicios que ese local no tiene contratados.
   const usuarioEnEmpresa = useUsuarioEnEmpresaActiva();
@@ -239,9 +253,9 @@ export function EquipoYAccesos() {
 
   const users = Array.isArray(data) ? data : [];
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
-  const availableRoles = ['operations_director', 'commercial_director'].includes(currentUser?.role ?? '')
+  const availableRoles = currentUser?.role === 'operations_director'
     ? USER_ROLES.filter((role) => !['admin', 'dev', 'operations_director', 'commercial_director'].includes(role))
-    : [...USER_ROLES];
+    : USER_ROLES.filter((role) => role !== 'admin');
 
   /*
     Quien administra su propia empresa.
@@ -253,10 +267,10 @@ export function EquipoYAccesos() {
   */
   // A quien llega asignado desde otra empresa no se le edita ni pausa aquí: pausarlo lo apagaría
   // también allá. Desde Permisos se le ajusta este local o se le quita de él.
-  const canManage = (row: UserRow) => !row.asignada && (currentUser?.role === 'admin'
+  const canManage = (row: UserRow) => !row.asignada && (currentUser?.role === 'commercial_director'
     || currentUser?.role === 'dev'
     || !['admin', 'dev', 'operations_director', 'commercial_director'].includes(row.role));
-  const canResetPassword = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
+  const canResetPassword = ['commercial_director', 'dev', 'operations_director'].includes(currentUser?.role ?? '');
   const puedeReenviarAcceso = ['dev', 'commercial_director'].includes(currentUser?.role ?? '');
   /*
    * Reenviar el acceso genera otra clave temporal y la manda por correo; la anterior deja de valer.
@@ -277,7 +291,7 @@ export function EquipoYAccesos() {
       : null);
   // Administración, Desarrollo y Dirección de operaciones ajustan permisos; esta última sólo a su
   // equipo. Quien administra su empresa los ajusta dentro de ella: es el sentido del permiso.
-  const puedeVerPermisos = ['admin', 'dev', 'operations_director'].includes(currentUser?.role ?? '') || administraSuEmpresa;
+  const puedeVerPermisos = ['commercial_director', 'dev', 'operations_director'].includes(currentUser?.role ?? '') || administraSuEmpresa;
   const puedeEditarPermisos = puedeVerPermisos;
   const esOperaciones = currentUser?.role === 'operations_director';
   /*
@@ -510,7 +524,7 @@ export function EquipoYAccesos() {
           { key: 'phone', label: 'Teléfono', render: (row) => row.phone || '-' },
           { key: 'isActive', label: 'Acceso', render: (row) => <div className="access-state-cell"><button type="button" className={`access-toggle ${row.isActive ? 'active' : ''}`} onClick={() => toggleAccess(row)} disabled={updateMutation.isPending || row.id === currentUser?.id || !canManage(row)} aria-label={`${row.isActive ? 'Desactivar' : 'Activar'} a ${row.name}`}><i aria-hidden="true" /><span>{row.isActive ? 'Activo' : 'Inactivo'}</span></button>{row.mustChangePassword && <small>Clave temporal</small>}</div> },
           { key: 'createdAt', label: 'Creado', sortable: true, render: (row) => new Date(row.createdAt).toLocaleDateString('es-CL') },
-          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}{puedeReenviarAcceso && <button type="button" className="btn btn-outline btn-sm" onClick={() => reenviarAcceso.mutate(row)} disabled={Boolean(motivoSinReenvio(row)) || reenviarAcceso.isPending} title={motivoSinReenvio(row) ?? `Genera una clave nueva y la envía a ${row.email}`}>{reenviarAcceso.isPending && reenviarAcceso.variables?.id === row.id ? 'Reenviando...' : 'Reenviar acceso'}</button>}{puedeVerPermisos && (row.role !== 'dev' || currentUser?.role === 'dev') && <button type="button" className="btn btn-outline btn-sm" onClick={() => setPermisosDe(row)}>Permisos</button>}</div> },
+          { key: 'id', label: 'Acciones', render: (row) => <div className="table-actions"><button type="button" className="btn btn-outline btn-sm" onClick={() => openEditModal(row)} disabled={!canManage(row)}>Editar</button>{canResetPassword && <button type="button" className="btn btn-outline btn-sm" onClick={() => openReset(row)} disabled={!canManage(row) || row.id === currentUser?.id}>Resetear clave</button>}{puedeReenviarAcceso && <button type="button" className="btn btn-outline btn-sm" onClick={() => reenviarAcceso.mutate(row)} disabled={Boolean(motivoSinReenvio(row)) || reenviarAcceso.isPending} title={motivoSinReenvio(row) ?? `Genera una clave nueva y la envía a ${row.email}`}>{reenviarAcceso.isPending && reenviarAcceso.variables?.id === row.id ? 'Reenviando...' : 'Reenviar acceso'}</button>}{puedeVerPermisos && (row.role !== 'dev' || ['dev', 'commercial_director'].includes(currentUser?.role ?? '')) && <button type="button" className="btn btn-outline btn-sm" onClick={() => setPermisosDe(row)}>Permisos</button>}</div> },
         ]}
         data={users}
         emptyMessage="No hay usuarios para los filtros seleccionados"

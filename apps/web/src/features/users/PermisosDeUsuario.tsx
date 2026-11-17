@@ -21,7 +21,8 @@ type Nivel = 'none' | 'view' | 'edit' | 'manage';
 interface PermisoEfectivo { module: string; level: Nivel; source: 'role' | 'override'; moduleDisabled: boolean; productHidden: boolean }
 /** `own`: la empresa escrita en la cuenta de portal, que no se quita desde aqui. */
 interface AccesoEmpresa { clientId: string; source: 'pod' | 'assignment' | 'community-manager' | 'own' }
-interface AccionEfectiva { clave: string; modulo: string; nombre: string; ayuda: string; permitida: boolean; porNivel: boolean; origen: 'nivel' | 'ajuste' }
+/** `empresaDelAjuste` null con `origen: 'ajuste'`: ese ajuste vale en todas sus empresas. */
+interface AccionEfectiva { clave: string; modulo: string; nombre: string; ayuda: string; permitida: boolean; porNivel: boolean; origen: 'nivel' | 'ajuste'; empresaDelAjuste?: string | null }
 
 const NIVELES: Array<{ valor: Nivel; texto: string }> = [
   { valor: 'none', texto: 'Sin acceso' },
@@ -118,11 +119,40 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
     queryFn: () => api.get(`/users/${usuario.id}/actions${qs}`),
   });
   const cambiarAccion = useMutation({
+    /*
+     * La empresa elegida viaja en los dos sentidos.
+     *
+     * Iba en la consulta y no en el ajuste, así que elegir «Sólo en Casa Costanera» y conceder
+     * guardaba el ajuste **general**: regía en todos los locales de esa persona y la pantalla lo
+     * mostraba bajo el elegido, como si fuera de él. Y al quitarlo sin la empresa se borraba el
+     * general en vez del de esa empresa.
+     */
     mutationFn: ({ accion, valor }: { accion: string; valor: 'nivel' | 'si' | 'no' }) => valor === 'nivel'
-      ? api.delete(`/users/${usuario.id}/actions/${accion}`)
-      : api.put(`/users/${usuario.id}/actions/${accion}`, { allowed: valor === 'si', reason: porQue(), expiresAt: venceEn() }),
+      ? api.delete(`/users/${usuario.id}/actions/${accion}${qsParaGuardar()}`)
+      : api.put(`/users/${usuario.id}/actions/${accion}`, { allowed: valor === 'si', reason: porQue(), expiresAt: venceEn(), clientId: empresaParaGuardar() || undefined }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['acciones-de-usuario', usuario.id] }); triggerToast('Acción actualizada'); },
     onError: (error: Error) => triggerToast(error.message || 'No se pudo guardar el cambio', 'error'),
+  });
+
+  /**
+   * Convierte un ajuste general en uno de la empresa que se está mirando.
+   *
+   * Dos pasos y en este orden: primero se escribe el de la empresa, después se retira el general.
+   * Al revés, un fallo entre ambos dejaría a la persona sin el acceso que tenía; así, el peor caso
+   * es que queden los dos y el de la empresa manda igual —lo particular gana sobre lo general—,
+   * que es un estado inofensivo y visible en la misma pantalla.
+   *
+   * Existe porque la migración no convierte filas: el equipo interno no tiene empresa propia, una
+   * cuenta de portal puede alcanzar varias, y la empresa escrita en la cuenta puede estar pausada.
+   * Acotar es una decisión por caso, y éste es el sitio donde se tiene el caso delante.
+   */
+  const acotarAccion = useMutation({
+    mutationFn: async ({ accion, permitida }: { accion: string; permitida: boolean }) => {
+      await api.put(`/users/${usuario.id}/actions/${accion}`, { allowed: permitida, reason: porQue(), expiresAt: venceEn(), clientId: empresaParaGuardar() });
+      await api.delete(`/users/${usuario.id}/actions/${accion}`);
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['acciones-de-usuario', usuario.id] }); triggerToast('El ajuste quedó sólo en esta empresa'); },
+    onError: (error: Error) => triggerToast(error.message || 'No se pudo acotar el ajuste', 'error'),
   });
 
   const refrescar = () => {
@@ -135,8 +165,8 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
 
   const cambiarNivel = useMutation({
     mutationFn: ({ modulo, nivel }: { modulo: string; nivel: Nivel | 'cargo' }) => nivel === 'cargo'
-      ? api.delete(`/users/${usuario.id}/permissions/${modulo}${qs}`)
-      : api.put(`/users/${usuario.id}/permissions/${modulo}`, { level: nivel, reason: porQue(), expiresAt: venceEn(), clientId: empresaDelPermiso || undefined }),
+      ? api.delete(`/users/${usuario.id}/permissions/${modulo}${qsParaGuardar()}`)
+      : api.put(`/users/${usuario.id}/permissions/${modulo}`, { level: nivel, reason: porQue(), expiresAt: venceEn(), clientId: empresaParaGuardar() || undefined }),
     onSuccess: () => { refrescar(); triggerToast('Permiso actualizado. Se aplica en su próxima acción.'); },
     onError: fallo,
   });
@@ -151,6 +181,19 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
   const porModulo = new Map((permisos.data?.modules ?? []).map((item) => [item.module, item]));
   const acceso = accesos.data?.access;
   // Las que alcanza de verdad, para no ofrecer una empresa en la que no entra.
+  /*
+   * Con una sola empresa alcanzada, el ajuste se guarda **en ella** y no como general.
+   *
+   * El selector no se dibuja en ese caso —elegir entre una no es una decisión— y lo que se
+   * ajustaba quedaba general. Hoy da el mismo resultado; el día que a esa persona se le asigne un
+   * segundo local, ese permiso la sigue a los dos y nadie recuerda que se concedió para uno.
+   *
+   * Se usa sólo al escribir. Las consultas siguen pidiendo lo elegido, para que «En todas sus
+   * empresas» muestre de verdad lo general cuando se elige esa opción.
+   */
+  const empresaParaGuardar = () => empresaDelPermiso || (empresasQueAlcanza.length === 1 ? empresasQueAlcanza[0].id : '');
+  const qsParaGuardar = () => { const empresa = empresaParaGuardar(); return empresa ? `?clientId=${encodeURIComponent(empresa)}` : ''; };
+
   const empresasQueAlcanza = acceso === 'unrestricted'
     ? empresas
     : empresas.filter((empresa) => (Array.isArray(acceso) ? acceso : []).some((item) => item.clientId === empresa.id));
@@ -293,6 +336,26 @@ export function PermisosDeUsuario({ usuario, empresas, puedeEditar, limitadoAOpe
                         <option value="no">No permitir</option>
                       </select>
                     ) : <span className={`level-pill level-${accion.permitida ? 'edit' : 'none'}`}>{accion.permitida ? 'Sí' : 'No'}</span>}
+                    {/*
+                      Un ajuste general visto desde una empresa: hay que decirlo.
+
+                      Mirando «Sólo en Casa Costanera», un ajuste que vale en todas se lee como
+                      suyo. Decirlo es la mitad; la otra es poder acotarlo acá, viendo de quién es
+                      y qué empresas alcanza, que es la decisión que ninguna migración puede tomar.
+                    */}
+                    {accion.origen === 'ajuste' && accion.empresaDelAjuste == null && empresaDelPermiso && (
+                      <p className="permisos-usuario-general" role="status">
+                        <span>Este ajuste vale en todas sus empresas, no sólo en esta.</span>
+                        {puedeEditar && !bloqueado && !soloAdministracion && (
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            disabled={cambiarAccion.isPending}
+                            onClick={() => acotarAccion.mutate({ accion: accion.clave, permitida: accion.permitida })}
+                          >Acotar sólo a esta empresa</button>
+                        )}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>;

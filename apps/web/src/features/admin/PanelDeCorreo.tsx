@@ -436,8 +436,21 @@ export function PanelDeCorreo(): JSX.Element {
   */
   const soloSuEmpresa = user?.role === 'client';
   const empresaActiva = useEmpresaActiva();
-  const [empresa, setEmpresa] = useState(soloSuEmpresa ? (empresaActiva.clientId || user?.clientId || '') : '');
-  // Si cambia la empresa elegida en otra pantalla, estas plantillas la siguen.
+  /*
+   * Se entra con la empresa que ya se estaba mirando, sea del portal o del equipo.
+   *
+   * Para el equipo el vacío sigue siendo la plantilla de la agencia y el desplegable permite
+   * volver a ella: lo que cambia es sólo el punto de partida, porque quien lleva media jornada en
+   * un local no abre los correos para escribirle a otro.
+   */
+  const [empresa, setEmpresa] = useState(soloSuEmpresa ? (empresaActiva.clientId || user?.clientId || '') : empresaActiva.clientId);
+  /*
+   * Si cambia la empresa elegida en otra pantalla, estas plantillas la siguen.
+   *
+   * Sólo en el portal. Para el equipo interno el desplegable de acá es una elección deliberada
+   * —incluida la plantilla de la agencia— y arrastrarla desde el marco borraría lo que acaba de
+   * elegir, con un borrador a medio escribir encima.
+   */
   useEffect(() => {
     if (soloSuEmpresa && empresaActiva.clientId && empresaActiva.clientId !== empresa) {
       setEmpresa(empresaActiva.clientId);
