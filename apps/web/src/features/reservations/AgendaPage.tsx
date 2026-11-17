@@ -256,12 +256,14 @@ export function AgendaPage() {
     {activeForm && <AjustesDelDia abierto={ajustesAbiertos} onCerrar={() => setAjustesAbiertos(false)} local={activeForm} base={clientMode ? '/portal/reservations' : '/reservations'} />}
 
     <div className="agenda-controls">
-      {!clientMode && <select className="input" aria-label="Empresa" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); }}>
+      {!clientMode && <select className="input" aria-label="Empresa" value={clientId} onChange={(event) => { setClientId(event.target.value); setFormId(''); empresaActiva.elegir(event.target.value); }}>
         <option value="">Selecciona una empresa</option>
         {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
       </select>}
       <select className="input" aria-label="Página de reserva" value={effectiveFormId} disabled={!clientId || forms.length === 0} onChange={(event) => setFormId(event.target.value)}>
-        {forms.length === 0
+        {!clientId
+          ? <option value="">Primero elige una empresa</option>
+          : forms.length === 0
           ? <option value="">Sin páginas de reserva configuradas</option>
           : <>{!activeForm && <option value="">Elige una página de reserva</option>}{forms.map((form) => <option key={form.id} value={form.id}>{form.name}</option>)}</>}
       </select>
