@@ -624,7 +624,7 @@ export function ReservationsPage({ clientView = false }: { clientView?: boolean 
             id="selector-de-empresa"
             aria-label="Empresa cuyas reservas se están mirando"
             value={clientFilter}
-            onChange={(evento) => { setClientFilter(evento.target.value); resetFilters({ formId: '' }); setPage(1); }}
+            onChange={(evento) => { setClientFilter(evento.target.value); resetFilters({ formId: '' }); setPage(1); empresaActiva.elegir(evento.target.value); }}
           >
             <option value="">Todas las empresas</option>
             {clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}
